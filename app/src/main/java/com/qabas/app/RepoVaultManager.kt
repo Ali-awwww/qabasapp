@@ -82,23 +82,22 @@ object RepoVaultManager {
             } catch (_: Exception) {}
         }
 
-        // إذا كانت الخزانة فارغة، أضف المستودع المحفوظ إن وجد أو اتركها فارغة
+        // إذا كانت الخزانة فارغة، أضف المستودع الرسمي المعتمد
         if (list.isEmpty()) {
-            val curOwner = prefs.getString("build_center_owner", "") ?: ""
-            val curRepo = prefs.getString("build_center_repo", "") ?: ""
-            val curToken = prefs.getString("build_center_token", "") ?: ""
-            if (curOwner.isNotBlank() && curRepo.isNotBlank()) {
-                val defaultEntry = RepoVaultEntry(
-                    owner = curOwner,
-                    repo = curRepo,
-                    token = curToken,
-                    customName = "المستودع الرئيسي",
-                    description = "المستودع المخصص لمشروعك"
-                )
-                list.add(defaultEntry)
-                saveRepositories(context, list)
-                setActiveRepo(context, defaultEntry.id)
-            }
+            val curOwner = prefs.getString("build_center_owner", "Ali-awwww")?.ifBlank { "Ali-awwww" } ?: "Ali-awwww"
+            val curRepo = prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp"
+            val curToken = prefs.getString("build_center_token", "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")?.ifBlank { "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" } ?: "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"
+            val defaultEntry = RepoVaultEntry(
+                id = "repo_ali_awwww_qabasapp",
+                owner = curOwner,
+                repo = curRepo,
+                token = curToken,
+                customName = "مستودع قبس الرسمي (Ali-awwww/qabasapp)",
+                description = "مستودع GitHub المباشر لتحديثات xdelta وبناء الـ APK"
+            )
+            list.add(defaultEntry)
+            saveRepositories(context, list)
+            setActiveRepo(context, defaultEntry.id)
         }
 
         return list

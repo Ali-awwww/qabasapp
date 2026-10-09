@@ -57,7 +57,8 @@ enum class SettingsSubScreen {
     CYBER_HUD_PREVIEW,      // Keep for previewing design
     PERMISSIONS_HUB,       // Cybernetic Permissions & System Protection HUD
     CRASH_LOGS,            // Spatial Crash Guard & Diagnostics HUD
-    NOTIFICATION_SETTINGS  // Full Notification & Reminders Settings HUD
+    NOTIFICATION_SETTINGS, // Full Notification & Reminders Settings HUD
+    GITHUB_XDELTA_HUB      // Direct GitHub Connection & xdelta Updates HUD
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +87,7 @@ fun SettingsScreen(
             SettingsSubScreen.PERMISSIONS_HUB -> SettingsSubScreen.MAIN
             SettingsSubScreen.CRASH_LOGS -> SettingsSubScreen.COMMUNITY_SUPPORT
             SettingsSubScreen.NOTIFICATION_SETTINGS -> SettingsSubScreen.MAIN
+            SettingsSubScreen.GITHUB_XDELTA_HUB -> SettingsSubScreen.MAIN
             else -> SettingsSubScreen.MAIN
         }
     }
@@ -713,6 +715,16 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
                         )
 
+                        // 4.1 اتصال GitHub المباشر وتحديثات xdelta الذكية
+                        SettingsNavigationCard(
+                            title = Translator.tr("تحديثات xdelta ومستودع GitHub المباشر"),
+                            subtitle = Translator.tr("اتصال مباشر بـ Ali-awwww/qabasapp، فحص إصدارات xdelta، وتثبيت تفاضلي فائق السرعة"),
+                            icon = Icons.Default.CloudSync,
+                            badge = "تحديث تفاضلي ⚡",
+                            accentColor = Color(0xFF00E5FF),
+                            onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
+                        )
+
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // زر تسجيل الخروج السريع
@@ -893,6 +905,13 @@ fun SettingsScreen(
                             onClick = onNavigateToAboutUs
                         )
                         SettingsActionCard(
+                            title = "تحديثات xdelta ومستودع GitHub المباشر",
+                            subtitle = "اتصال مباشر بمستودع Ali-awwww/qabasapp وفحص وتثبيت الباتشات التفاضلية",
+                            icon = Icons.Default.Bolt,
+                            accentColor = Color(0xFF00E5FF),
+                            onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
+                        )
+                        SettingsActionCard(
                             title = "القواعد والسياسات الموحدة",
                             subtitle = "شروط الاستخدام، سياسة الخصوصية، وقواعد المجتمع",
                             icon = Icons.Default.Gavel,
@@ -958,6 +977,15 @@ fun SettingsScreen(
             // ==========================================
             SettingsSubScreen.NOTIFICATION_SETTINGS -> {
                 NotificationSettingsScreen(
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN }
+                )
+            }
+
+            // ==========================================
+            // ⚡ مركز تحديثات xdelta المباشر مع GitHub
+            // ==========================================
+            SettingsSubScreen.GITHUB_XDELTA_HUB -> {
+                GithubXdeltaHubScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN }
                 )
             }

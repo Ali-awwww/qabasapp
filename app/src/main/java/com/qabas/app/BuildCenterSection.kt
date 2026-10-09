@@ -76,13 +76,13 @@ fun BuildCenterSection(
     }
 
     var owner by remember(activeRepoEntry) {
-        mutableStateOf(activeRepoEntry?.owner ?: (prefs.getString("build_center_owner", "aliwalead2007-ship-it") ?: "aliwalead2007-ship-it"))
+        mutableStateOf(activeRepoEntry?.owner ?: (prefs.getString("build_center_owner", "Ali-awwww") ?: "Ali-awwww"))
     }
     var repo by remember(activeRepoEntry) {
-        mutableStateOf(activeRepoEntry?.repo ?: (prefs.getString("build_center_repo", "QabasStudio-") ?: "QabasStudio-"))
+        mutableStateOf(activeRepoEntry?.repo ?: (prefs.getString("build_center_repo", "qabasapp") ?: "qabasapp"))
     }
     var token by remember(activeRepoEntry) {
-        mutableStateOf(if (!activeRepoEntry?.token.isNullOrBlank()) activeRepoEntry!!.token else (prefs.getString("build_center_token", "") ?: ""))
+        mutableStateOf(if (!activeRepoEntry?.token.isNullOrBlank()) activeRepoEntry!!.token else (prefs.getString("build_center_token", "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") ?: "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"))
     }
 
     var showToken by remember { mutableStateOf(false) }

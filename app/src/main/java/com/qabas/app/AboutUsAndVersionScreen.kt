@@ -863,6 +863,14 @@ fun AboutUsAndVersionScreen(
                             Text("الذكاء الاصطناعي والإخراج:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
                             Text("Qabas StyleBrain + Gemini 2.5", color = GoldSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("قناة تحديثات GitHub المباشرة:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
+                            Text("Ali-awwww/qabasapp (xdelta3) ⚡", color = Color(0xFF00E5FF), fontFamily = RobotoMonoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -876,14 +884,19 @@ fun AboutUsAndVersionScreen(
                                         val info = UpdateManager.checkForUpdate(context, force = true)
                                         isCheckingUpdates = false
                                         if (info != null) {
-                                            updateResultMsg = "يوجد تحديث جديد متاح: v${info.versionName} 🚀"
+                                            val sizeDesc = if (info.deltaUrl != null && info.deltaSize > 0) {
+                                                "بحجم تفاضلي ${UpdateManager.formatSize(info.deltaSize)} فقط ⚡"
+                                            } else {
+                                                "بحجم ${UpdateManager.formatSize(info.apkSize)}"
+                                            }
+                                            updateResultMsg = "يوجد تحديث جديد متاح: v${info.versionName} $sizeDesc 🚀"
                                             UpdateManager.setPendingUpdate(info)
                                         } else {
-                                            updateResultMsg = "نسختك الحالية v${BuildConfig.VERSION_NAME} هي أحدث نسخة معتمدة ✓"
+                                            updateResultMsg = "نسختك الحالية v${BuildConfig.VERSION_NAME} متطابقة مع أحدث إصدار في المستودع ✓"
                                         }
                                     } catch (e: Exception) {
                                         isCheckingUpdates = false
-                                        updateResultMsg = "تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت."
+                                        updateResultMsg = "تعذر الاتصال بالمستودع، يرجى التحقق من اتصال الإنترنت."
                                     }
                                 }
                             },

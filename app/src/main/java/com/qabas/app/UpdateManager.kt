@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit
 object UpdateManager {
 
     private const val TAG = "UpdateManager"
-    private const val DEFAULT_REPO = "aliwalead2007-ship-it/QabasStudio-"
+    private const val DEFAULT_REPO = "Ali-awwww/qabasapp"
+    private const val DEFAULT_TOKEN = "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"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 
     fun getEffectiveRepo(context: Context): String {
@@ -51,7 +52,8 @@ object UpdateManager {
         if (!active?.token.isNullOrBlank()) return active!!.token.trim()
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val token = prefs.getString("build_center_token", null)?.trim()
-        return if (!token.isNullOrBlank()) token else null
+        if (!token.isNullOrBlank()) return token
+        return DEFAULT_TOKEN
     }
 
     private val client = OkHttpClient.Builder()
@@ -92,6 +94,23 @@ object UpdateManager {
         val apkSize: Long,
         /** روابط ثنائيات xdelta3 حسب المعمارية (اسم الملف → رابط) */
         val xdeltaUrls: Map<String, String> = emptyMap()
+    )
+
+    data class GitHubReleaseInspection(
+        val tagName: String,
+        val releaseName: String,
+        val publishedAt: String,
+        val releaseNotes: String,
+        val deltaAsset: String?,
+        val deltaSize: Long,
+        val deltaUrl: String?,
+        val apkAsset: String?,
+        val apkSize: Long,
+        val apkUrl: String?,
+        val xdeltaBinaries: List<String>,
+        val xdeltaUrls: Map<String, String>,
+        val totalAssetsCount: Int,
+        val isNewerThanCurrent: Boolean
     )
 
     /** مراحل عملية التحديث — تُستخدم لعرض تسمية دقيقة في الواجهة. */
@@ -243,6 +262,104 @@ object UpdateManager {
         } catch (e: Exception) {
             Log.e(TAG, "check failed: ${e.message}")
             null
+        }
+    }
+
+    /**
+     * فحص تفصيلي للمستودع وإصدارات xdelta المتاحة مع تفكيك كافة الأصول المرفقة (Assets)
+     */
+    suspend fun inspectGitHubRelease(
+        context: Context,
+        customRepo: String? = null,
+        customToken: String? = null
+    ): Result<GitHubReleaseInspection> = withContext(Dispatchers.IO) {
+        runCatching {
+            val targetRepo = customRepo?.trim()?.ifBlank { null } ?: getEffectiveRepo(context)
+            val targetToken = customToken?.trim()?.ifBlank { null } ?: getEffectiveToken(context)
+
+            val requestBuilder = Request.Builder()
+                .url("https://api.github.com/repos/$targetRepo/releases/latest")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "Qabas-Studio")
+
+            if (!targetToken.isNullOrBlank()) {
+                requestBuilder.header("Authorization", "Bearer $targetToken")
+            }
+
+            val response = client.newCall(requestBuilder.build()).execute()
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: ""
+                throw IllegalStateException("فشل الاتصال بـ GitHub (${response.code}): ${response.message}")
+            }
+
+            val body = response.body?.string() ?: throw IllegalStateException("استجابة فارغة من خادم GitHub")
+            val json = org.json.JSONObject(body)
+            val tagName = json.optString("tag_name", "")
+            val name = json.optString("name", tagName)
+            val publishedAt = json.optString("published_at", "")
+            val releaseNotes = json.optString("body", "")
+            val assets = json.optJSONArray("assets") ?: org.json.JSONArray()
+
+            var deltaAsset: String? = null
+            var deltaSize = 0L
+            var deltaUrl: String? = null
+            var apkAsset: String? = null
+            var apkSize = 0L
+            var apkUrl: String? = null
+            val xdeltaBinaries = mutableListOf<String>()
+            val xdeltaUrls = mutableMapOf<String, String>()
+
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val aName = asset.optString("name", "")
+                val aSize = asset.optLong("size", 0L)
+                val aUrl = asset.optString("browser_download_url", "")
+                when {
+                    aName.endsWith(".delta") -> {
+                        deltaAsset = aName
+                        deltaSize = aSize
+                        deltaUrl = aUrl
+                    }
+                    aName.endsWith(".apk") -> {
+                        apkAsset = aName
+                        apkSize = aSize
+                        apkUrl = aUrl
+                    }
+                    aName.startsWith("xdelta3-") -> {
+                        xdeltaBinaries.add(aName)
+                        xdeltaUrls[aName] = aUrl
+                    }
+                }
+            }
+
+            val currentVersionCode = getCurrentVersionCode(context)
+            val currentVersionName = getCurrentVersionName(context)
+            val releaseVersionCode = parseVersionCode(tagName)
+            val tagHasBuildNumber = tagName.contains("+")
+            val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
+
+            val isNewer = if (tagHasBuildNumber) {
+                releaseVersionCode > currentVersionCode
+            } else {
+                compareVersionNames(releaseVersionName, currentVersionName) > 0
+            }
+
+            GitHubReleaseInspection(
+                tagName = tagName,
+                releaseName = name,
+                publishedAt = publishedAt,
+                releaseNotes = releaseNotes,
+                deltaAsset = deltaAsset,
+                deltaSize = deltaSize,
+                deltaUrl = deltaUrl,
+                apkAsset = apkAsset,
+                apkSize = apkSize,
+                apkUrl = apkUrl,
+                xdeltaBinaries = xdeltaBinaries,
+                xdeltaUrls = xdeltaUrls,
+                totalAssetsCount = assets.length(),
+                isNewerThanCurrent = isNewer
+            )
         }
     }
 
