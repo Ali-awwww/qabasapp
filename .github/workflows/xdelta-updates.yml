@@ -181,12 +181,12 @@ jobs:
             echo "⚡ Computing xdelta3 differential patch..."
             echo "Source (Base): $PREV_APK ($(stat -c%s "$PREV_APK") bytes)"
             echo "Target (New):  $TARGET_APK ($(stat -c%s "$TARGET_APK") bytes)"
-            
+
             xdelta3 -9 -e -s "$PREV_APK" "$TARGET_APK" "$DELTA_PATH"
-            
+
             VERIFY_APK="dist/verify-reconstructed.apk"
             xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"
-            
+
             ORIGINAL_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
             VERIFY_MD5=$(md5sum "$VERIFY_APK" | awk '{print $1}')
             rm -f "$VERIFY_APK"
@@ -224,7 +224,6 @@ jobs:
           echo "📤 Uploading assets to release $TARGET_TAG..."
 
           ASSETS_TO_UPLOAD=()
-
           for bin in xdelta_bins/xdelta3-*; do
             if [ -f "$bin" ]; then
               ASSETS_TO_UPLOAD+=("$bin")
@@ -244,16 +243,19 @@ jobs:
           if [ "$DELTA_CREATED" = "true" ]; then
             DELTA_FILE_NAME=$(basename "$DELTA_PATH")
             DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
-            NOTES_APPEND="
 
----
-### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)
-* **ملف الـ Patch التفاضلي:** \`$DELTA_FILE_NAME\` ($DELTA_SIZE_MB MB)
-* **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!
-* **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64)."
+            cat << EOF | sed 's/^ *//' > notes_append.md
 
-            CURRENT_NOTES=$(gh release view "$TARGET_TAG" --json body --jq '.body')
-            gh release edit "$TARGET_TAG" --notes "${CURRENT_NOTES}${NOTES_APPEND}"
+            ---
+            ### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)
+            * **ملف الـ Patch التفاضلي:** \`$DELTA_FILE_NAME\` ($DELTA_SIZE_MB MB)
+            * **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!
+            * **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64).
+            EOF
+
+            gh release view "$TARGET_TAG" --json body --jq '.body' > notes_current.md
+            cat notes_append.md >> notes_current.md
+            gh release edit "$TARGET_TAG" --notes-file notes_current.md
             echo "✅ Release notes updated with delta stats."
           fi
 
