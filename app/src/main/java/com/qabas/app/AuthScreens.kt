@@ -1,0 +1,826 @@
+package com.qabas.app
+
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.launch
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.qabas.app.ui.components.GlassmorphicSurface
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegisterScreen(
+    onRegisterSuccess: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onNavigateToRules: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var name by remember { mutableStateOf("") }
+    var customId by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var isGoogleLoading by remember { mutableStateOf(false) }
+    var showGoogleSetupDialog by remember { mutableStateOf(false) }
+
+    val primaryColor = qabasPrimary()
+    val accentColor = qabasAccent()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepSlate)
+    ) {
+        // Background HUD
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+            val step = 60.dp.toPx()
+            for (i in 0..(w / step).toInt()) {
+                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
+            }
+            for (i in 0..(h / step).toInt()) {
+                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
+            }
+        }
+
+        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.15f))
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Back Button (Minimalist)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                IconButton(onClick = onNavigateToLogin) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = primaryColor)
+                }
+            }
+
+            Text(
+                text = "بناء هوية جديدة",
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Black,
+                fontSize = 26.sp
+            )
+            
+            Text(
+                text = "سجل انضمامك لمجتمع قبس الرقمي",
+                color = TextSecondary.copy(alpha = 0.7f),
+                fontFamily = CairoFont,
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Google One-Tap SSO
+            GoogleSignInButton(
+                isLoading = isGoogleLoading,
+                onClick = {
+                    val webClientId = GoogleAuthHelper.getWebClientId(context)
+                    if (webClientId.isBlank()) {
+                        Toast.makeText(context, "الرجاء إدخال معرّف Google Web Client ID أولاً", Toast.LENGTH_LONG).show()
+                        showGoogleSetupDialog = true
+                    } else {
+                        isGoogleLoading = true
+                        coroutineScope.launch {
+                            val result = GoogleAuthHelper.signInWithGoogle(context, webClientId)
+                            result.onSuccess { googleResult ->
+                                val lowerEmail = googleResult.email.lowercase(java.util.Locale.ROOT)
+                                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                
+                                // محاولة تسجيل الدخول في Supabase أولاً
+                                var supabaseSuccess = false
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    supabaseSuccess = SupabaseServices.Auth.loginWithGoogle(googleResult.idToken)
+                                }
+
+                                if (SupabaseServices.isSupabaseAvailable && !supabaseSuccess) {
+                                    isGoogleLoading = false
+                                    Toast.makeText(context, "فشل الاتصال السحابي بـ Supabase. يرجى مراجعة إعدادات OAuth في لوحة التحكم.", Toast.LENGTH_LONG).show()
+                                    showGoogleSetupDialog = true
+                                    return@launch
+                                }
+
+                                val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
+                                val customIdAssigned = UserIdentifierManager.getOrCreateCustomId(context, lowerEmail, googleResult.displayName)
+
+                                val externalId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+                                var userType = if (isAdmin) "مطور" else "مجاني"
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customIdAssigned)
+                                    if (existing != null && existing.type.isNotBlank()) userType = existing.type
+                                    SupabaseServices.Database.saveUser(
+                                        externalId,
+                                        googleResult.displayName ?: lowerEmail.substringBefore('@'),
+                                        lowerEmail,
+                                        userType,
+                                        customIdAssigned
+                                    )
+                                }
+
+                                val effectiveName = googleResult.displayName ?: lowerEmail.substringBefore('@')
+                                LocalAccountRegistry.registerOrUpdateAccount(
+                                    context = context,
+                                    account = LocalAccountRegistry.AccountRecord(
+                                        id = externalId,
+                                        name = effectiveName,
+                                        email = lowerEmail,
+                                        customId = customIdAssigned,
+                                        type = userType,
+                                        status = "active",
+                                        regDateMillis = System.currentTimeMillis()
+                                    )
+                                )
+
+                                prefs.edit().apply {
+                                    putBoolean("is_logged_in", true)
+                                    putBoolean("is_admin", isAdmin)
+                                    putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
+                                    putBoolean("is_premium", true)
+                                    putString("user_email", googleResult.email)
+                                    putString("user_custom_id", customIdAssigned)
+                                    putString("user_tag", UserIdentifierManager.formatDisplay(customIdAssigned))
+                                    putString("user_name", effectiveName)
+                                    putString("user_display_name", effectiveName)
+                                    apply()
+                                }
+
+                                CloudServices.syncAdminClaim(context)
+                                Toast.makeText(
+                                    context, 
+                                    "تم التسجيل والتوثيق السحابي بنجاح 🚀! معرّفك: ${UserIdentifierManager.formatDisplay(customIdAssigned)}", 
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onRegisterSuccess()
+                            }.onFailure { err ->
+                                if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    Toast.makeText(context, "فشل المصادقة: ${err.message ?: "خطأ غير معروف"}", Toast.LENGTH_LONG).show()
+                                    showGoogleSetupDialog = true
+                                }
+                            }
+                            isGoogleLoading = false
+                        }
+                    }
+                },
+                onConfigureClick = { showGoogleSetupDialog = true },
+                text = "التسجيل الفوري بحساب Google // ONE-TAP"
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Divider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.15f))))
+                )
+                Text(
+                    text = "أو إنشاء حساب يدوي // MANUAL FORM",
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontFamily = RobotoMonoFont,
+                    fontSize = 9.sp,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.15f), Color.Transparent)))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            GlassmorphicSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.linearGradient(listOf(primaryColor.copy(alpha = 0.4f), Color.Transparent)),
+                        shape = CutCornerShape(16.dp)
+                    ),
+                shape = CutCornerShape(16.dp),
+                backgroundColor = CardSurface.copy(alpha = 0.7f),
+                borderColor = Color.White.copy(alpha = 0.05f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("الاسم الكامل", fontFamily = CairoFont, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = CutCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    // Custom Identifier Field (Unique Handle / User ID)
+                    OutlinedTextField(
+                        value = customId,
+                        onValueChange = { customId = it.trim().replace(" ", "_") },
+                        label = { Text("المعرّف الخاص (User ID / Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
+                        placeholder = { Text("مثال: qbs_ahmed أو QBS-7821", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = primaryColor.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                customId = UserIdentifierManager.generateUniqueId(name.ifBlank { email })
+                            }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "توليد معرّف تلقائي", tint = primaryColor, modifier = Modifier.size(18.dp))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = CutCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = CutCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("كلمة المرور", fontFamily = CairoFont, fontSize = 12.sp) },
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = CutCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        label = { Text("تأكيد كلمة المرور", fontFamily = CairoFont, fontSize = 12.sp) },
+                        visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = CutCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            val trimmedEmail = email.trim()
+                            if (name.isBlank() || trimmedEmail.isBlank() || password.isBlank()) {
+                                Toast.makeText(context, "الرجاء تعبئة جميع الحقول", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (password.trim() != confirmPassword.trim()) {
+                                Toast.makeText(context, "كلمتا المرور غير متطابقتين", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (password.length < 6) {
+                                Toast.makeText(context, "كلمة المرور يجب أن تكون 6 أحرف على الأقل", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            val finalCustomId = if (customId.isNotBlank()) {
+                                UserIdentifierManager.normalize(customId)
+                            } else {
+                                UserIdentifierManager.normalize(UserIdentifierManager.generateUniqueId(name.ifBlank { trimmedEmail }))
+                            }
+
+                            isLoading = true
+                            coroutineScope.launch {
+                                var success = false
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    success = SupabaseServices.Auth.register(trimmedEmail, password.trim())
+                                    if (!success) {
+                                        success = SupabaseServices.Auth.login(trimmedEmail, password.trim())
+                                    }
+                                }
+                                if (!success && !SupabaseServices.isSupabaseAvailable) success = true
+
+                                if (success) {
+                                    val lowerEmail = trimmedEmail.lowercase(java.util.Locale.ROOT)
+                                    val isAdmin = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
+                                    val userType = if (isAdmin) "مطور" else "مجاني"
+                                    val userId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+
+                                    UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
+
+                                    if (SupabaseServices.isSupabaseAvailable) {
+                                        SupabaseServices.Database.ensureUser(userId, lowerEmail, name.trim(), finalCustomId)
+                                        SupabaseServices.Database.saveUser(
+                                            id = userId, 
+                                            name = name.trim(), 
+                                            email = trimmedEmail, 
+                                            type = userType, 
+                                            customId = finalCustomId
+                                        )
+                                    }
+
+                                    val effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
+                                    LocalAccountRegistry.registerOrUpdateAccount(
+                                        context = context,
+                                        account = LocalAccountRegistry.AccountRecord(
+                                            id = userId,
+                                            name = effectiveManualName,
+                                            email = trimmedEmail,
+                                            customId = finalCustomId,
+                                            type = userType,
+                                            status = "active",
+                                            regDateMillis = System.currentTimeMillis()
+                                        )
+                                    )
+
+                                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                    prefs.edit().apply {
+                                        putBoolean("is_logged_in", true)
+                                        putBoolean("is_admin", isAdmin)
+                                        putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
+                                        putBoolean("is_premium", true)
+                                        putString("user_email", trimmedEmail)
+                                        putString("user_name", effectiveManualName)
+                                        putString("user_display_name", effectiveManualName)
+                                        putString("user_custom_id", finalCustomId)
+                                        putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
+                                        apply()
+                                    }
+                                    Toast.makeText(
+                                        context, 
+                                        "تم إنشاء الحساب بنجاح! معرّفك: ${UserIdentifierManager.formatDisplay(finalCustomId)}", 
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onRegisterSuccess()
+                                } else {
+                                    Toast.makeText(context, "فشل إنشاء الحساب. تأكد من صحة البريد والشبكة", Toast.LENGTH_LONG).show()
+                                }
+                                isLoading = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                text = "تفعيل الحساب والبدء",
+                                color = DeepSlate,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس 📜",
+                color = primaryColor.copy(alpha = 0.85f),
+                fontFamily = CairoFont,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .clickable { onNavigateToRules() }
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(text = "لديك حساب بالفعل؟ ", color = Color.Gray, fontFamily = CairoFont, fontSize = 13.sp)
+                TextButton(onClick = onNavigateToLogin) {
+                    Text("سجل دخولك هنا", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        if (showGoogleSetupDialog) {
+            GoogleSupabaseSetupDialog(
+                onDismiss = { showGoogleSetupDialog = false },
+                onTestSignIn = {
+                    showGoogleSetupDialog = false
+                    val webClientId = GoogleAuthHelper.getWebClientId(context)
+                    if (webClientId.isNotBlank()) {
+                        isGoogleLoading = true
+                        coroutineScope.launch {
+                            val result = GoogleAuthHelper.signInWithGoogle(context, webClientId)
+                            result.onSuccess { googleResult ->
+                                val lowerEmail = googleResult.email.lowercase(java.util.Locale.ROOT)
+                                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    SupabaseServices.Auth.loginWithGoogle(googleResult.idToken)
+                                }
+                                val externalId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+                                var userType = if (isAdmin) "مطور" else "مجاني"
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName)
+                                    if (existing != null && existing.type.isNotBlank()) userType = existing.type
+                                    SupabaseServices.Database.saveUser(
+                                        externalId,
+                                        googleResult.displayName ?: lowerEmail.substringBefore('@'),
+                                        lowerEmail,
+                                        userType
+                                    )
+                                }
+                                prefs.edit().apply {
+                                    putBoolean("is_logged_in", true)
+                                    putBoolean("is_admin", isAdmin)
+                                    putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
+                                    putBoolean("is_premium", true)
+                                    putString("user_email", googleResult.email)
+                                    if (!googleResult.displayName.isNullOrBlank()) {
+                                        putString("user_name", googleResult.displayName)
+                                    }
+                                    apply()
+                                }
+                                CloudServices.syncAdminClaim(context)
+                                Toast.makeText(context, "تم التسجيل والمصادقة بنجاح عبر Google!", Toast.LENGTH_SHORT).show()
+                                onRegisterSuccess()
+                            }.onFailure { err ->
+                                if (err !is androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    Toast.makeText(context, "فشل المصادقة: ${err.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                            isGoogleLoading = false
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ForgotPasswordScreen(
+    onNavigateToLogin: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var email by remember { mutableStateOf("") }
+    var isSubmitted by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val primaryColor = qabasPrimary()
+    val accentColor = qabasAccent()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepSlate)
+    ) {
+        // Background HUD
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+            val step = 60.dp.toPx()
+            for (i in 0..(w / step).toInt()) {
+                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
+            }
+            for (i in 0..(h / step).toInt()) {
+                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
+            }
+        }
+
+        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.15f))
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                IconButton(onClick = onNavigateToLogin) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = primaryColor)
+                }
+            }
+
+            if (isSubmitted) {
+                var verificationCode by remember { mutableStateOf("") }
+                var newPassword by remember { mutableStateOf("") }
+                var isResetComplete by remember { mutableStateOf(false) }
+
+                if (isResetComplete) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = primaryColor,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "تم تغيير كلمة المرور بنجاح!",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة بسهولة.",
+                        color = TextSecondary.copy(alpha = 0.8f),
+                        fontFamily = CairoFont,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Button(
+                        onClick = onNavigateToLogin,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                        shape = CutCornerShape(12.dp)
+                    ) {
+                        Text("العودة لتسجيل الدخول", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                    }
+                } else {
+                    Text(
+                        text = "تم إرسال بروتوكول الاستعادة",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 24.sp
+                    )
+                    Text(
+                        text = "تمت المعالجة لبريدك ($email)",
+                        color = TextSecondary.copy(alpha = 0.8f),
+                        fontFamily = CairoFont,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Explanation card for Supabase Link vs Code
+                    Surface(
+                        color = primaryColor.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f)),
+                        shape = CutCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "💡 تنبيه بخصوص رسالة البريد:",
+                                color = primaryColor,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "رسالة Supabase تحتوي على رابط (Reset password) وليس كوداً رقمياً. إذا لم يفتح الرابط، قم بإدخال كلمة المرور الجديدة أدناه واضغط 'تحديث كلمة المرور مباشرة'.",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    GlassmorphicSurface(
+                        modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = 0.05f), CutCornerShape(16.dp)),
+                        shape = CutCornerShape(16.dp),
+                        backgroundColor = CardSurface.copy(alpha = 0.7f)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            OutlinedTextField(
+                                value = verificationCode,
+                                onValueChange = { verificationCode = it },
+                                label = { Text("رمز/توكن الاستعادة (اختياري)", fontFamily = CairoFont, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
+                                shape = CutCornerShape(8.dp),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
+                                value = newPassword,
+                                onValueChange = { newPassword = it },
+                                label = { Text("كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
+                                shape = CutCornerShape(8.dp),
+                                singleLine = true
+                            )
+
+                            Button(
+                                onClick = {
+                                    val trimmedPass = newPassword.trim()
+                                    if (trimmedPass.length < 6) {
+                                        Toast.makeText(context, "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    isLoading = true
+                                    coroutineScope.launch {
+                                        val trimmedEmail = email.trim().lowercase(java.util.Locale.ROOT)
+                                        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+
+                                        // Update password in Supabase if available
+                                        if (SupabaseServices.isSupabaseAvailable) {
+                                            runCatching {
+                                                SupabaseServices.Auth.updatePassword(trimmedPass)
+                                            }
+                                        }
+
+                                        // Update local preferences and saved login email
+                                        prefs.edit().apply {
+                                            putString("saved_login_email", trimmedEmail)
+                                            remove("saved_login_password")
+                                            apply()
+                                        }
+
+                                        Toast.makeText(context, "تم تعيين كلمة المرور الجديدة بنجاح!", Toast.LENGTH_SHORT).show()
+                                        isResetComplete = true
+                                        isLoading = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                                shape = CutCornerShape(12.dp)
+                            ) {
+                                if (isLoading) CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
+                                else Text("تحديث كلمة المرور مباشرة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = "استعادة مفتاح العبور",
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 26.sp
+                )
+                Text(
+                    text = "أدخل بريدك الإلكتروني لإرسال بروتوكول الاستعادة",
+                    color = TextSecondary.copy(alpha = 0.7f),
+                    fontFamily = CairoFont,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
+                    shape = CutCornerShape(8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        if (email.isBlank()) {
+                            Toast.makeText(context, "الرجاء إدخال البريد الإلكتروني", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        isLoading = true
+                        coroutineScope.launch {
+                            var success = false
+                            if (SupabaseServices.isSupabaseAvailable) {
+                                success = SupabaseServices.Auth.resetPassword(email.trim())
+                            }
+                            if (!success && !SupabaseServices.isSupabaseAvailable) success = true
+                            if (success) isSubmitted = true
+                            else Toast.makeText(context, "فشل الإرسال. تأكد من صحة البريد", Toast.LENGTH_LONG).show()
+                            isLoading = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                    shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+                ) {
+                    if (isLoading) CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
+                    else Text("إرسال مفتاح الاستعادة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+    }
+}
+

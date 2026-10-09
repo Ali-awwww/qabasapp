@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+
+# CORE OPERATIONAL CONSTITUTION (MANDATORY LAW)
+All assistants working on this codebase MUST read and strictly adhere to `/CORE_OPERATIONAL_PROMPT.md`.
+
+## Core Directives Summary:
+1. **Lying is Strictly Forbidden:** All interactions, reports, and code must be grounded in 100% honesty and integrity.
+2. **100% Completion Rule:** Complete tasks fully. If unable to complete in a single turn/session, request permission to continue until achieving full 100% completion.
+3. **Proactive Resourcefulness:** If a requested feature lacks certain components, proactively seek out and implement similar features to fill the gaps.
+4. **Immediate Flaw Rectification:** Whenever a flaw or bug is discovered, promptly address and fix it.
+5. **No Dummy/Experimental Data Residue:** Any dummy or test data created during testing must be systematically cleaned up and deleted.
+6. **No Command Substitution:** Only use designated, available terminal commands without substitution.
+7. **Design Language:** Execute and support "Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)" wherever applicable.

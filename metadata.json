@@ -1,0 +1,6 @@
+{
+  "name": "استوديو قبس",
+  "description": "استوديو قبس لصناعة المحتوى المرئي والقرآني والذكاء الاصطناعي",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

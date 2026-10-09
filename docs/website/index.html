@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة قبس الرقمية | بوابة الدروس والمحاضرات والتحديثات</title>
+    <meta name="description" content="البوابة الرسمية لتطبيق ومنظومة قبس الدعوية - مكتبة المحاضرات، التلاوات الصوتية، وآخر التحديثات والإصدارات.">
+    
+    <!-- خطوط جوجل العربية الفاخرة -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Amiri:ital,wght@0,700;1,400&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        qabas: {
+                            dark: '#070B14',
+                            card: '#0E1726',
+                            border: '#1E293B',
+                            gold: '#E5B842',
+                            goldHover: '#F7CE65',
+                            cyan: '#00E5FF',
+                            emerald: '#10B981'
+                        }
+                    },
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                        amiri: ['Amiri', 'serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #070B14;
+            color: #F8FAFC;
+            font-family: 'Cairo', sans-serif;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(229, 184, 66, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 229, 255, 0.05) 0px, transparent 50%);
+        }
+        .glass-card {
+            background: rgba(14, 23, 38, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(229, 184, 66, 0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            border-color: rgba(229, 184, 66, 0.5);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px -10px rgba(229, 184, 66, 0.15);
+        }
+        .gold-gradient-text {
+            background: linear-gradient(135deg, #FDE68A 0%, #E5B842 50%, #B4831B 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #1E293B;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #E5B842;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-qabas-gold selection:text-qabas-dark">
+
+    <!-- ── 1. القائمة العلوية الفاخرة (Header) ── -->
+    <header class="sticky top-0 z-50 bg-[#070B14]/80 backdrop-blur-md border-b border-qabas-border/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-qabas-gold to-amber-600 flex items-center justify-center shadow-lg shadow-qabas-gold/20 border border-qabas-gold/40">
+                    <i class="fa-solid fa-fire-flame-curved text-qabas-dark text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-wide gold-gradient-text">قَبَس</h1>
+                    <p class="text-[10px] text-gray-400 font-mono tracking-widest uppercase">Spiritual Ecosystem Hub</p>
+                </div>
+            </div>
+
+            <!-- روابط التصفح السريع -->
+            <nav class="hidden md:flex items-center gap-8 font-semibold text-sm">
+                <a href="#lectures" class="text-gray-300 hover:text-qabas-gold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-qabas-gold"></i> المحاضرات والدروس
+                </a>
+                <a href="#audio" class="text-gray-300 hover:text-qabas-gold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-microphone-lines text-qabas-cyan"></i> التسجيلات الصوتية
+                </a>
+                <a href="#updates" class="text-gray-300 hover:text-qabas-gold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-sparkles text-qabas-emerald"></i> سجل التحديثات
+                </a>
+                <a href="#community" class="text-gray-300 hover:text-qabas-gold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-users text-purple-400"></i> المجتمع
+                </a>
+            </nav>
+
+            <!-- زر تحميل التطبيق -->
+            <div class="flex items-center gap-3">
+                <a href="#download" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-qabas-gold to-amber-600 text-qabas-dark font-bold text-sm shadow-md hover:shadow-qabas-gold/30 hover:scale-105 transition-all flex items-center gap-2">
+                    <i class="fa-brands fa-android text-base"></i>
+                    <span>تحميل التطبيق</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── 2. قسم الاستقبال والتقديم (Hero Section) ── -->
+    <section class="relative pt-12 pb-20 px-4 overflow-hidden text-center">
+        <div class="max-w-4xl mx-auto space-y-6">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-qabas-gold/10 border border-qabas-gold/30 text-qabas-gold text-xs font-bold">
+                <i class="fa-solid fa-bolt-lightning text-xs"></i>
+                <span>بوابة الدعم والموارد الرقمية لتطبيق قبس 1.2.1</span>
+            </div>
+
+            <h2 class="text-3xl sm:text-5xl font-black text-white leading-tight">
+                منارة المحتوى الدعوي والتقني <br>
+                <span class="gold-gradient-text">في مساحة رقمية واحدة</span>
+            </h2>
+
+            <p class="text-gray-300 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+                استمع إلى سلاسل الدروس، حمل المحاضرات والتسجيلات عالية النقاء، وتعرف على أحدث الميزات المضافة في تطبيق قبس.
+            </p>
+
+            <!-- بطاقات الإحصاءات السريعة -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 max-w-3xl mx-auto">
+                <div class="glass-card p-4 rounded-2xl">
+                    <div class="text-2xl font-black text-qabas-gold font-mono">+120</div>
+                    <div class="text-xs text-gray-400 font-semibold mt-1">محاضرة ودرس</div>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <div class="text-2xl font-black text-qabas-cyan font-mono">+350</div>
+                    <div class="text-xs text-gray-400 font-semibold mt-1">تلاوة ومقطع صوتي</div>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <div class="text-2xl font-black text-qabas-emerald font-mono">100%</div>
+                    <div class="text-xs text-gray-400 font-semibold mt-1">مجاني وبدون إعلانات</div>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <div class="text-2xl font-black text-purple-400 font-mono">v1.2.1</div>
+                    <div class="text-xs text-gray-400 font-semibold mt-1">أحدث إصدار نشط</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 3. قسم المحاضرات والدروس (Lectures Section) ── -->
+    <section id="lectures" class="py-16 px-4 bg-[#0A101D]/70 border-y border-qabas-border/60">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-10">
+                <div>
+                    <h3 class="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
+                        <i class="fa-solid fa-graduation-cap text-qabas-gold"></i>
+                        سلاسل الدروس والمحاضرات
+                    </h3>
+                    <p class="text-sm text-gray-400 mt-2">محاضرات منتقاة لكبار العلماء والدعاة مع روابط الاستماع والتحميل المباشر.</p>
+                </div>
+                <div class="mt-4 md:mt-0 flex gap-2 overflow-x-auto pb-2">
+                    <button class="px-4 py-1.5 rounded-lg bg-qabas-gold text-qabas-dark font-bold text-xs">الكل</button>
+                    <button class="px-4 py-1.5 rounded-lg bg-qabas-card border border-qabas-border text-gray-300 hover:text-white font-semibold text-xs">العقيدة والتزكية</button>
+                    <button class="px-4 py-1.5 rounded-lg bg-qabas-card border border-qabas-border text-gray-300 hover:text-white font-semibold text-xs">السيرة والشمائل</button>
+                    <button class="px-4 py-1.5 rounded-lg bg-qabas-card border border-qabas-border text-gray-300 hover:text-white font-semibold text-xs">تدبر القرآن</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- بطاقة درس 1 -->
+                <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between text-xs text-qabas-gold font-semibold mb-3">
+                            <span class="bg-qabas-gold/10 px-2.5 py-1 rounded-md border border-qabas-gold/30">سلسلة تدبرية</span>
+                            <span class="font-mono">45 دقيقة</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-white mb-2">قواعد السير إلى الله وتزكية القلوب</h4>
+                        <p class="text-xs text-gray-400 leading-relaxed mb-4">شرح أصول التزكية، معالجة آفات النفس، وبناء العزيمة على الاستمرار في الطاعات.</p>
+                    </div>
+                    <div class="pt-4 border-t border-qabas-border/60 flex items-center justify-between">
+                        <button onclick="playDemoAudio('قواعد السير إلى الله')" class="text-xs text-qabas-gold font-bold hover:underline flex items-center gap-2">
+                            <i class="fa-solid fa-circle-play text-sm"></i> استماع فوري
+                        </button>
+                        <a href="#" class="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                            <i class="fa-solid fa-download"></i> تحميل MP3
+                        </a>
+                    </div>
+                </div>
+
+                <!-- بطاقة درس 2 -->
+                <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between text-xs text-qabas-cyan font-semibold mb-3">
+                            <span class="bg-qabas-cyan/10 px-2.5 py-1 rounded-md border border-qabas-cyan/30">شمائل نبوية</span>
+                            <span class="font-mono">38 دقيقة</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-white mb-2">أخلاق النبي ﷺ في التعامل مع الناس</h4>
+                        <p class="text-xs text-gray-400 leading-relaxed mb-4">محطات مضيئة من حياة الحبيب ﷺ وكيف نطبق خلقه العظيم في زماننا وبيئات عملنا.</p>
+                    </div>
+                    <div class="pt-4 border-t border-qabas-border/60 flex items-center justify-between">
+                        <button onclick="playDemoAudio('أخلاق النبي ﷺ')" class="text-xs text-qabas-cyan font-bold hover:underline flex items-center gap-2">
+                            <i class="fa-solid fa-circle-play text-sm"></i> استماع فوري
+                        </button>
+                        <a href="#" class="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                            <i class="fa-solid fa-download"></i> تحميل MP3
+                        </a>
+                    </div>
+                </div>
+
+                <!-- بطاقة درس 3 -->
+                <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between text-xs text-qabas-emerald font-semibold mb-3">
+                            <span class="bg-qabas-emerald/10 px-2.5 py-1 rounded-md border border-qabas-emerald/30">فقه وعمل</span>
+                            <span class="font-mono">52 دقيقة</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-white mb-2">الإتقان وصناعة الأثر في العصر الرقمي</h4>
+                        <p class="text-xs text-gray-400 leading-relaxed mb-4">كيف يحول المسلم مهاراته التقنية والإبداعية إلى صدقة جارية وأثر مبارك مستدام.</p>
+                    </div>
+                    <div class="pt-4 border-t border-qabas-border/60 flex items-center justify-between">
+                        <button onclick="playDemoAudio('الإتقان وصناعة الأثر')" class="text-xs text-qabas-emerald font-bold hover:underline flex items-center gap-2">
+                            <i class="fa-solid fa-circle-play text-sm"></i> استماع فوري
+                        </button>
+                        <a href="#" class="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                            <i class="fa-solid fa-download"></i> تحميل MP3
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 4. قسم التسجيلات والمشغل الصوتي (Audio & Quran Recordings) ── -->
+    <section id="audio" class="py-16 px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-10 text-center max-w-2xl mx-auto">
+                <h3 class="text-2xl sm:text-3xl font-black text-white flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-microphone-lines text-qabas-cyan"></i>
+                    المكتبة الصوتية والتلاوات الخاشعة
+                </h3>
+                <p class="text-sm text-gray-400 mt-2">تسجيلات قرآنية، أدعية، ومؤثرات صوتية هادفة متزامنة مع التطبيق.</p>
+            </div>
+
+            <!-- مشغل صوتي تفاعلي حي -->
+            <div class="glass-card rounded-3xl p-6 sm:p-8 max-w-3xl mx-auto border-qabas-cyan/30">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="w-14 h-14 rounded-2xl bg-qabas-cyan/20 border border-qabas-cyan/40 flex items-center justify-center text-qabas-cyan text-2xl">
+                        <i class="fa-solid fa-music"></i>
+                    </div>
+                    <div>
+                        <div id="player-track-title" class="text-lg font-bold text-white">تلاوة خاشعة - سورة الإسراء (بصوت نقي)</div>
+                        <div id="player-track-artist" class="text-xs text-qabas-cyan font-medium">تسجيلات منظومة قبس المختارة</div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 mb-6">
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden cursor-pointer">
+                        <div id="player-progress" class="bg-gradient-to-r from-qabas-cyan to-qabas-gold h-full w-1/3 rounded-full transition-all"></div>
+                    </div>
+                    <div class="flex justify-between text-[11px] font-mono text-gray-400">
+                        <span id="player-time-current">01:45</span>
+                        <span id="player-time-total">05:20</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-center gap-6">
+                    <button class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-backward-step text-lg"></i></button>
+                    <button id="play-pause-btn" onclick="togglePlayState()" class="w-12 h-12 rounded-full bg-gradient-to-r from-qabas-gold to-amber-500 text-qabas-dark flex items-center justify-center text-lg font-bold shadow-lg shadow-qabas-gold/30 hover:scale-110 transition">
+                        <i id="play-pause-icon" class="fa-solid fa-play ml-0.5"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-forward-step text-lg"></i></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 5. قسم سجل التحديثات والإصدارات (Changelog & Updates) ── -->
+    <section id="updates" class="py-16 px-4 bg-[#0A101D]/70 border-t border-qabas-border/60">
+        <div class="max-w-4xl mx-auto">
+            <div class="mb-10">
+                <h3 class="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
+                    <i class="fa-solid fa-sparkles text-qabas-emerald"></i>
+                    سجل التحديثات والإصدارات (Changelog)
+                </h3>
+                <p class="text-sm text-gray-400 mt-2">تعرف على أحدث الإضافات والتحسينات المضافة لتطبيق قبس أولاً بأول.</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- تحديث 1.2.1 -->
+                <div class="glass-card rounded-2xl p-6 border-qabas-emerald/40 relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 rounded-full bg-qabas-emerald/20 text-qabas-emerald border border-qabas-emerald/40 font-mono text-xs font-bold">v1.2.1 • الإصدار الحالي</span>
+                            <span class="text-xs text-gray-400">أكتوبر 2026</span>
+                        </div>
+                        <span class="text-xs text-qabas-gold font-semibold flex items-center gap-1">
+                            <i class="fa-solid fa-check-double"></i> مستقر وجاهز
+                        </span>
+                    </div>
+
+                    <ul class="space-y-2 text-sm text-gray-300">
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-circle-check text-qabas-emerald text-xs mt-1"></i>
+                            <span><strong>شريط النصائح والحكم الذكي:</strong> تقسيم المحتوى إلى 3 أقسام (قرآن، سنة، نصائح المطور) مع فلاتر تصفية وتدوير تلقائي.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-circle-check text-qabas-emerald text-xs mt-1"></i>
+                            <span><strong>استوديو المؤثرات الصوتية الشامل (SFX Studio):</strong> تشغيل عينات صوتية بدون تأخير مع تحكم كامل بمستوى الصوت والأنماط التفاعلية.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-circle-check text-qabas-emerald text-xs mt-1"></i>
+                            <span><strong>المزامنة السحابية الفورية:</strong> ربط شامل مع Supabase لحفظ المحاضرات، التسجيلات، وبيانات المستخدمين بأمان.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- تحديث 1.1.0 -->
+                <div class="glass-card rounded-2xl p-6 opacity-75">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 rounded-full bg-slate-800 text-gray-300 font-mono text-xs font-bold">v1.1.0</span>
+                            <span class="text-xs text-gray-400">سبتمبر 2026</span>
+                        </div>
+                    </div>
+                    <ul class="space-y-2 text-xs text-gray-400">
+                        <li>• إطلاق الواجهة المكانية التفاعلية (Spatial Cyber HUD).</li>
+                        <li>• إضافة السبحة الذكية مع أصوات التردد الروحاني ومؤشرات الإنجاز.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 6. قسم تحميل التطبيق (Download CTA) ── -->
+    <section id="download" class="py-20 px-4 text-center">
+        <div class="max-w-4xl mx-auto glass-card p-10 sm:p-14 rounded-3xl border-qabas-gold/40 relative overflow-hidden">
+            <div class="relative z-10 space-y-6">
+                <h3 class="text-3xl sm:text-4xl font-black text-white">
+                    حمل تطبيق <span class="gold-gradient-text">قبس</span> على هاتفك الآن
+                </h3>
+                <p class="text-gray-300 text-sm sm:text-base max-w-xl mx-auto">
+                    احصل على التجربة الكاملة، الأذكار، التلاوات، استوديو الإنتاج، والمساعد الذكي بدون أي تكلفة.
+                </p>
+
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                    <button onclick="downloadApk()" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-qabas-gold to-amber-600 text-qabas-dark font-black text-base shadow-xl shadow-qabas-gold/20 hover:scale-105 transition-all flex items-center justify-center gap-3">
+                        <i class="fa-solid fa-download text-lg"></i>
+                        <span>تحميل ملف APK المباشر (مجاناً)</span>
+                    </button>
+                    <a href="#community" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-qabas-card border border-qabas-border text-white font-bold text-base hover:border-qabas-gold/50 transition-all flex items-center justify-center gap-3">
+                        <i class="fa-brands fa-telegram text-qabas-cyan text-lg"></i>
+                        <span>قناة التحديثات على تيليجرام</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 7. تذييل الصفحة (Footer) ── -->
+    <footer id="community" class="bg-[#04070D] border-t border-qabas-border py-10 px-4 text-center text-xs text-gray-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-fire-flame-curved text-qabas-gold"></i>
+                <span class="font-bold text-gray-300">منظومة قبس الرقمية</span>
+                <span>— صدقة جارية ونفع مستمر بإذن الله ✨</span>
+            </div>
+            <div class="flex items-center gap-6 text-base text-gray-400">
+                <a href="#" class="hover:text-qabas-gold transition"><i class="fa-brands fa-whatsapp"></i></a>
+                <a href="#" class="hover:text-qabas-cyan transition"><i class="fa-brands fa-telegram"></i></a>
+                <a href="#" class="hover:text-red-400 transition"><i class="fa-brands fa-youtube"></i></a>
+                <a href="#" class="hover:text-white transition"><i class="fa-brands fa-github"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- سكربتات التفاعل والمشغل الصوتي -->
+    <script>
+        let isPlaying = false;
+        function togglePlayState() {
+            isPlaying = !isPlaying;
+            const icon = document.getElementById('play-pause-icon');
+            const progress = document.getElementById('player-progress');
+            
+            if (isPlaying) {
+                icon.className = 'fa-solid fa-pause';
+                progress.style.width = '70%';
+            } else {
+                icon.className = 'fa-solid fa-play ml-0.5';
+            }
+        }
+
+        function playDemoAudio(title) {
+            document.getElementById('player-track-title').innerText = title;
+            document.getElementById('player-track-artist').innerText = 'تشغيل المحاضرة الآن... 🎙️';
+            isPlaying = true;
+            document.getElementById('play-pause-icon').className = 'fa-solid fa-pause';
+            document.getElementById('audio').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function downloadApk() {
+            alert('جاري بدء تحميل أحدث إصدار من تطبيق قبس (v1.2.1 APK)... ✨');
+        }
+    </script>
+</body>
+</html>

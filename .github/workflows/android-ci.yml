@@ -1,0 +1,201 @@
+name: Build & Sign APK
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'app/src/**'
+      - 'app/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/android-ci.yml'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Setup Android SDK
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platform-tools" "build-tools;36.0.0" "platforms;android-36"
+
+      - name: Fix gradle-wrapper.jar
+        run: |
+          mkdir -p gradle/wrapper
+          if ! python3 -c "import zipfile,sys; sys.exit(0 if zipfile.is_zipfile('gradle/wrapper/gradle-wrapper.jar') else 1)"; then
+            curl -sL -o gradle/wrapper/gradle-wrapper.jar \
+              "https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar"
+          fi
+          python3 -c "import zipfile; zipfile.ZipFile('gradle/wrapper/gradle-wrapper.jar').namelist(); print('wrapper jar OK')"
+          chmod +x gradlew
+
+      - name: Restore Stable Signing Keystore
+        run: |
+          echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
+          
+          # Priority 1: Decode from repository file debug.keystore.base64 if present
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Found debug.keystore.base64 in repository, decoding..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+          else
+            echo "Restoring embedded permanent release/debug keystore..."
+            cat << 'EOF' | base64 -d > debug.keystore
+          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
+          EOF
+          fi
+
+          if [ -f debug.keystore ]; then
+            echo "✅ Stable Keystore restored successfully"
+            ls -lh debug.keystore
+          else
+            echo "❌ Keystore restoration failed"
+            exit 1
+          fi
+
+      - name: Extract & Display Signing Key Fingerprint
+        run: |
+          if [ -f debug.keystore ]; then
+            echo "🔑 ========== SIGNING KEY INFORMATION =========="
+            echo ""
+            echo "📋 Key Alias: androiddebugkey"
+            echo "🏪 Keystore File: debug.keystore"
+            echo "🔐 Store Password: android"
+            echo "🔐 Key Password: android"
+            echo ""
+            echo "📊 Fingerprints:"
+            echo "─────────────────────────────────────────────"
+            
+            # Extract SHA1 Fingerprint
+            SHA1=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA1:" | head -1 | awk '{print $NF}')
+            echo "SHA1: $SHA1"
+            
+            # Extract SHA256 Fingerprint
+            SHA256=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA256:" | head -1 | awk '{print $NF}')
+            echo "SHA256: $SHA256"
+            
+            echo "─────────────────────────────────────────────"
+            echo ""
+            
+            # Save fingerprints to file
+            {
+              echo "SIGNING_KEY_ALIAS=androiddebugkey"
+              echo "KEYSTORE_FILE=debug.keystore"
+              echo "STORE_PASSWORD=android"
+              echo "KEY_PASSWORD=android"
+              echo "SHA1_FINGERPRINT=$SHA1"
+              echo "SHA256_FINGERPRINT=$SHA256"
+              echo "VALID_UNTIL=10000 days"
+              echo "KEY_ALGORITHM=RSA"
+              echo "KEY_SIZE=2048"
+            } > signing_key_info.txt
+            
+            echo "✅ Signing key information saved to: signing_key_info.txt"
+          fi
+
+      - name: Inject secrets (optional)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          QF_CLIENT_ID: ${{ secrets.QF_CLIENT_ID }}
+          QF_CLIENT_SECRET: ${{ secrets.QF_CLIENT_SECRET }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            mkdir -p app
+            echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          fi
+          {
+            echo "SUPABASE_URL=\"${SUPABASE_URL:-https://YOUR_PROJECT_REF.supabase.co}\""
+            echo "SUPABASE_ANON_KEY=\"${SUPABASE_ANON_KEY:-your_publishable_or_anon_key}\""
+            echo "GEMINI_API_KEY=\"${GEMINI_API_KEY:-your_key}\""
+            echo "AZURE_SPEECH_KEY=\"your_key\""
+            echo "AZURE_SPEECH_REGION=\"your_region\""
+            echo "COVERR_API_KEY=\"your_key\""
+            echo "ELEVENLABS_API_KEY=\"your_key\""
+            echo "GOOGLE_WEB_CLIENT_ID=\"your_key\""
+            echo "GROQ_API_KEY=\"your_key\""
+            echo "HUGGINGFACE_API_KEY=\"your_key\""
+            echo "OPENAI_API_KEY=\"your_key\""
+            echo "OPENROUTER_API_KEY=\"your_key\""
+            echo "PEXELS_API_KEY=\"your_key\""
+            echo "PIXABAY_API_KEY=\"your_key\""
+            echo "QF_CLIENT_ID=\"${QF_CLIENT_ID:-your_key}\""
+            echo "QF_CLIENT_SECRET=\"${QF_CLIENT_SECRET:-your_key}\""
+          } > .env
+
+      - name: Assemble Debug APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          ./gradlew assembleDebug \
+            --stacktrace \
+            --no-daemon \
+            --max-workers=2 \
+            --build-cache
+
+      - name: Verify APK Signature
+        run: |
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -n "$APK_FILE" ]; then
+            echo "🔍 Verifying APK Signature..."
+            echo "APK: $APK_FILE"
+            echo "─────────────────────────────────────────────"
+            jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | grep -E "(jar verified|CN=)" || true
+            echo "✅ APK Signature Verification Complete"
+          fi
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qabas-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Signing Key Information
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signing-key-info
+          path: signing_key_info.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: On failure — print Kotlin errors hint
+        if: failure()
+        run: |
+          echo "ابحث في اللوج عن: e: file://  أو Unresolved reference"

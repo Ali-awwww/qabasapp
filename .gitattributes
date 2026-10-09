@@ -1,0 +1,6 @@
+# Ensure binary files are treated as binary to prevent corruption in git
+*.jar binary
+*.png binary
+*.webp binary
+*.so binary
+*.keystore binary
