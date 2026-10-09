@@ -56,7 +56,6 @@ jobs:
           git clone --depth 1 https://github.com/jmacd/xdelta.git "$XDELTA_SRC_DIR"
           cd "$XDELTA_SRC_DIR/xdelta3"
 
-          # 1. Compile for arm64-v8a (aarch64)
           echo "🔨 Compiling static xdelta3 for arm64-v8a..."
           aarch64-linux-gnu-gcc -O3 -static \
             -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
@@ -67,7 +66,6 @@ jobs:
             }
           chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a"
 
-          # 2. Compile for armeabi-v7a (armhf)
           echo "🔨 Compiling static xdelta3 for armeabi-v7a..."
           arm-linux-gnueabihf-gcc -O3 -static \
             -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
@@ -79,7 +77,6 @@ jobs:
             }
           chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a"
 
-          # 3. Compile for x86_64
           echo "🔨 Compiling static xdelta3 for x86_64..."
           gcc -O3 -static \
             -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
@@ -127,18 +124,25 @@ jobs:
           PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
         run: |
           mkdir -p apks
-          
-          # Download Target APK from Target Release
+
+          if [ -z "$TARGET_TAG" ]; then
+            echo "⚠️ No target release tag found. Skipping delta generation."
+            echo "target_apk=" >> "$GITHUB_OUTPUT"
+            echo "prev_apk=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "📥 Downloading APK from target release ($TARGET_TAG)..."
           gh release download "$TARGET_TAG" --pattern "*.apk" --dir apks/target || {
             echo "⚠️ No APK found attached to release $TARGET_TAG"
-            exit 1
+            echo "target_apk=" >> "$GITHUB_OUTPUT"
+            exit 0
           }
+
           TARGET_APK=$(find apks/target -name "*.apk" | head -n 1)
           echo "Target APK: $TARGET_APK"
           echo "target_apk=$TARGET_APK" >> "$GITHUB_OUTPUT"
 
-          # Download Previous APK if previous tag exists
           if [ -n "$PREV_TAG" ]; then
             echo "📥 Downloading APK from previous release ($PREV_TAG)..."
             if gh release download "$PREV_TAG" --pattern "*.apk" --dir apks/prev; then
@@ -162,7 +166,13 @@ jobs:
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
         run: |
           mkdir -p dist
-          
+
+          if [ -z "$TARGET_APK" ] || [ ! -f "$TARGET_APK" ]; then
+            echo "ℹ️ Skipping delta generation because target APK is missing."
+            echo "delta_created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           CLEAN_VERSION="${TARGET_TAG#v}"
           DELTA_NAME="qabas-${CLEAN_VERSION}.delta"
           DELTA_PATH="dist/${DELTA_NAME}"
@@ -172,10 +182,8 @@ jobs:
             echo "Source (Base): $PREV_APK ($(stat -c%s "$PREV_APK") bytes)"
             echo "Target (New):  $TARGET_APK ($(stat -c%s "$TARGET_APK") bytes)"
             
-            # -9 for highest compression, -S djw for secondary compression
             xdelta3 -9 -e -s "$PREV_APK" "$TARGET_APK" "$DELTA_PATH"
             
-            # Verify delta can reconstruct the exact target APK
             VERIFY_APK="dist/verify-reconstructed.apk"
             xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"
             
@@ -217,14 +225,12 @@ jobs:
 
           ASSETS_TO_UPLOAD=()
 
-          # 1. Add Architecture-Specific xdelta3 Binaries
           for bin in xdelta_bins/xdelta3-*; do
             if [ -f "$bin" ]; then
               ASSETS_TO_UPLOAD+=("$bin")
             fi
           done
 
-          # 2. Add Differential Patch if created
           if [ "$DELTA_CREATED" = "true" ] && [ -f "$DELTA_PATH" ]; then
             ASSETS_TO_UPLOAD+=("$DELTA_PATH")
           fi
@@ -235,7 +241,6 @@ jobs:
             echo "✅ Assets successfully attached to release!"
           fi
 
-          # 3. Append Delta Info to Release Notes
           if [ "$DELTA_CREATED" = "true" ]; then
             DELTA_FILE_NAME=$(basename "$DELTA_PATH")
             DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
