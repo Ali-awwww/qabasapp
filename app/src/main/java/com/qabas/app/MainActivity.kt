@@ -309,6 +309,7 @@ class MainActivity : ComponentActivity() {
         var description by remember { mutableStateOf("") }
         var reportType by remember { mutableStateOf("BUG") }
         var isSubmitting by remember { mutableStateOf(false) }
+        var attachedTelemetry by remember { mutableStateOf<PrecisionDiagnosticEngine.DiagnosticTelemetry?>(null) }
 
         val myReports by BugReportRepository.reports.collectAsState()
 
@@ -327,6 +328,7 @@ class MainActivity : ComponentActivity() {
                     onScreenshotCaptured = { bitmap, file ->
                         screenshotBitmap = bitmap
                         screenshotFile = file
+                        attachedTelemetry = null
                         showReportDialog = true
                     },
                     onOpenDevChat = {
@@ -334,6 +336,15 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenMyReports = {
                         showMyReportsDialog = true
+                    },
+                    onOpenDiagnosticReport = { telemetry, bitmap, file ->
+                        screenshotBitmap = bitmap
+                        screenshotFile = file
+                        attachedTelemetry = telemetry
+                        reportType = telemetry.detectedProbableIssue.code
+                        val formattedTelemetrySummary = "• رصد آلي: ${telemetry.detectedProbableIssue.title}\n• الأبعاد: ${telemetry.widthDp}×${telemetry.heightDp} dp (${telemetry.densityDpi} DPI)\n• الذاكرة: ${telemetry.usedRamMb}/${telemetry.maxRamMb} MB"
+                        description = if (description.isBlank()) formattedTelemetrySummary else "$description\n$formattedTelemetrySummary"
+                        showReportDialog = true
                     }
                 )
             }
@@ -410,12 +421,38 @@ class MainActivity : ComponentActivity() {
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
                             ) {
-                                AsyncImage(
-                                    model = screenshotBitmap,
-                                    contentDescription = "Screenshot Preview",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
-                                )
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    AsyncImage(
+                                        model = screenshotBitmap,
+                                        contentDescription = "Screenshot Preview",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                    // شارة التشخيص الدقيق المرفق إن وُجد
+                                    attachedTelemetry?.let { tel ->
+                                        Surface(
+                                            shape = RoundedCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
+                                            color = Color.Black.copy(alpha = 0.85f),
+                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
+                                            modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                                Text(
+                                                    text = "بصمة تشخيصية: ${tel.detectedProbableIssue.title}",
+                                                    color = Color(0xFF00E5FF),
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             // نوع البلاغ
@@ -457,38 +494,54 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            // اختصارات سريعة للمشكلات الشائعة لتسهيل الأمر على المُبلّغ بنقرة واحدة
+                            // اختصارات سريعة للمشكلات الشائعة وزر التشخيص الفوري
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 listOf(
-                                    "تداخل نصوص وأزرار 📐" to "يوجد تداخل وازدحام بين النصوص والأزرار في هذه الشاشة.",
-                                    "عناصر مقصوصة ✂️" to "توجد عناصر أو نصوص مقصوصة وغير كاملة الظهور.",
-                                    "خطأ بالاستجابة ⚡" to "الزر لا يستجيب أو يحدث بطء عند التفاعل."
-                                ).forEach { (chipTitle, chipText) ->
+                                    "تشخيص النظام 🔬" to "DIAGNOSE_NOW",
+                                    "تداخل نصوص 📐" to "يوجد تداخل وازدحام بين النصوص والأزرار في هذه الشاشة.",
+                                    "عناصر مقصوصة ✂️" to "توجد عناصر أو نصوص مقصوصة وغير كاملة الظهور."
+                                ).forEach { (chipTitle, chipAction) ->
+                                    val isDiagnosticChip = chipAction == "DIAGNOSE_NOW"
                                     Surface(
                                         onClick = {
                                             AppSoundManager.playClick()
-                                            if (chipTitle.contains("تداخل")) {
-                                                reportType = "UI_OVERFLOW"
+                                            if (isDiagnosticChip) {
+                                                val telemetry = PrecisionDiagnosticEngine.harvestTelemetry(
+                                                    context = context,
+                                                    screenName = BugReportManager.currentScreen,
+                                                    widthDp = context.resources.configuration.screenWidthDp.toFloat(),
+                                                    heightDp = context.resources.configuration.screenHeightDp.toFloat()
+                                                )
+                                                attachedTelemetry = telemetry
+                                                reportType = telemetry.detectedProbableIssue.code
+                                                val summary = "• رصد آلي: ${telemetry.detectedProbableIssue.title}\n• الأبعاد: ${telemetry.widthDp}×${telemetry.heightDp} dp (${telemetry.densityDpi} DPI)\n• الذاكرة: ${telemetry.usedRamMb}/${telemetry.maxRamMb} MB"
+                                                description = if (description.isBlank()) summary else "$description\n$summary"
+                                                Toast.makeText(context, "تم إجراء التشخيص الدقيق وإرفاق البصمة بنجاح 🔬", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                if (chipTitle.contains("تداخل")) {
+                                                    reportType = "UI_OVERFLOW"
+                                                }
+                                                description = if (description.isBlank()) chipAction else "$description\n• $chipAction"
                                             }
-                                            description = if (description.isBlank()) chipText else "$description\n• $chipText"
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF1E293B).copy(alpha = 0.6f),
-                                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.2f)),
+                                        color = if (isDiagnosticChip) Color(0xFF00E5FF).copy(alpha = 0.2f) else Color(0xFF1E293B).copy(alpha = 0.6f),
+                                        border = BorderStroke(0.8.dp, if (isDiagnosticChip) Color(0xFF00E5FF).copy(alpha = 0.7f) else Color.White.copy(alpha = 0.2f)),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
                                             chipTitle,
-                                            color = Color.White.copy(alpha = 0.85f),
+                                            color = if (isDiagnosticChip) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
                                             fontSize = 9.sp,
                                             fontFamily = CairoFont,
+                                            fontWeight = if (isDiagnosticChip) FontWeight.Bold else FontWeight.Normal,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(vertical = 5.dp, horizontal = 2.dp),
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            softWrap = false
                                         )
                                     }
                                 }
@@ -539,10 +592,15 @@ class MainActivity : ComponentActivity() {
                                         if (description.isBlank()) return@Button
                                         isSubmitting = true
                                         scope.launch {
+                                            val finalDescription = if (attachedTelemetry != null) {
+                                                PrecisionDiagnosticEngine.formatDiagnosticMarkdown(attachedTelemetry!!, description)
+                                            } else {
+                                                description
+                                            }
                                             val result = BugReportRepository.submitReport(
                                                 context = context,
                                                 screenName = BugReportManager.currentScreen,
-                                                description = description,
+                                                description = finalDescription,
                                                 reportType = reportType,
                                                 screenshotBitmap = screenshotBitmap,
                                                 screenshotFile = screenshotFile
@@ -552,6 +610,7 @@ class MainActivity : ComponentActivity() {
                                             Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                                             showReportDialog = false
                                             description = ""
+                                            attachedTelemetry = null
                                         }
                                     },
                                     modifier = Modifier.weight(1f).height(44.dp),

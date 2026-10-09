@@ -80,7 +80,8 @@ fun SpatialDraggableDevCameraButton(
     modifier: Modifier = Modifier,
     onScreenshotCaptured: (Bitmap, File?) -> Unit,
     onOpenDevChat: () -> Unit,
-    onOpenMyReports: () -> Unit
+    onOpenMyReports: () -> Unit,
+    onOpenDiagnosticReport: (PrecisionDiagnosticEngine.DiagnosticTelemetry, Bitmap?, File?) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -100,6 +101,8 @@ fun SpatialDraggableDevCameraButton(
     var showMainHubDialog by remember { mutableStateOf(false) }
     var showPreviewDialog by remember { mutableStateOf(false) }
     var showMetricsInspectorDialog by remember { mutableStateOf(false) }
+    var showPrecisionDiagnosticDialog by remember { mutableStateOf(false) }
+    var currentTelemetry by remember { mutableStateOf<PrecisionDiagnosticEngine.DiagnosticTelemetry?>(null) }
 
     var latestScreenshotBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var latestScreenshotFile by remember { mutableStateOf<File?>(null) }
@@ -468,6 +471,28 @@ fun SpatialDraggableDevCameraButton(
                     showMainHubDialog = false
                     showMetricsInspectorDialog = true
                 },
+                onOpenPrecisionDiagnostics = {
+                    showMainHubDialog = false
+                    currentTelemetry = PrecisionDiagnosticEngine.harvestTelemetry(
+                        context = context,
+                        screenName = BugReportManager.currentScreen,
+                        widthDp = containerWidthDp.value,
+                        heightDp = containerHeightDp.value
+                    )
+                    showPrecisionDiagnosticDialog = true
+                },
+                onDirectDiagnosticReport = {
+                    showMainHubDialog = false
+                    captureScreenshot { bmp, file ->
+                        val telemetry = PrecisionDiagnosticEngine.harvestTelemetry(
+                            context = context,
+                            screenName = BugReportManager.currentScreen,
+                            widthDp = containerWidthDp.value,
+                            heightDp = containerHeightDp.value
+                        )
+                        onOpenDiagnosticReport(telemetry, bmp, file)
+                    }
+                },
                 onOpenDevChat = {
                     showMainHubDialog = false
                     onOpenDevChat()
@@ -515,6 +540,20 @@ fun SpatialDraggableDevCameraButton(
                 onDismiss = { showMetricsInspectorDialog = false }
             )
         }
+
+        // 4. Precision Diagnostic Lens Dialog (مسبار التشخيص الدقيق الفضائي)
+        if (showPrecisionDiagnosticDialog && currentTelemetry != null) {
+            SpatialPrecisionDiagnosticDialog(
+                telemetry = currentTelemetry!!,
+                onDismiss = { showPrecisionDiagnosticDialog = false },
+                onOpenReportWithDiagnostics = { telemetry ->
+                    showPrecisionDiagnosticDialog = false
+                    captureScreenshot { bmp, file ->
+                        onOpenDiagnosticReport(telemetry, bmp, file)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -531,6 +570,8 @@ private fun SpatialDevCamHubDialog(
     onDismiss: () -> Unit,
     onInstantCapture: () -> Unit,
     onOpenInspector: () -> Unit,
+    onOpenPrecisionDiagnostics: () -> Unit,
+    onDirectDiagnosticReport: () -> Unit,
     onOpenDevChat: () -> Unit,
     onOpenMyReports: () -> Unit,
     onToggleCompact: (Boolean) -> Unit,
@@ -640,27 +681,47 @@ private fun SpatialDevCamHubDialog(
 
                     HorizontalDivider(color = GoldPrimary.copy(alpha = 0.2f), thickness = 0.8.dp)
 
-                    // 1. Instant Screen Capture (الميزة الأساسية الأولى)
+                    // 1. Precision Diagnostic Lens (التشخيص الدقيق الفوري الشامل - الدور الجوهري)
+                    DevCamActionCard(
+                        icon = Icons.Default.Troubleshoot,
+                        title = "فحص وتشخيص دقيق للنظام 🔬",
+                        subtitle = "مسح فوري لأبعاد الشاشة، خط النظام، الذاكرة، والشبكة وتحديد العطل آلياً",
+                        accentColor = Color(0xFF00E5FF),
+                        badge = "AI DIAGNOSTICS",
+                        onClick = onOpenPrecisionDiagnostics
+                    )
+
+                    // 2. Direct Diagnostic Report with Screenshot
+                    DevCamActionCard(
+                        icon = Icons.Default.BugReport,
+                        title = "بلاغ مشخص فورياً مع اللقطة ⚡",
+                        subtitle = "التقاط فوري للشاشة وإرفاق البصمة التقنية الكاملة لتسهيل مهمة المطور",
+                        accentColor = GoldPrimary,
+                        badge = "SMART REPORT",
+                        onClick = onDirectDiagnosticReport
+                    )
+
+                    // 3. Instant Screen Capture (الميزة الأساسية)
                     DevCamActionCard(
                         icon = Icons.Default.CameraAlt,
-                        title = "التقاط لقطة شاشة فورية 📸",
-                        subtitle = "توثيق الشاشة الحالية بدقة، حفظها بالمعرض، أو مشاركتها فورياً",
-                        accentColor = GoldPrimary,
+                        title = "التقاط لقطة شاشة وحفظها 📸",
+                        subtitle = "توثيق الشاشة الحالية بدقة، تمييز موضع الخلل، أو حفظها بالمعرض ومشاركتها",
+                        accentColor = Color(0xFF10B981),
                         badge = "SCREENSHOT",
                         onClick = onInstantCapture
                     )
 
-                    // 2. DP & Screen Metrics Inspector (مفتش مقاييس الشاشة للمطور)
+                    // 4. DP & Screen Metrics Inspector (مفتش مقاييس الشاشة للمطور)
                     DevCamActionCard(
                         icon = Icons.Default.Analytics,
                         title = "مفتش أبعاد الشاشة ومقاييس الـ DP 📏",
                         subtitle = "فحص الأبعاد الدقيقة (dp/px)، كثافة الشاشة، ونسخ التقرير التقني للمطور",
-                        accentColor = Color(0xFF00E5FF),
+                        accentColor = Color(0xFFA855F7),
                         badge = "DEV METRICS",
                         onClick = onOpenInspector
                     )
 
-                    // 3. User & Dev Feedback Channels
+                    // 5. User & Dev Feedback Channels
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
