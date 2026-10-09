@@ -18,19 +18,10 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-/**
- * مدير التحديثات الذكية.
- *
- * الأولوية:
- * 1) تحميل .delta + تحميل xdelta3 تلقائياً (حسب معمارية الجهاز) من نفس الـ Release
- * 2) تطبيق الـ patch على APK المثبت
- * 3) عند أي فشل → تحميل APK الكامل
- */
 object UpdateManager {
 
     private const val TAG = "UpdateManager"
     private const val DEFAULT_REPO = "Ali-awwww/qabasapp"
-    private const val DEFAULT_TOKEN = "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"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 
     fun getEffectiveRepo(context: Context): String {
@@ -47,36 +38,78 @@ object UpdateManager {
         return DEFAULT_REPO
     }
 
-    fun getEffectiveToken(context: Context): String? {
-        val active = runCatching { RepoVaultManager.getActiveRepo(context) }.getOrNull()
-        if (!active?.token.isNullOrBlank()) return active!!.token.trim()
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val token = prefs.getString("build_center_token", null)?.trim()
-        if (!token.isNullOrBlank()) return token
-        return DEFAULT_TOKEN
+    suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            val cachedToken = prefs.getString("github_token_cached", null)?.trim()
+            if (!cachedToken.isNullOrBlank()) {
+                Log.d(TAG, "✅ Using cached GitHub token")
+                return@withContext cachedToken
+            }
+
+            val token = fetchGitHubTokenFromSupabase()
+            if (!token.isNullOrBlank()) {
+                Log.d(TAG, "✅ GitHub token fetched from Supabase")
+                prefs.edit().putString("github_token_cached", token).apply()
+                return@withContext token
+            }
+
+            Log.w(TAG, "⚠️ Could not fetch token, continuing without auth")
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ getEffectiveToken error: ${e.message}")
+            null
+        }
     }
+
+    private suspend fun fetchGitHubTokenFromSupabase(): String? = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val supabase = SupabaseServices.client ?: return@withContext null
+
+            val response = supabase.postgrest
+                .from("app_secrets")
+                .select()
+                .eq("secret_key", "github_token")
+                .eq("is_active", true)
+                .limit(1)
+                .decodeSingleOrNull<AppSecret>()
+
+            if (response != null && response.secret_value.isNotBlank()) {
+                Log.d(TAG, "🔐 Token retrieved from Supabase")
+                return@withContext response.secret_value
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ fetchGitHubTokenFromSupabase: ${e.message}")
+            null
+        }
+    }
+
+    @Serializable
+    data class AppSecret(
+        val id: Long = 0,
+        val secret_key: String = "",
+        val secret_value: String = "",
+        val is_active: Boolean = true
+    )
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(180, TimeUnit.SECONDS)
         .build()
 
-    /** بثّ حيّ للتقدم — تلتقطه الواجهة وخدمة الخلفية معاً. */
     private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
     val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
 
-    /** التحديث المكتشف بانتظار العرض على المستخدم. */
     private val _pendingUpdate = MutableStateFlow<UpdateInfo?>(null)
     val pendingUpdate: StateFlow<UpdateInfo?> = _pendingUpdate.asStateFlow()
 
     fun dismissUpdate() { _pendingUpdate.value = null }
     fun setPendingUpdate(update: UpdateInfo?) { _pendingUpdate.value = update }
 
-    /** بثّ نتيجة التحميل: Triple(مفتاح النسخة، نجح؟، رسالة). */
     private val _downloadResult = MutableStateFlow<Triple<String, Boolean, String>?>(null)
     val downloadResult: StateFlow<Triple<String, Boolean, String>?> = _downloadResult.asStateFlow()
 
-    /** المقابض النشطة حسب مفتاح النسخة — للإلغاء الموحّد من أي مكان. */
     private val activeHandles = ConcurrentHashMap<String, DownloadHandle>()
 
     fun cancelDownload(key: String) {
@@ -92,7 +125,6 @@ object UpdateManager {
         val releaseNotes: String,
         val deltaSize: Long,
         val apkSize: Long,
-        /** روابط ثنائيات xdelta3 حسب المعمارية (اسم الملف → رابط) */
         val xdeltaUrls: Map<String, String> = emptyMap()
     )
 
@@ -113,10 +145,8 @@ object UpdateManager {
         val isNewerThanCurrent: Boolean
     )
 
-    /** مراحل عملية التحديث — تُستخدم لعرض تسمية دقيقة في الواجهة. */
     enum class Phase { DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
 
-    /** تقدّم لحظي غني بالتفاصيل: نسبة + بايتات + سرعة + المرحلة الحالية. */
     data class DownloadProgress(
         val percent: Int,
         val bytesDownloaded: Long,
@@ -125,14 +155,12 @@ object UpdateManager {
         val speedBytesPerSec: Long
     )
 
-    /** مقبض تحكّم يُعاد للواجهة فور بدء التحميل — يسمح بالإلغاء الفعلي في أي لحظة. */
     class DownloadHandle {
         @Volatile var cancelled: Boolean = false
             private set
         fun cancel() { cancelled = true }
     }
 
-    /** يُرمى داخلياً لقطع سلسلة التنفيذ فور طلب الإلغاء. */
     private class DownloadCancelledException : Exception("أُلغي التحديث بواسطة المستخدم")
 
     suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? = withContext(Dispatchers.IO) {
@@ -140,15 +168,14 @@ object UpdateManager {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val lastCheck = prefs.getLong("update_last_check", 0)
             if (!force && System.currentTimeMillis() - lastCheck < CHECK_INTERVAL_MS) {
-                Log.d(TAG, "Skipping check")
+                Log.d(TAG, "⏭️ Skipping check (last check too recent)")
                 return@withContext null
             }
 
             val currentVersionCode = getCurrentVersionCode(context)
             val currentVersionName = getCurrentVersionName(context)
-            Log.d(TAG, "Checking updates… currentCode=$currentVersionCode, currentName=$currentVersionName")
+            Log.d(TAG, "🔍 Checking updates… currentCode=$currentVersionCode, currentName=$currentVersionName")
 
-            // 1. الأولوية الأولى: فحص التحديثات من قاعدة بيانات Supabase
             val supabaseUpdate = runCatching {
                 SupabaseServices.Database.getLatestActiveUpdate()
             }.getOrNull()
@@ -175,9 +202,9 @@ object UpdateManager {
                 }
             }
 
-            // 2. الأولوية الثانية: فحص التحديثات من GitHub Releases
             val effectiveRepo = getEffectiveRepo(context)
             val effectiveToken = getEffectiveToken(context)
+
             val requestBuilder = Request.Builder()
                 .url("https://api.github.com/repos/$effectiveRepo/releases/latest")
                 .header("Accept", "application/vnd.github.v3+json")
@@ -188,10 +215,10 @@ object UpdateManager {
             }
 
             val request = requestBuilder.build()
-
             val response = client.newCall(request).execute()
+
             if (!response.isSuccessful) {
-                Log.w(TAG, "GitHub API ${response.code}")
+                Log.w(TAG, "⚠️ GitHub API ${response.code}")
                 return@withContext null
             }
 
@@ -204,8 +231,7 @@ object UpdateManager {
             val releaseVersionCode = parseVersionCode(tagName)
             val tagHasBuildNumber = tagName.contains("+")
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
-            // المقارنة الأساسية برقم البناء (يتصاعد مع كل CI run) — اسم الإصدار
-            // ثابت (1.2.1) فلا يصلح وحده لكشف التحديث.
+
             if (tagHasBuildNumber && releaseVersionCode <= currentVersionCode) {
                 prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
                 return@withContext null
@@ -240,7 +266,7 @@ object UpdateManager {
             }
 
             if (apkUrl == null) {
-                Log.w(TAG, "No APK in release")
+                Log.w(TAG, "⚠️ No APK in release")
                 return@withContext null
             }
 
@@ -249,6 +275,7 @@ object UpdateManager {
                 .putInt("update_last_version_code", releaseVersionCode)
                 .apply()
 
+            Log.d(TAG, "✅ Update found: $tagName")
             UpdateInfo(
                 versionName = tagName.removePrefix("v").trim().substringBefore("+"),
                 versionCode = releaseVersionCode,
@@ -260,14 +287,11 @@ object UpdateManager {
                 xdeltaUrls = xdeltaUrls
             )
         } catch (e: Exception) {
-            Log.e(TAG, "check failed: ${e.message}")
+            Log.e(TAG, "❌ check failed: ${e.message}")
             null
         }
     }
 
-    /**
-     * فحص تفصيلي للمستودع وإصدارات xdelta المتاحة مع تفكيك كافة الأصول المرفقة (Assets)
-     */
     suspend fun inspectGitHubRelease(
         context: Context,
         customRepo: String? = null,
@@ -288,7 +312,6 @@ object UpdateManager {
 
             val response = client.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful) {
-                val errBody = response.body?.string() ?: ""
                 throw IllegalStateException("فشل الاتصال بـ GitHub (${response.code}): ${response.message}")
             }
 
@@ -363,10 +386,6 @@ object UpdateManager {
         }
     }
 
-    /**
-     * يبدأ التحميل والتثبيت في الخلفية ويعيد فوراً [DownloadHandle] يمكن استدعاء
-     * cancel() عليه من الواجهة لإيقاف العملية بشكل فعلي (لا مجرد إخفاء الشريط).
-     */
     fun downloadAndInstall(
         context: Context,
         update: UpdateInfo,
@@ -393,7 +412,7 @@ object UpdateManager {
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
                 if (!forceFull && !update.deltaUrl.isNullOrBlank() && update.deltaSize > 0) {
-                    Log.d(TAG, "Trying delta (${formatSize(update.deltaSize)})…")
+                    Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
                     val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
                         withContext(Dispatchers.Main) {
@@ -406,12 +425,12 @@ object UpdateManager {
                         return@launch
                     }
                     if (handle.cancelled) throw DownloadCancelledException()
-                    Log.w(TAG, "Delta failed — full APK fallback")
+                    Log.w(TAG, "⚠️ Delta failed — full APK fallback")
                 }
 
                 if (handle.cancelled) throw DownloadCancelledException()
 
-                Log.d(TAG, "Downloading full APK (${formatSize(update.apkSize)})…")
+                Log.d(TAG, "📥 Downloading full APK (${formatSize(update.apkSize)})…")
                 val apkFile = downloadFile(
                     update.apkUrl, updatesDir,
                     "qabas-${update.versionName}.apk", resolvedAuthToken, handle
@@ -433,7 +452,7 @@ object UpdateManager {
             } catch (e: DownloadCancelledException) {
                 withContext(Dispatchers.Main) { emitDone(false, "أُلغي التحديث") }
             } catch (e: Exception) {
-                Log.e(TAG, "downloadAndInstall: ${e.message}", e)
+                Log.e(TAG, "❌ downloadAndInstall: ${e.message}", e)
                 withContext(Dispatchers.Main) { emitDone(false, "خطأ: ${e.message}") }
             }
         }
@@ -449,15 +468,13 @@ object UpdateManager {
         onProgress: (DownloadProgress) -> Unit
     ): File? {
         return try {
-            // 1) تأكد من وجود xdelta3 (تحميل تلقائي إن لزم)
             val binary = ensureXdeltaBinary(context, update, authToken, handle)
                 ?: run {
-                    Log.w(TAG, "No xdelta3 binary available")
+                    Log.w(TAG, "⚠️ No xdelta3 binary available")
                     return null
                 }
             if (handle.cancelled) return null
 
-            // 2) تحميل الـ delta (مع تقدّم لحظي حقيقي بالبايت والسرعة)
             val deltaFile = downloadFile(
                 update.deltaUrl!!, updatesDir,
                 "qabas-${update.versionName}.delta", authToken, handle
@@ -469,10 +486,9 @@ object UpdateManager {
             if (handle.cancelled) { deltaFile.delete(); return null }
             if (deltaFile.length() < 100) return null
 
-            // 3) APK المثبت كمصدر
             val sourceApk = File(context.applicationInfo.sourceDir)
             if (!sourceApk.exists()) {
-                Log.w(TAG, "source APK missing")
+                Log.w(TAG, "⚠️ source APK missing")
                 return null
             }
 
@@ -492,16 +508,11 @@ object UpdateManager {
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "tryDeltaUpdate: ${e.message}", e)
+            Log.e(TAG, "❌ tryDeltaUpdate: ${e.message}", e)
             null
         }
     }
 
-    /**
-     * يوفّر ثنائي xdelta3:
-     * 1) filesDir إن وُجد مسبقاً
-     * 2) تحميل من أصول الـ Release حسب ABI الجهاز
-     */
     private fun ensureXdeltaBinary(
         context: Context,
         update: UpdateInfo,
@@ -521,11 +532,11 @@ object UpdateManager {
             }?.value
 
         if (url.isNullOrBlank()) {
-            Log.w(TAG, "No xdelta3 asset for ABI=$abi in release (have: ${update.xdeltaUrls.keys})")
+            Log.w(TAG, "⚠️ No xdelta3 asset for ABI=$abi in release (have: ${update.xdeltaUrls.keys})")
             return null
         }
 
-        Log.d(TAG, "Downloading $assetName …")
+        Log.d(TAG, "📥 Downloading $assetName…")
         val tmp = downloadFile(url, context.filesDir, "xdelta3.download", authToken, handle) { _, _, _ -> }
             ?: return null
 
@@ -567,20 +578,16 @@ object UpdateManager {
             val log = process.inputStream.bufferedReader().readText()
             val code = process.waitFor()
             if (code != 0) {
-                Log.e(TAG, "xdelta3 exit=$code log=$log")
+                Log.e(TAG, "❌ xdelta3 exit=$code log=$log")
                 return false
             }
             true
         } catch (e: Exception) {
-            Log.e(TAG, "applyXdelta: ${e.message}", e)
+            Log.e(TAG, "❌ applyXdelta: ${e.message}", e)
             false
         }
     }
 
-    /**
-     * تحميل ملف مع تقدّم لحظي حقيقي (بايتات + سرعة) وقابلية إلغاء فعلية:
-     * يفحص handle.cancelled كل دفعة قراءة، ويقطع الاتصال ويحذف الملف الجزئي فوراً عند الإلغاء.
-     */
     private fun downloadFile(
         url: String,
         destDir: File,
@@ -601,7 +608,7 @@ object UpdateManager {
         try {
             val response = call.execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "HTTP ${response.code} $url")
+                Log.w(TAG, "❌ HTTP ${response.code} $url")
                 return null
             }
             val body = response.body ?: return null
@@ -644,7 +651,7 @@ object UpdateManager {
             try { file.delete() } catch (_: Exception) {}
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "download: ${e.message}")
+            Log.e(TAG, "❌ download: ${e.message}")
             try { file.delete() } catch (_: Exception) {}
             return null
         }
@@ -693,7 +700,6 @@ object UpdateManager {
         ""
     }
 
-    /** مقارنة دلالية لأسماء الإصدارات: 1.2.10 > 1.2.1. يُرجع موجباً إن كان a أحدث. */
     private fun compareVersionNames(a: String, b: String): Int {
         val pa = a.removePrefix("v").trim().split(".")
         val pb = b.removePrefix("v").trim().split(".")
