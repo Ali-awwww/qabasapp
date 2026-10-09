@@ -452,7 +452,9 @@ private fun DiagMetricRow(title: String, value: String) {
             fontFamily = CairoFont,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

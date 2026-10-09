@@ -228,16 +228,18 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 QabasStudioScreen()
                                 
-                                Column(
+                                Box(
                                     modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
-                                        .padding(top = 12.dp, end = 12.dp)
+                                        .align(Alignment.TopCenter)
+                                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                                        .padding(top = 6.dp)
                                         .zIndex(10f),
-                                    horizontalAlignment = Alignment.End
+                                    contentAlignment = Alignment.TopCenter
                                 ) {
-                                    com.qabas.app.ui.components.NetworkHUD()
-                                    com.qabas.app.ui.components.OnlineHUD()
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        com.qabas.app.ui.components.NetworkHUD()
+                                        com.qabas.app.ui.components.OnlineHUD()
+                                    }
                                 }
                             }
                         }
@@ -323,7 +325,8 @@ class MainActivity : ComponentActivity() {
             }
 
             // 🛰️ زر الكاميرا الفضائي العائم لالتقاط لقطات الشاشة وإرسالها للمطور (مزروع في جميع الشاشات وقابل للتحريك لأي زاوية)
-            if (!showChatScreen && !showReportDialog && !showMyReportsDialog) {
+            val isDevScreen = BugReportManager.currentScreen.contains("DEVELOPER", ignoreCase = true)
+            if (!showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
                 SpatialDraggableDevCameraButton(
                     onScreenshotCaptured = { bitmap, file ->
                         screenshotBitmap = bitmap

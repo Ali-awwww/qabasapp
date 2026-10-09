@@ -60,6 +60,7 @@ object SupabaseServices {
         val strikes: Int = 0,
         @SerialName("is_eligible") val isEligible: Boolean = true,
         @SerialName("custom_id") val customId: String? = null,
+        @SerialName("account_number") val accountNumber: String? = null,
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null
     )
@@ -287,15 +288,16 @@ object SupabaseServices {
     @Serializable
     data class BugReportRow(
         val id: String = UUID.randomUUID().toString(),
-        @SerialName("user_email") val userEmail: String,
-        @SerialName("screen_name") val screenName: String,
-        val description: String,
-        @SerialName("image_url") val imageUrl: String,
-        @SerialName("report_type") val reportType: String,
+        @SerialName("user_email") val userEmail: String = "",
+        @SerialName("screen_name") val screenName: String = "",
+        val description: String = "",
+        @SerialName("image_url") val imageUrl: String = "",
+        @SerialName("report_type") val reportType: String = "BUG",
         val status: String = "open",
         @SerialName("app_version") val appVersion: String = "",
         @SerialName("device_info") val deviceInfo: String = "",
         @SerialName("developer_reply") val developerReply: String? = null,
+        @SerialName("account_number") val accountNumber: String? = null,
         @SerialName("created_at") val createdAt: String? = null
     )
 
@@ -303,9 +305,10 @@ object SupabaseServices {
     data class ChatMessageRow(
         val id: String = UUID.randomUUID().toString(),
         @SerialName("user_id") val userId: String? = null,
-        @SerialName("user_email") val userEmail: String,
+        @SerialName("user_email") val userEmail: String = "",
         val sender: String = "user", // user | developer
         val message: String = "",
+        @SerialName("account_number") val accountNumber: String? = null,
         @SerialName("created_at") val createdAt: String? = null
     )
 
@@ -536,7 +539,8 @@ object SupabaseServices {
             appVersion: String = "",
             deviceModel: String = "",
             developerReply: String? = null,
-            id: String = UUID.randomUUID().toString()
+            id: String = UUID.randomUUID().toString(),
+            accountNumber: String? = null
         ): Boolean {
             if (!isSupabaseAvailable) return false
             return runCatching {
@@ -552,6 +556,7 @@ object SupabaseServices {
                     put("app_version", appVersion)
                     if (deviceModel.isNotBlank()) put("device_info", deviceModel)
                     if (!developerReply.isNullOrBlank()) put("developer_reply", developerReply)
+                    if (!accountNumber.isNullOrBlank()) put("account_number", accountNumber)
                 }
 
                 // 1. Try dev_bug_reports
@@ -560,13 +565,30 @@ object SupabaseServices {
                 }
                 if (firstAttempt.isSuccess) return@runCatching true
 
-                // 2. Fallback: try bug_reports
+                // 2. Fallback without account_number if column not in schema
+                if (!accountNumber.isNullOrBlank()) {
+                    val fallbackPayload = buildJsonObject {
+                        put("id", id)
+                        put("user_email", userEmail)
+                        put("screen_name", screenName)
+                        put("description", description)
+                        put("image_url", imageUrl)
+                        put("report_type", reportType)
+                        put("status", "open")
+                        put("app_version", appVersion)
+                        if (deviceModel.isNotBlank()) put("device_info", deviceModel)
+                        if (!developerReply.isNullOrBlank()) put("developer_reply", developerReply)
+                    }
+                    if (runCatching { client.postgrest.from("dev_bug_reports").insert(fallbackPayload) }.isSuccess) return@runCatching true
+                }
+
+                // 3. Fallback: try bug_reports
                 val secondAttempt = runCatching {
                     client.postgrest.from("bug_reports").insert(payload)
                 }
                 if (secondAttempt.isSuccess) return@runCatching true
 
-                // 3. Fallback: try user_feedbacks
+                // 4. Fallback: try user_feedbacks
                 val thirdAttempt = runCatching {
                     val fbPayload = buildJsonObject {
                         put("id", id)
@@ -586,22 +608,36 @@ object SupabaseServices {
         suspend fun getAllBugReports(): List<BugReportRow> {
             if (!isSupabaseAvailable) return emptyList()
             return runCatching {
+                val list = mutableListOf<BugReportRow>()
+                val seenIds = mutableSetOf<String>()
+
+                // 1. Fetch from dev_bug_reports
                 val fromDev = runCatching {
                     client.postgrest.from("dev_bug_reports").select {
                         order("created_at", Order.DESCENDING)
                     }.decodeListOrEmpty<BugReportRow>()
-                }.getOrNull()
+                }.getOrNull().orEmpty()
 
-                if (!fromDev.isNullOrEmpty()) return@runCatching fromDev
+                fromDev.forEach { item ->
+                    if (item.id.isNotBlank() && seenIds.add(item.id)) {
+                        list.add(item)
+                    }
+                }
 
-                // Fallback to bug_reports table
+                // 2. Fetch from bug_reports table to ensure zero loss
                 val fromBug = runCatching {
                     client.postgrest.from("bug_reports").select {
                         order("created_at", Order.DESCENDING)
                     }.decodeListOrEmpty<BugReportRow>()
-                }.getOrNull()
+                }.getOrNull().orEmpty()
 
-                fromBug ?: emptyList()
+                fromBug.forEach { item ->
+                    if (item.id.isNotBlank() && seenIds.add(item.id)) {
+                        list.add(item)
+                    }
+                }
+
+                list.sortedByDescending { it.createdAt }
             }.onFailure { Log.w(TAG, "getAllBugReports failed: ${it.message}") }
                 .getOrDefault(emptyList())
         }
@@ -610,42 +646,97 @@ object SupabaseServices {
             userEmail: String,
             message: String,
             sender: String = "user",
-            targetUserId: String? = null
+            targetUserId: String? = null,
+            accountNumber: String? = null
         ): Boolean {
-            if (!isSupabaseAvailable || userEmail.isBlank() || message.isBlank()) return false
+            val cleanEmail = userEmail.trim().lowercase()
+            if (!isSupabaseAvailable || cleanEmail.isBlank() || message.isBlank()) return false
 
             val userId = when (sender) {
-                "user" -> Auth.getCurrentUserId()
-                "developer" -> targetUserId
-                else -> null
-            }
-
-            if (userId.isNullOrBlank()) {
-                Log.w(TAG, "sendChatMessage: missing user_id for sender=$sender")
-                return false
+                "user" -> Auth.getCurrentUserId() ?: cleanEmail
+                "developer" -> targetUserId ?: "dev_admin"
+                else -> cleanEmail
             }
 
             return runCatching {
-                val payload = buildJsonObject {
+                val msgId = UUID.randomUUID().toString()
+                val payloadFull = buildJsonObject {
+                    put("id", msgId)
                     put("user_id", userId)
-                    put("user_email", userEmail)
+                    put("user_email", cleanEmail)
+                    put("sender", sender)
+                    put("message", message.trim())
+                    if (!accountNumber.isNullOrBlank()) put("account_number", accountNumber)
+                }
+                val payloadWithUserId = buildJsonObject {
+                    put("id", msgId)
+                    put("user_id", userId)
+                    put("user_email", cleanEmail)
                     put("sender", sender)
                     put("message", message.trim())
                 }
-                client.postgrest.from("dev_chat_messages").insert(payload)
-                true
+                val payloadWithoutId = buildJsonObject {
+                    put("user_email", cleanEmail)
+                    put("sender", sender)
+                    put("message", message.trim())
+                }
+
+                // محاولة الإرسال إلى جدول dev_chat_messages
+                if (runCatching { client.postgrest.from("dev_chat_messages").insert(payloadFull); true }.getOrDefault(false)) return@runCatching true
+                if (runCatching { client.postgrest.from("dev_chat_messages").insert(payloadWithUserId); true }.getOrDefault(false)) return@runCatching true
+                if (runCatching { client.postgrest.from("dev_chat_messages").insert(payloadWithoutId); true }.getOrDefault(false)) return@runCatching true
+
+                // محاولة بديلة مع جدول chat_messages
+                if (runCatching { client.postgrest.from("chat_messages").insert(payloadWithUserId); true }.getOrDefault(false)) return@runCatching true
+                if (runCatching { client.postgrest.from("chat_messages").insert(payloadWithoutId); true }.getOrDefault(false)) return@runCatching true
+
+                false
             }.onFailure { Log.w(TAG, "sendChatMessage failed: ${it.message}") }
                 .getOrDefault(false)
         }
 
         suspend fun getChatMessages(userEmail: String): List<ChatMessageRow> {
-            if (!isSupabaseAvailable || userEmail.isBlank()) return emptyList()
-            val userId = Auth.getCurrentUserId() ?: return emptyList()
+            val cleanEmail = userEmail.trim().lowercase()
+            if (!isSupabaseAvailable || cleanEmail.isBlank()) return emptyList()
+            val userId = Auth.getCurrentUserId()
             return runCatching {
-                client.postgrest.from("dev_chat_messages").select {
-                    filter { eq("user_id", userId) }
-                    order("created_at", Order.ASCENDING)
-                }.decodeListOrEmpty<ChatMessageRow>()
+                val devResult = runCatching {
+                    client.postgrest.from("dev_chat_messages").select {
+                        if (userId != null) {
+                            filter {
+                                or {
+                                    eq("user_id", userId)
+                                    eq("user_email", cleanEmail)
+                                }
+                            }
+                        } else {
+                            filter { eq("user_email", cleanEmail) }
+                        }
+                        order("created_at", Order.ASCENDING)
+                    }.decodeListOrEmpty<ChatMessageRow>()
+                }.getOrNull().orEmpty()
+
+                if (devResult.isNotEmpty()) return@runCatching devResult
+
+                // Fallback attempt with simple email filter
+                val fallbackEmail = runCatching {
+                    client.postgrest.from("dev_chat_messages").select {
+                        filter { eq("user_email", cleanEmail) }
+                        order("created_at", Order.ASCENDING)
+                    }.decodeListOrEmpty<ChatMessageRow>()
+                }.getOrNull().orEmpty()
+
+                if (fallbackEmail.isNotEmpty()) return@runCatching fallbackEmail
+
+                // Fallback table: chat_messages
+                val chatTableResult = runCatching {
+                    client.postgrest.from("chat_messages").select {
+                        filter { eq("user_email", cleanEmail) }
+                        order("created_at", Order.ASCENDING)
+                    }.decodeListOrEmpty<ChatMessageRow>()
+                }.getOrNull().orEmpty()
+
+                chatTableResult
             }.onFailure { Log.w(TAG, "getChatMessages failed: ${it.message}") }
                 .getOrDefault(emptyList())
         }
@@ -653,9 +744,34 @@ object SupabaseServices {
         suspend fun getAllChatThreads(): Map<String, List<ChatMessageRow>> {
             if (!isSupabaseAvailable) return emptyMap()
             return runCatching {
-                client.postgrest.from("dev_chat_messages").select {
-                    order("created_at", Order.ASCENDING)
-                }.decodeListOrEmpty<ChatMessageRow>().groupBy { it.userEmail }
+                val result = mutableMapOf<String, MutableList<ChatMessageRow>>()
+
+                val devMsgs = runCatching {
+                    client.postgrest.from("dev_chat_messages").select {
+                        order("created_at", Order.ASCENDING)
+                    }.decodeListOrEmpty<ChatMessageRow>()
+                }.getOrNull().orEmpty()
+
+                devMsgs.filter { it.userEmail.isNotBlank() }.forEach { m ->
+                    val key = m.userEmail.trim().lowercase()
+                    result.getOrPut(key) { mutableListOf() }.add(m)
+                }
+
+                val altMsgs = runCatching {
+                    client.postgrest.from("chat_messages").select {
+                        order("created_at", Order.ASCENDING)
+                    }.decodeListOrEmpty<ChatMessageRow>()
+                }.getOrNull().orEmpty()
+
+                altMsgs.filter { it.userEmail.isNotBlank() }.forEach { m ->
+                    val key = m.userEmail.trim().lowercase()
+                    val existing = result.getOrPut(key) { mutableListOf() }
+                    if (existing.none { it.id == m.id && it.message == m.message }) {
+                        existing.add(m)
+                    }
+                }
+
+                result
             }.onFailure { Log.w(TAG, "getAllChatThreads failed: ${it.message}") }
                 .getOrDefault(emptyMap())
         }
@@ -772,7 +888,13 @@ object SupabaseServices {
          * If no row is found, inserts a fresh row and returns the inserted
          * representation. Returns `null` when Supabase is unavailable.
          */
-        suspend fun ensureUser(externalId: String, email: String?, name: String?, customId: String? = null): UserRow? {
+        suspend fun ensureUser(
+            externalId: String,
+            email: String?,
+            name: String?,
+            customId: String? = null,
+            accountNumber: String? = null
+        ): UserRow? {
             if (!isSupabaseAvailable) return null
             return runCatching {
                 val existing = client.postgrest.from("users").select {
@@ -787,14 +909,26 @@ object SupabaseServices {
                         if (!email.isNullOrBlank()) put("email", email)
                         if (!name.isNullOrBlank()) put("name", name)
                         if (!customId.isNullOrBlank()) put("custom_id", customId)
+                        if (!accountNumber.isNullOrBlank()) put("account_number", accountNumber)
                         put("type", "free")
                         put("status", "active")
                     }
                     runCatching {
                         client.postgrest.from("users").insert(JsonArray(listOf(payload)))
                     }.recoverCatching {
-                        // Fallback without custom_id if column not in schema
+                        // Fallback without account_number / custom_id if column not in schema
                         val fallback = buildJsonObject {
+                            put("id", uid)
+                            put("external_id", externalId)
+                            if (!email.isNullOrBlank()) put("email", email)
+                            if (!name.isNullOrBlank()) put("name", name)
+                            if (!customId.isNullOrBlank()) put("custom_id", customId)
+                            put("type", "free")
+                            put("status", "active")
+                        }
+                        client.postgrest.from("users").insert(JsonArray(listOf(fallback)))
+                    }.recoverCatching {
+                        val minimalFallback = buildJsonObject {
                             put("id", uid)
                             put("external_id", externalId)
                             if (!email.isNullOrBlank()) put("email", email)
@@ -802,14 +936,15 @@ object SupabaseServices {
                             put("type", "free")
                             put("status", "active")
                         }
-                        client.postgrest.from("users").insert(JsonArray(listOf(fallback)))
+                        client.postgrest.from("users").insert(JsonArray(listOf(minimalFallback)))
                     }
                     UserRow(
                         id = uid,
                         externalId = externalId,
                         email = email,
                         name = name,
-                        customId = customId
+                        customId = customId,
+                        accountNumber = accountNumber
                     )
                 }
             }.onFailure { Log.w(TAG, "ensureUser failed: ${it.message}") }
@@ -991,12 +1126,13 @@ object SupabaseServices {
             name: String,
             email: String,
             type: String = "مجاني",
-            customId: String? = null
+            customId: String? = null,
+            accountNumber: String? = null
         ): Boolean {
             if (!isSupabaseAvailable) return false
             return runCatching {
                 var saved = false
-                if (!customId.isNullOrBlank()) {
+                if (!customId.isNullOrBlank() || !accountNumber.isNullOrBlank()) {
                     saved = runCatching {
                         val payload = buildJsonObject {
                             put("id", id)
@@ -1005,7 +1141,8 @@ object SupabaseServices {
                             put("email", email)
                             put("type", type)
                             put("status", "active")
-                            put("custom_id", customId)
+                            if (!customId.isNullOrBlank()) put("custom_id", customId)
+                            if (!accountNumber.isNullOrBlank()) put("account_number", accountNumber)
                         }
                         client.postgrest.from("users").upsert(
                             JsonArray(listOf(payload))

@@ -26,6 +26,7 @@ object LocalAccountRegistry {
         val name: String,
         val email: String,
         val customId: String,
+        val accountNumber: String = "",
         val type: String = "مجاني", // "مطور", "خاص", "مجاني"
         val status: String = "active", // "active", "suspended"
         val regDateMillis: Long = System.currentTimeMillis(),
@@ -46,7 +47,8 @@ object LocalAccountRegistry {
                 projectCount = projectCount,
                 regDate = DevDashboardFormatters.formatRegDate(regDateMillis),
                 isSuspended = status == "suspended" || strikes >= 5,
-                customId = customId.ifBlank { email.substringBefore('@') }
+                customId = customId.ifBlank { email.substringBefore('@') },
+                accountNumber = accountNumber.takeIf { it.isNotBlank() }
             )
         }
 
@@ -56,6 +58,7 @@ object LocalAccountRegistry {
                 put("name", name)
                 put("email", email)
                 put("custom_id", customId)
+                put("account_number", accountNumber)
                 put("type", type)
                 put("status", status)
                 put("reg_date_millis", regDateMillis)
@@ -70,11 +73,13 @@ object LocalAccountRegistry {
                 val email = json.optString("email", "")
                 val name = json.optString("name", "").ifBlank { email.substringBefore('@') }
                 val customId = json.optString("custom_id", "").ifBlank { email.substringBefore('@') }
+                val accountNumber = json.optString("account_number", "")
                 return AccountRecord(
                     id = json.optString("id", UUID.randomUUID().toString()),
                     name = name,
                     email = email,
                     customId = customId,
+                    accountNumber = accountNumber,
                     type = json.optString("type", "مجاني"),
                     status = json.optString("status", "active"),
                     regDateMillis = json.optLong("reg_date_millis", System.currentTimeMillis()),
@@ -133,6 +138,7 @@ object LocalAccountRegistry {
 
         if (isLoggedIn && currentEmail.isNotBlank() && currentEmail != "guest@qabas.studio") {
             val exists = list.any { it.email.equals(currentEmail, ignoreCase = true) }
+            val accNum = UserIdentifierManager.getOrCreateAccountNumber(context, currentEmail, currentName)
             if (!exists) {
                 val role = if (isDev) "مطور" else "مجاني"
                 val currentRec = AccountRecord(
@@ -140,12 +146,20 @@ object LocalAccountRegistry {
                     name = currentName.ifBlank { currentEmail.substringBefore('@') },
                     email = currentEmail,
                     customId = currentCustomId.ifBlank { UserIdentifierManager.normalize(currentName.ifBlank { currentEmail }) },
+                    accountNumber = accNum,
                     type = role,
                     status = "active",
                     regDateMillis = System.currentTimeMillis()
                 )
                 list.add(0, currentRec)
                 saveListToPrefs(prefs, list)
+            } else {
+                // تحديث رقم الحساب إن كان مفقوداً
+                val idx = list.indexOfFirst { it.email.equals(currentEmail, ignoreCase = true) }
+                if (idx != -1 && list[idx].accountNumber.isBlank() && accNum.isNotBlank()) {
+                    list[idx] = list[idx].copy(accountNumber = accNum)
+                    saveListToPrefs(prefs, list)
+                }
             }
         }
 
@@ -226,6 +240,7 @@ object LocalAccountRegistry {
         val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(email)
 
         if (isLoggedIn && email.isNotBlank() && email != "guest@qabas.studio") {
+            val accNum = UserIdentifierManager.getOrCreateAccountNumber(context, email, name)
             registerOrUpdateAccount(
                 context = context,
                 account = AccountRecord(
@@ -233,6 +248,7 @@ object LocalAccountRegistry {
                     name = name.ifBlank { email.substringBefore('@') },
                     email = email,
                     customId = customId.ifBlank { UserIdentifierManager.normalize(name.ifBlank { email }) },
+                    accountNumber = accNum,
                     type = if (isAdmin) "مطور" else "مجاني",
                     status = "active"
                 )

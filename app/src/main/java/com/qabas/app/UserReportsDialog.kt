@@ -59,12 +59,13 @@ fun UserReportsDialog(
     var isSyncing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        BugReportRepository.init(context)
+        BugReportRepository.loadLocalReports(context)
     }
 
     val filteredReports = remember(allReports, selectedFilter) {
         when (selectedFilter) {
-            "BUG" -> allReports.filter { it.reportType.equals("BUG", ignoreCase = true) }
+            "BUG" -> allReports.filter { it.reportType.equals("BUG", ignoreCase = true) || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER") }
+            "DIAGNOSTIC" -> allReports.filter { it.description.contains("🔬") || it.description.contains("رصد آلي") || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER", "DIAGNOSTIC_SNAPSHOT") }
             "IMPROVEMENT" -> allReports.filter { it.reportType.equals("IMPROVEMENT", ignoreCase = true) }
             "CONTENT" -> allReports.filter { it.reportType.equals("CONTENT", ignoreCase = true) }
             else -> allReports
@@ -187,9 +188,17 @@ fun UserReportsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val isBugOrTech = { r: BugReportRepository.BugReportItem ->
+                        r.reportType.equals("BUG", true) || r.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE")
+                    }
+                    val isDiag = { r: BugReportRepository.BugReportItem ->
+                        r.description.contains("🔬") || r.description.contains("رصد آلي") || r.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE")
+                    }
+
                     val filterChips = listOf(
                         "ALL" to "الكل (${allReports.size})",
-                        "BUG" to "🐞 أعطال (${allReports.count { it.reportType.equals("BUG", true) }})",
+                        "BUG" to "🐞 أعطال (${allReports.count(isBugOrTech)})",
+                        "DIAGNOSTIC" to "🔬 تشخيص (${allReports.count(isDiag)})",
                         "IMPROVEMENT" to "💡 اقتراحات (${allReports.count { it.reportType.equals("IMPROVEMENT", true) }})",
                         "CONTENT" to "📜 محتوى (${allReports.count { it.reportType.equals("CONTENT", true) }})"
                     )

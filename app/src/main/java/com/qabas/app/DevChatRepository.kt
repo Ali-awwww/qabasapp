@@ -75,8 +75,8 @@ object DevChatRepository {
             val json = adapter.toJson(messages)
             prefs.edit().putString(KEY_MESSAGES_PREFIX + cleanEmail, json).apply()
 
-            // تسجيل البريد في قائمة جميع المحادثات
-            val existingEmails = prefs.getStringSet(KEY_ALL_EMAILS, emptySet())?.toMutableSet() ?: mutableSetOf()
+            // تسجيل البريد في قائمة جميع المحادثات بطريقة آمنة
+            val existingEmails = HashSet(prefs.getStringSet(KEY_ALL_EMAILS, emptySet()) ?: emptySet())
             existingEmails.add(cleanEmail)
             prefs.edit().putStringSet(KEY_ALL_EMAILS, existingEmails).apply()
         } catch (e: Exception) {
@@ -156,10 +156,14 @@ object DevChatRepository {
                     isTelemetry -> "[TELEMETRY] "
                     else -> ""
                 }
+                val accountNumber = UserIdentifierManager.getAccountNumber(context, cleanEmail).ifBlank {
+                    UserIdentifierManager.getOrCreateAccountNumber(context, cleanEmail)
+                }
                 SupabaseServices.Database.sendChatMessage(
                     userEmail = cleanEmail,
                     message = prefix + text.trim(),
-                    sender = sender
+                    sender = sender,
+                    accountNumber = accountNumber.takeIf { it.isNotBlank() }
                 )
             }
         } catch (e: Exception) {
@@ -195,10 +199,31 @@ object DevChatRepository {
         prefs.edit().remove(KEY_MESSAGES_PREFIX + cleanEmail).apply()
     }
 
-    /** جلب كافة المحادثات للمطور (دمج المحلي والسحابي) */
+    /** جلب كافة المحادثات للمطور (دمج المحلي والسحابي الشامل المضمون) */
     suspend fun getAllThreads(context: Context): Map<String, List<DevChatMessage>> = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val allEmails = prefs.getStringSet(KEY_ALL_EMAILS, emptySet())?.toSet() ?: emptySet()
+        val allEmails = mutableSetOf<String>()
+
+        // 1. القائمة المسجلة رسمياً
+        prefs.getStringSet(KEY_ALL_EMAILS, emptySet())?.let { allEmails.addAll(it) }
+
+        // 2. فحص شامل ومباشر لجميع المفاتيح المخزنة لضمان عدم ضياع أي محادثة محلية إطلاقاً
+        prefs.all.keys.filter { it.startsWith(KEY_MESSAGES_PREFIX) }.forEach {
+            val email = it.removePrefix(KEY_MESSAGES_PREFIX).trim().lowercase()
+            if (email.isNotBlank()) allEmails.add(email)
+        }
+
+        // 3. تضمين البريد النشط والافتراضي
+        allEmails.add("user@qabas.app")
+        val currentAppEmail = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getString("user_email", null)
+        if (!currentAppEmail.isNullOrBlank()) {
+            allEmails.add(currentAppEmail.trim().lowercase())
+        }
+        SupabaseServices.Auth.currentUser.value?.email?.let {
+            if (it.isNotBlank()) allEmails.add(it.trim().lowercase())
+        }
+
         val result = mutableMapOf<String, List<DevChatMessage>>()
 
         for (email in allEmails) {
@@ -208,12 +233,13 @@ object DevChatRepository {
             }
         }
 
-        // دمج رسائل Supabase
+        // 4. دمج رسائل Supabase
         try {
             if (SupabaseServices.isSupabaseAvailable) {
                 val cloudThreads = SupabaseServices.Database.getAllChatThreads()
                 for ((cloudEmail, cloudMsgs) in cloudThreads) {
-                    val existing = result[cloudEmail]?.toMutableList() ?: mutableListOf()
+                    val cleanCloudEmail = cloudEmail.trim().lowercase()
+                    val existing = result[cleanCloudEmail]?.toMutableList() ?: mutableListOf()
                     val existingTexts = existing.map { it.message.trim() }.toSet()
                     for (cMsg in cloudMsgs) {
                         if (cMsg.message.trim() !in existingTexts) {
@@ -221,7 +247,7 @@ object DevChatRepository {
                                 DevChatMessage(
                                     id = cMsg.id,
                                     userId = cMsg.userId,
-                                    userEmail = cloudEmail,
+                                    userEmail = cleanCloudEmail,
                                     sender = cMsg.sender,
                                     message = cMsg.message,
                                     formattedTime = cMsg.createdAt?.takeLast(8)?.take(5) ?: "الآن"
@@ -229,7 +255,7 @@ object DevChatRepository {
                             )
                         }
                     }
-                    result[cloudEmail] = existing.sortedBy { it.createdAt }
+                    result[cleanCloudEmail] = existing.sortedBy { it.createdAt }
                 }
             }
         } catch (e: Exception) {

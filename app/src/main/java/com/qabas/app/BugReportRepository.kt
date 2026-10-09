@@ -91,7 +91,7 @@ object BugReportRepository {
     private var isInitialized = false
 
     /**
-     * تهيئة المستودع وتحميل البلاغات المحفوظة محلياً.
+     * تهيئة المستودع وتحميل البلاغات المحفوظة محلياً بشكل فوري.
      */
     fun init(context: Context) {
         if (isInitialized) return
@@ -100,6 +100,12 @@ object BugReportRepository {
             loadLocalReports(context)
             // مزامنة خلفية هادئة إذا كان الإنترنت متاحاً
             syncPendingReports(context)
+        }
+    }
+
+    suspend fun ensureLoaded(context: Context) = withContext(Dispatchers.IO) {
+        if (_reports.value.isEmpty()) {
+            loadLocalReports(context)
         }
     }
 
@@ -115,24 +121,29 @@ object BugReportRepository {
         return dir
     }
 
-    private suspend fun loadLocalReports(context: Context) = withContext(Dispatchers.IO) {
+    suspend fun loadLocalReports(context: Context): List<BugReportItem> = withContext(Dispatchers.IO) {
         try {
             val file = getStorageFile(context)
             if (file.exists()) {
                 val content = file.readText()
                 if (content.isNotBlank()) {
                     val list = json.decodeFromString<List<BugReportItem>>(content)
-                    _reports.value = list.sortedByDescending { it.createdAtMillis }
-                    return@withContext
+                    val sorted = list.sortedByDescending { it.createdAtMillis }
+                    _reports.value = sorted
+                    return@withContext sorted
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error loading local reports: ${e.message}")
         }
-        _reports.value = emptyList()
+        val empty = emptyList<BugReportItem>()
+        if (_reports.value.isEmpty()) {
+            _reports.value = empty
+        }
+        empty
     }
 
-    private suspend fun saveLocalReports(context: Context, list: List<BugReportItem>) = withContext(Dispatchers.IO) {
+    suspend fun saveLocalReports(context: Context, list: List<BugReportItem>) = withContext(Dispatchers.IO) {
         try {
             val file = getStorageFile(context)
             val sorted = list.sortedByDescending { it.createdAtMillis }
@@ -162,7 +173,7 @@ object BugReportRepository {
     }
 
     /**
-     * إرسال وحفظ بلاغ جديد (حفظ محلي فوري + محاولة مزامنة سحابية).
+     * إرسال وحفظ بلاغ جديد (حفظ محلي فوري مضمون 100% + محاولة مزامنة سحابية).
      */
     suspend fun submitReport(
         context: Context,
@@ -172,13 +183,28 @@ object BugReportRepository {
         screenshotBitmap: Bitmap? = null,
         screenshotFile: File? = null
     ): SubmissionResult = withContext(Dispatchers.IO) {
+        // التأكد أولاً من تحميل البلاغات المحفوظة مسبقاً لمنع أي استبدال للبيانات
+        ensureLoaded(context)
+
         val id = UUID.randomUUID().toString()
         val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
         val model = Build.MODEL
         val androidVer = Build.VERSION.RELEASE
         val fullDeviceModel = "$manufacturer $model (Android $androidVer)"
         val currentVer = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-        val userEmail = SupabaseServices.Auth.currentUser.value?.email ?: "مستخدم قبس"
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val userEmail = SupabaseServices.Auth.currentUser.value?.email?.takeIf { it.isNotBlank() && it.contains("@") }
+            ?: prefs.getString("user_email", null)?.takeIf { it.isNotBlank() && it.contains("@") }
+            ?: "user@qabas.app"
+        val userName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() } ?: userEmail.substringBefore('@')
+        val accountNumber = UserIdentifierManager.getAccountNumber(context, userEmail).ifBlank {
+            UserIdentifierManager.getOrCreateAccountNumber(context, userEmail, userName)
+        }
+        val enrichedDescription = if (accountNumber.isNotBlank() && !description.contains(accountNumber)) {
+            "• معرّف الحساب: $accountNumber | المستخدم: $userName\n" + description.trim()
+        } else {
+            description.trim()
+        }
 
         // 1. حفظ الصورة محلياً بشكل دائم
         var localImagePath: String? = null
@@ -194,7 +220,7 @@ object BugReportRepository {
         var reportItem = BugReportItem(
             id = id,
             screenName = screenName.ifBlank { "الرئيسية" },
-            description = description.trim(),
+            description = enrichedDescription,
             reportType = reportType.ifBlank { "BUG" },
             status = "open",
             userEmail = userEmail,
@@ -209,6 +235,7 @@ object BugReportRepository {
 
         // 3. الحفظ المحلي فوراً (ضمان عدم فقدان البلاغ إطلاقاً)
         val currentList = _reports.value.toMutableList()
+        currentList.removeAll { it.id == id }
         currentList.add(0, reportItem)
         saveLocalReports(context, currentList)
 
@@ -240,7 +267,8 @@ object BugReportRepository {
                     reportType = reportItem.reportType,
                     appVersion = currentVer,
                     deviceModel = fullDeviceModel,
-                    id = id
+                    id = id,
+                    accountNumber = accountNumber
                 )
 
                 if (dbSuccess) {

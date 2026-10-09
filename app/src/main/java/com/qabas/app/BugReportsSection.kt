@@ -60,7 +60,8 @@ fun BugReportsSection() {
     fun loadAll() {
         isLoading = true
         scope.launch {
-            BugReportRepository.init(context)
+            // تحميل البلاغات المحلية وانتظارها لضمان الظهور الفوري في لوحة المطور
+            BugReportRepository.loadLocalReports(context)
             if (SupabaseServices.isSupabaseAvailable) {
                 cloudReports = SupabaseServices.Database.getAllBugReports()
             }
@@ -109,7 +110,10 @@ fun BugReportsSection() {
     val filteredReports = remember(mergedReports, selectedTypeFilter, selectedStatusFilter, searchQuery) {
         mergedReports.filter { item ->
             val matchesType = when (selectedTypeFilter) {
-                "BUG" -> item.reportType.equals("BUG", true)
+                "BUG" -> item.reportType.equals("BUG", true) ||
+                         item.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER")
+                "DIAGNOSTIC" -> item.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER", "DIAGNOSTIC_SNAPSHOT") ||
+                                item.description.contains("🔬") || item.description.contains("رصد آلي")
                 "IMPROVEMENT" -> item.reportType.equals("IMPROVEMENT", true)
                 "CONTENT" -> item.reportType.equals("CONTENT", true)
                 else -> true
@@ -285,9 +289,17 @@ fun BugReportsSection() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val isBugOrTech = { r: BugReportRepository.BugReportItem ->
+                    r.reportType.equals("BUG", true) || r.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE")
+                }
+                val isDiag = { r: BugReportRepository.BugReportItem ->
+                    r.description.contains("🔬") || r.description.contains("رصد آلي") || r.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE")
+                }
+
                 val typeChips = listOf(
                     "ALL" to "الكل (${mergedReports.size})",
-                    "BUG" to "🐞 أعطال (${mergedReports.count { it.reportType.equals("BUG", true) }})",
+                    "BUG" to "🐞 أعطال (${mergedReports.count(isBugOrTech)})",
+                    "DIAGNOSTIC" to "🔬 تشخيص (${mergedReports.count(isDiag)})",
                     "IMPROVEMENT" to "💡 اقتراحات (${mergedReports.count { it.reportType.equals("IMPROVEMENT", true) }})",
                     "CONTENT" to "📜 محتوى (${mergedReports.count { it.reportType.equals("CONTENT", true) }})"
                 )

@@ -88,8 +88,8 @@ fun AppNavigation(
                 onLoadProjects = { viewModel.loadProjectsSuspend() },
                 onFinished = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    val isAdmin = prefs.getBoolean("is_admin", false)
-                    val nextState = AppState.HOME
+                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                    val nextState = if (isLoggedIn) AppState.HOME else AppState.LOGIN
                     viewModel.updateState { copy(appState = nextState) }
                 }
             )

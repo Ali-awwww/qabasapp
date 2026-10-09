@@ -20,6 +20,131 @@ object UserIdentifierManager {
     private const val KEY_CUSTOM_ID = "user_custom_id"
     private const val KEY_USER_TAG = "user_tag"
     private const val KEY_MAP_PREFIX = "user_id_map_"
+    const val KEY_ACCOUNT_NUMBER = "user_account_number"
+    private const val KEY_ACCOUNT_MAP_PREFIX = "user_acc_map_"
+    private const val KEY_NEXT_ACCOUNT_SEQ = "next_account_seq_num"
+
+    /**
+     * تنسيق رقم الحساب الرسمي للمستخدم (مثل: #QBS-0001)
+     */
+    fun formatAccountNumber(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        return if (trimmed.startsWith("#")) trimmed else "#$trimmed"
+    }
+
+    /**
+     * فحص هل هذا الحساب هو أول حساب تم إنشاؤه في التطبيق (#QBS-0001)
+     */
+    fun isFirstAccount(accNumber: String?): Boolean {
+        if (accNumber.isNullOrBlank()) return false
+        val clean = accNumber.removePrefix("#").uppercase(Locale.ROOT)
+        return clean == "QBS-0001" || clean == "QBS-1" || clean == "0001" || clean == "1"
+    }
+
+    /**
+     * استرجاع أو إنشاء رقم الحساب الرسمي الحقيقي والمتسلسل للمستخدم.
+     * الحساب الأول في النظام (أو حساب المالك الأساسي) يحصل دائماً على #QBS-0001
+     */
+    fun getOrCreateAccountNumber(context: Context, email: String?, displayName: String? = null): String {
+        if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
+            return ""
+        }
+        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // 1. فحص هل يوجد رقم حساب محفوظ مسبقاً لهذا البريد تحديداً
+        val savedForEmail = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)
+        if (!savedForEmail.isNullOrBlank()) {
+            val formatted = formatAccountNumber(savedForEmail)
+            prefs.edit().putString(KEY_ACCOUNT_NUMBER, formatted).apply()
+            return formatted
+        }
+
+        // 2. إذا كان حساب المالك الأساسي للمنصة، يحصل حصرياً على الحساب رقم 1
+        if (CloudServices.isOwnerAccount(cleanEmail) || cleanEmail.contains("mousa.alharbi.pro@gmail.com")) {
+            val firstAcc = "#QBS-0001"
+            prefs.edit()
+                .putString(KEY_ACCOUNT_NUMBER, firstAcc)
+                .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, firstAcc)
+                .apply()
+            return firstAcc
+        }
+
+        // 3. فحص عداد الحسابات المتسلسل في التطبيق لتعيين الرقم الحقيقي التالي
+        val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
+        val isFirstInRegistry = existingAccounts.isEmpty() || (existingAccounts.size == 1 && existingAccounts.first().email.equals(cleanEmail, ignoreCase = true))
+
+        val currentSeq = prefs.getInt(KEY_NEXT_ACCOUNT_SEQ, 0)
+        val assignedSeq = if (isFirstInRegistry && currentSeq <= 1) {
+            1
+        } else {
+            val next = if (currentSeq < 1) 2 else currentSeq + 1
+            next
+        }
+
+        prefs.edit().putInt(KEY_NEXT_ACCOUNT_SEQ, maxOf(currentSeq, assignedSeq)).apply()
+
+        val generatedAcc = "#QBS-" + String.format(Locale.ROOT, "%04d", assignedSeq)
+        prefs.edit()
+            .putString(KEY_ACCOUNT_NUMBER, generatedAcc)
+            .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, generatedAcc)
+            .apply()
+        return generatedAcc
+    }
+
+    /**
+     * جلب رقم الحساب الحالي للمستخدم النشط
+     */
+    fun getAccountNumber(context: Context, email: String? = null): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!email.isNullOrBlank()) {
+            val cleanEmail = email.trim().lowercase(Locale.ROOT)
+            val mapped = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)
+            if (!mapped.isNullOrBlank()) return formatAccountNumber(mapped)
+        }
+        val current = prefs.getString(KEY_ACCOUNT_NUMBER, "") ?: ""
+        return if (current.isNotBlank()) formatAccountNumber(current) else ""
+    }
+
+    /**
+     * حفظ وتثبيت رقم الحساب لمستخدم معين
+     */
+    fun saveAccountNumber(context: Context, email: String, accountNumber: String) {
+        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        val formatted = formatAccountNumber(accountNumber)
+        if (cleanEmail.isBlank() || formatted.isBlank()) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_ACCOUNT_NUMBER, formatted)
+            .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, formatted)
+            .apply()
+    }
+
+    /**
+     * تنسيق اسم المستخدم ليحتوي على رقم الحساب المعتمد في التطبيق
+     * مثال: "موسى الحربي (#QBS-0001)"
+     */
+    fun formatDisplayNameWithAccount(displayName: String, accountNumber: String?): String {
+        val cleanName = displayName.trim()
+        if (accountNumber.isNullOrBlank()) return cleanName
+        val formattedAcc = formatAccountNumber(accountNumber)
+        if (cleanName.contains(formattedAcc)) return cleanName
+        return "$cleanName ($formattedAcc)"
+    }
+
+    /**
+     * نسخ رقم الحساب للحافظة
+     */
+    fun copyAccountNumberToClipboard(context: Context, accountNumber: String, showToast: Boolean = true) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val display = formatAccountNumber(accountNumber)
+        val clip = ClipData.newPlainText("Qabas Account Number", display)
+        clipboard?.setPrimaryClip(clip)
+        if (showToast) {
+            Toast.makeText(context, "تم نسخ رقم الحساب ($display) إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     /**
      * تنظيف وضبط المعرّف لإزالة الفراغات والرموز الزائدة وتحويله إلى حروف صغيرة موحدة.

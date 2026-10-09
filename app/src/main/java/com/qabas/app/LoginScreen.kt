@@ -97,21 +97,23 @@ fun LoginScreen(
                     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
                     val isRelative = prefs.getBoolean("is_relative", false)
 
-                    // إنشاء أو استعادة المعرّف الخاص للمستخدم
+                    // إنشاء أو استعادة المعرّف الخاص للمستخدم ورقم الحساب الرسمي
                     val customId = UserIdentifierManager.getOrCreateCustomId(context, lowerEmail, googleResult.displayName)
+                    val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, lowerEmail, googleResult.displayName)
 
                     val externalId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
                     var userType = if (isAdmin) "مطور" else "مجاني"
                     
                     if (SupabaseServices.isSupabaseAvailable) {
-                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customId)
+                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customId, accountNumber)
                         if (existing != null && existing.type.isNotBlank()) userType = existing.type
                         SupabaseServices.Database.saveUser(
                             externalId,
                             googleResult.displayName ?: lowerEmail.substringBefore('@'),
                             lowerEmail,
                             userType,
-                            customId
+                            customId,
+                            accountNumber
                         )
                     }
 
@@ -119,6 +121,8 @@ fun LoginScreen(
                     val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
 
                     val effectiveGoogleName = googleResult.displayName ?: googleResult.email.substringBefore('@')
+                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveGoogleName, accountNumber)
+
                     LocalAccountRegistry.registerOrUpdateAccount(
                         context = context,
                         account = LocalAccountRegistry.AccountRecord(
@@ -126,6 +130,7 @@ fun LoginScreen(
                             name = effectiveGoogleName,
                             email = googleResult.email,
                             customId = customId,
+                            accountNumber = accountNumber,
                             type = if (finalIsDeveloper) "مطور" else "مجاني",
                             status = "active"
                         )
@@ -133,6 +138,7 @@ fun LoginScreen(
 
                     prefs.edit().apply {
                         putBoolean("is_logged_in", true)
+                        putBoolean("is_guest", false)
                         putBoolean("is_admin", finalIsAdmin)
                         putBoolean("is_developer", finalIsDeveloper)
                         putBoolean("is_premium", true)
@@ -142,6 +148,8 @@ fun LoginScreen(
                         putString("user_display_name", effectiveGoogleName)
                         putString("user_custom_id", customId)
                         putString("user_tag", UserIdentifierManager.formatDisplay(customId))
+                        putString("user_account_number", accountNumber)
+                        putString("user_name_with_account", nameWithAccount)
                         if (!googleResult.displayName.isNullOrBlank()) {
                             putString("user_name", googleResult.displayName)
                         }
@@ -158,9 +166,10 @@ fun LoginScreen(
                     )
 
                     CloudServices.syncAdminClaim(context)
+                    val firstUserBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                     Toast.makeText(
                         context,
-                        "مرحباً بك ${googleResult.displayName ?: googleResult.email}! تم التوثيق السحابي بنجاح 🚀",
+                        "مرحباً بك ${googleResult.displayName ?: googleResult.email}! رقم حسابك: $accountNumber$firstUserBadge 🚀",
                         Toast.LENGTH_SHORT
                     ).show()
                     onLoginSuccess(finalIsAdmin)
@@ -519,16 +528,18 @@ fun LoginScreen(
                                     } else {
                                         UserIdentifierManager.getOrCreateCustomId(context, targetEmail)
                                     }
+                                    val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, targetEmail)
 
                                     if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, null, finalCustomId)
+                                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, null, finalCustomId, accountNumber)
                                         if (existing != null && existing.type.isNotBlank()) userType = existing.type
                                         SupabaseServices.Database.saveUser(
                                             id = externalId,
                                             name = lowerEmail.substringBefore('@'),
                                             email = targetEmail,
                                             type = userType,
-                                            customId = finalCustomId
+                                            customId = finalCustomId,
+                                            accountNumber = accountNumber
                                         )
                                     }
 
@@ -536,6 +547,8 @@ fun LoginScreen(
                                     val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
 
                                     val effectiveLoginName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() } ?: targetEmail.substringBefore('@')
+                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveLoginName, accountNumber)
+
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
@@ -543,6 +556,7 @@ fun LoginScreen(
                                             name = effectiveLoginName,
                                             email = targetEmail,
                                             customId = finalCustomId,
+                                            accountNumber = accountNumber,
                                             type = if (finalIsDeveloper) "مطور" else userType,
                                             status = "active"
                                         )
@@ -550,6 +564,7 @@ fun LoginScreen(
 
                                     prefs.edit().apply {
                                         putBoolean("is_logged_in", true)
+                                        putBoolean("is_guest", false)
                                         putBoolean("is_admin", finalIsAdmin)
                                         putBoolean("is_developer", finalIsDeveloper)
                                         putBoolean("is_premium", true)
@@ -559,6 +574,8 @@ fun LoginScreen(
                                         putString("user_display_name", effectiveLoginName)
                                         putString("user_custom_id", finalCustomId)
                                         putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
+                                        putString("user_account_number", accountNumber)
+                                        putString("user_name_with_account", nameWithAccount)
                                         if (rememberMe) putString("saved_login_email", trimmedInput) else remove("saved_login_email")
                                         apply()
                                     }
@@ -567,9 +584,10 @@ fun LoginScreen(
                                         isAdmin = finalIsAdmin
                                     )
                                     CloudServices.syncAdminClaim(context)
+                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
                                         context, 
-                                        "مرحباً بك! تم المصادقة بنجاح (${UserIdentifierManager.formatDisplay(finalCustomId)})", 
+                                        "مرحباً بك! تم التوثيق برقم الحساب: $accountNumber$firstBadge", 
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     onLoginSuccess(finalIsAdmin)
@@ -628,8 +646,16 @@ fun LoginScreen(
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit().apply {
                         putBoolean("is_logged_in", true)
+                        putBoolean("is_guest", true)
                         putBoolean("is_admin", false)
+                        putBoolean("is_developer", false)
                         putString("user_email", "guest@qabas.studio")
+                        putString("user_name", "ضيف قبس")
+                        putString("user_display_name", "ضيف قبس")
+                        putString("user_custom_id", "guest")
+                        putString("user_tag", "@guest")
+                        remove("user_account_number")
+                        remove("user_name_with_account")
                         apply()
                     }
                     SupabaseRepository.getInstance().emitLocalAuthenticated(
@@ -637,6 +663,11 @@ fun LoginScreen(
                         name = "ضيف قبس",
                         isAdmin = false
                     )
+                    Toast.makeText(
+                        context,
+                        "تم الدخول كضيف 👤. زر البلاغات البرمجية ومحادثة المطور محجوبان ومخصصان للحسابات الموثقة.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     onLoginSuccess(false)
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),

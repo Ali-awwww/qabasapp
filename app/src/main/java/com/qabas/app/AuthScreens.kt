@@ -145,22 +145,25 @@ fun RegisterScreen(
 
                                 val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
                                 val customIdAssigned = UserIdentifierManager.getOrCreateCustomId(context, lowerEmail, googleResult.displayName)
+                                val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, lowerEmail, googleResult.displayName)
 
                                 val externalId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
                                 var userType = if (isAdmin) "مطور" else "مجاني"
                                 if (SupabaseServices.isSupabaseAvailable) {
-                                    val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customIdAssigned)
+                                    val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customIdAssigned, accountNumber)
                                     if (existing != null && existing.type.isNotBlank()) userType = existing.type
                                     SupabaseServices.Database.saveUser(
                                         externalId,
                                         googleResult.displayName ?: lowerEmail.substringBefore('@'),
                                         lowerEmail,
                                         userType,
-                                        customIdAssigned
+                                        customIdAssigned,
+                                        accountNumber
                                     )
                                 }
 
                                 val effectiveName = googleResult.displayName ?: lowerEmail.substringBefore('@')
+                                val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveName, accountNumber)
                                 LocalAccountRegistry.registerOrUpdateAccount(
                                     context = context,
                                     account = LocalAccountRegistry.AccountRecord(
@@ -168,6 +171,7 @@ fun RegisterScreen(
                                         name = effectiveName,
                                         email = lowerEmail,
                                         customId = customIdAssigned,
+                                        accountNumber = accountNumber,
                                         type = userType,
                                         status = "active",
                                         regDateMillis = System.currentTimeMillis()
@@ -176,21 +180,25 @@ fun RegisterScreen(
 
                                 prefs.edit().apply {
                                     putBoolean("is_logged_in", true)
+                                    putBoolean("is_guest", false)
                                     putBoolean("is_admin", isAdmin)
                                     putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
                                     putBoolean("is_premium", true)
                                     putString("user_email", googleResult.email)
                                     putString("user_custom_id", customIdAssigned)
                                     putString("user_tag", UserIdentifierManager.formatDisplay(customIdAssigned))
+                                    putString("user_account_number", accountNumber)
+                                    putString("user_name_with_account", nameWithAccount)
                                     putString("user_name", effectiveName)
                                     putString("user_display_name", effectiveName)
                                     apply()
                                 }
 
                                 CloudServices.syncAdminClaim(context)
+                                val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                 Toast.makeText(
                                     context, 
-                                    "تم التسجيل والتوثيق السحابي بنجاح 🚀! معرّفك: ${UserIdentifierManager.formatDisplay(customIdAssigned)}", 
+                                    "تم التسجيل بنجاح 🚀! رقم حسابك: $accountNumber$firstBadge", 
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 onRegisterSuccess()
@@ -414,21 +422,24 @@ fun RegisterScreen(
                                     val isAdmin = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
                                     val userType = if (isAdmin) "مطور" else "مجاني"
                                     val userId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+                                    val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, trimmedEmail, name.trim())
 
                                     UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
 
                                     if (SupabaseServices.isSupabaseAvailable) {
-                                        SupabaseServices.Database.ensureUser(userId, lowerEmail, name.trim(), finalCustomId)
+                                        SupabaseServices.Database.ensureUser(userId, lowerEmail, name.trim(), finalCustomId, accountNumber)
                                         SupabaseServices.Database.saveUser(
                                             id = userId, 
                                             name = name.trim(), 
                                             email = trimmedEmail, 
                                             type = userType, 
-                                            customId = finalCustomId
+                                            customId = finalCustomId,
+                                            accountNumber = accountNumber
                                         )
                                     }
 
                                     val effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
+                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveManualName, accountNumber)
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
@@ -436,6 +447,7 @@ fun RegisterScreen(
                                             name = effectiveManualName,
                                             email = trimmedEmail,
                                             customId = finalCustomId,
+                                            accountNumber = accountNumber,
                                             type = userType,
                                             status = "active",
                                             regDateMillis = System.currentTimeMillis()
@@ -445,6 +457,7 @@ fun RegisterScreen(
                                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                                     prefs.edit().apply {
                                         putBoolean("is_logged_in", true)
+                                        putBoolean("is_guest", false)
                                         putBoolean("is_admin", isAdmin)
                                         putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
                                         putBoolean("is_premium", true)
@@ -453,11 +466,14 @@ fun RegisterScreen(
                                         putString("user_display_name", effectiveManualName)
                                         putString("user_custom_id", finalCustomId)
                                         putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
+                                        putString("user_account_number", accountNumber)
+                                        putString("user_name_with_account", nameWithAccount)
                                         apply()
                                     }
+                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
                                         context, 
-                                        "تم إنشاء الحساب بنجاح! معرّفك: ${UserIdentifierManager.formatDisplay(finalCustomId)}", 
+                                        "تم إنشاء الحساب بنجاح! رقم حسابك: $accountNumber$firstBadge", 
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     onRegisterSuccess()

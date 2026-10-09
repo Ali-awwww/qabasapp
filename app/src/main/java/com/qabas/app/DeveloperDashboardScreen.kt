@@ -84,7 +84,8 @@ data class DevUser(
     val projectCount: Int,
     val regDate: String,
     val isSuspended: Boolean = false,
-    val customId: String? = null
+    val customId: String? = null,
+    val accountNumber: String? = null
 )
 
 /** أدوات تنسيق البيانات الحقيقية لشاشة المطور. */
@@ -333,6 +334,8 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         },
                         onSystemIdentityHub = { currentSection = DashboardSection.SYSTEM_IDENTITY_HUB },
                         onAiModelSwitcher = { currentSection = DashboardSection.AI_MODEL_SWITCHER },
+                        onBugReports = { currentSection = DashboardSection.BUG_REPORTS },
+                        onDevChat = { currentSection = DashboardSection.DEV_CHAT },
                         userCount = devUsers.size
                     )
                 }
@@ -943,20 +946,43 @@ private fun DeveloperChatSection(context: Context) {
             .fillMaxSize()
             .padding(10.dp)
     ) {
-        Text(
-            "محادثات المستخدمين",
-            color = GoldPrimary,
-            fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 17.sp
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "الرسائل الواردة من DevChat تظهر هنا، ويمكنك الرد على كل مستخدم مباشرة.",
-            color = TextSecondary,
-            fontFamily = CairoFont,
-            fontSize = 11.sp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "محادثات المستخدمين",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    "الرسائل الواردة من DevChat تظهر هنا، ويمكنك الرد على كل مستخدم مباشرة.",
+                    color = TextSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp
+                )
+            }
+            IconButton(
+                onClick = {
+                    scope.launch {
+                        AppSoundManager.playClick()
+                        refreshThreads()
+                        Toast.makeText(context, "تم تحديث المحادثات 🔄", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(Color.White.copy(alpha = 0.08f), CircleShape)
+                    .border(1.dp, GoldPrimary.copy(alpha = 0.35f), CircleShape)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(10.dp))
 
         if (threads.isEmpty()) {
@@ -1222,6 +1248,8 @@ fun DashboardMainGrid(
     onUsersCommunityHub: () -> Unit = {},
     onBusinessRevenueHub: () -> Unit = {},
     onSystemIdentityHub: () -> Unit = {},
+    onBugReports: () -> Unit = onHealthDiagnosticsHub,
+    onDevChat: () -> Unit = onUsersCommunityHub,
     // توافقية كاملة مع الروابط السابقة
     onLiveKeyHub: () -> Unit = onCloudApiHub,
     onAiModelSwitcher: () -> Unit = onCloudApiHub,
@@ -1722,6 +1750,83 @@ fun DashboardMainGrid(
                                         }
                                     }
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Live Feedback & Direct Developer Radar (البلاغات والرسائل الحية) ──
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val reportsList by BugReportRepository.reports.collectAsState()
+                    val openReports = reportsList.count { it.status == "open" }
+                    val totalReports = reportsList.size
+
+                    // 1. زر البلاغات المباشر مع عداد حي
+                    Surface(
+                        onClick = onBugReports,
+                        modifier = Modifier.weight(1f).height(62.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF1E1420),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("بلاغات الأعطال", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1, softWrap = false)
+                                Text(
+                                    if (openReports > 0) "$openReports جديد 🚨" else "الكل مستقر ($totalReports)",
+                                    color = if (openReports > 0) Color(0xFFEF4444) else Color(0xFF10B981),
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. زر محادثات المستخدمين المباشر
+                    Surface(
+                        onClick = onDevChat,
+                        modifier = Modifier.weight(1f).height(62.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF102027),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF38BDF8).copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Forum, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("محادثات المستخدمين", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1, softWrap = false)
+                                Text("فتح قناة DevChat 💬", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }
