@@ -29,8 +29,30 @@ import java.util.concurrent.TimeUnit
 object UpdateManager {
 
     private const val TAG = "UpdateManager"
-    private const val REPO = "aliwalead2007-ship-it/QabasStudio-"
+    private const val DEFAULT_REPO = "aliwalead2007-ship-it/QabasStudio-"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+
+    fun getEffectiveRepo(context: Context): String {
+        val active = runCatching { RepoVaultManager.getActiveRepo(context) }.getOrNull()
+        if (active != null && active.owner.isNotBlank() && active.repo.isNotBlank()) {
+            return "${active.owner.trim()}/${active.repo.trim()}"
+        }
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val owner = prefs.getString("build_center_owner", null)?.trim()
+        val repo = prefs.getString("build_center_repo", null)?.trim()
+        if (!owner.isNullOrBlank() && !repo.isNullOrBlank()) {
+            return "$owner/$repo"
+        }
+        return DEFAULT_REPO
+    }
+
+    fun getEffectiveToken(context: Context): String? {
+        val active = runCatching { RepoVaultManager.getActiveRepo(context) }.getOrNull()
+        if (!active?.token.isNullOrBlank()) return active!!.token.trim()
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val token = prefs.getString("build_center_token", null)?.trim()
+        return if (!token.isNullOrBlank()) token else null
+    }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -135,11 +157,18 @@ object UpdateManager {
             }
 
             // 2. الأولوية الثانية: فحص التحديثات من GitHub Releases
-            val request = Request.Builder()
-                .url("https://api.github.com/repos/$REPO/releases/latest")
+            val effectiveRepo = getEffectiveRepo(context)
+            val effectiveToken = getEffectiveToken(context)
+            val requestBuilder = Request.Builder()
+                .url("https://api.github.com/repos/$effectiveRepo/releases/latest")
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("User-Agent", "Qabas-Studio")
-                .build()
+
+            if (!effectiveToken.isNullOrBlank()) {
+                requestBuilder.header("Authorization", "Bearer $effectiveToken")
+            }
+
+            val request = requestBuilder.build()
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
@@ -243,11 +272,12 @@ object UpdateManager {
         }
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
+                val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
                 if (!forceFull && !update.deltaUrl.isNullOrBlank() && update.deltaSize > 0) {
                     Log.d(TAG, "Trying delta (${formatSize(update.deltaSize)})…")
-                    val patched = tryDeltaUpdate(context, update, updatesDir, authToken, handle, emitProgress)
+                    val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
                         withContext(Dispatchers.Main) {
                             launchInstaller(context, patched)
@@ -267,7 +297,7 @@ object UpdateManager {
                 Log.d(TAG, "Downloading full APK (${formatSize(update.apkSize)})…")
                 val apkFile = downloadFile(
                     update.apkUrl, updatesDir,
-                    "qabas-${update.versionName}.apk", authToken, handle
+                    "qabas-${update.versionName}.apk", resolvedAuthToken, handle
                 ) { bytes, total, speed ->
                     val pct = if (total > 0) (bytes * 100 / total).toInt().coerceIn(0, 100) else 0
                     emitProgress(DownloadProgress(pct, bytes, total, Phase.DOWNLOADING_FULL, speed))

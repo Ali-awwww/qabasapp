@@ -1,0 +1,268 @@
+name: Generate & Release xdelta Updates
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target_tag:
+        description: 'Target Release Tag (leave empty for latest release)'
+        required: false
+        default: ''
+      previous_tag:
+        description: 'Previous Release Tag (leave empty for automatic detection)'
+        required: false
+        default: ''
+
+concurrency:
+  group: xdelta-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-generate-xdelta:
+    name: Generate xdelta3 Patches & Binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Host Tools & Cross-Compilers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            xdelta3 \
+            curl \
+            jq \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf \
+            gcc-x86-64-linux-gnu \
+            make \
+            automake \
+            autoconf \
+            libtool
+
+      - name: Build Standalone Static xdelta3 Binaries for Android ABIs
+        run: |
+          mkdir -p xdelta_bins
+          XDELTA_SRC_DIR="$RUNNER_TEMP/xdelta3-src"
+          git clone --depth 1 https://github.com/jmacd/xdelta.git "$XDELTA_SRC_DIR"
+          cd "$XDELTA_SRC_DIR/xdelta3"
+
+          # 1. Compile for arm64-v8a (aarch64)
+          echo "🔨 Compiling static xdelta3 for arm64-v8a..."
+          aarch64-linux-gnu-gcc -O3 -static \
+            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
+            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a" || {
+              echo "Standard build fallback..."
+              autoreconf -fiv && ./configure --host=aarch64-linux-gnu LDFLAGS="-static" && make
+              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a"
+            }
+          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a"
+
+          # 2. Compile for armeabi-v7a (armhf)
+          echo "🔨 Compiling static xdelta3 for armeabi-v7a..."
+          arm-linux-gnueabihf-gcc -O3 -static \
+            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
+            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a" || {
+              echo "Standard arm build fallback..."
+              make clean || true
+              autoreconf -fiv && ./configure --host=arm-linux-gnueabihf LDFLAGS="-static" && make
+              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a"
+            }
+          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a"
+
+          # 3. Compile for x86_64
+          echo "🔨 Compiling static xdelta3 for x86_64..."
+          gcc -O3 -static \
+            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
+            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64" || {
+              echo "Standard x86_64 build fallback..."
+              make clean || true
+              autoreconf -fiv && ./configure LDFLAGS="-static" && make
+              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64"
+            }
+          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64"
+
+          cd "$GITHUB_WORKSPACE"
+          echo "✅ Built xdelta3 binaries:"
+          ls -lh xdelta_bins/
+
+      - name: Resolve Target & Previous Release Tags
+        id: resolve-tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET_TAG="${{ github.event.inputs.target_tag }}"
+          if [ -z "$TARGET_TAG" ]; then
+            if [ "${{ github.event_name }}" = "release" ]; then
+              TARGET_TAG="${{ github.event.release.tag_name }}"
+            else
+              TARGET_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+            fi
+          fi
+
+          PREV_TAG="${{ github.event.inputs.previous_tag }}"
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(gh release list --limit 10 --json tagName --jq ".[].tagName" | grep -v "^${TARGET_TAG}$" | head -n 1 || true)
+          fi
+
+          echo "Target tag: $TARGET_TAG"
+          echo "Previous tag: $PREV_TAG"
+          echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download Target APK & Previous APK
+        id: download-apks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+        run: |
+          mkdir -p apks
+          
+          # Download Target APK from Target Release
+          echo "📥 Downloading APK from target release ($TARGET_TAG)..."
+          gh release download "$TARGET_TAG" --pattern "*.apk" --dir apks/target || {
+            echo "⚠️ No APK found attached to release $TARGET_TAG"
+            exit 1
+          }
+          TARGET_APK=$(find apks/target -name "*.apk" | head -n 1)
+          echo "Target APK: $TARGET_APK"
+          echo "target_apk=$TARGET_APK" >> "$GITHUB_OUTPUT"
+
+          # Download Previous APK if previous tag exists
+          if [ -n "$PREV_TAG" ]; then
+            echo "📥 Downloading APK from previous release ($PREV_TAG)..."
+            if gh release download "$PREV_TAG" --pattern "*.apk" --dir apks/prev; then
+              PREV_APK=$(find apks/prev -name "*.apk" | head -n 1)
+              echo "Previous APK: $PREV_APK"
+              echo "prev_apk=$PREV_APK" >> "$GITHUB_OUTPUT"
+            else
+              echo "⚠️ Could not download previous APK from $PREV_TAG"
+              echo "prev_apk=" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "ℹ️ No previous release tag detected."
+            echo "prev_apk=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute Differential xdelta3 Patch
+        id: compute-delta
+        env:
+          TARGET_APK: ${{ steps.download-apks.outputs.target_apk }}
+          PREV_APK: ${{ steps.download-apks.outputs.prev_apk }}
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+        run: |
+          mkdir -p dist
+          
+          CLEAN_VERSION="${TARGET_TAG#v}"
+          DELTA_NAME="qabas-${CLEAN_VERSION}.delta"
+          DELTA_PATH="dist/${DELTA_NAME}"
+
+          if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
+            echo "⚡ Computing xdelta3 differential patch..."
+            echo "Source (Base): $PREV_APK ($(stat -c%s "$PREV_APK") bytes)"
+            echo "Target (New):  $TARGET_APK ($(stat -c%s "$TARGET_APK") bytes)"
+            
+            # -9 for highest compression, -S djw for secondary compression
+            xdelta3 -9 -e -s "$PREV_APK" "$TARGET_APK" "$DELTA_PATH"
+            
+            # Verify delta can reconstruct the exact target APK
+            VERIFY_APK="dist/verify-reconstructed.apk"
+            xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"
+            
+            ORIGINAL_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
+            VERIFY_MD5=$(md5sum "$VERIFY_APK" | awk '{print $1}')
+            rm -f "$VERIFY_APK"
+
+            if [ "$ORIGINAL_MD5" = "$VERIFY_MD5" ]; then
+              echo "✅ Patch verification successful! Checksums match 100%."
+            else
+              echo "❌ Patch verification failed! MD5 mismatch."
+              exit 1
+            fi
+
+            DELTA_SIZE=$(stat -c%s "$DELTA_PATH")
+            TARGET_SIZE=$(stat -c%s "$TARGET_APK")
+            SAVINGS=$(( (TARGET_SIZE - DELTA_SIZE) * 100 / TARGET_SIZE ))
+            echo "🎉 Delta generated: $DELTA_PATH ($DELTA_SIZE bytes)"
+            echo "🚀 Bandwidth savings: ${SAVINGS}% compared to full APK!"
+            echo "delta_created=true" >> "$GITHUB_OUTPUT"
+            echo "delta_path=$DELTA_PATH" >> "$GITHUB_OUTPUT"
+            echo "delta_size=$DELTA_SIZE" >> "$GITHUB_OUTPUT"
+            echo "savings_pct=$SAVINGS" >> "$GITHUB_OUTPUT"
+          else
+            echo "ℹ️ Skipping delta calculation (no previous APK available for diff)."
+            echo "delta_created=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Attach Delta & xdelta3 Binaries to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          DELTA_CREATED: ${{ steps.compute-delta.outputs.delta_created }}
+          DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
+          SAVINGS_PCT: ${{ steps.compute-delta.outputs.savings_pct }}
+          DELTA_SIZE: ${{ steps.compute-delta.outputs.delta_size }}
+        run: |
+          echo "📤 Uploading assets to release $TARGET_TAG..."
+
+          ASSETS_TO_UPLOAD=()
+
+          # 1. Add Architecture-Specific xdelta3 Binaries
+          for bin in xdelta_bins/xdelta3-*; do
+            if [ -f "$bin" ]; then
+              ASSETS_TO_UPLOAD+=("$bin")
+            fi
+          done
+
+          # 2. Add Differential Patch if created
+          if [ "$DELTA_CREATED" = "true" ] && [ -f "$DELTA_PATH" ]; then
+            ASSETS_TO_UPLOAD+=("$DELTA_PATH")
+          fi
+
+          if [ ${#ASSETS_TO_UPLOAD[@]} -gt 0 ]; then
+            echo "Uploading: ${ASSETS_TO_UPLOAD[*]}"
+            gh release upload "$TARGET_TAG" "${ASSETS_TO_UPLOAD[@]}" --clobber
+            echo "✅ Assets successfully attached to release!"
+          fi
+
+          # 3. Append Delta Info to Release Notes
+          if [ "$DELTA_CREATED" = "true" ]; then
+            DELTA_FILE_NAME=$(basename "$DELTA_PATH")
+            DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
+            NOTES_APPEND="
+
+---
+### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)
+* **ملف الـ Patch التفاضلي:** \`$DELTA_FILE_NAME\` ($DELTA_SIZE_MB MB)
+* **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!
+* **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64)."
+
+            CURRENT_NOTES=$(gh release view "$TARGET_TAG" --json body --jq '.body')
+            gh release edit "$TARGET_TAG" --notes "${CURRENT_NOTES}${NOTES_APPEND}"
+            echo "✅ Release notes updated with delta stats."
+          fi
+
+      - name: Summary
+        run: |
+          echo "### 🚀 xdelta Update Generation Completed!" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target Release:** \`${{ steps.resolve-tags.outputs.target_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Previous Release:** \`${{ steps.resolve-tags.outputs.prev_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Delta Created:** \`${{ steps.compute-delta.outputs.delta_created }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.compute-delta.outputs.delta_created }}" = "true" ]; then
+            echo "- **Savings:** **${{ steps.compute-delta.outputs.savings_pct }}%**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Delta File:** \`${{ steps.compute-delta.outputs.delta_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- **Architecture Binaries Attached:**" >> "$GITHUB_STEP_SUMMARY"
+          echo "  - \`xdelta3-arm64-v8a\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "  - \`xdelta3-armeabi-v7a\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "  - \`xdelta3-x86_64\`" >> "$GITHUB_STEP_SUMMARY"
