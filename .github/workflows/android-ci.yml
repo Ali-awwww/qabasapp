@@ -41,6 +41,13 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      - name: Setup Gradle Cache (BuildCache + Wrapper)
+        uses: gradle/gradle-build-action@v3
+        with:
+          cache-read-only: false
+          gradle-version: wrapper
+          gradle-home-cache-cleanup: true
+
       - name: Setup Android SDK
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -62,7 +69,6 @@ jobs:
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
           
-          # Priority 1: Decode from repository file debug.keystore.base64 if present
           if [ -f "debug.keystore.base64" ]; then
             echo "Found debug.keystore.base64 in repository, decoding..."
             base64 -d debug.keystore.base64 > debug.keystore
@@ -72,7 +78,7 @@ jobs:
           else
             echo "Restoring embedded permanent release/debug keystore..."
             cat << 'EOF' | base64 -d > debug.keystore
-          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
+          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[...]
           EOF
           fi
 
@@ -97,18 +103,15 @@ jobs:
             echo "📊 Fingerprints:"
             echo "─────────────────────────────────────────────"
             
-            # Extract SHA1 Fingerprint
             SHA1=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA1:" | head -1 | awk '{print $NF}')
             echo "SHA1: $SHA1"
             
-            # Extract SHA256 Fingerprint
             SHA256=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA256:" | head -1 | awk '{print $NF}')
             echo "SHA256: $SHA256"
             
             echo "─────────────────────────────────────────────"
             echo ""
             
-            # Save fingerprints to file
             {
               echo "SIGNING_KEY_ALIAS=androiddebugkey"
               echo "KEYSTORE_FILE=debug.keystore"
@@ -184,7 +187,7 @@ jobs:
           name: qabas-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 30
 
       - name: Upload Signing Key Information
         if: success()
@@ -194,6 +197,39 @@ jobs:
           path: signing_key_info.txt
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Create or Update GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="v1.3.0"
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ APK not found!"
+            exit 1
+          fi
+          
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "📝 Release $VERSION exists, updating APK asset..."
+            gh release upload "$VERSION" "$APK_FILE" --clobber
+          else
+            echo "🆕 Creating release $VERSION..."
+            gh release create "$VERSION" "$APK_FILE" \
+              --title "Qabas Studio v1.3.0 - Build #${{ github.run_number }}" \
+              --notes "🚀 Automated build from commit ${{ github.sha }}
+              
+📦 APK Details:
+- Build Number: ${{ github.run_number }}
+- Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+- Branch: ${{ github.ref }}
+
+👇 xdelta updates are generated from this release." \
+              --draft=false
+          fi
+          
+          echo "✅ APK successfully attached to release $VERSION"
 
       - name: On failure — print Kotlin errors hint
         if: failure()
