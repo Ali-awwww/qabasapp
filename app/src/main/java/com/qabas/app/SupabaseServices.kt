@@ -1771,37 +1771,60 @@ object SupabaseServices {
     )
 
     object Storage {
-        val DEFAULT_BUCKETS = listOf("media-assets", "ai-generated", "audio-tracks", "user-uploads")
+        val DEFAULT_BUCKETS = listOf("reels", "audio_tracks", "bug_reports", "avatars", "media-assets", "user-uploads", "audio-tracks", "ai-generated")
 
         /**
-         * Upload audio bytes to Supabase Storage bucket (default bucket: 'audio-tracks').
+         * Upload audio bytes to Supabase Storage bucket (default bucket: 'audio_tracks' with fallback to 'audio-tracks').
          * Returns the public URL of the uploaded audio file, or null if failed.
          */
         suspend fun uploadAudioFile(
-            bucketName: String = "audio-tracks",
+            bucketName: String = "audio_tracks",
             fileName: String,
             data: ByteArray
         ): String? = uploadFile(bucketName, fileName, data)
+            ?: uploadFile("audio-tracks", fileName, data)
 
         /**
          * General file upload to any Supabase Storage bucket (images, videos, audio).
+         * Supports automatic fallback to existing active buckets (e.g., reels, audio_tracks, bug_reports).
          * Returns the public URL of the uploaded file, or null on failure.
          */
         suspend fun uploadFile(
-            bucketName: String = "media-assets",
+            bucketName: String = "reels",
             path: String,
             data: ByteArray,
             upsert: Boolean = true
         ): String? {
             if (!isSupabaseAvailable) return null
-            return runCatching {
+            val primary = runCatching {
                 val bucket = client.storage.from(bucketName)
                 bucket.upload(path, data) {
                     this.upsert = upsert
                 }
                 bucket.publicUrl(path)
-            }.onFailure { Log.w(TAG, "uploadFile failed for $bucketName/$path: ${it.message}") }
-                .getOrNull()
+            }.getOrNull()
+            if (primary != null) return primary
+
+            // Automatic intelligent fallback to matching active bucket in Supabase
+            val alternateBucket = when (bucketName) {
+                "media-assets", "user-uploads", "ai-generated" -> "reels"
+                "audio-tracks" -> "audio_tracks"
+                "audio_tracks" -> "audio-tracks"
+                "bug-reports" -> "bug_reports"
+                "bug_reports" -> "bug-reports"
+                else -> null
+            }
+            if (alternateBucket != null && alternateBucket != bucketName) {
+                return runCatching {
+                    val bucket = client.storage.from(alternateBucket)
+                    bucket.upload(path, data) {
+                        this.upsert = upsert
+                    }
+                    bucket.publicUrl(path)
+                }.onFailure { Log.w(TAG, "Fallback uploadFile failed for $alternateBucket/$path: ${it.message}") }
+                    .getOrNull()
+            }
+            return null
         }
 
         /**

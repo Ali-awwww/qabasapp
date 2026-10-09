@@ -27,7 +27,7 @@ object GoogleAuthHelper {
     private const val TAG = "GoogleAuthHelper"
     private const val PREF_KEY_WEB_CLIENT_ID = "google_web_client_id"
 
-    const val SUPABASE_GOOGLE_CALLBACK_URL = "https://aivmwovrbdzcyrjwubon.supabase.co/auth/v1/callback"
+    val SUPABASE_GOOGLE_CALLBACK_URL: String get() = "${SupabaseConfig.url}/auth/v1/callback"
     const val DEFAULT_GOOGLE_WEB_CLIENT_ID = "716114895426-prd5sg42fsslu1ul5dfsmh8isnu2oee7.apps.googleusercontent.com"
 
     /**

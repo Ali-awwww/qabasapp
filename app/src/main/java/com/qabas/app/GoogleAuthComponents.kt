@@ -422,13 +422,13 @@ fun GoogleSupabaseSetupDialog(
                                         StepItem(
                                             number = "1",
                                             title = "افتح لوحة تحكم Supabase",
-                                            description = "توجه إلى مشروعه في Supabase عبر الرابط: supabase.com/dashboard/project/aivmwovrbdzcyrjwubon",
+                                            description = "توجه إلى مشروعه في Supabase عبر الرابط: supabase.com/dashboard/project/egkgygbvoeevakwkbvfu",
                                             actionLabel = "فتح Supabase Dashboard",
                                             onAction = {
                                                 runCatching {
                                                     val intent = Intent(
                                                         Intent.ACTION_VIEW,
-                                                        Uri.parse("https://supabase.com/dashboard/project/aivmwovrbdzcyrjwubon/auth/providers")
+                                                        Uri.parse("https://supabase.com/dashboard/project/egkgygbvoeevakwkbvfu/auth/providers")
                                                     )
                                                     context.startActivity(intent)
                                                 }

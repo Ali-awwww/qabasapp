@@ -25,8 +25,8 @@ object SupabaseConfig {
     private const val TAG = "SupabaseConfig"
 
     /** Production fixed credentials */
-    const val DEFAULT_SUPABASE_URL = "https://aivmwovrbdzcyrjwubon.supabase.co"
-    const val DEFAULT_SUPABASE_KEY = "sb_publishable_pLSqbWNn4GjPJqzExDs4QA_M8Ie_YBB"
+    const val DEFAULT_SUPABASE_URL = "https://egkgygbvoeevakwkbvfu.supabase.co"
+    const val DEFAULT_SUPABASE_KEY = "sb_publishable_5iEyi_WtX-OvpXkygh0OUQ_Rf7mAZvQ"
 
     @Volatile
     private var _client: SupabaseClient? = null

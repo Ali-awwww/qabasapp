@@ -44,7 +44,9 @@ object KeyVault {
         return ""
     }
 
-    val gemini: String get() = resolve("gemini_key", BuildConfig.GEMINI_API_KEY)
+    val gemini: String get() = resolve("gemini_key", runCatching {
+        BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String
+    }.getOrNull())
     val groq: String get() = resolve("groq_key", BuildConfig.GROQ_API_KEY)
     val openai: String get() = resolve("openai_key", BuildConfig.OPENAI_API_KEY)
     val huggingface: String get() = resolve("huggingface_key", BuildConfig.HUGGINGFACE_API_KEY)

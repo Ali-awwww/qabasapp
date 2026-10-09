@@ -265,7 +265,7 @@ fun DeveloperKeyStatusHub(
                 whyNeeded = "يتيح للمستخدمين تسجيل الدخول والمصادقة بزر Google الموحد بنقرة واحدة.",
                 serviceType = "google_auth",
                 preferenceKey = "google_web_client_id",
-                docUrl = "https://supabase.com/dashboard/project/aivmwovrbdzcyrjwubon/auth/providers",
+                docUrl = "https://supabase.com/dashboard/project/egkgygbvoeevakwkbvfu/auth/providers",
                 keyFormatHint = "ينتهي بـ .apps.googleusercontent.com"
             )
         )
@@ -278,7 +278,9 @@ fun DeveloperKeyStatusHub(
         if (fromSp.isNotBlank()) return fromSp
 
         return when (spec.envName) {
-            "GEMINI_API_KEY" -> runCatching { BuildConfig.GEMINI_API_KEY }.getOrDefault("")
+            "GEMINI_API_KEY" -> runCatching {
+                BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String ?: ""
+            }.getOrDefault("")
             "OPENAI_API_KEY" -> runCatching { BuildConfig.OPENAI_API_KEY }.getOrDefault("")
             "GROQ_API_KEY" -> runCatching { BuildConfig.GROQ_API_KEY }.getOrDefault("")
             "OPENROUTER_API_KEY" -> runCatching { BuildConfig.OPENROUTER_API_KEY }.getOrDefault("")
