@@ -66,6 +66,7 @@ jobs:
           chmod +x gradlew
 
       - name: Restore Stable Signing Keystore
+        shell: bash
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
 
@@ -74,15 +75,13 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
           elif [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
             echo "Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
-            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+            printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
           else
-            echo "Restoring embedded permanent release/debug keystore..."
-            cat << 'EOF' | base64 -d > debug.keystore
-          MIIKZgIBAzCCChAGCSqGSIb3DQEHAaCCCgEEggn9MIIJ+TCCBcAGCSqGSIb3DQEHAaCCBbEEggWtMIIFqTCCBaUGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUMMCsEFGaHauhvJEyq0DyTiPElyp+lB1tbAg[...]
-          EOF
+            echo "❌ No keystore available (no file or secret found)"
+            exit 1
           fi
 
-          if [ -f debug.keystore ]; then
+          if [ -f debug.keystore ] && [ -s debug.keystore ]; then
             echo "✅ Stable Keystore restored successfully"
             ls -lh debug.keystore
           else
