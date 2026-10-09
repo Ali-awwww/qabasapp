@@ -68,7 +68,7 @@ jobs:
       - name: Restore Stable Signing Keystore
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
-          
+
           if [ -f "debug.keystore.base64" ]; then
             echo "Found debug.keystore.base64 in repository, decoding..."
             base64 -d debug.keystore.base64 > debug.keystore
@@ -102,16 +102,16 @@ jobs:
             echo ""
             echo "📊 Fingerprints:"
             echo "─────────────────────────────────────────────"
-            
+
             SHA1=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA1:" | head -1 | awk '{print $NF}')
             echo "SHA1: $SHA1"
-            
+
             SHA256=$(keytool -list -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey 2>/dev/null | grep "SHA256:" | head -1 | awk '{print $NF}')
             echo "SHA256: $SHA256"
-            
+
             echo "─────────────────────────────────────────────"
             echo ""
-            
+
             {
               echo "SIGNING_KEY_ALIAS=androiddebugkey"
               echo "KEYSTORE_FILE=debug.keystore"
@@ -123,7 +123,7 @@ jobs:
               echo "KEY_ALGORITHM=RSA"
               echo "KEY_SIZE=2048"
             } > signing_key_info.txt
-            
+
             echo "✅ Signing key information saved to: signing_key_info.txt"
           fi
 
@@ -205,12 +205,23 @@ jobs:
         run: |
           VERSION="v1.3.0"
           APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          
+
           if [ -z "$APK_FILE" ]; then
             echo "❌ APK not found!"
             exit 1
           fi
-          
+
+          cat << EOF | sed 's/^ *//' > release_notes.md
+          🚀 Automated build from commit ${{ github.sha }}
+
+          📦 APK Details:
+          - Build Number: ${{ github.run_number }}
+          - Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          - Branch: ${{ github.ref }}
+
+          👇 xdelta updates are generated from this release.
+          EOF
+
           if gh release view "$VERSION" > /dev/null 2>&1; then
             echo "📝 Release $VERSION exists, updating APK asset..."
             gh release upload "$VERSION" "$APK_FILE" --clobber
@@ -218,17 +229,10 @@ jobs:
             echo "🆕 Creating release $VERSION..."
             gh release create "$VERSION" "$APK_FILE" \
               --title "Qabas Studio v1.3.0 - Build #${{ github.run_number }}" \
-              --notes "🚀 Automated build from commit ${{ github.sha }}
-              
-📦 APK Details:
-- Build Number: ${{ github.run_number }}
-- Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-- Branch: ${{ github.ref }}
-
-👇 xdelta updates are generated from this release." \
+              --notes-file release_notes.md \
               --draft=false
           fi
-          
+
           echo "✅ APK successfully attached to release $VERSION"
 
       - name: On failure — print Kotlin errors hint
