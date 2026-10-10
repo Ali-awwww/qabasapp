@@ -248,7 +248,7 @@ jobs:
 
             ---
             ### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)
-            * **ملف الـ Patch التفاضلي:** \`$DELTA_FILE_NAME\` ($DELTA_SIZE_MB MB)
+            * **ملف الـ Patch التفاضلي:** $DELTA_FILE_NAME ($DELTA_SIZE_MB MB)
             * **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!
             * **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64).
             EOF
