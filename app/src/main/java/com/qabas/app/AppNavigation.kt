@@ -171,6 +171,7 @@ fun AppNavigation(
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
+                onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )
         }
@@ -303,6 +304,7 @@ fun AppNavigation(
                 onNavigateToStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
                 onNavigateToHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onNavigateToStats = { viewModel.updateState { copy(appState = AppState.SOCIAL_STATS) } },
+                onNavigateToAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )
         }
@@ -418,6 +420,13 @@ fun AppNavigation(
             val isLoggedIn = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_logged_in", false)
             QabasRulesScreen(
                 onBack = { viewModel.updateState { copy(appState = if (isLoggedIn) AppState.SETTINGS else AppState.LOGIN) } }
+            )
+        }
+        AppState.AI_STUDIO_AGENT -> {
+            AiStudioAgentScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
+                bottomBar = bottomNav
             )
         }
         AppState.TELEPROMPTER -> {
@@ -1132,6 +1141,7 @@ fun AppNavigation(
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
+                onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )
         }

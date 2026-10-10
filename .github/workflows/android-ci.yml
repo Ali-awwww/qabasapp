@@ -9,6 +9,7 @@ on:
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
       - 'gradle/**'
+      - 'gradle.properties'
       - 'gradlew'
       - 'gradlew.bat'
       - '.github/workflows/android-ci.yml'
@@ -159,13 +160,14 @@ jobs:
       - name: Assemble Debug APK
         env:
           BUILD_NUMBER: ${{ github.run_number }}
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -XX:+UseG1GC -Dfile.encoding=UTF-8"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -Dkotlin.daemon.jvmargs=\"-Xmx3072m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
         run: |
           ./gradlew assembleDebug \
             --stacktrace \
             --no-daemon \
             --max-workers=2 \
-            --build-cache
+            --build-cache \
+            -Dkotlin.daemon.jvmargs="-Xmx3072m -XX:+UseG1GC"
 
       - name: Verify APK Signature
         run: |

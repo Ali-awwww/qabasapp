@@ -93,6 +93,7 @@ fun SpatialCommandHomeScreen(
     onReels: () -> Unit = {},
     onRestoreWorkspaceDraft: (() -> Unit)? = null,
     onRules: () -> Unit = {},
+    onAiStudioAgent: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -245,7 +246,8 @@ fun SpatialCommandHomeScreen(
                     onViewSettings = onViewSettings,
                     onViewApiDocs = onViewApiDocs,
                     onDeveloperDashboard = onDeveloperDashboard,
-                    onNavigateToRules = onRules
+                    onNavigateToRules = onRules,
+                    onAiStudioAgent = onAiStudioAgent
                 )
             }
         }

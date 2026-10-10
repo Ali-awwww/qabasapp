@@ -94,6 +94,7 @@ fun HomeScreen(
     onReels: () -> Unit = {},
     onRestoreWorkspaceDraft: (() -> Unit)? = null,
     onRules: () -> Unit = {},
+    onAiStudioAgent: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val homeStyle = HomeScreenStyleManager.currentStyle.collectAsState().value
@@ -275,7 +276,8 @@ fun HomeScreen(
                     onViewSettings = onViewSettings,
                     onViewApiDocs = onViewApiDocs,
                     onDeveloperDashboard = onDeveloperDashboard,
-                    onNavigateToRules = onRules
+                    onNavigateToRules = onRules,
+                    onAiStudioAgent = onAiStudioAgent
                 )
             }
         }
@@ -766,6 +768,15 @@ fun HomeScreen(
                                     icon = Icons.Default.AutoAwesome,
                                     accentColor = GoldPrimary,
                                     onClick = onStudioGateway
+                                )
+                                SpatialHudCard(
+                                    title = "استوديو الوكيل الذكي // AI Studio 🛸",
+                                    subtitle = "بيئة تطوير مستقلة قائمة على إعطاء الأوامر باللغة الطبيعية وبناء السحاب الفوري",
+                                    badge = "AI Studio",
+                                    badgeColor = Color(0xFF00E5FF),
+                                    icon = Icons.Default.SmartToy,
+                                    accentColor = Color(0xFF00E5FF),
+                                    onClick = onAiStudioAgent
                                 )
                                 SpatialHudCard(
                                     title = "المحرر اليدوي الاحترافي ✂️",
@@ -1415,7 +1426,8 @@ fun QabasNavigationDrawerContent(
     onViewSettings: () -> Unit,
     onViewApiDocs: () -> Unit,
     onDeveloperDashboard: () -> Unit,
-    onNavigateToRules: () -> Unit = {}
+    onNavigateToRules: () -> Unit = {},
+    onAiStudioAgent: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1566,6 +1578,15 @@ fun QabasNavigationDrawerContent(
                 badgeText = "الرئيسي",
                 badgeColor = GoldPrimary,
                 onClick = { onNavigateTo(onStudioGateway) }
+            )
+            QabasDrawerItem(
+                title = "استوديو الوكيل الذكي // AI Studio Agent",
+                subtitle = "بيئة تطوير مستقلة قائمة على إعطاء الأوامر باللغة الطبيعية (مثل Google AI Studio)",
+                icon = Icons.Default.SmartToy,
+                iconTint = Color(0xFF00E5FF),
+                badgeText = "AUTONOMOUS",
+                badgeColor = Color(0xFF00E5FF),
+                onClick = { onNavigateTo(onAiStudioAgent) }
             )
             QabasDrawerItem(
                 title = "المحرر اليدوي الاحترافي",

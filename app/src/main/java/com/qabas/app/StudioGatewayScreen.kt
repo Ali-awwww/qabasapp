@@ -56,6 +56,7 @@ fun StudioGatewayScreen(
     onNavigateToStyleCloner: () -> Unit = {},
     onNavigateToHadithStudio: () -> Unit = {},
     onNavigateToStats: () -> Unit,
+    onNavigateToAiStudioAgent: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     BackHandler { onBack() }
@@ -257,6 +258,18 @@ fun StudioGatewayScreen(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
+
+            // Autonomous AI Agent Studio Feature Card
+            StudioFeatureCard(
+                title = "استوديو الوكيل الذكي (AI Studio Agent) 🛸",
+                description = "بيئة تطوير مستقلة قائمة على إعطاء الأوامر باللغة الطبيعية — يفحص الكود، يبني الميزات، ويشغل البناء السحابي تماماً كمنصة Google AI Studio.",
+                badge = "AUTONOMOUS DEV",
+                badgeColor = Color(0xFF00E5FF),
+                icon = Icons.Default.SmartToy,
+                onClick = onNavigateToAiStudioAgent
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Studio Tools Grid / List based on selected category
             val currentFilter = categories[selectedCategoryIndex].second

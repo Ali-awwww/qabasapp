@@ -768,6 +768,24 @@ fun AgentBuildHubScreen(
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
                             }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            Surface(
+                                color = Color(0xFF0C243B),
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(0.8.dp, Color(0xFF00E5FF)),
+                                modifier = Modifier.clickable { onNavigateTo(AppState.AI_STUDIO_AGENT) }
+                            ) {
+                                Text(
+                                    "🛸 AI Studio",
+                                    color = Color(0xFF00E5FF),
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.5.sp,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
                         }
                     }
                 }

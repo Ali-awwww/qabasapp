@@ -332,4 +332,38 @@ object CodeTools {
     }
 
     fun toApiJson(ctx: CodeTools.Ctx): JSONArray = AiTools.toApiJson(definitions(ctx))
+
+    suspend fun triggerBuildDirect(ctx: CodeTools.Ctx): String = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("ref", ctx.branch).toString()
+            .toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("https://api.github.com/repos/${ctx.owner}/${ctx.repo}/actions/workflows/android-ci.yml/dispatches")
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "Qabas-Studio")
+            .header("Authorization", "Bearer ${ctx.token}")
+            .post(body)
+            .build()
+        val code = runCatching { client.newCall(req).execute().use { it.code } }.getOrDefault(-1)
+        if (code == 204) "أُرسل أمر البناء بنجاح إلى GitHub Actions ✅" else "تعذر التشغيل (كود $code) — تحقق من الصلاحيات أو ملف android-ci.yml."
+    }
+
+    suspend fun getBuildStatusDirect(ctx: CodeTools.Ctx): String = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url("https://api.github.com/repos/${ctx.owner}/${ctx.repo}/actions/runs?per_page=5")
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "Qabas-Studio")
+            .header("Authorization", "Bearer ${ctx.token}")
+            .get()
+            .build()
+        val body = runCatching { client.newCall(req).execute().use { it.body?.string().orEmpty() } }.getOrDefault("")
+        if (body.isBlank()) return@withContext "تعذر جلب حالة البناء."
+        val arr = JSONObject(body).optJSONArray("workflow_runs") ?: return@withContext "لا تشغيلات بعد."
+        if (arr.length() == 0) return@withContext "لا توجد تشغيلات مسجلة."
+        buildString {
+            for (i in 0 until arr.length()) {
+                val r = arr.getJSONObject(i)
+                append("#${r.optString("name")} [${r.optString("status")}/${r.optString("conclusion", "—")}] فرع ${r.optString("head_branch")}\n")
+            }
+        }.trim()
+    }
 }
