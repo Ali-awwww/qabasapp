@@ -39,7 +39,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Setup Gradle Cache (BuildCache + Wrapper)
         uses: gradle/gradle-build-action@v3
@@ -47,6 +46,17 @@ jobs:
           cache-read-only: false
           gradle-version: wrapper
           gradle-home-cache-cleanup: true
+
+      - name: Cache Android SDK Components
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/platforms/android-36
+            /usr/local/lib/android/sdk/build-tools/36.0.0
+            /usr/local/lib/android/sdk/platform-tools
+          key: ${{ runner.os }}-android-sdk-36-${{ hashFiles('**/build.gradle.kts') }}
+          restore-keys: |
+            ${{ runner.os }}-android-sdk-36-
 
       - name: Setup Android SDK
         run: |
