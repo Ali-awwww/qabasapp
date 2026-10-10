@@ -77,8 +77,8 @@ jobs:
             echo "Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
             printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
           else
-            echo "❌ No keystore available (no file or secret found)"
-            exit 1
+            echo "⚠️ No keystore file or secret found, generating a fresh debug keystore on the fly..."
+            keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
           if [ -f debug.keystore ] && [ -s debug.keystore ]; then
