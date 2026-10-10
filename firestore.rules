@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny all unmapped paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.has_reward is bool &&
+             data.total_wins is int && data.total_wins >= 0 &&
+             (!('is_relative' in data) || data.is_relative is bool) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('reward_expiry' in data) || data.reward_expiry is timestamp) &&
+             (!('last_won_at' in data) || data.last_won_at is timestamp) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidLeaderboard(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.points is int && data.points >= 0 &&
+             data.rank is int && data.rank >= 0 &&
+             data.badge is string && data.badge.size() <= 50 &&
+             data.is_eligible is bool &&
+             (!('views' in data) || (data.views is string && data.views.size() <= 50)) &&
+             (!('last_won_at' in data) || data.last_won_at is timestamp) &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidProject(data) {
+      return data.projectId is string && isValidId(data.projectId) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             (!('ai_script' in data) || (data.ai_script is string && data.ai_script.size() <= 50000)) &&
+             (!('has_voiceover' in data) || data.has_voiceover is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'has_reward', 'total_wins', 'createdAt']) &&
+                       isValidUser(incoming());
+
+      allow update: if isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUser(incoming());
+
+      allow delete: if isOwner(userId);
+
+      // User Projects Subcollection
+      match /projects/{projectId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(projectId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().projectId == projectId &&
+                         incoming().keys().hasAll(['projectId', 'userId', 'title', 'createdAt', 'updatedAt']) &&
+                         isValidProject(incoming());
+
+        allow update: if isOwner(userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().projectId == existing().projectId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidProject(incoming());
+
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // 2. Leaderboard collection (Rankings readable by authenticated community)
+    match /leaderboard/{userId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'name', 'points', 'rank', 'badge', 'is_eligible']) &&
+                       isValidLeaderboard(incoming());
+
+      allow update: if isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       isValidLeaderboard(incoming());
+
+      allow delete: if isOwner(userId);
+    }
+
+    // 3. System collection (Read-only by client, managed by backend)
+    match /system/{docId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow write: if false;
+    }
+  }
+}

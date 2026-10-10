@@ -49,6 +49,21 @@ object LeagueService {
             // فحص صلاحية المكافأة
             checkCurrentUserReward(context)
 
+            // مزامنة الدوري مع Firebase Firestore بالتوازي
+            if (FirebaseManager.isConfigured(context)) {
+                val userId = LocalAccountRegistry.getEffectiveUserId(context)
+                val userPoints = prefs.getInt("local_user_points", 0)
+                val userName = prefs.getString("user_name", "مبدع قبس") ?: "مبدع قبس"
+                FirebaseManager.syncLeaderboardToFirestore(
+                    context = context,
+                    userId = userId,
+                    name = userName,
+                    points = userPoints,
+                    rank = 1,
+                    badge = "صانع محتوى"
+                )
+            }
+
         } catch (e: Exception) {
             Log.w(TAG, "Note on processing weekly league: ${e.message}")
         }

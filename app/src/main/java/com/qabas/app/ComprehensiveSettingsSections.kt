@@ -611,28 +611,56 @@ fun StorageAndBackupSection(
                         Text("مزامنة الإعدادات بالسحابة (Supabase)", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
-                    Surface(
-                        color = if (isSupabaseAvailable) Color(0xFF065F46) else Color(0xFF374151),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(
+                            color = if (isSupabaseAvailable) Color(0xFF065F46) else Color(0xFF374151),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(
-                                if (isSupabaseAvailable) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                if (isSupabaseAvailable) "Supabase ☁️" else "تخزين محلي 💾",
-                                color = Color.White,
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isSupabaseAvailable) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (isSupabaseAvailable) "Supabase ☁️" else "محلي 💾",
+                                    color = Color.White,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        val isFirebaseActive = remember { FirebaseManager.isConfigured(context) }
+                        Surface(
+                            color = if (isFirebaseActive) Color(0xFF78350F) else Color(0xFF374151),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFA000),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (isFirebaseActive) "Firebase 🔥" else "Firebase غير متصل",
+                                    color = Color.White,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

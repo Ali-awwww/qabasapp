@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with league rewards and account information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID of the user" },
+        "has_reward": { "type": "boolean", "description": "Holds active league reward" },
+        "reward_expiry": { "type": "string", "format": "date-time", "description": "Expiration time of reward" },
+        "last_won_at": { "type": "string", "format": "date-time", "description": "Last time user won" },
+        "total_wins": { "type": "integer", "description": "Total league wins" },
+        "is_relative": { "type": "boolean", "description": "Free granted access flag" },
+        "displayName": { "type": "string", "description": "Creator display name" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["userId", "has_reward", "total_wins", "createdAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Weekly league leaderboard participant entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID" },
+        "name": { "type": "string", "description": "Creator display name" },
+        "points": { "type": "integer", "description": "Current points in weekly league" },
+        "rank": { "type": "integer", "description": "Calculated position" },
+        "views": { "type": "string", "description": "Display string for total views" },
+        "badge": { "type": "string", "description": "Creator rank badge" },
+        "is_eligible": { "type": "boolean", "description": "Participation eligibility" },
+        "last_won_at": { "type": "string", "format": "date-time", "description": "Last win time" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["userId", "name", "points", "rank", "badge", "is_eligible"]
+    },
+    "SystemLeagueInfo": {
+      "title": "SystemLeagueInfo",
+      "description": "Global weekly league timing and status",
+      "type": "object",
+      "properties": {
+        "end_date": { "type": "string", "format": "date-time", "description": "League round end date" },
+        "round_number": { "type": "integer", "description": "Current league season/round number" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["end_date", "round_number"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "User created video or reel project",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "description": "Unique project identifier" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "title": { "type": "string", "description": "Project title" },
+        "ai_script": { "type": "string", "description": "Generated or edited video script" },
+        "has_voiceover": { "type": "boolean", "description": "Indicates audio/voiceover presence" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Project creation time" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last modification time" }
+      },
+      "required": ["projectId", "userId", "title", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User account documents keyed by Auth UID"
+    },
+    "/leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Public league rankings"
+    },
+    "/system/league_info": {
+      "schema": "SystemLeagueInfo",
+      "description": "Global league timer and season info"
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "User video projects"
+    }
+  }
+}

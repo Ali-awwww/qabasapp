@@ -53,7 +53,7 @@ object CloudServices {
 
         fun getCurrentUserId(): String? = _currentUser.value?.uid
 
-        suspend fun signInAnonymously(): Result<User> {
+        suspend fun createGuestSession(): Result<User> {
             val user = User(
                 uid = "anon_${System.currentTimeMillis()}",
                 email = null,

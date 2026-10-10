@@ -150,6 +150,17 @@ fun SpatialServiceDiagnosticsHub(
                 accentColor = Color(0xFF3ECF8E)
             ),
             SpatialServiceStatus(
+                id = "firebase",
+                name = "Firebase Firestore Cloud",
+                category = "قاعدة البيانات والمزامنة اللحظية",
+                icon = Icons.Default.CloudDone,
+                isLive = FirebaseManager.isConfigured(context),
+                isConfigured = FirebaseManager.isConfigured(context),
+                fallbackEngine = "Supabase + Room DB المزدوج",
+                providerBadge = "Google Cloud Firestore",
+                accentColor = Color(0xFFFFA000)
+            ),
+            SpatialServiceStatus(
                 id = "openrouter",
                 name = "OpenRouter (DeepSeek / Claude)",
                 category = "بوابة الذكاء البديلة",
@@ -223,6 +234,7 @@ fun SpatialServiceDiagnosticsHub(
                     "broll" -> (KeyVault.pexels.isNotBlank() || KeyVault.pixabay.isNotBlank())
                     "supabase" -> KeyVault.supabaseUrl.isNotBlank()
                     "openrouter" -> KeyVault.openrouter.isNotBlank() && !KeyVault.openrouter.startsWith("your_", ignoreCase = true)
+                    "firebase" -> FirebaseManager.isConfigured(context)
                     "kokoro" -> true
                     "github" -> KeyVault.effective("github_token").isNotBlank() && !KeyVault.effective("github_token").startsWith("your_", ignoreCase = true)
                     else -> false
@@ -231,6 +243,7 @@ fun SpatialServiceDiagnosticsHub(
                 val checkOk = if (isRealConfigured) {
                     when (svc.id) {
                         "supabase" -> SupabaseServices.isSupabaseAvailable
+                        "firebase" -> FirebaseManager.isConfigured(context)
                         "kokoro" -> true
                         else -> {
                             try {

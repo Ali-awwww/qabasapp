@@ -28,13 +28,18 @@ object GoogleAuthHelper {
     private const val PREF_KEY_WEB_CLIENT_ID = "google_web_client_id"
 
     val SUPABASE_GOOGLE_CALLBACK_URL: String get() = "${SupabaseConfig.url}/auth/v1/callback"
-    const val DEFAULT_GOOGLE_WEB_CLIENT_ID = "716114895426-prd5sg42fsslu1ul5dfsmh8isnu2oee7.apps.googleusercontent.com"
 
     /**
      * استخراج معرف العميل (Web Client ID)
-     * يبحث في SharedPreferences أولاً، ثم في BuildConfig، أو يعود بـ DEFAULT_GOOGLE_WEB_CLIENT_ID
+     * يبحث في موارد Firebase أولاً (R.string.default_web_client_id)، ثم في SharedPreferences أو BuildConfig
      */
     fun getWebClientId(context: Context): String {
+        val fromRes = runCatching {
+            val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+            if (resId != 0) context.getString(resId) else ""
+        }.getOrDefault("")
+        if (fromRes.isNotBlank()) return fromRes
+
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val saved = prefs.getString(PREF_KEY_WEB_CLIENT_ID, "")?.trim() ?: ""
         if (saved.isNotBlank() && !saved.startsWith("your_", ignoreCase = true)) return saved
@@ -49,7 +54,7 @@ object GoogleAuthHelper {
             return fromBuild
         }
 
-        return DEFAULT_GOOGLE_WEB_CLIENT_ID
+        return ""
     }
 
     /**
