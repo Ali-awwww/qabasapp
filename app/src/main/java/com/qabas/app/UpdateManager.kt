@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import io.github.jan.supabase.postgrest.postgrest
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -68,10 +69,13 @@ object UpdateManager {
 
             val response = supabase.postgrest
                 .from("app_secrets")
-                .select()
-                .eq("secret_key", "github_token")
-                .eq("is_active", true)
-                .limit(1)
+                .select {
+                    filter {
+                        eq("secret_key", "github_token")
+                        eq("is_active", true)
+                    }
+                    limit(1)
+                }
                 .decodeSingleOrNull<AppSecret>()
 
             if (response != null && response.secret_value.isNotBlank()) {
