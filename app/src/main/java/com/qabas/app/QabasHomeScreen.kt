@@ -136,6 +136,7 @@ fun HomeScreen(
             onReels = onReels,
             onRestoreWorkspaceDraft = onRestoreWorkspaceDraft,
             onRules = onRules,
+            onAiStudioAgent = onAiStudioAgent,
             bottomBar = bottomBar
         )
         return
@@ -628,6 +629,14 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             SpatialLaunchpadCard(
+                                title = "الوكيل الذكي",
+                                subtitle = "AI Studio 🛸",
+                                icon = Icons.Default.SmartToy,
+                                accentColor = Color(0xFF00E5FF),
+                                modifier = Modifier.weight(1f),
+                                onClick = onAiStudioAgent
+                            )
+                            SpatialLaunchpadCard(
                                 title = "الإنتاج السينمائي",
                                 subtitle = "AI Director",
                                 icon = Icons.Default.AutoAwesome,
@@ -642,14 +651,6 @@ fun HomeScreen(
                                 accentColor = Color(0xFF10B981),
                                 modifier = Modifier.weight(1f),
                                 onClick = onQuranHub
-                            )
-                            SpatialLaunchpadCard(
-                                title = "مستنسخ الأسلوب",
-                                subtitle = "Style Cloner",
-                                icon = Icons.Default.AutoFixHigh,
-                                accentColor = AiCyan,
-                                modifier = Modifier.weight(1f),
-                                onClick = onVideoStyleCloner
                             )
                         }
                     }
@@ -761,15 +762,6 @@ fun HomeScreen(
                             // Sector 0: Creative Studios Hub
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 SpatialHudCard(
-                                    title = "استوديو قبس الشامل 🎬",
-                                    subtitle = "البوابة المركزية ومسارات الإنتاج الذكية",
-                                    badge = "الرئيسي",
-                                    badgeColor = GoldPrimary,
-                                    icon = Icons.Default.AutoAwesome,
-                                    accentColor = GoldPrimary,
-                                    onClick = onStudioGateway
-                                )
-                                SpatialHudCard(
                                     title = "استوديو الوكيل الذكي // AI Studio 🛸",
                                     subtitle = "بيئة تطوير مستقلة قائمة على إعطاء الأوامر باللغة الطبيعية وبناء السحاب الفوري",
                                     badge = "AI Studio",
@@ -777,6 +769,15 @@ fun HomeScreen(
                                     icon = Icons.Default.SmartToy,
                                     accentColor = Color(0xFF00E5FF),
                                     onClick = onAiStudioAgent
+                                )
+                                SpatialHudCard(
+                                    title = "استوديو قبس الشامل 🎬",
+                                    subtitle = "البوابة المركزية ومسارات الإنتاج الذكية",
+                                    badge = "الرئيسي",
+                                    badgeColor = GoldPrimary,
+                                    icon = Icons.Default.AutoAwesome,
+                                    accentColor = GoldPrimary,
+                                    onClick = onStudioGateway
                                 )
                                 SpatialHudCard(
                                     title = "المحرر اليدوي الاحترافي ✂️",
