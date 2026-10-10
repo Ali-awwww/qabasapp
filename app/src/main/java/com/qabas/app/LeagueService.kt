@@ -51,7 +51,9 @@ object LeagueService {
 
             // مزامنة الدوري مع Firebase Firestore بالتوازي
             if (FirebaseManager.isConfigured(context)) {
-                val userId = LocalAccountRegistry.getEffectiveUserId(context)
+                val userId = FirebaseManager.getAuth().currentUser?.uid
+                    ?: prefs.getString("user_id", null)
+                    ?: (prefs.getString("user_email", null)?.let { "usr_${it.hashCode()}" } ?: "local_user")
                 val userPoints = prefs.getInt("local_user_points", 0)
                 val userName = prefs.getString("user_name", "مبدع قبس") ?: "مبدع قبس"
                 FirebaseManager.syncLeaderboardToFirestore(

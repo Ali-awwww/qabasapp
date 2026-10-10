@@ -1683,6 +1683,40 @@ fun DashboardMainGrid(
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 5. Firebase Firestore Matrix
+                            val isFirebaseActive = remember { FirebaseManager.isConfigured(gridContext) }
+                            CyberTelemetryPill(
+                                modifier = Modifier.weight(1f),
+                                title = "Firebase Firestore",
+                                value = if (isFirebaseActive) "نشط سحابياً 🔥" else "غير متاح ✗",
+                                subValue = if (isFirebaseActive) "Firestore NoSQL + Auth" else "Offline Only",
+                                accent = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                icon = Icons.Default.CloudDone,
+                                onClick = {
+                                    Toast.makeText(gridContext, if (isFirebaseActive) "Firebase Firestore متصل ومربوط بقاعدة البيانات المخصصة بنجاح ✅" else "Firebase غير مهيأ", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+
+                            // 6. Dual Cloud Sync Status
+                            CyberTelemetryPill(
+                                modifier = Modifier.weight(1f),
+                                title = "الازدواج السحابي",
+                                value = if (isFirebaseActive && isSupabaseOnline) "تزامن هجين ⚡" else "سحابة مفردة",
+                                subValue = "Firebase + Supabase",
+                                accent = GoldPrimary,
+                                icon = Icons.Default.Sync,
+                                onClick = {
+                                    Toast.makeText(gridContext, "يعمل التطبيق بنظام الازدواج السحابي المزدوج لحفظ المشاريع ومزامنة المستخدمين دون فقدان أي بيانات", Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Quick HUD Action Strip

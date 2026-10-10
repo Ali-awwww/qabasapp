@@ -14,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -201,6 +202,19 @@ fun ProfileScreen(
                 .putInt("user_league_points", userLeaguePoints)
                 .putInt("user_league_rank", userLeagueRank)
                 .apply()
+
+            // مزامنة الملف الشخصي تلقائياً مع Firebase Firestore
+            if (FirebaseManager.isConfigured(context)) {
+                val uid = FirebaseManager.getAuth().currentUser?.uid
+                    ?: prefs.getString("user_id", null)
+                    ?: (userEmail.ifBlank { "local_user" }.hashCode().toString())
+                FirebaseManager.syncUserToFirestore(
+                    context = context,
+                    userId = uid,
+                    displayName = displayName,
+                    email = userEmail
+                )
+            }
         } catch (e: Exception) {
             // keep cached
         } finally {
@@ -385,6 +399,11 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
+                    com.qabas.app.ui.components.CloudSyncIndicator(
+                        isSyncing = isLoadingLeague,
+                        compact = false
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     IconButton(onClick = { showEditProfileDialog = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = qabasPrimary())
                     }
@@ -538,6 +557,72 @@ fun ProfileScreen(
                 }
             }
             
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // بطاقة المزامنة السحابية الهجينة (Firebase + Supabase + Local)
+            val isFirebaseActive = remember { FirebaseManager.isConfigured(context) }
+            val isSupabaseActive = remember { SupabaseServices.isSupabaseAvailable }
+            Surface(
+                color = Color(0xFF151B2B),
+                shape = CutCornerShape(12.dp),
+                border = BorderStroke(1.dp, if (isFirebaseActive) Color(0xFFFFA000).copy(alpha = 0.4f) else GoldPrimary.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(if (isFirebaseActive) Color(0xFF78350F).copy(alpha = 0.3f) else Color(0xFF1E293B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                                contentDescription = null,
+                                tint = if (isFirebaseActive) Color(0xFFFFA000) else GoldPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                "المزامنة السحابية المزدوجة",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp
+                            )
+                            Text(
+                                if (isFirebaseActive && isSupabaseActive) "Firebase 🔥 + Supabase ☁️ متصلان"
+                                else if (isFirebaseActive) "Firebase Firestore متصل ومفعّل 🔥"
+                                else "التخزين المحلي الآمن 💾",
+                                color = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = if (isFirebaseActive) Color(0xFF065F46) else Color(0xFF334155),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isFirebaseActive) "مُزامن آلياً ✓" else "محلي",
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // Profile Actions Section

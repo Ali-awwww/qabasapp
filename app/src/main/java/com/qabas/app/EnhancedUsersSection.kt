@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -533,6 +534,68 @@ fun EnhancedUsersSection(
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
+                        }
+                    }
+
+                    // حالة مزامنة Firebase Firestore للحسابات والمستخدمين
+                    val isFirebaseConfigured = remember { FirebaseManager.isConfigured(context) }
+                    Surface(
+                        color = if (isFirebaseConfigured) Color(0xFF1E293B) else Color(0xFF0F172A),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, if (isFirebaseConfigured) Color(0xFFFFA000).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(
+                                    if (isFirebaseConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                    contentDescription = null,
+                                    tint = if (isFirebaseConfigured) Color(0xFFFFA000) else Color.Gray,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    if (isFirebaseConfigured) "سحابة Firebase Firestore: متصلة ومربوطة" else "سحابة Firebase: غير متصلة",
+                                    color = if (isFirebaseConfigured) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (isFirebaseConfigured) {
+                                Surface(
+                                    color = Color(0xFF78350F).copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.clickable {
+                                        coroutineScope.launch {
+                                            var count = 0
+                                            devUsers.forEach { u ->
+                                                FirebaseManager.syncUserToFirestore(
+                                                    context = context,
+                                                    userId = u.id,
+                                                    displayName = u.name,
+                                                    email = u.email
+                                                )
+                                                count++
+                                            }
+                                            Toast.makeText(context, "تمت مزامنة $count مستخدم مع Firebase Firestore بنجاح 🔥", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        "مزامنة الكل 🔄",
+                                        color = Color(0xFFFFA000),
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 

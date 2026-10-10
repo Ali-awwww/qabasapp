@@ -151,6 +151,22 @@ fun LeaderboardScreen(
                 )
             }
 
+            // مزامنة المتصدرين والدوري الأسبوعي تلقائياً مع Firebase Firestore
+            if (FirebaseManager.isConfigured(context)) {
+                val uid = FirebaseManager.getAuth().currentUser?.uid
+                    ?: prefs.getString("user_id", null)
+                    ?: "usr_${currentUserName.hashCode()}"
+                val myRank = topCreators.find { it.isCurrentUser }?.rank ?: 1
+                FirebaseManager.syncLeaderboardToFirestore(
+                    context = context,
+                    userId = uid,
+                    name = currentUserName,
+                    points = currentUserPoints,
+                    rank = myRank,
+                    badge = userBadge
+                )
+            }
+
             // 3. جلب المشاريع الحقيقية للمجتمع أو مشاريع المستخدم المحفوظة
             val cloudProjects = CloudServices.Database.getFeedProjects()
             if (cloudProjects.isNotEmpty()) {
@@ -219,6 +235,9 @@ fun LeaderboardScreen(
                         }
                     },
                     actions = {
+                        com.qabas.app.ui.components.CloudSyncIndicator(
+                            isSyncing = isRefreshing || isLoading
+                        )
                         IconButton(onClick = onOpenRewards) {
                             Icon(Icons.Default.CardGiftcard, contentDescription = "المكافآت", tint = GoldPrimary)
                         }

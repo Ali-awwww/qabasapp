@@ -63,6 +63,34 @@ fun ProjectsScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isFirebaseConfigured = remember { FirebaseManager.isConfigured(context) }
+    var isSyncingProjects by remember { mutableStateOf(false) }
+
+    // مزامنة المشاريع والمسودات تلقائياً مع Firebase Firestore بالتوازي في الخلفية
+    LaunchedEffect(projects, isFirebaseConfigured) {
+        if (isFirebaseConfigured && projects.isNotEmpty()) {
+            isSyncingProjects = true
+            val uid = FirebaseManager.getAuth().currentUser?.uid
+                ?: context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE).getString("user_id", null)
+                ?: "local_creator"
+            try {
+                projects.take(15).forEach { proj ->
+                    FirebaseManager.saveProjectToFirestore(
+                        context = context,
+                        userId = uid,
+                        projectId = proj.id.ifBlank { "proj_${proj.title.hashCode()}" },
+                        title = proj.title,
+                        script = proj.idea,
+                        hasVoiceover = proj.finalVideoPath.isNotBlank()
+                    )
+                }
+            } finally {
+                isSyncingProjects = false
+            }
+        }
+    }
+
     if (projectToDelete != null) {
         AlertDialog(
             onDismissRequest = { projectToDelete = null },
@@ -186,6 +214,10 @@ fun ProjectsScreen(
                     }
                 },
                 actions = {
+                    com.qabas.app.ui.components.CloudSyncIndicator(
+                        isSyncing = isSyncingProjects
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     IconButton(onClick = onBack) {
                         Surface(
                             color = GoldPrimary.copy(alpha = 0.15f),
@@ -442,6 +474,35 @@ private fun ProjectSpatialCard(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
+                        }
+
+                        // شارة الحفظ السحابي
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val isFirebaseActive = remember { FirebaseManager.isConfigured(context) }
+                        Surface(
+                            color = if (isFirebaseActive) Color(0xFF78350F).copy(alpha = 0.25f) else Color(0xFF334155).copy(alpha = 0.25f),
+                            shape = CutCornerShape(4.dp),
+                            border = BorderStroke(0.8.dp, if (isFirebaseActive) Color(0xFFFFA000).copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.Storage,
+                                    contentDescription = null,
+                                    tint = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Text(
+                                    text = if (isFirebaseActive) "سحابي 🔥" else "محلي 💾",
+                                    color = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         // التاريخ
