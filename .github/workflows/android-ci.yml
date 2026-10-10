@@ -39,13 +39,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
-      - name: Setup Gradle Cache (BuildCache + Wrapper)
-        uses: gradle/gradle-build-action@v3
+      - name: Setup Gradle (Cache & Build Setup)
+        uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          gradle-version: wrapper
           gradle-home-cache-cleanup: true
 
       - name: Setup Android SDK
@@ -161,6 +159,7 @@ jobs:
       - name: Assemble Debug APK
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -XX:+UseG1GC -Dfile.encoding=UTF-8"
         run: |
           ./gradlew assembleDebug \
             --stacktrace \
@@ -202,7 +201,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="v1.3.0"
+          VERSION="v1.3.1"
           APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
 
           if [ -z "$APK_FILE" ]; then
@@ -210,16 +209,16 @@ jobs:
             exit 1
           fi
 
-          cat << EOF | sed 's/^ *//' > release_notes.md
-          🚀 Automated build from commit ${{ github.sha }}
-
-          📦 APK Details:
-          - Build Number: ${{ github.run_number }}
-          - Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-          - Branch: ${{ github.ref }}
-
-          👇 xdelta updates are generated from this release.
-          EOF
+          {
+            echo "🚀 Automated build from commit ${{ github.sha }}"
+            echo ""
+            echo "📦 APK Details:"
+            echo "- Build Number: ${{ github.run_number }}"
+            echo "- Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo "- Branch: ${{ github.ref }}"
+            echo ""
+            echo "👇 xdelta updates are generated from this release."
+          } > release_notes.md
 
           if gh release view "$VERSION" > /dev/null 2>&1; then
             echo "📝 Release $VERSION exists, updating APK asset..."
@@ -227,7 +226,7 @@ jobs:
           else
             echo "🆕 Creating release $VERSION..."
             gh release create "$VERSION" "$APK_FILE" \
-              --title "Qabas Studio v1.3.0 - Build #${{ github.run_number }}" \
+              --title "Qabas Studio v1.3.1 - Build #${{ github.run_number }}" \
               --notes-file release_notes.md \
               --draft=false
           fi

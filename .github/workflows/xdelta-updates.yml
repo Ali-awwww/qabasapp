@@ -244,14 +244,14 @@ jobs:
             DELTA_FILE_NAME=$(basename "$DELTA_PATH")
             DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
 
-            cat << EOF | sed 's/^ *//' > notes_append.md
-
-            ---
-            ### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)
-            * **ملف الـ Patch التفاضلي:** $DELTA_FILE_NAME ($DELTA_SIZE_MB MB)
-            * **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!
-            * **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64).
-            EOF
+            {
+              echo ""
+              echo "---"
+              echo "### ⚡ تحديث فائق السرعة عبر xdelta3 (Smart Differential Update)"
+              echo "* **ملف الـ Patch التفاضلي:** $DELTA_FILE_NAME ($DELTA_SIZE_MB MB)"
+              echo "* **نسبة توفير البيانات وسرعة التحديث:** توفير **$SAVINGS_PCT%** مقارنة بتحميل الـ APK كاملاً!"
+              echo "* **توافق تلقائي:** يتم تثبيت التحديث وتطبيقه تلقائياً داخل التطبيق لجميع المعماريات (ARM64 / ARMv7 / x86_64)."
+            } > notes_append.md
 
             gh release view "$TARGET_TAG" --json body --jq '.body' > notes_current.md
             cat notes_append.md >> notes_current.md
