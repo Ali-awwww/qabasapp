@@ -14,8 +14,8 @@ android {
     applicationId = "com.aistudio.qabas.kxmpzq"
     minSdk = 24
     targetSdk = 36
-    versionCode = 101 // Bumped for stable update path
-    versionName = "1.3.0"
+    versionCode = 102 // Bumped for stable keystore signing support in CI
+    versionName = "1.3.1"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     ndk {
       abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
