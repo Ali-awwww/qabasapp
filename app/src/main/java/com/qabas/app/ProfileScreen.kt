@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -698,6 +699,96 @@ fun ProfileScreen(
                         icon = Icons.Default.TrendingUp,
                         color = Color(0xFF10B981)
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ─── Firebase Cloud Sync & Bookmarks Card ───
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.5f, glowElevation = 6.dp)
+                    .bouncingClickable { onNavigate(AppState.SAVED_ITEMS) },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF064E3B).copy(alpha = 0.5f),
+                                    Color(0xFF0B1120)
+                                )
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF10B981).copy(alpha = 0.18f),
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF10B981)),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.CloudDone,
+                                    contentDescription = null,
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "المحفوظات السحابية",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF10B981).copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Firestore HUD",
+                                        color = Color(0xFF34D399),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        softWrap = false,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "مزامنة الآيات القرآنية والخواطر والإلهامات لحظياً بدون إنترنت",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.ChevronLeft,
+                            contentDescription = "فتح المحفوظات",
+                            tint = Color(0xFF94A3B8)
+                        )
+                    }
                 }
             }
 

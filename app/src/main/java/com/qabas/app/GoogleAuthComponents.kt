@@ -594,7 +594,7 @@ fun GoogleSupabaseSetupDialog(
                                                 Text("Google Web Client ID", fontFamily = RobotoMonoFont, fontSize = 11.sp)
                                             },
                                             placeholder = {
-                                                Text("مثال: 123456789-xyz.apps.googleusercontent.com", color = Color.Gray, fontSize = 10.sp)
+                                                Text("مثال: 123456789-xyz (Google Web Client ID)", color = Color.Gray, fontSize = 10.sp)
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = OutlinedTextFieldDefaults.colors(

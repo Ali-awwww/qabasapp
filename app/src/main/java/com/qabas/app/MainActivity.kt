@@ -950,7 +950,10 @@ fun QabasBottomNavigation(
                             text = label,
                             fontFamily = CairoFont,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
                     selected = isSelected,
@@ -982,7 +985,7 @@ enum class AppState {
     QASAS, TRANSCRIPT_EDIT, CLIP_EXTRACTOR, CAMERA_CAPTURE, SCHOLAR_BIOGRAPHIES, SCHOLAR_DETAIL,
     AZKAR, ISLAMIC_LIBRARY, PRAYER_TIMES, STUDIO_GATEWAY, PRO_EDITOR, SOCIAL_STATS,
     ABOUT_US, MONEY_PRINTER_TURBO, VOICE_STUDIO, UNIFIED_MASTER_STUDIO, MEDIA_BROWSER,
-    PERMISSIONS_HUB, CRASH_LOGS_HUB, REELS, RULES, AI_STUDIO_AGENT
+    PERMISSIONS_HUB, CRASH_LOGS_HUB, REELS, RULES, AI_STUDIO_AGENT, SAVED_ITEMS
 }
 
 @Immutable

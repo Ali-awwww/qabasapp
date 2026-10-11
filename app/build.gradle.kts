@@ -116,6 +116,10 @@ tasks.matching { it.name.contains("GoogleServices", ignoreCase = true) && it.nam
     dependsOn("ensureGoogleServicesJson")
 }
 
+tasks.withType<Test> {
+    failFast = true
+}
+
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)

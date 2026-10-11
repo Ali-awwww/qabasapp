@@ -266,7 +266,7 @@ fun DeveloperKeyStatusHub(
                 serviceType = "google_auth",
                 preferenceKey = "google_web_client_id",
                 docUrl = "https://supabase.com/dashboard/project/egkgygbvoeevakwkbvfu/auth/providers",
-                keyFormatHint = "ينتهي بـ .apps.googleusercontent.com"
+                keyFormatHint = "معرف OAuth Web Client ID"
             )
         )
     }

@@ -531,6 +531,18 @@ fun AppNavigation(
                 onNavigate = { newState -> viewModel.updateState { copy(appState = newState) } }
             )
         }
+        AppState.SAVED_ITEMS -> {
+            val savedItemsViewModel = remember(context) {
+                val db = FirebaseManager.getFirestore(context)
+                val repo = SavedItemsRepository(db)
+                val authRepo = FirebaseAuthRepository.create(context)
+                SavedItemsViewModel(repo, authRepo)
+            }
+            SavedItemsScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.PROFILE) } },
+                viewModel = savedItemsViewModel
+            )
+        }
         AppState.REELS -> {
             ReelsScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },

@@ -70,7 +70,7 @@ object GoogleAuthHelper {
      */
     fun isWebClientIdConfigured(context: Context): Boolean {
         val id = getWebClientId(context)
-        return id.isNotBlank() && id.contains(".apps.googleusercontent.com")
+        return id.isNotBlank() && id.length > 10
     }
 
     /**

@@ -29,12 +29,27 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.userId is string && data.userId.size() <= 128 &&
-             data.has_reward is bool &&
-             data.total_wins is int && data.total_wins >= 0 &&
+             (!('has_reward' in data) || data.has_reward is bool) &&
+             (!('total_wins' in data) || (data.total_wins is int && data.total_wins >= 0)) &&
              (!('is_relative' in data) || data.is_relative is bool) &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('fcmToken' in data) || (data.fcmToken is string && data.fcmToken.size() <= 500)) &&
              (!('reward_expiry' in data) || data.reward_expiry is timestamp) &&
              (!('last_won_at' in data) || data.last_won_at is timestamp) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidSavedItem(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.itemType is string && (data.itemType == 'QURAN_AYAH' || data.itemType == 'INSPIRATION' || data.itemType == 'DHIKR') &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 10000 &&
+             (!('reference' in data) || (data.reference is string && data.reference.size() <= 200)) &&
+             (!('tags' in data) || data.tags is list) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
     }
@@ -69,7 +84,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
                        isValidId(userId) &&
                        incoming().userId == request.auth.uid &&
-                       incoming().keys().hasAll(['userId', 'has_reward', 'total_wins', 'createdAt']) &&
+                       incoming().keys().hasAll(['userId', 'createdAt']) &&
                        isValidUser(incoming());
 
       allow update: if isOwner(userId) &&
@@ -78,6 +93,27 @@ service cloud.firestore {
                        isValidUser(incoming());
 
       allow delete: if isOwner(userId);
+
+      // User Saved Items Subcollection (Quran & Inspirations)
+      match /saved_items/{itemId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(itemId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == itemId &&
+                         incoming().keys().hasAll(['id', 'userId', 'itemType', 'title', 'content', 'createdAt']) &&
+                         isValidSavedItem(incoming());
+
+        allow update: if isOwner(userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidSavedItem(incoming());
+
+        allow delete: if isOwner(userId);
+      }
 
       // User Projects Subcollection
       match /projects/{projectId} {

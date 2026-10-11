@@ -2,7 +2,7 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile with league rewards and account information",
+      "description": "User profile with league rewards, authentication identity and FCM tokens",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Auth UID of the user" },
@@ -12,10 +12,30 @@
         "total_wins": { "type": "integer", "description": "Total league wins" },
         "is_relative": { "type": "boolean", "description": "Free granted access flag" },
         "displayName": { "type": "string", "description": "Creator display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "photoUrl": { "type": "string", "description": "Profile picture URL" },
+        "fcmToken": { "type": "string", "description": "Cloud Messaging FCM registration token" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
       },
-      "required": ["userId", "has_reward", "total_wins", "createdAt"]
+      "required": ["userId", "createdAt"]
+    },
+    "SavedItem": {
+      "title": "SavedItem",
+      "description": "User saved Quran ayah, inspiration reflection, or dhikr with real-time sync and offline persistence",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the saved item" },
+        "userId": { "type": "string", "description": "Auth UID of the owner" },
+        "itemType": { "type": "string", "description": "Type: QURAN_AYAH, INSPIRATION, or DHIKR" },
+        "title": { "type": "string", "description": "Title or reference heading" },
+        "content": { "type": "string", "description": "Verse text or inspiration content" },
+        "reference": { "type": "string", "description": "Surah/Ayah number or source reference" },
+        "tags": { "type": "array", "description": "Tags associated with the saved item" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "userId", "itemType", "title", "content", "createdAt"]
     },
     "LeaderboardEntry": {
       "title": "LeaderboardEntry",
@@ -65,6 +85,10 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "User account documents keyed by Auth UID"
+    },
+    "/users/{userId}/saved_items/{itemId}": {
+      "schema": "SavedItem",
+      "description": "User saved Quran ayahs and spiritual inspirations"
     },
     "/leaderboard/{userId}": {
       "schema": "LeaderboardEntry",

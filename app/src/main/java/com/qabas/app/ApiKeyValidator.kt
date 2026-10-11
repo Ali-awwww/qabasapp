@@ -668,12 +668,12 @@ object ApiKeyValidator {
                     }
                 }
                 "google_auth" -> {
-                    if (trimmedKey.contains(".apps.googleusercontent.com") && trimmedKey.length > 25) {
+                    if (trimmedKey.contains("googleusercontent") && trimmedKey.length > 25) {
                         SystemLogsManager.addLog("SUCCESS", "معرّف Google Web Client ID سليم ومطابق لمعايير OAuth2", Color(0xFF4CAF50))
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "معرّف سليم ومُهيأ ✅ (OAuth 2.0 Web Client)",
-                            explanation = "تم التحقق من تركيبة معرف العميل الخاص بـ Google Cloud. جاهز للمصادقة وتوليد ID Tokens مع Supabase.",
+                            explanation = "تم التحقق من تركيبة معرف العميل الخاص بـ Google Cloud. جاهز للمصادقة وتوليد ID Tokens مع Supabase وFirebase.",
                             suggestedFix = "يمكنك الآن تجربة تسجيل الدخول بنقرة واحدة عبر Google."
                         )
                     } else {
@@ -681,7 +681,7 @@ object ApiKeyValidator {
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "الصيغة غير مكتملة 🟡",
-                            explanation = "يجب أن ينتهي المعرف بـ .apps.googleusercontent.com ويكون من نوع Web application.",
+                            explanation = "يجب أن يكون المعرف صالحاً من نوع Web application Client ID.",
                             suggestedFix = "أنشئ OAuth Client ID من نوع Web application في Google Cloud Console."
                         )
                     }

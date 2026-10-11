@@ -7,34 +7,48 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.PersistentCacheSettings
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
 /**
  * مدير التكامل مع Firebase Firestore والمصادقة
- * يعمل بالتوازي مع Supabase دون تعارض أو فقدان للبيانات
+ * يدعم التخزين المحلي التلقائي والمزامنة اللحظية
  */
 object FirebaseManager {
     private const val TAG = "FirebaseManager"
     private var firestoreInstance: FirebaseFirestore? = null
 
     /**
-     * الحصول على نسخة Firestore المهيأة بقاعدة البيانات المخصصة
+     * الحصول على نسخة Firestore المهيأة حصراً بقاعدة البيانات المخصصة
      */
     fun getFirestore(context: Context): FirebaseFirestore {
         if (firestoreInstance == null) {
             val databaseId = try {
                 context.getString(R.string.firestore_database_id)
             } catch (e: Exception) {
-                Log.w(TAG, "Missing firestore_database_id in resources, using default", e)
+                Log.e(TAG, "Missing firestore_database_id in resources", e)
                 ""
             }
 
-            firestoreInstance = if (databaseId.isNotBlank()) {
-                FirebaseFirestore.getInstance(databaseId)
-            } else {
-                FirebaseFirestore.getInstance()
+            require(databaseId.isNotBlank()) {
+                "firestore_database_id must be defined in resources"
             }
+
+            val instance = FirebaseFirestore.getInstance(databaseId)
+            try {
+                instance.firestoreSettings = FirebaseFirestoreSettings.Builder(instance.firestoreSettings)
+                    .setLocalCacheSettings(
+                        PersistentCacheSettings.newBuilder()
+                            .setSizeBytes(104857600L) // 100 MB persistent offline cache
+                            .build()
+                    )
+                    .build()
+            } catch (_: Exception) {
+                // Settings can only be configured before any other operation
+            }
+            firestoreInstance = instance
         }
         return firestoreInstance!!
     }
@@ -57,7 +71,7 @@ object FirebaseManager {
     }
 
     /**
-     * مزامنة بيانات المستخدم مع Firestore (بالتوازي مع Supabase)
+     * مزامنة بيانات المستخدم مع Firestore
      */
     suspend fun syncUserToFirestore(context: Context, userId: String, displayName: String?, email: String?) {
         try {
@@ -73,11 +87,14 @@ object FirebaseManager {
             if (!displayName.isNullOrBlank()) {
                 payload["displayName"] = displayName
             }
+            if (!email.isNullOrBlank()) {
+                payload["email"] = email
+            }
 
-            // الدمج دون الكتابة فوق الحقول الحالية إذا كانت موجودة
             userRef.set(payload, SetOptions.merge()).await()
             Log.d(TAG, "User $userId synced to Firestore successfully")
         } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "users/$userId")
             Log.w(TAG, "Failed to sync user to Firestore: ${e.message}")
         }
     }
@@ -110,6 +127,7 @@ object FirebaseManager {
             entryRef.set(payload, SetOptions.merge()).await()
             Log.d(TAG, "Leaderboard entry synced to Firestore successfully")
         } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "leaderboard/$userId")
             Log.w(TAG, "Failed to sync leaderboard to Firestore: ${e.message}")
         }
     }
@@ -141,6 +159,7 @@ object FirebaseManager {
             projectRef.set(payload, SetOptions.merge()).await()
             Log.d(TAG, "Project $projectId synced to Firestore successfully")
         } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "users/$userId/projects/$projectId")
             Log.w(TAG, "Failed to sync project to Firestore: ${e.message}")
         }
     }
