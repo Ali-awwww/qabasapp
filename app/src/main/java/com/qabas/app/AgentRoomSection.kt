@@ -377,6 +377,48 @@ object UniversalKeyBrain {
         }
         return sb.toString().takeIf { it.isNotBlank() }
     }
+
+    suspend fun pingActiveEngine(context: Context): KeyValidationResult = withContext(Dispatchers.IO) {
+        val (provider, key) = getActiveEngine()
+        if (provider == DetectedProvider.NONE || key.isBlank()) {
+            return@withContext KeyValidationResult(
+                isValid = false,
+                summary = "غير متصل 🔴",
+                explanation = "لا يوجد أي مفتاح API نشط أو مدخل في النظام حالياً.",
+                suggestedFix = "أدخل مفتاحك (Gemini, OpenRouter, Groq, OpenAI) لتفعيل الذكاء الاصطناعي الفعلي."
+            )
+        }
+        val serviceType = when (provider) {
+            DetectedProvider.GEMINI -> "gemini"
+            DetectedProvider.OPENROUTER -> "openrouter"
+            DetectedProvider.OPENAI -> "openai"
+            DetectedProvider.GROQ -> "groq"
+            DetectedProvider.HUGGINGFACE -> "huggingface"
+            else -> "gemini"
+        }
+        ApiKeyValidator.validateKey(context, serviceType, key)
+    }
+
+    suspend fun pingKey(context: Context, rawKey: String): KeyValidationResult = withContext(Dispatchers.IO) {
+        val provider = detect(rawKey)
+        if (provider == DetectedProvider.NONE || rawKey.isBlank()) {
+            return@withContext KeyValidationResult(
+                isValid = false,
+                summary = "مفتاح فارغ ⚪",
+                explanation = "يرجى لصق مفتاح API للتحقق من صحته.",
+                suggestedFix = "تأكد من نسخ المفتاح كاملاً."
+            )
+        }
+        val serviceType = when (provider) {
+            DetectedProvider.GEMINI -> "gemini"
+            DetectedProvider.OPENROUTER -> "openrouter"
+            DetectedProvider.OPENAI -> "openai"
+            DetectedProvider.GROQ -> "groq"
+            DetectedProvider.HUGGINGFACE -> "huggingface"
+            else -> "gemini"
+        }
+        ApiKeyValidator.validateKey(context, serviceType, rawKey)
+    }
 }
 
 data class RealAgentResponse(

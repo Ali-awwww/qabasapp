@@ -79,11 +79,42 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-// Firebase configuration is injected by CI when GOOGLE_SERVICES_JSON exists.
-// Allow local/CI debug builds without that optional configuration.
-// googleServices {
-//   missingGoogleServicesStrategy = com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN
-// }
+// Ensure google-services.json always exists before GoogleServices tasks run
+tasks.register("ensureGoogleServicesJson") {
+    doLast {
+        val googleServicesFile = file("google-services.json")
+        if (!googleServicesFile.exists()) {
+            googleServicesFile.writeText(
+                """
+                {
+                  "project_info": {
+                    "project_number": "748045877365",
+                    "project_id": "gen-lang-client-0938365900",
+                    "storage_bucket": "gen-lang-client-0938365900.firebasestorage.app"
+                  },
+                  "client": [
+                    {
+                      "client_info": {
+                        "mobilesdk_app_id": "1:748045877365:android:605ef20d87590b9df8783c",
+                        "android_client_info": {
+                          "package_name": "com.aistudio.qabas.kxmpzq"
+                        }
+                      },
+                      "oauth_client": [],
+                      "api_key": [{ "current_key": "AIzaSyCmNzgiIt8P45tdcWZS4MNEyY_MqusK6yo" }],
+                      "services": {}
+                    }
+                  ],
+                  "configuration_version": "1"
+                }
+                """.trimIndent()
+            )
+        }
+    }
+}
+tasks.matching { it.name.contains("GoogleServices", ignoreCase = true) && it.name != "ensureGoogleServicesJson" }.configureEach {
+    dependsOn("ensureGoogleServicesJson")
+}
 
 dependencies {
   implementation(platform(libs.androidx.compose.bom))

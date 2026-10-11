@@ -345,142 +345,19 @@ fun InputScreen(
         ) {
             when {
                 selectedSourceType == null -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        GlassmorphicSurface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = CutCornerShape(12.dp),
-                            backgroundColor = Color(0xFF151B2B).copy(alpha = 0.85f),
-                            borderColor = GoldPrimary.copy(alpha = 0.3f)
-                        ) {
-                            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = GoldPrimary.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(56.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    Translator.tr("اختر طريقة بدء صناعة الفيديو"),
-                                    color = GoldPrimary,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    Translator.tr("حدد مصدر المدخل الأساسي للبدء في توليد السيناريو والإنتاج"),
-                                    color = TextSecondary,
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
+                    DefaultSourceSelectionView(
+                        onSelectType = { type ->
+                            selectedSourceType = type
+                            onStateChange(state.copy(sourceType = type))
+                        },
+                        onOpenDirector = onOpenDirector,
+                        onOpenQasas = onOpenQasas,
+                        onOpenClips = onOpenClips,
+                        onPickTrending = { t ->
+                            selectedSourceType = "idea"
+                            onStateChange(state.copy(sourceType = "idea", inputText = t))
                         }
-
-                        SourceTypeCard(
-                            title = Translator.tr("المخرج — احكِ وهو يجهز"),
-                            subtitle = Translator.tr("محادثة حرة: افهم فكرتك ويسألك عن الناقص ويبني موجز المشروع"),
-                            icon = Icons.Default.AutoAwesome,
-                            badge = Translator.tr("جديد ✨"),
-                            badgeColor = Color(0xFF8B5CF6),
-                            accentColor = Color(0xFF8B5CF6),
-                            onClick = { onOpenDirector() }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("قاص قبس — قصص تتحول لريلز"),
-                            subtitle = Translator.tr("5 قصص قرآنية مروية + اسأل القاص وحول أي قصة لفيديو"),
-                            icon = Icons.Default.MenuBook,
-                            badge = Translator.tr("جديد 📖"),
-                            badgeColor = GoldPrimary,
-                            accentColor = GoldPrimary,
-                            onClick = { onOpenQasas() }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("مقص المقاطع — من الطويل للقصير"),
-                            subtitle = Translator.tr("الصق خطبة أو تفريغاً طويلاً فيستخرج 5 لحظات ذهبية كريلزات"),
-                            icon = Icons.Default.ContentCut,
-                            badge = Translator.tr("جديد ✂️"),
-                            badgeColor = Color(0xFF34D399),
-                            accentColor = Color(0xFF34D399),
-                            onClick = { onOpenClips() }
-                        )
-
-                        TrendRadarCard(
-                            onPick = {
-                                selectedSourceType = "idea"
-                                onStateChange(state.copy(sourceType = "idea", inputText = it))
-                            }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("ابدأ من فكرة نصية"),
-                            subtitle = Translator.tr("كتابة سكريبت، قصة، نص دعوي أو توليد أفكار بالذكاء الاصطناعي"),
-                            icon = Icons.Default.Lightbulb,
-                            badge = Translator.tr("متاح الآن ✨"),
-                            badgeColor = GoldPrimary,
-                            accentColor = GoldPrimary,
-                            onClick = {
-                                selectedSourceType = "idea"
-                                onStateChange(state.copy(sourceType = "idea"))
-                            }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("ابدأ من ملف صوتي"),
-                            subtitle = Translator.tr("تفريغ خطبة، مقطع صوتي، بودكاست أو تلاوة قرآنية وتحويلها لفيديو"),
-                            icon = Icons.Default.GraphicEq,
-                            badge = Translator.tr("متاح الآن 🎙️"),
-                            badgeColor = Color(0xFF38BDF8),
-                            accentColor = Color(0xFF38BDF8),
-                            onClick = {
-                                selectedSourceType = "audio"
-                                onStateChange(state.copy(sourceType = "audio"))
-                            }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("ابدأ من فيديو موجود"),
-                            subtitle = Translator.tr("إعادة مونتاج، استخراج نصوص، أو استنساخ أسلوب مرئي"),
-                            icon = Icons.Default.VideoLibrary,
-                            badge = Translator.tr("متاح الآن 🎬"),
-                            badgeColor = Color(0xFF34D399),
-                            accentColor = Color(0xFF34D399),
-                            onClick = {
-                                selectedSourceType = "video"
-                                onStateChange(state.copy(sourceType = "video"))
-                            }
-                        )
-
-                        SourceTypeCard(
-                            title = Translator.tr("ابدأ من صور"),
-                            subtitle = Translator.tr("تحويل ألبوم صور، تصاميم أو لوحات إلى ريلز سينمائي متحرك"),
-                            icon = Icons.Default.PhotoLibrary,
-                            badge = Translator.tr("متاح الآن 🖼️"),
-                            badgeColor = Color(0xFFFBBF24),
-                            accentColor = Color(0xFFFBBF24),
-                            onClick = {
-                                selectedSourceType = "images"
-                                onStateChange(state.copy(sourceType = "images"))
-                            }
-                        )
-                    }
+                    )
                 }
                 selectedSourceType == "video" -> {
                     Column(
@@ -2348,7 +2225,7 @@ fun InputScreen(
 }
 
 @Composable
-private fun SourceTypeCard(
+fun SourceTypeCard(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,

@@ -134,9 +134,47 @@ jobs:
           QF_CLIENT_ID: ${{ secrets.QF_CLIENT_ID }}
           QF_CLIENT_SECRET: ${{ secrets.QF_CLIENT_SECRET }}
         run: |
+          mkdir -p app
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            mkdir -p app
             echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          elif [ ! -f "app/google-services.json" ]; then
+            echo "Generating fallback google-services.json for CI build..."
+            cat << 'EOF' > app/google-services.json
+{
+  "project_info": {
+    "project_number": "748045877365",
+    "project_id": "gen-lang-client-0938365900",
+    "storage_bucket": "gen-lang-client-0938365900.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:748045877365:android:605ef20d87590b9df8783c",
+        "android_client_info": {
+          "package_name": "com.aistudio.qabas.kxmpzq"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "748045877365-cp1fan4qosmrq5h10b41roq4i4id9otb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.qabas.kxmpzq",
+            "certificate_hash": "e4b8a77c3e26de487992d7ab2d5a049ce2e60b3b"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmNzgiIt8P45tdcWZS4MNEyY_MqusK6yo"
+        }
+      ],
+      "services": {}
+    }
+  ],
+  "configuration_version": "1"
+}
+EOF
           fi
           {
             echo "SUPABASE_URL=\"${SUPABASE_URL:-https://YOUR_PROJECT_REF.supabase.co}\""

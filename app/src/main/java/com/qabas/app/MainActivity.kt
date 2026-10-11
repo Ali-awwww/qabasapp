@@ -881,6 +881,7 @@ fun QabasBottomNavigation(
     val navItems = remember {
         listOf(
             Triple(AppState.HOME, Icons.Default.Home, "الرئيسية"),
+            Triple(AppState.AI_STUDIO_AGENT, Icons.Default.SmartToy, "استوديو الوكيل"),
             Triple(AppState.REELS, Icons.Default.SlowMotionVideo, "ريلز"),
             Triple(AppState.STUDIO_GATEWAY, Icons.Default.AutoAwesome, "الاستوديو"),
             Triple(AppState.HASANAT_HUB, Icons.Default.Mosque, "مِشكاة الهُدى"),
