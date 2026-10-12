@@ -111,6 +111,7 @@ object SupabaseConfig {
                     autoLoadFromStorage = false
                     enableLifecycleCallbacks = false
                     alwaysAutoRefresh = false
+                    sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
                 }
                 install(Storage)
                 install(Functions)
@@ -128,6 +129,7 @@ object SupabaseConfig {
                 autoLoadFromStorage = false
                 enableLifecycleCallbacks = false
                 alwaysAutoRefresh = false
+                sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
             }
             install(Storage)
             install(Functions)

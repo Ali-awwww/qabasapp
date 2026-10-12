@@ -1,0 +1,324 @@
+package com.qabas.app
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
+
+/**
+ * معلومات النموذج المحلي المخصص للتنزيل والتشغيل بدون إنترنت
+ */
+data class OnDeviceModelInfo(
+    val id: String,
+    val name: String,
+    val tag: String,
+    val sizeBytes: Long,
+    val sizeFormatted: String,
+    val downloadUrl: String,
+    val fileName: String,
+    val ramRequirement: String,
+    val description: String,
+    val isRecommended: Boolean,
+    val badgeColorHex: Long = 0xFF00E5FF
+)
+
+/**
+ * حالة تنزيل النموذج
+ */
+sealed class ModelDownloadState {
+    object Idle : ModelDownloadState()
+    data class Downloading(
+        val modelId: String,
+        val progress: Float,
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+        val speedKbps: Long = 0
+    ) : ModelDownloadState()
+    data class Success(val modelId: String) : ModelDownloadState()
+    data class Error(val modelId: String, val message: String) : ModelDownloadState()
+}
+
+/**
+ * مدير النماذج المحلية والتنزيل الفعلي
+ */
+object OnDeviceModelManager {
+    private const val TAG = "OnDeviceModelManager"
+    private const val PREFS_NAME = "qabas_prefs"
+    private const val KEY_SELECTED_MODEL = "selected_local_model_id"
+    private const val KEY_OFFLINE_MODE_ACTIVE = "offline_ai_mode"
+    private const val MODEL_SUBDIR = "models/local"
+
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val _downloadState = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
+    val downloadState: StateFlow<ModelDownloadState> = _downloadState.asStateFlow()
+
+    @Volatile
+    private var isCancelled = false
+
+    // قائمة النماذج البرمجية المتوازنة والمختارة بدقة
+    val availableModels: List<OnDeviceModelInfo> = listOf(
+        OnDeviceModelInfo(
+            id = "qwen_2_5_coder_0_5b",
+            name = "Qwen 2.5 Coder 0.5B",
+            tag = "الأسرع والأخف برمجياً ⚡",
+            sizeBytes = 398_458_880L,
+            sizeFormatted = "390 MB",
+            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+            fileName = "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+            ramRequirement = "1.2 GB RAM",
+            description = "أخف وأسرع نموذج برمجي مخصص للأجهزة الذكية. ممتاز لإكمال دوال Kotlin، واجهات Jetpack Compose، وتوليد الشيفرات البرمجية فورياً.",
+            isRecommended = true,
+            badgeColorHex = 0xFF00E5FF
+        ),
+        OnDeviceModelInfo(
+            id = "gemma_3_1b_it",
+            name = "Google Gemma 3 1B",
+            tag = "الأعلى ذكاءً ومنطقاً 🧠",
+            sizeBytes = 608_174_080L,
+            sizeFormatted = "580 MB",
+            downloadUrl = "https://huggingface.co/google/gemma-3-1b-it-q4-gguf/resolve/main/gemma-3-1b-it-q4_k_m.gguf",
+            fileName = "gemma-3-1b-it-q4_k_m.gguf",
+            ramRequirement = "1.8 GB RAM",
+            description = "نموذج رسمي عالي الدقة من Google. يتميز بالفهم العميق للأوامر العربية، التحليل المنطقي للهياكل البرمجية، وصياغة الحلول المتكاملة.",
+            isRecommended = false,
+            badgeColorHex = 0xFFE5B842
+        ),
+        OnDeviceModelInfo(
+            id = "smollm2_coder_1_7b",
+            name = "SmolLM2 Coder 1.7B",
+            tag = "شامل ومتقدم 💻",
+            sizeBytes = 891_289_600L,
+            sizeFormatted = "850 MB",
+            downloadUrl = "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf",
+            fileName = "smollm2-1.7b-instruct-q4_k_m.gguf",
+            ramRequirement = "2.2 GB RAM",
+            description = "نموذج قوي مدرب على مليارات الأسطر البرمجية. مخصص لفحص الأخطاء المعقدة، بناء وحدات معمارية متكاملة، واستنباط الحلول التقنية.",
+            isRecommended = false,
+            badgeColorHex = 0xFFA855F7
+        )
+    )
+
+    private fun getPrefs(context: Context): SharedPreferences {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * المسار المحلي لمجلد النماذج
+     */
+    fun getModelsDirectory(context: Context): File {
+        val dir = File(context.filesDir, MODEL_SUBDIR)
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    /**
+     * ملف النموذج في الذاكرة المحلية
+     */
+    fun getModelFile(context: Context, modelInfo: OnDeviceModelInfo): File {
+        return File(getModelsDirectory(context), modelInfo.fileName)
+    }
+
+    /**
+     * هل النموذج منزّل وجاهز في الهاتف؟
+     */
+    fun isModelInstalled(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
+        val file = getModelFile(context, modelInfo)
+        // التحقق من وجود الملف وأن حجمه حقيقي يتجاوز الحد الأدنى (على الأقل 100 ميجابايت)
+        return file.exists() && file.length() >= 100_000_000L
+    }
+
+    /**
+     * الحجم الفعلي للملف على القرص
+     */
+    fun getInstalledFileSize(context: Context, modelInfo: OnDeviceModelInfo): Long {
+        val file = getModelFile(context, modelInfo)
+        return if (file.exists()) file.length() else 0L
+    }
+
+    /**
+     * النموذج المختار حالياً
+     */
+    fun getSelectedModel(context: Context): OnDeviceModelInfo {
+        val prefs = getPrefs(context)
+        val selectedId = prefs.getString(KEY_SELECTED_MODEL, availableModels.first().id)
+        return availableModels.find { it.id == selectedId } ?: availableModels.first()
+    }
+
+    /**
+     * حفظ النموذج المختار
+     */
+    fun setSelectedModel(context: Context, modelId: String) {
+        getPrefs(context).edit().putString(KEY_SELECTED_MODEL, modelId).apply()
+    }
+
+    /**
+     * هل وضع الأوفلاين مفعل كوضع افتراضي للوكيل؟
+     */
+    fun isOfflineModeActive(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_OFFLINE_MODE_ACTIVE, false)
+    }
+
+    /**
+     * تفعيل أو تعطيل وضع الأوفلاين
+     */
+    fun setOfflineModeActive(context: Context, active: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_OFFLINE_MODE_ACTIVE, active).apply()
+    }
+
+    /**
+     * هل يوجد أي نموذج مثبت وجاهز للعمل بدون إنترنت؟
+     */
+    fun hasAnyInstalledModel(context: Context): Boolean {
+        return availableModels.any { isModelInstalled(context, it) }
+    }
+
+    /**
+     * الحصول على النموذج الجاهز الحالي (أو أول نموذج مثبت)
+     */
+    fun getActiveReadyModel(context: Context): OnDeviceModelInfo? {
+        val selected = getSelectedModel(context)
+        if (isModelInstalled(context, selected)) return selected
+        return availableModels.firstOrNull { isModelInstalled(context, it) }
+    }
+
+    /**
+     * إلغاء التنزيل الجاري
+     */
+    fun cancelDownload() {
+        isCancelled = true
+        _downloadState.value = ModelDownloadState.Idle
+    }
+
+    /**
+     * تنزيل النموذج المختار مباشرة من Hugging Face مع تتبع البايتات الحقيقية
+     */
+    suspend fun downloadModel(
+        context: Context,
+        modelInfo: OnDeviceModelInfo
+    ): Boolean = withContext(Dispatchers.IO) {
+        isCancelled = false
+        val destFile = getModelFile(context, modelInfo)
+        val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
+
+        try {
+            _downloadState.value = ModelDownloadState.Downloading(
+                modelId = modelInfo.id,
+                progress = 0f,
+                downloadedBytes = 0L,
+                totalBytes = modelInfo.sizeBytes
+            )
+
+            val request = Request.Builder()
+                .url(modelInfo.downloadUrl)
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val error = "فشل بدء التنزيل: كود الاستجابة ${response.code}"
+                Log.e(TAG, error)
+                _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
+                return@withContext false
+            }
+
+            val body = response.body ?: run {
+                val error = "لم يتم استلام محتوى من السيرفر"
+                _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
+                return@withContext false
+            }
+
+            val totalBytes = if (body.contentLength() > 0) body.contentLength() else modelInfo.sizeBytes
+            var downloadedBytes = 0L
+            val startTime = System.currentTimeMillis()
+            var lastUpdateTime = startTime
+
+            body.byteStream().use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    val buffer = ByteArray(32 * 1024) // 32KB buffer for speed
+                    var bytesRead: Int
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        if (isCancelled) {
+                            tempFile.delete()
+                            _downloadState.value = ModelDownloadState.Idle
+                            return@withContext false
+                        }
+
+                        output.write(buffer, 0, bytesRead)
+                        downloadedBytes += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdateTime >= 250) { // update 4 times per second
+                            val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
+                            val elapsedSec = (now - startTime) / 1000.0
+                            val speedKbps = if (elapsedSec > 0) ((downloadedBytes / 1024) / elapsedSec).toLong() else 0L
+
+                            _downloadState.value = ModelDownloadState.Downloading(
+                                modelId = modelInfo.id,
+                                progress = progress.coerceIn(0f, 1f),
+                                downloadedBytes = downloadedBytes,
+                                totalBytes = totalBytes,
+                                speedKbps = speedKbps
+                            )
+                            lastUpdateTime = now
+                        }
+                    }
+                }
+            }
+
+            // التنزيل اكتمل بنجاح، استبدال الملف المؤقت
+            if (tempFile.exists() && tempFile.length() > 0) {
+                if (destFile.exists()) destFile.delete()
+                val renamed = tempFile.renameTo(destFile)
+                if (renamed || destFile.exists()) {
+                    setSelectedModel(context, modelInfo.id)
+                    _downloadState.value = ModelDownloadState.Success(modelInfo.id)
+                    Log.i(TAG, "Model downloaded successfully to ${destFile.absolutePath}")
+                    return@withContext true
+                }
+            }
+
+            _downloadState.value = ModelDownloadState.Error(modelInfo.id, "تعذر تثبيت ملف النموذج النهائي")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Download error: ${e.message}", e)
+            if (tempFile.exists()) tempFile.delete()
+            _downloadState.value = ModelDownloadState.Error(modelInfo.id, e.localizedMessage ?: "خطأ أثناء التنزيل")
+            false
+        }
+    }
+
+    /**
+     * حذف النموذج من الذاكرة المحلية لتحرير المساحة
+     */
+    fun deleteModel(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
+        val file = getModelFile(context, modelInfo)
+        return if (file.exists()) {
+            val deleted = file.delete()
+            if (deleted) {
+                // إذا كان هو المحدد، عيّن نموذجاً بديلاً
+                if (getSelectedModel(context).id == modelInfo.id) {
+                    val remaining = availableModels.firstOrNull { isModelInstalled(context, it) }
+                    if (remaining != null) {
+                        setSelectedModel(context, remaining.id)
+                    }
+                }
+            }
+            deleted
+        } else false
+    }
+}

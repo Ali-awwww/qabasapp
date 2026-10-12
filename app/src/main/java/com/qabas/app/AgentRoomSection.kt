@@ -87,7 +87,7 @@ enum class DetectedProvider(
     val color: Color
 ) {
     OPENROUTER("openrouter", "OpenRouter AI Gateway", "sk-or-", "anthropic/claude-3.5-sonnet", Color(0xFF38BDF8)),
-    GEMINI("gemini", "Google Gemini 2.0", "AIzaSy", "gemini-2.0-flash", Color(0xFF10B981)),
+    GEMINI("gemini", "Google Gemini 3.5 Flash", "AIza", "gemini-3.5-flash", Color(0xFF00E5FF)),
     GROQ("groq", "Groq Lightning Llama", "gsk_", "llama-3.3-70b-versatile", Color(0xFFF59E0B)),
     OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981)),
     ANTHROPIC("anthropic", "Anthropic Claude", "sk-ant-", "claude-3-5-sonnet-20241022", Color(0xFFA855F7)),
@@ -223,7 +223,7 @@ object UniversalKeyBrain {
         try {
             when (provider) {
                 DetectedProvider.GEMINI -> {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
                     val jsonBody = org.json.JSONObject().apply {
                         put("contents", org.json.JSONArray().apply {
                             put(org.json.JSONObject().apply {

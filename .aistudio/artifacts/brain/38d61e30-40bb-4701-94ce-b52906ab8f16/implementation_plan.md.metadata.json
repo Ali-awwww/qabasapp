@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for Firebase Firestore architecture, real-time snapshot listeners, offline persistence cache, Google Sign-In Credential Manager integration, advanced Security Rules, and direct UI integration for User Profiles and Saved Quran & Inspiration items, leveraging Firebase's competitive advantages over Supabase.",
-  "updatedAt":  "2026-10-11T18:22:45.204403635Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "خطة معمارية تفاعلية شاملة لإضافة «الوجه الآخر» للوكيل الذكي: دعم النماذج المحلية الجاهزة للتشغيل والتنزيل المباشر (On-Device Offline LLM Models) بدون إنترنت وبدون مفاتيح API، مع مركز تنزيل تفاعلي يعرض حجم الملف والتقدم، ومفتاح تحويل مباشر في رادار الوكيل بين الوضع السحابي (Cloud API) والوضع المحلي (On-Device).",
+  "updatedAt": "2026-10-12T16:44:31.086890130Z",
+  "requestFeedback": true,
+  "userFacing": true
 }
