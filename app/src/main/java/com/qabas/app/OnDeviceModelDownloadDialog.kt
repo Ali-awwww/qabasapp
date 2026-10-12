@@ -258,6 +258,7 @@ fun OnDeviceModelCard(
 ) {
     val isInstalled = remember(model.id) { OnDeviceModelManager.isModelInstalled(context, model) }
     val isThisDownloading = downloadState is ModelDownloadState.Downloading && downloadState.modelId == model.id
+    || downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id
     val badgeColor = Color(model.badgeColorHex)
 
     Surface(
@@ -369,7 +370,11 @@ fun OnDeviceModelCard(
 
             // Download State / Controls
             if (isThisDownloading) {
-                val state = downloadState as ModelDownloadState.Downloading
+                val state = when (downloadState) {
+                    is ModelDownloadState.Downloading -> downloadState
+                    is ModelDownloadState.Interrupted -> downloadState as ModelDownloadState.Interrupted
+                    else -> throw IllegalStateException("Unexpected download state: $downloadState")
+                }
                 val downloadedMb = state.downloadedBytes / (1024 * 1024)
                 val totalMb = state.totalBytes / (1024 * 1024)
                 val progressPercent = (state.progress * 100).toInt()
@@ -410,18 +415,42 @@ fun OnDeviceModelCard(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    OutlinedButton(
-                        onClick = onCancelDownload,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(34.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444)),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("إلغاء التنزيل", fontSize = 10.sp, color = Color(0xFFEF4444))
+                    when (downloadState) {
+                        is ModelDownloadState.Downloading -> {
+                            OutlinedButton(
+                                onClick = onCancelDownload,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(34.dp),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("إلغاء التنزيل", fontSize = 10.sp, color = Color(0xFFEF4444))
+                            }
+                        }
+                        is ModelDownloadState.Interrupted -> {
+                            OutlinedButton(
+                                onClick = {
+                                    OnDeviceModelManager.resumeDownload(context, model)
+                                    Toast.makeText(context, "استكمال التنزيل...", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(34.dp),
+                                border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.ArrowDownCircle, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("استكمال التنزيل", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                            }
+                        }
+                        else -> Unit
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
             } else if (isInstalled) {
                 // Installed State

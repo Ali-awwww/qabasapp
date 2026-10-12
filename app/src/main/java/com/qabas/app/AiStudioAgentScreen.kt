@@ -114,7 +114,122 @@ fun AiStudioAgentScreen(
     var showRepoDialog by remember { mutableStateOf(false) }
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
-    var showOnDeviceDialog by remember { mutableStateOf(false) }
+    import android.content.SharedPreferences
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.preference.PreferenceManager
+
+val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+
+    // Mission State Management
+    var missionAutoSwitched by remember { mutableStateOf(false) }
+
+    // Save current mission state to SharedPreferences
+    fun saveMissionState() {
+        val mission = currentMission.value
+        if (mission == null) return
+
+        val json = JSONObject().apply {
+            put("id", mission.id)
+            put("userPrompt", mission.userPrompt)
+            put("specialization", mission.specialization.name)
+            put("steps", mission.steps.joinToString(",") { it.id })
+            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            put("buildTriggered", mission.buildTriggered)
+            put("apkUrl", mission.apkUrl)
+            put("timestamp", mission.timestamp)
+        }
+
+        prefs.edit().putString("active_mission_json", json.toString()).apply()
+    }
+
+    // Restore mission state from SharedPreferences
+    fun restoreMissionState(): AgentMissionSession? {
+        val json = prefs.getString("active_mission_json", null)
+        if (json.isNullOrBlank()) return null
+
+        try {
+            val obj = JSONObject(json)
+            val stepsList = obj.getJSONArray("steps")
+            val steps = (0 until stepsList.length()).map { idx ->
+                AgentExecutionStep(
+                    id = stepsList.getString(idx),
+                    title = "", // would need to store titles too
+                    description = "",
+                    toolName = "",
+                    outputSnippet = ""
+                )
+            }
+
+            return AgentMissionSession(
+                id = obj.getString("id"),
+                userPrompt = obj.getString("userPrompt"),
+                specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+                steps = steps,
+                modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
+                buildTriggered = obj.getBoolean("buildTriggered"),
+                apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
+                timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to restore mission state: ${e.message}")
+            // Clear corrupted state
+            prefs.edit().remove("active_mission_json").apply()
+            return null
+        }
+    }
+
+    // Export mission as JSON string for backup/sharing
+    fun exportMissionJson(): String {
+        val mission = currentMission.value
+        if (mission == null) return ""
+
+        return JSONObject().apply {
+            put("missionId", mission.id)
+            put("userPrompt", mission.userPrompt)
+            put("specialization", mission.specialization.name)
+            put("steps", mission.steps.joinToString(",") { it.id })
+            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            put("buildTriggered", mission.buildTriggered)
+            put("apkUrl", mission.apkUrl)
+            put("timestamp", mission.timestamp)
+        }.toString()
+    }
+
+    // Import mission from JSON string
+    fun importMissionFromJson(jsonString: String): Boolean {
+        try {
+            val obj = JSONObject(jsonString)
+            val stepsList = obj.getJSONArray("steps")
+            val steps = (0 until stepsList.length()).map { idx ->
+                AgentExecutionStep(
+                    id = stepsList.getString(idx),
+                    title = "",
+                    description = "",
+                    toolName = "",
+                    outputSnippet = ""
+                )
+            }
+
+            currentMission.value = AgentMissionSession(
+                id = obj.getString("missionId"),
+                userPrompt = obj.getString("userPrompt"),
+                specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+                steps = steps,
+                modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
+                buildTriggered = obj.getBoolean("buildTriggered"),
+                apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
+                timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
+            )
+
+            missionHistory.value = missionHistory.value + listOf(currentMission.value!!)
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import mission: ${e.message}")
+            return false
+        }
+    }
+    var missionAutoSwitched by remember { mutableStateOf(false) }  // flag for auto-switch
 
     // Key Resolution & Real Live Diagnostics
     var keyResolution by remember { mutableStateOf(AgentConnectivityEngine.resolveKeyWithSource(context)) }
@@ -161,6 +276,36 @@ fun AiStudioAgentScreen(
 
     LaunchedEffect(Unit) {
         refreshDiagnostics()
+    }
+
+    // Mission State Auto-Save & Restore + Auto-Switch Logic
+LaunchedEffect(currentMission, isOfflineMode) {
+        // Save mission state whenever it changes
+        saveMissionState()
+
+        // If offline mode is active but no local model is available, auto-switch to cloud
+        if (isOfflineMode && currentMission != null && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
+            if (!missionAutoSwitched.value) {
+                missionAutoSwitched.value = true
+                // Save current mission before switching
+                saveMissionState()
+                // Switch to cloud mode - show key dialog or use default key
+                showKeyDialog = true
+                keyDialogInitialTab = 1  // Switch to API keys tab
+            }
+        } else if (missionAutoSwitched.value && OnDeviceModelManager.hasAnyInstalledModel(context)) {
+            // User returned to local mode with a model installed
+            missionAutoSwitched.value = false
+            // Could restore mission state here - currently manual
+        }
+    },
+
+    // Periodic auto-save every 30 seconds
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30000) // 30 seconds
+            saveMissionState()
+        }
     }
 
     // Active Engine & Repo
@@ -2621,6 +2766,48 @@ fun CodingPlatformCard(
                             lineHeight = 14.sp
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Mission Management Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val json = exportMissionJson()
+                        if (json.isNotBlank()) {
+                            clipboardManager.setText(json)
+                            Toast.makeText(context, "مهمة التصدير kopied to clipboard", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Export Mission", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                }
+                OutlinedButton(
+                    onClick = {
+                        val json = prefs.getString("active_mission_json", "")
+                        if (json.isNotBlank()) {
+                            importMissionFromJson(json)
+                            Toast.makeText(context, "تم استيراد المهمة من الحالة المحفوظة", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "لا توجد مهمة محفوظة", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FileImport, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("استيراد مهمة", fontSize = 10.sp, color = Color(0xFF00E5FF))
                 }
             }
 

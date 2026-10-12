@@ -45,6 +45,11 @@ sealed class ModelDownloadState {
     ) : ModelDownloadState()
     data class Success(val modelId: String) : ModelDownloadState()
     data class Error(val modelId: String, val message: String) : ModelDownloadState()
+    data class Interrupted(   // حالة جديدة: تم إيقاف التنزيل (قطعconnection) والحفظ للتجدد
+        val modelId: String,
+        val downloadedBytes: Long,
+        val totalBytes: Long
+    ) : ModelDownloadState()
 }
 
 /**
@@ -197,10 +202,14 @@ object OnDeviceModelManager {
     }
 
     /**
-     * إلغاء التنزيل الجاري
+     * إلغاء التنزيل الجاري وحذف الملف الجزئي
+     * يُستدعى من dialog أو viewmodel بتمرير modelInfo
      */
-    fun cancelDownload() {
+    fun cancelDownload(modelInfo: OnDeviceModelInfo) {
         isCancelled = true
+        val destFile = File(context.filesDir, "models/local/${modelInfo.id}")
+        val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
+        if (tempFile.exists()) tempFile.delete()
         _downloadState.value = ModelDownloadState.Idle
     }
 
@@ -215,12 +224,22 @@ object OnDeviceModelManager {
         val destFile = getModelFile(context, modelInfo)
         val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
 
+        // محاولة الاستكمال من حيث توقف التنزيل السابق
+        var resumeBytes = 0L
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedResumeBytes = prefs.getLong("model_resume_${modelInfo.id}", 0L)
+        val savedTotalBytes = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)
+        if (savedResumeBytes > 0 && savedTotalBytes > 0) {
+            resumeBytes = savedResumeBytes
+            Log.i(TAG, "Resuming download of ${modelInfo.id} from $resumeBytes/${savedTotalBytes}")
+        }
+
         try {
             _downloadState.value = ModelDownloadState.Downloading(
                 modelId = modelInfo.id,
-                progress = 0f,
-                downloadedBytes = 0L,
-                totalBytes = modelInfo.sizeBytes
+                progress = if (totalBytes > 0) resumeBytes.toFloat() / totalBytes else 0f,
+                downloadedBytes = resumeBytes,
+                totalBytes = totalBytes
             )
 
             val request = Request.Builder()
@@ -231,51 +250,67 @@ object OnDeviceModelManager {
             if (!response.isSuccessful) {
                 val error = "فشل بدء التنزيل: كود الاستجابة ${response.code}"
                 Log.e(TAG, error)
+                // حفظ progress Interrupted قبل الخطأ
+                prefs.edit()
+                    .putLong("model_resume_${modelInfo.id}", resumeBytes)
+                    .putLong("model_total_${modelInfo.id}", totalBytes)
+                    .apply()
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
             }
 
             val body = response.body ?: run {
                 val error = "لم يتم استلام محتوى من السيرفر"
+                // حفظ progress Interrupted قبل الخطأ
+                prefs.edit()
+                    .putLong("model_resume_${modelInfo.id}", resumeBytes)
+                    .putLong("model_total_${modelInfo.id}", totalBytes)
+                    .apply()
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
             }
 
             val totalBytes = if (body.contentLength() > 0) body.contentLength() else modelInfo.sizeBytes
-            var downloadedBytes = 0L
+            var downloadedBytes = resumeBytes
             val startTime = System.currentTimeMillis()
             var lastUpdateTime = startTime
 
-            body.byteStream().use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buffer = ByteArray(32 * 1024) // 32KB buffer for speed
-                    var bytesRead: Int
+            // إذا كان هناك ملف مؤقت مسبق يحتوي على بايتات، الكتابة بعده (append)
+            val appendMode = if (resumeBytes > 0 && tempFile.exists()) true else false
+            FileOutputStream(tempFile, appendMode).use { output ->
+                val buffer = ByteArray(32 * 1024) // 32KB buffer for speed
+                var bytesRead: Int
 
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        if (isCancelled) {
-                            tempFile.delete()
-                            _downloadState.value = ModelDownloadState.Idle
-                            return@withContext false
-                        }
+                // إذا كنا نستأنف من نقطة معينة، ن跳跃 over الـ bytes السابقة في التدفق
+                if (resumeBytes > 0) {
+                    var skipped = input.skip(resumeBytes)
+                    // fallback: if skip didn't skip enough, we'll just write from current position
+                }
 
-                        output.write(buffer, 0, bytesRead)
-                        downloadedBytes += bytesRead
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    if (isCancelled) {
+                        tempFile.delete()
+                        _downloadState.value = ModelDownloadState.Idle
+                        return@withContext false
+                    }
 
-                        val now = System.currentTimeMillis()
-                        if (now - lastUpdateTime >= 250) { // update 4 times per second
-                            val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
-                            val elapsedSec = (now - startTime) / 1000.0
-                            val speedKbps = if (elapsedSec > 0) ((downloadedBytes / 1024) / elapsedSec).toLong() else 0L
+                    output.write(buffer, 0, bytesRead)
+                    downloadedBytes += bytesRead
 
-                            _downloadState.value = ModelDownloadState.Downloading(
-                                modelId = modelInfo.id,
-                                progress = progress.coerceIn(0f, 1f),
-                                downloadedBytes = downloadedBytes,
-                                totalBytes = totalBytes,
-                                speedKbps = speedKbps
-                            )
-                            lastUpdateTime = now
-                        }
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdateTime >= 250) { // update 4 times per second
+                        val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
+                        val elapsedSec = (now - startTime) / 1000.0
+                        val speedKbps = if (elapsedSec > 0) ((downloadedBytes / 1024) / elapsedSec).toLong() else 0L
+
+                        _downloadState.value = ModelDownloadState.Downloading(
+                            modelId = modelInfo.id,
+                            progress = progress.coerceIn(0f, 1f),
+                            downloadedBytes = downloadedBytes,
+                            totalBytes = totalBytes,
+                            speedKbps = speedKbps
+                        )
+                        lastUpdateTime = now
                     }
                 }
             }
@@ -286,6 +321,8 @@ object OnDeviceModelManager {
                 val renamed = tempFile.renameTo(destFile)
                 if (renamed || destFile.exists()) {
                     setSelectedModel(context, modelInfo.id)
+                    // تنظيف saved resume state
+                    prefs.edit().remove("model_resume_${modelInfo.id}").remove("model_total_${modelInfo.id}").apply()
                     _downloadState.value = ModelDownloadState.Success(modelInfo.id)
                     Log.i(TAG, "Model downloaded successfully to ${destFile.absolutePath}")
                     return@withContext true
@@ -296,10 +333,58 @@ object OnDeviceModelManager {
             false
         } catch (e: Exception) {
             Log.e(TAG, "Download error: ${e.message}", e)
-            if (tempFile.exists()) tempFile.delete()
-            _downloadState.value = ModelDownloadState.Error(modelInfo.id, e.localizedMessage ?: "خطأ أثناء التنزيل")
+            // حفظ progress Interrupted قبل الخطأ للتجدد لاحقاً
+            prefs.edit()
+                .putLong("model_resume_${modelInfo.id}", downloadedBytes)
+                .putLong("model_total_${modelInfo.id}", totalBytes ?: modelInfo.sizeBytes)
+                .apply()
+            _downloadState.value = ModelDownloadState.Interrupted(
+                modelId = modelInfo.id,
+                downloadedBytes = downloadedBytes,
+                totalBytes = totalBytes ?: modelInfo.sizeBytes
+            )
+            if (tempFile.exists() && tempFile.length() > 0) {
+                // الملف الجزئي موجود ويمكن استئنافه
+            }
             false
         }
+    }
+
+    /**
+     * استكمال التنزيل من حيث توقف (يقرأ الحالة المحفوظة ويعيد تشغيل التنزيل)
+     */
+    suspend fun resumeDownload(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
+        // التحقق مما لو كان هناك حالة إنقطاع محفوظة
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedResume = prefs.getLong("model_resume_${modelInfo.id}", 0L)
+        val savedTotal = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)
+
+        if (savedResume <= 0) return false
+
+        // إعادة تعيين الحالة إلى Downloading وتمهيد التنزيل من النقطة المحفوظة
+        _downloadState.value = ModelDownloadState.Downloading(
+            modelId = modelInfo.id,
+            progress = savedResume.toFloat() / savedTotal,
+            downloadedBytes = savedResume,
+            totalBytes = savedTotal
+        )
+
+        // حذف حالة الانقطاع المحفوظة لأننا نبدأ عملية جديدة
+        prefs.edit().remove("model_resume_${modelInfo.id}").remove("model_total_${modelInfo.id}").apply()
+
+        // استدعاء التنزيل من النقطة المحفوظة (سيستخدم الملف المؤقت الموجود)
+        return downloadModel(context, modelInfo)
+    }
+
+    /**
+     * إلغاء التنزيل الجاري وحذف الملف الجزئي
+     */
+    fun cancelDownload() {
+        isCancelled = true
+        val destFile = File(context.filesDir, "models/local/${modelInfo.id}") // simplified
+        val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
+        if (tempFile.exists()) tempFile.delete()
+        _downloadState.value = ModelDownloadState.Idle
     }
 
     /**

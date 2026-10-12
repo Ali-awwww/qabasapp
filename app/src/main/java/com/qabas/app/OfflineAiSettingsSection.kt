@@ -26,6 +26,7 @@ fun OfflineAiSettingsSection() {
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
     var statusMessage by remember { mutableStateOf("") }
+    var downloadInterrupted by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
         val modelFile = File(context.filesDir, "models/llama/gemma-3-1b-it-q4_k_m.gguf")
@@ -104,48 +105,66 @@ fun OfflineAiSettingsSection() {
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            when {
-                isDownloading -> {
-                    LinearProgressIndicator(
-                        progress = downloadProgress,
-                        modifier = Modifier.fillMaxWidth(),
-                        color = GoldPrimary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "جاري التنزيل... ${(downloadProgress * 100).toInt()}%",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-                !isModelReady -> {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                try {
-                                    isDownloading = true
-                                    downloadModel(context) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    isModelReady = true
-                                    statusMessage = "✓ الموديل جاهز"
-                                } catch (e: Exception) {
-                                    statusMessage = "خطأ: ${e.message}"
-                                } finally {
-                                    isDownloading = false
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("تنزيل الموديل (600MB)", color = DeepSlate)
+when {
+                    isDownloading -> {
+                        LinearProgressIndicator(
+                            progress = downloadProgress,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = GoldPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "جاري التنزيل... ${(downloadProgress * 100).toInt()}%",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
                     }
-                    Text(
-                        "يتطلب اتصال إنترنت للتنزيل الأولي فقط",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
+                    downloadInterrupted -> {
+                        OutlinedButton(
+                            onClick = {
+                                OnDeviceModelManager.resumeDownload(context, selectedModel)
+                                downloadInterrupted = false
+                                statusMessage = "جاري استكمال التنزيل..."
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("استكمال التنزيل", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    !isModelReady -> {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        isDownloading = true
+                                        statusMessage = "جاري التنزيل..."
+                                        OnDeviceModelManager.downloadModel(context) { progress ->
+                                            downloadProgress = progress
+                                        }
+                                        isModelReady = true
+                                        statusMessage = "✓ الموديل جاهز"
+                                        downloadInterrupted = false
+                                    } catch (e: Exception) {
+                                        statusMessage = "خطأ: ${e.message}"
+                                        downloadInterrupted = OnDeviceModelManager.downloadState.value is ModelDownloadState.Interrupted
+                                    } finally {
+                                        isDownloading = false
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("تنزيل الموديل (600MB)", color = DeepSlate)
+                        }
+                        Text(
+                            "يتطلب اتصال إنترنت للتنزيل الأولي فقط",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
                 isModelReady && !isOfflineMode -> {
                     OutlinedButton(
