@@ -272,8 +272,11 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     val cloudList = mutableListOf<DevUser>()
 
                     supabaseUsers.forEach { row ->
+                        // تجاهل الصفوف اليتيمة بلا بريد (صفوف وهمية من جلسات قديمة) — لا تحتسب كمستخدم
+                        val cleanRowEmail = row.email?.trim().orEmpty()
+                        if (cleanRowEmail.isBlank() || !cleanRowEmail.contains("@")) return@forEach
                         val targetUid = row.externalId ?: row.id
-                        val rowEmail = (row.email ?: targetUid).lowercase(java.util.Locale.ROOT)
+                        val rowEmail = cleanRowEmail.lowercase(java.util.Locale.ROOT)
                         val projectCount = runCatching {
                             SupabaseServices.Database.getUserProjects(targetUid).size
                         }.getOrDefault(0)
@@ -284,8 +287,8 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         }
                         val cloudUser = DevUser(
                             id = targetUid,
-                            name = row.name?.ifBlank { null } ?: row.email?.substringBefore('@') ?: "صانع محتوى",
-                            email = row.email ?: targetUid,
+                            name = row.name?.ifBlank { null } ?: cleanRowEmail.substringBefore('@'),
+                            email = cleanRowEmail,
                             type = roleDisplay,
                             projectCount = projectCount,
                             regDate = DevDashboardFormatters.formatRegDate(row.createdAt),

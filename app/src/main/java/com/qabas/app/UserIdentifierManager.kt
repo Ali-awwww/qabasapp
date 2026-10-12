@@ -73,6 +73,20 @@ object UserIdentifierManager {
 
         // 3. فحص عداد الحسابات المتسلسل في التطبيق لتعيين الرقم الحقيقي التالي
         val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
+
+        // 3أ. إن كان الحساب مسجلاً مسبقاً برقم معتمد، أعده كما هو (يمنع تضخم الترقيم بعد حذف البيانات)
+        val existingNumber = existingAccounts
+            .firstOrNull { it.email.equals(cleanEmail, ignoreCase = true) }
+            ?.accountNumber?.takeIf { it.isNotBlank() }
+            ?.let { formatAccountNumber(it) }
+        if (!existingNumber.isNullOrBlank()) {
+            prefs.edit()
+                .putString(KEY_ACCOUNT_NUMBER, existingNumber)
+                .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, existingNumber)
+                .apply()
+            return existingNumber
+        }
+
         val isFirstInRegistry = existingAccounts.isEmpty() || (existingAccounts.size == 1 && existingAccounts.first().email.equals(cleanEmail, ignoreCase = true))
 
         val currentSeq = prefs.getInt(KEY_NEXT_ACCOUNT_SEQ, 0)

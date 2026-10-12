@@ -126,9 +126,9 @@ fun LoginScreen(
                     LocalAccountRegistry.registerOrUpdateAccount(
                         context = context,
                         account = LocalAccountRegistry.AccountRecord(
-                            id = googleResult.email,
+                            id = lowerEmail,
                             name = effectiveGoogleName,
-                            email = googleResult.email,
+                            email = lowerEmail,
                             customId = customId,
                             accountNumber = accountNumber,
                             type = if (finalIsDeveloper) "مطور" else "مجاني",
@@ -143,7 +143,7 @@ fun LoginScreen(
                         putBoolean("is_developer", finalIsDeveloper)
                         putBoolean("is_premium", true)
                         putBoolean("is_relative", isRelative)
-                        putString("user_email", googleResult.email)
+                        putString("user_email", lowerEmail)
                         putString("user_name", effectiveGoogleName)
                         putString("user_display_name", effectiveGoogleName)
                         putString("user_custom_id", customId)
@@ -154,7 +154,7 @@ fun LoginScreen(
                             putString("user_name", googleResult.displayName)
                         }
                         if (rememberMe) {
-                            putString("saved_login_email", googleResult.email)
+                            putString("saved_login_email", lowerEmail)
                         }
                         apply()
                     }

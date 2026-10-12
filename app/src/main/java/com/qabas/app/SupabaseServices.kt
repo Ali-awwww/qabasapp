@@ -63,6 +63,21 @@ object SupabaseServices {
             accountNumber: String? = null
         ): UserRow? = runCatching {
             val client = client ?: return null
+            val cleanEmail = email?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+
+            // 1. الحل القانوني أولاً بالبريد (case-insensitive): نفس حساب Google = صف واحد دائماً،
+            // حتى لو تغيّر الـ externalId بين الجلسات (مثلاً fallback للبريد قبل اكتمال استعادة الجلسة).
+            if (cleanEmail.isNotBlank()) {
+                val byEmail = client.postgrest.from("users").select {
+                    filter {
+                        ilike("email", cleanEmail)
+                    }
+                    limit(1)
+                }.decodeSingleOrNull<UserRow>()
+                if (byEmail != null) return byEmail
+            }
+
+            // 2. ثم بالمعرّف الخارجي
             val existing = client.postgrest.from("users").select {
                 filter {
                     eq("id", externalId)
@@ -75,8 +90,8 @@ object SupabaseServices {
             val newUser = UserRow(
                 id = externalId,
                 externalId = externalId,
-                email = email,
-                name = name ?: email?.substringBefore("@") ?: "مستخدم قبس",
+                email = cleanEmail.ifBlank { email },
+                name = name ?: cleanEmail.substringBefore("@").ifBlank { email?.substringBefore("@") } ?: "مستخدم قبس",
                 type = "مجاني",
                 status = "active",
                 customId = customId,

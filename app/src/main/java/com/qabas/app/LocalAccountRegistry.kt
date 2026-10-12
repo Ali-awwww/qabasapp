@@ -115,9 +115,20 @@ object LocalAccountRegistry {
         if (!rawJson.isNullOrBlank()) {
             try {
                 val array = JSONArray(rawJson)
+                var droppedZombies = false
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    list.add(AccountRecord.fromJson(obj))
+                    val rec = AccountRecord.fromJson(obj)
+                    // إسقاط السجلات الوهمية (بريد فارغ أو بدون @ مثل معرّفات UUID) — تنظيف ذاتي
+                    if (rec.email.trim().contains("@")) {
+                        list.add(rec)
+                    } else {
+                        droppedZombies = true
+                        Log.i(TAG, "Dropped zombie account record (id=${rec.id})")
+                    }
+                }
+                if (droppedZombies) {
+                    saveListToPrefs(prefs, list)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to parse accounts JSON: ${e.message}")
