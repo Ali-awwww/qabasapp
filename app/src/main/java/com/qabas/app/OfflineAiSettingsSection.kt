@@ -122,7 +122,9 @@ when {
                     downloadInterrupted -> {
                         OutlinedButton(
                             onClick = {
-                                OnDeviceModelManager.resumeDownload(context, selectedModel)
+                                rememberCoroutineScope().launch {
+                                    OnDeviceModelManager.resumeDownload(context, selectedModel)
+                                }
                                 downloadInterrupted = false
                                 statusMessage = "جاري استكمال التنزيل..."
                             },
@@ -181,7 +183,6 @@ when {
             }
         }
     }
-}
 
 private suspend fun downloadModel(context: Context, onProgress: (Float) -> Unit) {
     withContext(Dispatchers.IO) {

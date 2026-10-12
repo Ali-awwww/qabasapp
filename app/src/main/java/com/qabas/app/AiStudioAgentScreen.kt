@@ -1,10 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import android.content.SharedPreferences
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -21,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,8 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.preference.PreferenceManager
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -114,7 +116,6 @@ fun AiStudioAgentScreen(
     var showRepoDialog by remember { mutableStateOf(false) }
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
-    import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.preference.PreferenceManager
@@ -165,6 +166,7 @@ val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(con
                 id = obj.getString("id"),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+                status = AgentTaskStatus.PLANNING,
                 steps = steps,
                 modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
                 buildTriggered = obj.getBoolean("buildTriggered"),
@@ -215,6 +217,7 @@ val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(con
                 id = obj.getString("missionId"),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+                status = AgentTaskStatus.PLANNING,
                 steps = steps,
                 modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
                 buildTriggered = obj.getBoolean("buildTriggered"),
@@ -229,8 +232,6 @@ val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(con
             return false
         }
     }
-    var missionAutoSwitched by remember { mutableStateOf(false) }  // flag for auto-switch
-
     // Key Resolution & Real Live Diagnostics
     var keyResolution by remember { mutableStateOf(AgentConnectivityEngine.resolveKeyWithSource(context)) }
     var isPinging by remember { mutableStateOf(false) }
