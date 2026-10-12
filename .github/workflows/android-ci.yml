@@ -139,42 +139,7 @@ jobs:
             echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           elif [ ! -f "app/google-services.json" ]; then
             echo "Generating fallback google-services.json for CI build..."
-            cat << 'EOF' > app/google-services.json
-{
-  "project_info": {
-    "project_number": "748045877365",
-    "project_id": "gen-lang-client-0938365900",
-    "storage_bucket": "gen-lang-client-0938365900.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:748045877365:android:605ef20d87590b9df8783c",
-        "android_client_info": {
-          "package_name": "com.aistudio.qabas.kxmpzq"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "748045877365-cp1fan4qosmrq5h10b41roq4i4id9otb.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.aistudio.qabas.kxmpzq",
-            "certificate_hash": "e4b8a77c3e26de487992d7ab2d5a049ce2e60b3b"
-          }
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCmNzgiIt8P45tdcWZS4MNEyY_MqusK6yo"
-        }
-      ],
-      "services": {}
-    }
-  ],
-  "configuration_version": "1"
-}
-EOF
+            echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiNzQ4MDQ1ODc3MzY1IiwKICAgICJwcm9qZWN0X2lkIjogImdlbi1sYW5nLWNsaWVudC0wOTM4MzY1OTAwIiwKICAgICJzdG9yYWdlX2J1Y2tldCI6ICJnZW4tbGFuZy1jbGllbnQtMDkzODM2NTkwMC5maXJlYmFzZXN0b3JhZ2UuYXBwIgogIH0sCiAgImNsaWVudCI6IFsKICAgIHsKICAgICAgImNsaWVudF9pbmZvIjogewogICAgICAgICJtb2JpbGVzZGtfYXBwX2lkIjogIjE6NzQ4MDQ1ODc3MzY1OmFuZHJvaWQ6NjA1ZWYyMGQ4NzU5MGI5ZGY4NzgzYyIsCiAgICAgICAgImFuZHJvaWRfY2xpZW50X2luZm8iOiB7CiAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogWwogICAgICAgIHsKICAgICAgICAgICJjbGllbnRfaWQiOiAiNzQ4MDQ1ODc3MzY1LWNwMWZhbjRxb3NtcnE1aDEwYjQxcm9xNGk0aWQ5b3RiLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwKICAgICAgICAgICJjbGllbnRfdHlwZSI6IDEsCiAgICAgICAgICAiYW5kcm9pZF9pbmZvIjogewogICAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiLAogICAgICAgICAgICAiY2VydGlmaWNhdGVfaGFzaCI6ICJlNGI4YTc3YzNlMjZkZTQ4Nzk5MmQ3YWIyZDVhMDQ5Y2UyZTYwYjNiIgogICAgICAgICAgfQogICAgICAgIH0KICAgICAgXSwKICAgICAgImFwaV9rZXkiOiBbCiAgICAgICAgewogICAgICAgICAgImN1cnJlbnRfa2V5IjogIkFJemFTeUNtTnpnaUl0OFA0NXRkY1daUzRNTkV5WV9NcXVzSzZ5byIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJzZXJ2aWNlcyI6IHt9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=" | base64 -d > app/google-services.json
           fi
           {
             echo "SUPABASE_URL=\"${SUPABASE_URL:-https://YOUR_PROJECT_REF.supabase.co}\""

@@ -1019,6 +1019,23 @@ suspend fun executeAgentMission(
     delay(900)
 
     val (provider, apiKey) = UniversalKeyBrain.getActiveEngine()
+    if (provider == DetectedProvider.NONE || apiKey.isBlank()) {
+        val errSnippet = "❌ عذراً: مفتاح الذكاء الاصطناعي مطلوب. يرجى إدخال مفتاح صالح (Gemini, OpenRouter, إلخ) في إعدادات الوكيل أو لوحة الأسرار قبل التنفيذ."
+        initialSteps[0] = step1.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = errSnippet
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = "تعذر التنفيذ: لم يتم العثور على مفتاح AI نشط. الوكيل الذكي يتطلب مفتاح حقيقي ولا يستخدم محاكاة وهمية."
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return@withContext
+    }
+
     val sysInstruction = """
         أنت مهندس وكيل ذكي مستقل لتطبيق «استوديو قبس» لنظام Android (Kotlin + Jetpack Compose).
         المهمة المطلوبة من المستخدم: $prompt
@@ -1027,23 +1044,34 @@ suspend fun executeAgentMission(
         قم بصياغة خطة عمل برمجية احترافية، وحدد الملفات المعنية بالتعديل أو الإنشاء، واقترح الكود أو الإجراء المحدد.
     """.trimIndent()
 
-    val aiResult = if (provider != DetectedProvider.NONE && apiKey.isNotBlank()) {
-        UniversalKeyBrain.executeRealAgentStep(provider, apiKey, prompt, sysInstruction)
-    } else {
-        Result.success(RealAgentResponse(
-            text = "تم التخطيط التلقائي للعملية محلياً استناداً لقواعد معمارية قبس والـ Spatial HUD.",
-            totalTokens = 120,
-            promptTokens = 60,
-            completionTokens = 60
-        ))
+    val startTime = System.currentTimeMillis()
+    val aiResult = UniversalKeyBrain.executeRealAgentStep(provider, apiKey, prompt, sysInstruction)
+    val latencyMs = System.currentTimeMillis() - startTime
+
+    if (aiResult.isFailure) {
+        val errorMsg = aiResult.exceptionOrNull()?.localizedMessage ?: "خطأ غير معروف في الاتصال بالنموذج"
+        initialSteps[0] = step1.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = "❌ فشل الاتصال الحي ($latencyMs ms): $errorMsg"
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = "فشل تنفيذ خطوة الذكاء الاصطناعي: $errorMsg"
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return@withContext
     }
 
     val planText = aiResult.getOrNull()?.text ?: "تم إعداد الخطة المعمارية بنجاح."
+    val tokensInfo = aiResult.getOrNull()?.let { " [Tokens: ${it.totalTokens}, ${latencyMs}ms]" } ?: ""
 
     initialSteps[0] = step1.copy(
         isRunning = false,
         isSuccess = true,
-        outputSnippet = planText.take(280) + if (planText.length > 280) "..." else ""
+        outputSnippet = (planText.take(280) + if (planText.length > 280) "..." else "") + tokensInfo
     )
     mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.INSPECTING)
     onUpdate(mission)
