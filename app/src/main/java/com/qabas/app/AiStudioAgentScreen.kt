@@ -2563,17 +2563,21 @@ fun ApiKeySetupDialog(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Live Ping Test Button
+                        // Live Ping Test Button — routed to the DETECTED provider's own server
                         OutlinedButton(
                             onClick = {
-                                val keyToTest = rawKey.trim()
+                                val keyToTest = normalizePastedKey(rawKey)
                                 if (keyToTest.isBlank()) {
                                     Toast.makeText(context, "الرجاء لصق المفتاح أولاً لإجراء الفحص الحي", Toast.LENGTH_SHORT).show()
                                     return@OutlinedButton
                                 }
                                 isTesting = true
                                 coroutineScope.launch {
-                                    testResult = AgentConnectivityEngine.pingGeminiLive(keyToTest, KeySource.USER_INPUT)
+                                    testResult = AgentConnectivityEngine.pingProviderLive(
+                                        UniversalKeyBrain.detect(keyToTest),
+                                        keyToTest,
+                                        KeySource.USER_INPUT
+                                    )
                                     isTesting = false
                                 }
                             },
@@ -2622,6 +2626,14 @@ fun ApiKeySetupDialog(
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
+                                        if (res.isConnected && res.modelName.isNotBlank()) {
+                                            Text(
+                                                text = "النموذج/الهوية: ${res.modelName} 🤖",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF00E5FF)
+                                            )
+                                        }
                                         Text(
                                             text = res.statusDetail,
                                             fontSize = 10.sp,

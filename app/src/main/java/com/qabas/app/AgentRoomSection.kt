@@ -196,19 +196,16 @@ object UniversalKeyBrain {
     }
 
     fun saveKey(context: Context, rawKey: String): DetectedProvider {
-        val k = rawKey.trim()
+        val k = normalizePastedKey(rawKey)
         val provider = detect(k)
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val editor = prefs.edit()
         when (provider) {
-            DetectedProvider.OPENROUTER -> editor.putString("openrouter_key", k)
-            DetectedProvider.GEMINI -> editor.putString("gemini_key", k)
-            DetectedProvider.GROQ -> editor.putString("groq_key", k)
-            DetectedProvider.OPENAI -> editor.putString("openai_key", k)
-            DetectedProvider.HUGGINGFACE -> editor.putString("huggingface_key", k)
-            else -> editor.putString("openrouter_key", k)
+            DetectedProvider.OPENROUTER -> KeyPoolManager.setSingleKey("openrouter_key", k)
+            DetectedProvider.GEMINI -> KeyPoolManager.setSingleKey("gemini_key", k)
+            DetectedProvider.GROQ -> KeyPoolManager.setSingleKey("groq_key", k)
+            DetectedProvider.OPENAI -> KeyPoolManager.setSingleKey("openai_key", k)
+            DetectedProvider.HUGGINGFACE -> KeyPoolManager.setSingleKey("huggingface_key", k)
+            else -> KeyPoolManager.setSingleKey("openrouter_key", k)
         }
-        editor.apply()
         notifyKeyChanged()
         return provider
     }

@@ -89,10 +89,198 @@ object AgentConnectivityEngine {
     }
 
     /**
+     * موزّع الفحص الحي: يوجّه المفتاح إلى سيرفر مزوده الحقيقي بدل إرسال الكل إلى Gemini.
+     * (كان زر الفحص يرسل مفاتيح OpenRouter/Groq إلى Google فيفشل دائماً بـ 400).
+     */
+    suspend fun pingProviderLive(
+        provider: DetectedProvider,
+        apiKey: String,
+        keySource: KeySource
+    ): LiveHealthStatus = withContext(Dispatchers.IO) {
+        val clean = apiKey.trim().replace(Regex("\\s+"), "")
+        if (clean.isBlank()) {
+            return@withContext LiveHealthStatus(
+                serviceName = provider.displayName,
+                isConnected = false,
+                latencyMs = 0L,
+                statusDetail = "غير متصل - يلزم إدخال مفتاح API",
+                keySource = KeySource.NONE,
+                httpCode = 0,
+                modelName = provider.defaultModel
+            )
+        }
+        when (provider) {
+            DetectedProvider.GEMINI -> pingGeminiLive(clean, keySource)
+            DetectedProvider.OPENROUTER -> pingOpenRouterLive(clean, keySource)
+            DetectedProvider.GROQ -> pingGenericBearerLive(
+                provider = provider,
+                apiKey = clean,
+                keySource = keySource,
+                url = if (clean.startsWith("xai-", ignoreCase = true))
+                    "https://api.x.ai/v1/models" else "https://api.groq.com/openai/v1/models"
+            )
+            DetectedProvider.OPENAI -> pingGenericBearerLive(
+                provider = provider,
+                apiKey = clean,
+                keySource = keySource,
+                url = "https://api.openai.com/v1/models"
+            )
+            else -> LiveHealthStatus(
+                serviceName = provider.displayName,
+                isConnected = false,
+                latencyMs = 0L,
+                statusDetail = "المزود غير مدعوم للفحص الحي — احفظ المفتاح وسيُستخدم مباشرة",
+                keySource = keySource,
+                httpCode = 0,
+                modelName = provider.defaultModel
+            )
+        }
+    }
+
+    /**
+     * فحص OpenRouter + جلب هوية المفتاح (label/usage) لعرض اسم صاحب المفتاح.
+     */
+    suspend fun pingOpenRouterLive(apiKey: String, keySource: KeySource): LiveHealthStatus = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        try {
+            val modelsReq = Request.Builder()
+                .url("https://openrouter.ai/api/v1/models")
+                .header("Authorization", "Bearer $apiKey")
+                .header("User-Agent", "Qabas-Studio")
+                .get()
+                .build()
+            val modelsResp = SharedHttpClient.instance.newCall(modelsReq).execute()
+            val latency = System.currentTimeMillis() - startTime
+            val code = modelsResp.code
+            modelsResp.close()
+            if (!modelsResp.isSuccessful) {
+                val detail = when (code) {
+                    401 -> "المفتاح مرفوض (401) — غير صالح أو محذوف من openrouter.ai/keys"
+                    402 -> "لا رصيد كافٍ (402) — اشحن حساب OpenRouter"
+                    429 -> "تجاوز الحد (429) — انتظر دقيقة وأعد الفحص"
+                    else -> "رفض الخادم (HTTP $code)"
+                }
+                return@withContext LiveHealthStatus(
+                    serviceName = "OpenRouter AI Gateway",
+                    isConnected = false,
+                    latencyMs = latency,
+                    statusDetail = detail,
+                    keySource = keySource,
+                    httpCode = code,
+                    modelName = DetectedProvider.OPENROUTER.defaultModel
+                )
+            }
+            // هوية المفتاح: الاسم والاستهلاك
+            var identity = ""
+            runCatching {
+                val keyReq = Request.Builder()
+                    .url("https://openrouter.ai/api/v1/auth/key")
+                    .header("Authorization", "Bearer $apiKey")
+                    .header("User-Agent", "Qabas-Studio")
+                    .get()
+                    .build()
+                SharedHttpClient.instance.newCall(keyReq).execute().use { keyResp ->
+                    if (keyResp.isSuccessful) {
+                        val data = JSONObject(keyResp.body?.string().orEmpty()).optJSONObject("data")
+                        val label = data?.optString("label").orEmpty().ifBlank { "مفتاح OpenRouter" }
+                        val usage = data?.optDouble("usage", -1.0) ?: -1.0
+                        val limit = data?.optDouble("limit", -1.0)
+                        identity = if (usage >= 0) {
+                            val limTxt = if (limit != null && limit > 0) " / $limit" else ""
+                            "$label • الاستهلاك: $usage$limTxt"
+                        } else label
+                    }
+                }
+            }
+            LiveHealthStatus(
+                serviceName = "OpenRouter AI Gateway",
+                isConnected = true,
+                latencyMs = latency,
+                statusDetail = "متصل بنجاح (${latency}ms) • استجابة حية${if (identity.isNotBlank()) " • $identity" else ""}",
+                keySource = keySource,
+                httpCode = code,
+                modelName = identity.ifBlank { DetectedProvider.OPENROUTER.defaultModel }
+            )
+        } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            LiveHealthStatus(
+                serviceName = "OpenRouter AI Gateway",
+                isConnected = false,
+                latencyMs = latency,
+                statusDetail = "تعذر الاتصال بالشبكة: ${e.localizedMessage ?: e.message}",
+                keySource = keySource,
+                httpCode = -1,
+                modelName = DetectedProvider.OPENROUTER.defaultModel
+            )
+        }
+    }
+
+    /**
+     * فحص عام لمزودي Bearer (Groq/OpenAI): GET /models + عرض النموذج الافتراضي.
+     */
+    suspend fun pingGenericBearerLive(
+        provider: DetectedProvider,
+        apiKey: String,
+        keySource: KeySource,
+        url: String
+    ): LiveHealthStatus = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $apiKey")
+                .header("User-Agent", "Qabas-Studio")
+                .get()
+                .build()
+            val response = SharedHttpClient.instance.newCall(request).execute()
+            val latency = System.currentTimeMillis() - startTime
+            val code = response.code
+            response.close()
+            if (response.isSuccessful) {
+                LiveHealthStatus(
+                    serviceName = provider.displayName,
+                    isConnected = true,
+                    latencyMs = latency,
+                    statusDetail = "متصل بنجاح (${latency}ms) • استجابة حية",
+                    keySource = keySource,
+                    httpCode = code,
+                    modelName = provider.defaultModel
+                )
+            } else {
+                val detail = when (code) {
+                    401 -> "المفتاح مرفوض (401) — غير صالح أو منتهي"
+                    403 -> "مرفوض (403) — رصيد أو صلاحيات"
+                    429 -> "تجاوز الحد (429) — انتظر وأعد الفحص"
+                    else -> "رفض الخادم (HTTP $code)"
+                }
+                LiveHealthStatus(
+                    serviceName = provider.displayName,
+                    isConnected = false,
+                    latencyMs = latency,
+                    statusDetail = detail,
+                    keySource = keySource,
+                    httpCode = code,
+                    modelName = provider.defaultModel
+                )
+            }
+        } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            LiveHealthStatus(
+                serviceName = provider.displayName,
+                isConnected = false,
+                latencyMs = latency,
+                statusDetail = "تعذر الاتصال بالشبكة: ${e.localizedMessage ?: e.message}",
+                keySource = keySource,
+                httpCode = -1,
+                modelName = provider.defaultModel
+            )
+        }
+    }
+
+    /**
      * فحص حي حقيقي لسيرفرات Google Gemini دون أي تأخير مصطنع
      */
-    suspend fun pingGeminiLive(apiKey: String, keySource: KeySource): LiveHealthStatus = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) {
+    suspend fun pingGeminiLive(apiKey: String, keySource: KeySource): LiveHealthStatus = withContext(Dispatchers.IO) {        if (apiKey.isBlank()) {
             return@withContext LiveHealthStatus(
                 serviceName = "Google Gemini",
                 isConnected = false,
