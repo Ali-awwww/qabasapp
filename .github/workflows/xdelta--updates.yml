@@ -190,6 +190,18 @@ jobs:
           DELTA_PATH="dist/${DELTA_NAME}"
 
           if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
+
+            # منع الدلتا الذاتية: إذا كان أساس الدلتا مطابقاً للملف الهدف
+            # (أساس قديم/مستبدل)، أي دلتا ستكون نسخة لاغية، فيُتخطّى ويُترك
+            # التطبيق ينزّل الـ APK كاملاً بدلاً من ذلك.
+            PREV_MD5=$(md5sum "$PREV_APK" | awk '{print $1}')
+            TARGET_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
+            if [ "$PREV_MD5" = "$TARGET_MD5" ]; then
+              echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
+              echo "delta_created=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             echo "⚡ Computing xdelta3 differential patch..."
             echo "Source (Base): $PREV_APK ($(stat -c%s "$PREV_APK") bytes)"
             echo "Target (New):  $TARGET_APK ($(stat -c%s "$TARGET_APK") bytes)"

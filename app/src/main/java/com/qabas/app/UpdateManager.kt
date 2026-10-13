@@ -552,7 +552,7 @@ object UpdateManager {
         authToken: String?,
         handle: DownloadHandle
     ): File? {
-        val dest = File(context.applicationInfo.nativeLibraryDir, "libxdelta3.so")
+        val dest = File(context.filesDir, "bin/libxdelta3.so")
         if (dest.exists() && dest.canExecute() && dest.length() > 10_000) {
             return dest
         }

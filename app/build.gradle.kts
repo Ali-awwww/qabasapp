@@ -15,8 +15,10 @@ android {
     applicationId = "com.aistudio.qabas.kxmpzq"
     minSdk = 24
     targetSdk = 36
-    versionCode = 102 // Bumped for stable keystore signing support in CI
-    versionName = "1.3.1"
+    // قناة التحديث: CI يحقن versionCode/versionName تلقائياً لكل بناء عبر -PappVersionCode
+    // و -PappVersionName، فتتزايد الأكواد والإصدارات مع كل دفع ناجح (أساس دلتا xdelta).
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 102
+    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.3"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     ndk {
       abiFilters.addAll(listOf("arm64-v8a", "x86_64"))

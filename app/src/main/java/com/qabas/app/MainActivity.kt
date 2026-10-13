@@ -17,6 +17,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -693,141 +698,334 @@ class MainActivity : ComponentActivity() {
             content()
 
             if (update != null) {
+                val pulse by rememberInfiniteTransition(label = "otaHud").animateFloat(
+                    initialValue = 0.35f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
+                    label = "otaPulse"
+                )
                 Dialog(
                     onDismissRequest = { UpdateManager.dismissUpdate() },
                     properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    GlassmorphicSurface(
+                    UpdateHudPanel(
+                        update = update,
+                        downloadProgress = downloadProgress,
+                        pulseAlpha = pulse,
+                        onLater = { UpdateManager.dismissUpdate() },
+                        onInstall = { UpdateDownloadService.start(context, update) }
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun UpdateHudPanel(
+        update: UpdateManager.UpdateInfo,
+        downloadProgress: UpdateManager.DownloadProgress?,
+        pulseAlpha: Float,
+        onLater: () -> Unit,
+        onInstall: () -> Unit
+    ) {
+        GlassmorphicSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp)
+                .wrapContentHeight()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = CardSurface.copy(alpha = 0.82f),
+            borderColor = GoldPrimary.copy(alpha = 0.55f)
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(GoldPrimary.copy(alpha = pulseAlpha))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "// OTA UPDATE CHANNEL",
+                        color = GoldPrimary.copy(alpha = 0.9f),
+                        fontSize = 9.sp,
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(GoldPrimary.copy(alpha = 0.13f))
+                        .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Text(
+                    "تحديث جديد متاح",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 21.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    "إصدار وقت التشغيل التالي جاهز على قناة التحديث",
+                    color = TextSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    UpdateVersionChip(
+                        label = "الإصدار الحالي",
+                        value = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.VERSION_CODE}",
+                        gold = false,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.88f)
-                            .wrapContentHeight()
-                            .padding(16.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        borderColor = GoldPrimary.copy(alpha = 0.5f)
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(GoldPrimary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // أيقونة التحديث
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(GoldPrimary.copy(alpha = 0.15f))
-                                    .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.SystemUpdate,
-                                    contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    UpdateVersionChip(
+                        label = "الإصدار الجديد",
+                        value = "v${update.versionName} · ${update.versionCode}",
+                        gold = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
+                if (update.releaseNotes.isNotBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 130.dp)
+                            .verticalScroll(rememberScrollState())
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(CardSurface.copy(alpha = 0.45f))
+                            .border(1.dp, TextSecondary.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "تحديث جديد متاح! ✨",
+                                "·",
                                 color = GoldPrimary,
+                                fontSize = 14.sp,
                                 fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp
+                                fontWeight = FontWeight.Bold
                             )
-
-                            // معلومات الإصدار
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("الإصدار الحالي", color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
-                                    Text("v${BuildConfig.VERSION_NAME}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
-                                Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color.White.copy(alpha = 0.1f)))
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("الإصدار الجديد", color = GoldSecondary, fontSize = 10.sp, fontFamily = CairoFont)
-                                    Text("v${update.versionName}", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
-                            }
-
-                            // سجل التغييرات
-                            if (update.releaseNotes.isNotBlank()) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 120.dp)
-                                        .verticalScroll(rememberScrollState())
-                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                                        .padding(10.dp)
-                                ) {
-                                    Text("ما الجديد:", color = GoldSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(update.releaseNotes, color = TextPrimary, fontSize = 11.sp, lineHeight = 16.sp, fontFamily = NotoSansFont)
-                                }
-                            }
-
-                            // التقدم (إذا كان جارياً)
-                            if (downloadProgress != null) {
-                                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    LinearProgressIndicator(
-                                        progress = { downloadProgress!!.percent / 100f },
-                                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                                        color = GoldPrimary,
-                                        trackColor = Color.White.copy(alpha = 0.1f)
-                                    )
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(
-                                            when(downloadProgress!!.phase) {
-                                                UpdateManager.Phase.DOWNLOADING_DELTA -> "تنزيل التحديث الصغير..."
-                                                UpdateManager.Phase.APPLYING_PATCH -> "تطبيق التحديث..."
-                                                UpdateManager.Phase.DOWNLOADING_FULL -> "تنزيل الملف الكامل..."
-                                            },
-                                            color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont
-                                        )
-                                        Text("${downloadProgress!!.percent}%", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                    }
-                                }
-                            } else {
-                                // أزرار التحكم
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    TextButton(
-                                        onClick = { UpdateManager.dismissUpdate() },
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text("لاحقاً", color = TextSecondary, fontFamily = CairoFont)
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            UpdateDownloadService.start(context, update)
-                                        },
-                                        modifier = Modifier.weight(1.5f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("تحديث الآن", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                            
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "حجم التحديث: ${UpdateManager.formatSize(if (update.deltaUrl != null) update.deltaSize else update.apkSize)}",
-                                color = TextSecondary.copy(alpha = 0.7f),
-                                fontSize = 9.sp,
+                                "ما الجديد:",
+                                color = GoldSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
                             )
                         }
+                        Text(
+                            update.releaseNotes,
+                            color = TextPrimary,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            fontFamily = CairoFont
+                        )
                     }
                 }
+
+                if (downloadProgress != null) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                when (downloadProgress.phase) {
+                                    UpdateManager.Phase.DOWNLOADING_DELTA -> "جلب الدلتا الصغيرة..."
+                                    UpdateManager.Phase.APPLYING_PATCH -> "تطبيق التحديث التفاضلي..."
+                                    UpdateManager.Phase.DOWNLOADING_FULL -> "تنزيل الملف الكامل..."
+                                },
+                                color = TextSecondary,
+                                fontSize = 10.5.sp,
+                                fontFamily = CairoFont,
+                                maxLines = 1
+                            )
+                            Text(
+                                "${downloadProgress.percent}%",
+                                color = GoldPrimary,
+                                fontSize = 11.sp,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(CircleShape)
+                                .background(TextSecondary.copy(alpha = 0.15f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth((downloadProgress.percent / 100f).coerceIn(0f, 1f))
+                                    .fillMaxHeight()
+                                    .clip(CircleShape)
+                                    .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary)))
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(1.dp, TextSecondary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                .clickable(onClick = onLater),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "لاحقاً",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1.4f)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary.copy(alpha = 0.9f))))
+                                .clickable(onClick = onInstall),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = DeepSlate,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    "تحديث الآن",
+                                    color = DeepSlate,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    if (update.deltaUrl != null)
+                        "Δ دلتا ${UpdateManager.formatSize(update.deltaSize)}  ·  كامل ${UpdateManager.formatSize(update.apkSize)}"
+                    else
+                        "حجم التحميل ${UpdateManager.formatSize(update.apkSize)}",
+                    color = TextSecondary.copy(alpha = 0.6f),
+                    fontSize = 9.sp,
+                    fontFamily = CairoFont,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun UpdateVersionChip(
+        label: String,
+        value: String,
+        gold: Boolean,
+        modifier: Modifier = Modifier
+    ) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (gold) GoldPrimary.copy(alpha = 0.10f) else CardSurface.copy(alpha = 0.5f))
+                .border(
+                    1.dp,
+                    if (gold) GoldPrimary.copy(alpha = 0.45f) else TextSecondary.copy(alpha = 0.25f),
+                    RoundedCornerShape(14.dp)
+                )
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    label,
+                    color = TextSecondary,
+                    fontSize = 9.5.sp,
+                    fontFamily = CairoFont,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    value,
+                    color = if (gold) GoldPrimary else TextPrimary,
+                    fontSize = 12.sp,
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
