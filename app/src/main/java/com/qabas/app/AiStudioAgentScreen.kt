@@ -1448,6 +1448,11 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                 Toast.makeText(context, "يلزم إدخال مفتاح API وفحصه حياً أولاً", Toast.LENGTH_SHORT).show()
                                                 return@Button
                                             }
+                                            // 🔑 منع تعارض وضع الفريق مع وضع النموذج المحلي
+                                            if (isTeamMode && isOfflineMode) {
+                                                Toast.makeText(context, "وضع الفريق يتطلب اتصالاً سحابياً — عطّل وضع النموذج المحلي أولاً", Toast.LENGTH_LONG).show()
+                                                return@Button
+                                            }
                                             val prompt = promptInput.trim()
                                             if (prompt.isBlank()) {
                                                 Toast.makeText(context, "يرجى كتابة أمر للوكيل أولاً", Toast.LENGTH_SHORT).show()
