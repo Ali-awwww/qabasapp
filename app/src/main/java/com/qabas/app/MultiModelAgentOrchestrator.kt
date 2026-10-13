@@ -152,14 +152,14 @@ object MultiModelAgentOrchestrator {
     suspend fun executeWithTeam(
         context: Context,
         prompt: String,
-        teamRaw: List<AgentTeamMember>,
+        team: List<AgentTeamMember>,
         onUpdate: (String) -> Unit = {}
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
 
         // 🔑 نستخدم الأعضاء المفعّلين فقط للتنفيذ
-        val team = teamRaw.filter { it.enabled }
+        val enabledTeam = team.filter { it.enabled }
 
         // 🔑 حل مفتاح لكل مزود على حدة (لا نمرر مفتاح مزود لمزود آخر)
         val providerKeys = mutableMapOf<DetectedProvider, String>()
@@ -171,18 +171,18 @@ object MultiModelAgentOrchestrator {
             }
         }
 
-        val leader = team.firstOrNull { it.role == AgentTeamRole.LEADER }
+        val leader = enabledTeam.firstOrNull { it.role == AgentTeamRole.LEADER }
         if (leader == null) {
             return@withContext MultiModelRunReport(
                 overallPrompt = prompt,
-                team = team,
+                team = enabledTeam,
                 totalLatencyMs = System.currentTimeMillis() - startTime,
                 overallSuccess = false,
                 warnings = listOf("لا يوجد نموذج قائد في الفريق! يجب تعيين LEADER واحد على الأقل.")
             )
         }
 
-        val assistants = team.filter { it.id != leader.id && it.role != AgentTeamRole.LEADER }.sortedBy { it.rank }
+        val assistants = enabledTeam.filter { it.id != leader.id && it.role != AgentTeamRole.LEADER }.sortedBy { it.rank }
         if (assistants.isEmpty()) {
             warnings.add("لا يوجد مساعدون في الفريق — سيقوم القائد بتنفيذ المهمة وحده.")
         }
@@ -206,7 +206,7 @@ object MultiModelAgentOrchestrator {
 
         val planResult = callModel(leader, leaderSystemPrompt, prompt, providerKeys[leader.provider] ?: "")
         val leaderPlan: LeaderPlan? = if (planResult.isSuccess) {
-            parseLeaderPlan(planResult.outputText, team)
+            parseLeaderPlan(planResult.outputText, enabledTeam)
         } else null
 
         if (leaderPlan == null) {
@@ -323,7 +323,7 @@ object MultiModelAgentOrchestrator {
 
         MultiModelRunReport(
             overallPrompt = prompt,
-            team = team,
+            team = enabledTeam,
             leaderPlan = leaderPlan,
             memberResults = memberResults,
             leaderSynthesis = synthesisResult.outputText,

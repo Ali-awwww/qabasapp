@@ -56,7 +56,7 @@ fun AgentTeamConfigScreen(
             }
     }
 
-    val leaderCount = team.count { it.role == AgentTeamRole.LEADER }
+    val leaderCount = team.count { it.role == AgentTeamRole.LEADER && it.enabled } // 🔑 القائد المفعّل فقط
     val hasLeader = leaderCount > 0
 
     Scaffold(
@@ -123,7 +123,7 @@ fun AgentTeamConfigScreen(
                             MultiModelAgentOrchestrator.saveTeam(context, team)
                             onSave(team)
                         },
-                        enabled = hasLeader && team.any { keyValidationState[it.id] == true },
+                        enabled = hasLeader && team.any { it.enabled && keyValidationState[it.id] == true } && team.count { it.role != AgentTeamRole.LEADER && it.enabled } >= 1,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37), contentColor = Color.Black)
                     ) { Text("حفظ الفريق وبدء العمل 💪", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
@@ -329,11 +329,13 @@ private fun TeamMemberCard(
 private fun AddMemberDialog(
     onDismiss: () -> Unit,
     onAdd: (AgentTeamMember) -> Unit,
-    currentLeaderCount: Int
+    currentLeaderCount: Int,
+    teamSize: Int = 1
 ) {
     var selectedProvider by remember { mutableStateOf(DetectedProvider.OPENROUTER) }
     var selectedModel by remember { mutableStateOf("anthropic/claude-sonnet-4.5") }
     var selectedRole by remember { mutableStateOf(if (currentLeaderCount == 0) AgentTeamRole.LEADER else AgentTeamRole.EXECUTOR) }
+    var selectedRank by remember { mutableStateOf(if (currentLeaderCount == 0) 1 else teamSize) }
     var customName by remember { mutableStateOf("") }
 
     val defaultModelFor: (DetectedProvider) -> String = {
@@ -431,7 +433,7 @@ private fun AddMemberDialog(
                         provider = selectedProvider,
                         modelId = selectedModel,
                         role = selectedRole,
-                        rank = if (selectedRole == AgentTeamRole.LEADER) 1 else 3
+                        rank = selectedRank.coerceAtLeast(1).coerceAtMost(5)
                     )
                 )
             }) { Text("إضافة") }
