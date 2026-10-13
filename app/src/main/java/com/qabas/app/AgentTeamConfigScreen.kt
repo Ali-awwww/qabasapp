@@ -198,6 +198,7 @@ fun AgentTeamConfigScreen(
                 }
                 showAddMemberDialog = false
             },
+            teamSize = team.size,
             currentLeaderCount = leaderCount
         )
     }
@@ -398,6 +399,17 @@ private fun AddMemberDialog(
                                 selectedRole = role
                             },
                             label = { Text(role.label, fontSize = 10.sp) }
+                        )
+                    }
+                }
+
+                Text("الرتبة (1 = أعلى سلطة):", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    (1..5).forEach { rankNum ->
+                        FilterChip(
+                            selected = selectedRank == rankNum,
+                            onClick = { selectedRank = rankNum },
+                            label = { Text("#$rankNum", fontSize = 11.sp) }
                         )
                     }
                 }
