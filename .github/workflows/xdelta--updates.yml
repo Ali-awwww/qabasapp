@@ -51,46 +51,58 @@ jobs:
 
       - name: Build Standalone Static xdelta3 Binaries for Android ABIs
         run: |
+          set -e
           mkdir -p xdelta_bins
           XDELTA_SRC_DIR="$RUNNER_TEMP/xdelta3-src"
           git clone --depth 1 https://github.com/jmacd/xdelta.git "$XDELTA_SRC_DIR"
-          cd "$XDELTA_SRC_DIR/xdelta3"
+          SRC="$XDELTA_SRC_DIR/xdelta3"
 
-          echo "🔨 Compiling static xdelta3 for arm64-v8a..."
-          aarch64-linux-gnu-gcc -O3 -static \
-            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
-            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a" || {
-              echo "Standard build fallback..."
-              autoreconf -fiv && ./configure --host=aarch64-linux-gnu LDFLAGS="-static" && make
-              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a"
-            }
-          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a"
+          # NOTE: upstream xdelta moved from autotools to CMake (no configure.ac
+          # exists anymore), so cross-compile via CMake toolchain files.
+          cat > "$RUNNER_TEMP/tc-arm64.cmake" <<'EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR aarch64)
+          set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+          set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+          EOF
+          cat > "$RUNNER_TEMP/tc-arm.cmake" <<'EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR arm)
+          set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+          set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/arm-linux-gnueabihf)
+          EOF
 
-          echo "🔨 Compiling static xdelta3 for armeabi-v7a..."
-          arm-linux-gnueabihf-gcc -O3 -static \
-            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
-            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a" || {
-              echo "Standard arm build fallback..."
-              make clean || true
-              autoreconf -fiv && ./configure --host=arm-linux-gnueabihf LDFLAGS="-static" && make
-              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a"
-            }
-          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a"
+          build_abi() {
+            local TOOLCHAIN="$1" OUT="$2" LABEL="$3"
+            local BDIR="$RUNNER_TEMP/xd3build-$LABEL"
+            echo "🔨 Building static xdelta3 for $LABEL..."
+            if [ -n "$TOOLCHAIN" ]; then
+              cmake -S "$SRC" -B "$BDIR" \
+                -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_EXE_LINKER_FLAGS="-static" \
+                -DXD3_ARMOR=OFF -DXD3_BUILD_TESTS=OFF -DXD3_BUILD_LIB=OFF
+            else
+              cmake -S "$SRC" -B "$BDIR" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_EXE_LINKER_FLAGS="-static" \
+                -DXD3_ARMOR=OFF -DXD3_BUILD_TESTS=OFF -DXD3_BUILD_LIB=OFF
+            fi
+            cmake --build "$BDIR" --target xdelta3 -j"$(nproc)"
+            cp "$BDIR/xdelta3" "$OUT"
+            chmod +x "$OUT"
+          }
 
-          echo "🔨 Compiling static xdelta3 for x86_64..."
-          gcc -O3 -static \
-            -DXD3_DEBUG=0 -DSECONDARY_DJW=0 -DSECONDARY_FGK=0 \
-            xdelta3.c -o "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64" || {
-              echo "Standard x86_64 build fallback..."
-              make clean || true
-              autoreconf -fiv && ./configure LDFLAGS="-static" && make
-              cp xdelta3 "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64"
-            }
-          chmod +x "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64"
+          build_abi "$RUNNER_TEMP/tc-arm64.cmake" "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-arm64-v8a" arm64
+          build_abi "$RUNNER_TEMP/tc-arm.cmake" "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-armeabi-v7a" arm32
+          build_abi "" "$GITHUB_WORKSPACE/xdelta_bins/xdelta3-x86_64" x86_64
 
           cd "$GITHUB_WORKSPACE"
           echo "✅ Built xdelta3 binaries:"
           ls -lh xdelta_bins/
+          file xdelta_bins/* || true
 
       - name: Resolve Target & Previous Release Tags
         id: resolve-tags
