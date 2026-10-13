@@ -656,6 +656,17 @@ object SupabaseServices {
             if (!isSupabaseAvailable) null else client?.auth?.currentUserOrNull()?.id
         }.getOrNull()
 
+        fun getCurrentUserEmail(): String? = runCatching {
+            if (!isSupabaseAvailable) null else client?.auth?.currentUserOrNull()?.email
+        }.getOrNull()
+
+        fun getCurrentUserMeta(key: String): String? = runCatching {
+            if (!isSupabaseAvailable) null
+            else client?.auth?.currentUserOrNull()?.userMetadata
+                ?.get(key)?.toString()?.trim('"')
+                ?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+        }.getOrNull()
+
         fun getUserRoleFromMetadata(): String = runCatching {
             if (!isSupabaseAvailable) "user"
             else {
@@ -789,12 +800,16 @@ object SupabaseServices {
             description: String?,
             videoUrl: String,
             thumbnailUrl: String?,
-            tags: List<String>
+            tags: List<String>,
+            userName: String = "صانع محتوى",
+            userAvatar: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
             val row = ReelRow(
                 id = UUID.randomUUID().toString(),
                 userId = userId,
+                userName = userName.ifBlank { "صانع محتوى" },
+                userAvatar = userAvatar,
                 title = title,
                 description = description,
                 videoUrl = videoUrl,

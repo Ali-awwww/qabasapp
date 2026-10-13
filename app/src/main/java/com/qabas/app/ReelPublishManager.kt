@@ -219,6 +219,7 @@ object ReelPublishManager {
         thumbnailBytes: ByteArray?,
         category: String,
         isFeaturedByDev: Boolean = false,
+        userAvatar: String? = null,
         onProgressUpdate: (String) -> Unit = {}
     ): Boolean = withContext(Dispatchers.IO) {
         val isDev = isDeveloperUser(context, email)
@@ -292,13 +293,23 @@ object ReelPublishManager {
 
         val cleanTitle = if (isDev && isFeaturedByDev) "⭐ $title" else title
 
+        // حلّ الصورة الرمزية للناشر: المعامل الممرر أولاً، ثم المحفوظة محلياً، ثم حساب Firebase
+        val resolvedAvatar: String? = userAvatar?.takeIf { it.isNotBlank() }
+            ?: runCatching {
+                context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    .getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
+            }.getOrNull()
+            ?: runCatching { FirebaseManager.getAuth().currentUser?.photoUrl?.toString() }.getOrNull()
+
         val success = SupabaseServices.Profiles.saveReel(
             userId = userId,
             title = cleanTitle,
             description = description,
             videoUrl = finalVideoUrl,
             thumbnailUrl = finalThumbUrl,
-            tags = finalTags
+            tags = finalTags,
+            userName = userName,
+            userAvatar = resolvedAvatar
         )
 
         // حفظ المقطع أيضاً في السجل المحلي للمستخدم

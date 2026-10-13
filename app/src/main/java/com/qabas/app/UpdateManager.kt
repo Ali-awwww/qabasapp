@@ -102,6 +102,14 @@ object UpdateManager {
         .readTimeout(180, TimeUnit.SECONDS)
         .build()
 
+    // عميل مخصص للتنزيلات الكبيرة (APK ~140MB): مهلات سخية حتى لا تموت
+    // التنزيلات على الشبكات البطيئة دون أن يعرف المستخدم السبب.
+    private val downloadClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.MINUTES)
+        .writeTimeout(10, TimeUnit.MINUTES)
+        .build()
+
     private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
     val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
 
@@ -457,7 +465,10 @@ object UpdateManager {
                 withContext(Dispatchers.Main) { emitDone(false, "أُلغي التحديث") }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ downloadAndInstall: ${e.message}", e)
-                withContext(Dispatchers.Main) { emitDone(false, "خطأ: ${e.message}") }
+                val hint = if ((e.message ?: "").contains("401")) {
+                    " — رمز GitHub المحفوظ مرفوض، حدّثه من الإعدادات ثم أعد المحاولة"
+                } else ""
+                withContext(Dispatchers.Main) { emitDone(false, "خطأ: ${e.message}$hint") }
             }
         }
         return handle
@@ -607,15 +618,17 @@ object UpdateManager {
                 builder.header("Accept", "application/octet-stream")
             }
         }
-        val call = client.newCall(builder.build())
+        val call = downloadClient.newCall(builder.build())
         val file = File(destDir, fileName)
         try {
             val response = call.execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "❌ HTTP ${response.code} $url")
-                return null
+                val detail = "HTTP ${response.code} ${response.message.ifBlank { "فشل الاتصال" }}"
+                Log.w(TAG, "❌ $detail $url")
+                throw IllegalStateException("تعذر التنزيل ($detail)")
             }
-            val body = response.body ?: return null
+            val body = response.body
+                ?: throw IllegalStateException("تعذر التنزيل (استجابة فارغة من الخادم)")
             val total = body.contentLength()
 
             var windowStart = System.currentTimeMillis()
