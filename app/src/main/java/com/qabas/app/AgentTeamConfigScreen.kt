@@ -38,21 +38,22 @@ fun AgentTeamConfigScreen(
     var showConfirmBack by remember { mutableStateOf(false) }
     var keyValidationState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) } // 🔑 تحقق حي من صحة المفتاح لكل عضو
 
-    // 🔑 التحقق من صحة المفتاح لكل عضو (فوري)
-    LaunchedEffect(team) {
-        val newMap = mutableMapOf<String, Boolean>()
-        team.forEach { member ->
-            if (member.provider != DetectedProvider.NONE) {
-                // استخدم UniversalKeyBrain.prefsKeyFor للحصول على prefsKey ثم KeyPoolManager
-                val prefsKey = UniversalKeyBrain.prefsKeyFor(member.provider)
-                val keys = if (prefsKey.isNotBlank()) {
-                    KeyPoolManager.orderedKeysBySpeed(prefsKey)
-                } else emptyList()
-                val hasValidKey = keys.isNotEmpty()
-                newMap[member.id] = hasValidKey
+    // 🔑 التحقق من صحة المفتاح لكل عضو — يعيد الحساب عند أي تعديل على القائمة (snapshotFlow)
+    LaunchedEffect(Unit) {
+        snapshotFlow { team.toList() }
+            .collect { currentTeam ->
+                val newMap = mutableMapOf<String, Boolean>()
+                currentTeam.forEach { member ->
+                    if (member.provider != DetectedProvider.NONE) {
+                        val prefsKey = UniversalKeyBrain.prefsKeyFor(member.provider)
+                        val keys = if (prefsKey.isNotBlank()) {
+                            KeyPoolManager.orderedKeysBySpeed(prefsKey)
+                        } else emptyList()
+                        newMap[member.id] = keys.isNotEmpty()
+                    }
+                }
+                keyValidationState = newMap
             }
-        }
-        keyValidationState = newMap
     }
 
     val leaderCount = team.count { it.role == AgentTeamRole.LEADER }
@@ -162,11 +163,17 @@ fun AgentTeamConfigScreen(
                     TeamMemberCard(
                         member = member,
                         hasValidKey = hasValidKey,
+                        teamSize = team.size,
+                        currentLeaderCount = leaderCount,
                         onRemove = { team.removeAt(idx) },
                         onRankChange = { newRank ->
                             team[idx] = team[idx].copy(rank = newRank)
                         },
                         onRoleChange = { newRole ->
+                            // منع وجود أكثر من قائد واحد
+                            if (newRole == AgentTeamRole.LEADER && leaderCount > 0) {
+                                return@TeamMemberCard
+                            }
                             team[idx] = team[idx].copy(role = newRole)
                         },
                         onProviderChange = { newProvider, newModel ->
@@ -210,6 +217,8 @@ fun AgentTeamConfigScreen(
 private fun TeamMemberCard(
     member: AgentTeamMember,
     hasValidKey: Boolean = false,
+    teamSize: Int = 1,
+    currentLeaderCount: Int = 0,
     onRemove: () -> Unit,
     onRankChange: (Int) -> Unit,
     onRoleChange: (AgentTeamRole) -> Unit,
@@ -264,12 +273,12 @@ private fun TeamMemberCard(
 
             Spacer(Modifier.height(6.dp))
 
-            // الرتبة
+            // الرتبة — ديناميكية حسب حجم الفريق (1 إلى teamSize)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("الرتبة:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
                 Spacer(Modifier.width(8.dp))
                 Row {
-                    (1..5).forEach { rankNum ->
+                    (1..teamSize.coerceAtMost(5)).forEach { rankNum ->
                         FilterChip(
                             selected = member.rank == rankNum,
                             onClick = { onRankChange(rankNum) },
