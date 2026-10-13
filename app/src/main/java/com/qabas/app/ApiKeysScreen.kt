@@ -1700,6 +1700,8 @@ private fun KeyPoolSection(
     var newKeyInput by remember { mutableStateOf("") }
     var testingIdx by remember { mutableStateOf<Int?>(null) }
     var poolResults by remember { mutableStateOf<Map<Int, KeyValidationResult>>(emptyMap()) }
+    var ranking by remember { mutableStateOf(false) }
+    var rankSummary by remember { mutableStateOf<String?>(null) }
 
     val pool = remember(refreshTick) { KeyPoolManager.getKeys(service.prefsKey) }
     val activeIdx = remember(refreshTick) { KeyPoolManager.getActiveIndex(service.prefsKey) }
@@ -1815,6 +1817,56 @@ private fun KeyPoolSection(
             }
 
             Spacer(modifier = Modifier.height(6.dp))
+            // فحص شامل وترتيب حسب الأسرع المتصل ⚡
+            if (pool.size > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = {
+                            ranking = true
+                            rankSummary = null
+                            scope.launch {
+                                try {
+                                    val provider = AgentConnectivityEngine.prefsKeyToProvider(service.prefsKey)
+                                    if (provider == DetectedProvider.NONE) {
+                                        rankSummary = "الترتيب التلقائي يدعم Gemini/Groq/OpenAI/OpenRouter فقط"
+                                    } else {
+                                        val (ok, n, best) = AgentConnectivityEngine.rankPoolBySpeed(service.prefsKey, provider)
+                                        rankSummary = if (ok) "تم ترتيب $n مفاتيح — الأسرع المتصل أولاً (${best}ms) ⚡"
+                                        else "لا يوجد مفتاح متصل — تحقق من المفاتيح والشبكة ❌"
+                                        syncParent()
+                                    }
+                                } finally { ranking = false }
+                            }
+                        },
+                        enabled = !ranking && testingIdx == null,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981).copy(alpha = 0.15f)),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (ranking) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF10B981), strokeWidth = 1.5.dp)
+                        } else {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            if (ranking) "يفحص السرعة…" else "ترتيب حسب الأسرع المتصل ⚡",
+                            color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                if (rankSummary != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(rankSummary!!, color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 10.sp)
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
             // Pool rows
             if (pool.isEmpty()) {
                 Text(
@@ -1919,6 +1971,16 @@ private fun KeyPoolSection(
                                     color = if (res.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
                                     fontFamily = CairoFont,
                                     fontSize = 9.5.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            val lat = remember(refreshTick, key) { KeyLatencyTracker.get(service.prefsKey, key) }
+                            if (lat != null) {
+                                Text(
+                                    text = if (lat.connected) "⚡ ${lat.latencyMs}ms • متصل" else "⚠️ آخر فحص: غير متصل",
+                                    color = if (lat.connected) Color(0xFF00E5FF) else Color(0xFFF59E0B),
+                                    fontFamily = CairoFont,
+                                    fontSize = 9.sp,
                                     maxLines = 1
                                 )
                             }

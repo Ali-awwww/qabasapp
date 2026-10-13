@@ -2047,7 +2047,8 @@ suspend fun executeAgentMission(
     """.trimIndent()
 
     val startTime1 = System.currentTimeMillis()
-    val planResult = UniversalKeyBrain.executeRealAgentStep(provider, apiKey, prompt, sysInstruction)
+    // تجاوز تلقائي: عند فشل المفتاح النشط ينتقل للبديل الأسرع المتصل فوراً
+    val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, prompt, sysInstruction, apiKey)
     val latencyMs1 = System.currentTimeMillis() - startTime1
 
     if (planResult.isFailure) {

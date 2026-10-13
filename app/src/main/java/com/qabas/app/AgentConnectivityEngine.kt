@@ -428,6 +428,43 @@ object AgentConnectivityEngine {
     }
 
     /**
+     * فحص كل مفاتيح المسبح لمزود معين، وتسجيل زمن الاستجابة، ثم ترتيب المسبح
+     * حسب الأسرع المتصل وتفعيله تلقائياً. يُعيد (متصل؟، عدد المفحوص، أسرع latency).
+     * يُستخدم من زر "ترتيب حسب الأسرع ⚡" في شاشة المفاتيح.
+     */
+    suspend fun rankPoolBySpeed(
+        prefsKey: String,
+        provider: DetectedProvider,
+        keySource: KeySource = KeySource.KEY_VAULT
+    ): Triple<Boolean, Int, Long> = withContext(Dispatchers.IO) {
+        val keys = KeyPoolManager.getKeys(prefsKey)
+        if (keys.isEmpty()) return@withContext Triple(false, 0, 0L)
+        var bestMs = Long.MAX_VALUE
+        var anyConnected = false
+        for (k in keys) {
+            val st = pingProviderLive(provider, k, keySource)
+            KeyLatencyTracker.record(prefsKey, k, st.latencyMs, st.isConnected)
+            if (st.isConnected) {
+                anyConnected = true
+                if (st.latencyMs < bestMs) bestMs = st.latencyMs
+            }
+        }
+        if (anyConnected) {
+            KeyPoolManager.sortPoolByLatency(prefsKey)
+            UniversalKeyBrain.notifyKeyChanged()
+        }
+        Triple(anyConnected, keys.size, if (bestMs == Long.MAX_VALUE) 0L else bestMs)
+    }
+
+    fun prefsKeyToProvider(prefsKey: String): DetectedProvider = when (prefsKey) {
+        "gemini_key" -> DetectedProvider.GEMINI
+        "groq_key" -> DetectedProvider.GROQ
+        "openai_key" -> DetectedProvider.OPENAI
+        "openrouter_key" -> DetectedProvider.OPENROUTER
+        else -> DetectedProvider.NONE
+    }
+
+    /**
      * توليد الكود الفعلي وحل المهمة برمجياً عبر استدعاء حي لنموذج الذكاء الاصطناعي
      */
     suspend fun executeRealCodeSynthesis(

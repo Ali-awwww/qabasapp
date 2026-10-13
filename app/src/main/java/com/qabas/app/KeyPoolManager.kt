@@ -48,6 +48,24 @@ object KeyPoolManager {
         return ordered.toList()
     }
 
+    /** المفاتيح مرتبة حسب الأسرع المتصل (من سجل KeyLatencyTracker)، والنشط يُحترم ككسر تعادل. */
+    fun orderedKeysBySpeed(prefsKey: String, legacyFallback: String = ""): List<String> {
+        val base = orderedKeys(prefsKey, legacyFallback)
+        if (base.size < 2) return base
+        val active = getActiveKey(prefsKey).trim()
+        val ranked = KeyLatencyTracker.ranked(prefsKey, base.filter { it != active })
+        return (if (isReal(active)) listOf(active) else emptyList()) + ranked
+    }
+
+    /** إعادة حفظ المسبح مرتباً حسب الأسرع المتصل، وتفعيل الأول تلقائياً. */
+    fun sortPoolByLatency(prefsKey: String) {
+        val keys = getKeys(prefsKey)
+        if (keys.size < 2) return
+        val sorted = KeyLatencyTracker.ranked(prefsKey, keys)
+        savePool(prefsKey, sorted, 0)
+        prefs().edit().putString(prefsKey, sorted.first()).apply()
+    }
+
     fun getKeys(prefsKey: String): List<String> {
         val p = prefs()
         val raw = p.getString(prefsKey + POOL_SUFFIX, null)

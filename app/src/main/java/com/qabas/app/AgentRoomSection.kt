@@ -210,6 +210,55 @@ object UniversalKeyBrain {
         return provider
     }
 
+    fun prefsKeyFor(provider: DetectedProvider): String = when (provider) {
+        DetectedProvider.GEMINI -> "gemini_key"
+        DetectedProvider.GROQ -> "groq_key"
+        DetectedProvider.OPENAI -> "openai_key"
+        DetectedProvider.OPENROUTER -> "openrouter_key"
+        else -> ""
+    }
+
+    /**
+     * تنفيذ خطوة الوكيل مع تجاوز تلقائي: يجرّب مفاتيح المسبح مرتبة حسب الأسرع المتصل،
+     * وعند فشل المفتاح النشط ينتقل للبديل فوراً ويرقّي الفائز — دون تدخل منك.
+     * يُسجّل زمن كل محاولة لتحسين الترتيب القادم.
+     */
+    suspend fun executeRealAgentStepWithFailover(
+        provider: DetectedProvider,
+        prompt: String,
+        systemInstruction: String,
+        fallbackSingleKey: String = ""
+    ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
+        val prefsKey = prefsKeyFor(provider)
+        val keys = if (prefsKey.isNotBlank()) {
+            KeyPoolManager.orderedKeysBySpeed(prefsKey, fallbackSingleKey)
+        } else if (fallbackSingleKey.isNotBlank()) {
+            listOf(fallbackSingleKey)
+        } else emptyList()
+        if (keys.isEmpty()) {
+            return@withContext Result.failure(Exception("لا يوجد مفتاح — أدخل مفتاحاً من شاشة مفاتيح API"))
+        }
+        var lastError: Exception? = null
+        for (k in keys) {
+            val start = System.currentTimeMillis()
+            val res = executeRealAgentStep(provider, k, prompt, systemInstruction)
+            val ms = System.currentTimeMillis() - start
+            if (res.isSuccess) {
+                if (prefsKey.isNotBlank()) {
+                    KeyLatencyTracker.record(prefsKey, k, ms, true)
+                    KeyPoolManager.promoteKey(prefsKey, k)
+                }
+                return@withContext res
+            }
+            if (prefsKey.isNotBlank()) {
+                KeyLatencyTracker.record(prefsKey, k, ms, false)
+                KeyPoolManager.rotateOnFailure(prefsKey)
+            }
+            lastError = res.exceptionOrNull() as? Exception ?: Exception("فشل المفتاح")
+        }
+        Result.failure(lastError ?: Exception("فشلت كل المفاتيح (${keys.size}) — تحقق من الاتصال والأرصدة"))
+    }
+
     suspend fun executeRealAgentStep(
         provider: DetectedProvider,
         apiKey: String,
@@ -907,7 +956,8 @@ private fun AgentLiveConsoleTab(
             """.trimIndent()
 
             val startTime = System.currentTimeMillis()
-            val apiResult = UniversalKeyBrain.executeRealAgentStep(provider, key, cmd.prompt, sysPrompt)
+            // تجاوز تلقائي عبر المسبح مرتباً حسب الأسرع المتصل
+            val apiResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, cmd.prompt, sysPrompt, key)
             val latency = System.currentTimeMillis() - startTime
 
             apiResult.fold(
