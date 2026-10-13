@@ -17,7 +17,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
- * خدمة تشغيل صوت الأذان في الخلفية (Foreground Azan Audio Service)
+ * خدمة تشغيل صوت الأذان في الخلفية مع FullScreenIntent (تظهر شاشة الأذان فوق أي تطبيق)
+ * تستخدم USAGE_ALARM لضمان سماع الأذان حتى مع Do Not Disturb وإعدادات مستوى الصوت المنخفضة.
  */
 class AzanPlaybackService : Service() {
 
@@ -34,10 +35,16 @@ class AzanPlaybackService : Service() {
                 putExtra("voice_id", voiceId)
                 putExtra("prayer_name", prayerName)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start AzanPlaybackService: ${e.message}")
+                // fallback: try startService on API < 31 even if FGS restriction blocked it
+                try { context.startService(intent) } catch (_: Exception) {}
             }
         }
 
@@ -45,7 +52,9 @@ class AzanPlaybackService : Service() {
             val intent = Intent(context, AzanPlaybackService::class.java).apply {
                 action = ACTION_STOP_AZAN
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {}
         }
     }
 
@@ -57,8 +66,8 @@ class AzanPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Qabas:AzanPlaybackWakeLock").apply {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Qabas:AzanPlaybackWakeLock")?.apply {
             setReferenceCounted(false)
         }
     }
@@ -93,7 +102,7 @@ class AzanPlaybackService : Service() {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setUsage(AudioAttributes.USAGE_ALARM) // يضمن سماع الأذان مع DND/الصوت المنخفض
                         .build()
                 )
                 setDataSource(applicationContext, Uri.parse(selectedVoice.streamUrl))
@@ -128,13 +137,16 @@ class AzanPlaybackService : Service() {
         }
 
         if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
+            try { wakeLock?.release() } catch (_: Exception) {}
         }
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
+    /**
+     * إشعار Foreground مع FullScreenIntent - يفتح شاشة الأذان كاملة حتى لو كان الجهاز مقفلاً
+     */
     private fun buildForegroundNotification(prayerName: String, muezzinName: String): Notification {
         val stopIntent = Intent(this, AzanPlaybackService::class.java).apply {
             action = ACTION_STOP_AZAN
@@ -144,11 +156,14 @@ class AzanPlaybackService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "prayer_times")
+            putExtra("full_screen_azan", true)
+            putExtra("prayer_name", prayerName)
         }
-        val openPendingIntent = PendingIntent.getActivity(
-            this, 9923, openAppIntent,
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            this, 9923, fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -159,9 +174,11 @@ class AzanPlaybackService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
-            .setContentIntent(openPendingIntent)
+            .setContentIntent(fullScreenPendingIntent)
+            // 🔑 هذا هو المفتاح: يجعل النظام يفتح النشاط كملء الشاشة فورًا عند وصول الإشعار
+            .setFullScreenIntent(fullScreenPendingIntent, true)
             .addAction(android.R.drawable.ic_media_pause, "إيقاف الأذان ⏹️", stopPendingIntent)
-            .addAction(android.R.drawable.ic_menu_compass, "فتح التطبيق 🕋", openPendingIntent)
+            .addAction(android.R.drawable.ic_menu_compass, "فتح التطبيق 🕋", fullScreenPendingIntent)
             .build()
     }
 
@@ -172,9 +189,10 @@ class AzanPlaybackService : Service() {
                 "صوت الأذان المباشر",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "تشغيل صوت الأذان في أوقات الصلاة"
+                description = "تشغيل صوت الأذان في أوقات الصلاة مع شاشة كاملة"
                 setSound(null, null)
                 enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
