@@ -634,19 +634,19 @@ suspend fun executeAgentMissionMultiModel(
     onTeamProgress: (String) -> Unit = {}
 ): AgentMissionSession {
     val context_ = context
-    val (provider, apiKey, keySource) = AgentConnectivityEngine.resolveKeyWithSource(context_)
 
     val team = MultiModelAgentOrchestrator.loadTeam(context_, onlyEnabled = true)
 
     var currentStatus = AgentTaskStatus.PLANNING
     onStatusChange(currentStatus)
 
-    if (provider == DetectedProvider.NONE || apiKey.isBlank()) {
+    // 🔑 نتحقق فقط من مزود/مفتاح أعضاء الفريق الفعليين (لا المزود العالمي غير ذي الصلة)
+    if (team.isEmpty()) {
         return AgentMissionSession(
             userPrompt = userPrompt,
             specialization = specialization,
             status = AgentTaskStatus.FAILED,
-            finalReport = "🚫 لا يوجد مفتاح API مفعل أو مزود مختار في قسم المفاتيح. يرجى فتح مركز المفاتيح وتفعيل مفتاح واحد على الأقل."
+            finalReport = "🚫 لا يوجد فريق مفعّل! افتح '👥 فريق النماذج' وقم بتعيين قائد ومساعد واحد على الأقل."
         )
     }
 

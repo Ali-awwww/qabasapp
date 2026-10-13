@@ -129,12 +129,24 @@ object PrayerAlarmManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 🔑 showIntent يجب أن يكون Activity (يفتح عند النقر على أيقونة الساعة في شريط الحالة)
+        val showActivityIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("navigate_to", "prayer_times")
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode + 10000, // معرّف مختلف عن PendingIntent البث لتجنب التصادم
+            showActivityIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
                     // 🔑 أقوى مستوى: setAlarmClock - يظهر كأيقونة ساعة في شريط الحالة ولا يتأثر بـ Doze
                     alarmManager.setAlarmClock(
-                        AlarmManager.AlarmClockInfo(triggerMillis, pendingIntent),
+                        AlarmManager.AlarmClockInfo(triggerMillis, showPendingIntent),
                         pendingIntent
                     )
                 } else {
@@ -143,7 +155,7 @@ object PrayerAlarmManager {
                 }
             } else {
                 alarmManager.setAlarmClock(
-                    AlarmManager.AlarmClockInfo(triggerMillis, pendingIntent),
+                    AlarmManager.AlarmClockInfo(triggerMillis, showPendingIntent),
                     pendingIntent
                 )
             }

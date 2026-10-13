@@ -316,7 +316,7 @@ private fun TeamMemberCard(
                 Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    if (hasValidKey) "مفتاح ✅" else "لا مفتاح ❌",
+                    if (hasValidKey) "مفتاح مهيأ ✅" else "لا مفتاح ❌",
                     color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
                     fontSize = 11.sp, fontWeight = FontWeight.SemiBold
                 )
