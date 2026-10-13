@@ -520,7 +520,11 @@ LaunchedEffect(currentMission, isOfflineMode) {
                         }
 
                         Text(
-                            text = if (isExecuting) "⚡ الوكيل يعمل ذاتياً..." else "جاهز لتلقي الأمر 🎯",
+                            text = when {
+                                isExecuting && isTeamMode && teamProgressText.isNotBlank() -> teamProgressText
+                                isExecuting -> "⚡ الوكيل يعمل ذاتياً..."
+                                else -> "جاهز لتلقي الأمر 🎯"
+                            },
                             fontSize = 11.sp,
                             color = if (isExecuting) Color(0xFF00E5FF) else Color(0xFF94A3B8),
                             fontWeight = FontWeight.Medium,
@@ -1178,6 +1182,21 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("👥 فريق النماذج", fontSize = 11.sp, fontFamily = CairoFont)
                                 }
+                                // 🔑 Toggle تشغيل وضع الفريق (Multi-Model)
+                                FilterChip(
+                                    selected = isTeamMode,
+                                    onClick = { isTeamMode = !isTeamMode },
+                                    label = {
+                                        Text(
+                                            if (isTeamMode) "👑 وضع الفريق مُفعّل" else "فردي",
+                                            fontSize = 11.sp, fontFamily = CairoFont
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.25f),
+                                        selectedLabelColor = Color(0xFFD4AF37)
+                                    )
+                                )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
                                     text = "ميزانية التوكن: ~4000 توكن/طلب • تكلفة تقريبية: \$0.01–0.05",

@@ -655,6 +655,7 @@ suspend fun executeAgentMissionMultiModel(
         context = context_,
         prompt = userPrompt,
         team = team,
+        activeApiKey = apiKey,
         onUpdate = onTeamProgress
     )
 

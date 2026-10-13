@@ -149,6 +149,7 @@ object MultiModelAgentOrchestrator {
         context: Context,
         prompt: String,
         team: List<AgentTeamMember>,
+        activeApiKey: String = "",
         onUpdate: (String) -> Unit = {}
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
@@ -185,7 +186,7 @@ object MultiModelAgentOrchestrator {
             يجب أن يحتوي assignee على معرف المساعد (مثل exec_1). لا تضع مهمة لنفسك كقائد، فقط للمساعدين.
         """.trimIndent()
 
-        val planResult = callModel(leader, leaderSystemPrompt, prompt)
+        val planResult = callModel(leader, leaderSystemPrompt, prompt, activeApiKey)
         val leaderPlan: LeaderPlan? = if (planResult.isSuccess) {
             parseLeaderPlan(planResult.outputText, team)
         } else null
@@ -249,7 +250,8 @@ object MultiModelAgentOrchestrator {
                             val r = callModel(
                                 member,
                                 "أنت مساعد${if (member.role == AgentTeamRole.REVIEWER) " مراجع جودة" else " تنفيذي"} في فريق مهندسين AI. نفّذ المهمة المطلوبة بدقة وكفاءة، وقدّم مخرجات كاملة قابلة للاستخدام.",
-                                buildMemberPrompt(st, executedIds, memberResults)
+                                buildMemberPrompt(st, executedIds, memberResults),
+                                activeApiKey
                             )
                             Pair(st, r)
                         }
@@ -279,7 +281,8 @@ object MultiModelAgentOrchestrator {
             callModel(
                 leader,
                 "أنت القائد — اجمع مخرجات المساعدين التالية في تقرير نهائي واحد متسق ومُحكم يحقق المهمة الأصلية. لا تكرر نفس النص، بل ادمج وأعد صياغة لتقديم إجابة نهائية موحدة.",
-                "المهمة الأصلية: $prompt\n\nمخرجات المساعدين:\n$successfulOutputs\n\nأنتج التقرير النهائي الآن."
+                "المهمة الأصلية: $prompt\n\nمخرجات المساعدين:\n$successfulOutputs\n\nأنتج التقرير النهائي الآن.",
+                activeApiKey
             )
         } else {
             MemberCallResult(outputText = "تعذر إنتاج مخرجات من أي مساعد.", isSuccess = false)
@@ -314,13 +317,19 @@ object MultiModelAgentOrchestrator {
     }
 
     /** استدعاء نموذج واحد عبر UniversalKeyBrain مع مهلة زمنية */
-    private suspend fun callModel(member: AgentTeamMember, systemPrompt: String, userPrompt: String): MemberCallResult {
+    private suspend fun callModel(
+        member: AgentTeamMember,
+        systemPrompt: String,
+        userPrompt: String,
+        activeApiKey: String = ""
+    ): MemberCallResult {
         val start = System.currentTimeMillis()
         val res = withTimeoutOrNull(PER_CALL_TIMEOUT_MS) {
             UniversalKeyBrain.executeRealAgentStepWithFailover(
                 provider = member.provider,
                 prompt = userPrompt,
                 systemInstruction = systemPrompt,
+                fallbackSingleKey = activeApiKey,
                 model = member.modelId
             )
         }
