@@ -852,7 +852,7 @@ object UpdateManager {
         }
     }
 
-    private fun launchInstaller(context: Context, apkFile: File) {
+    fun launchInstaller(context: Context, apkFile: File) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!context.packageManager.canRequestPackageInstalls()) {
                 try {
@@ -899,14 +899,23 @@ object UpdateManager {
         )
     }
 
-    private fun getCurrentVersionCode(context: Context): Int = try {
+    fun getDownloadedApkFile(context: Context, versionName: String): File? {
+        val updatesDir = File(context.cacheDir, "updates")
+        val patched = File(updatesDir, "qabas-$versionName-patched.apk")
+        if (patched.exists() && patched.length() > 1_000_000) return patched
+        val full = File(updatesDir, "qabas-$versionName.apk")
+        if (full.exists() && full.length() > 1_000_000) return full
+        return null
+    }
+
+    fun getCurrentVersionCode(context: Context): Int = try {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         PackageInfoCompat.getLongVersionCode(info).toInt()
     } catch (_: PackageManager.NameNotFoundException) {
         0
     }
 
-    private fun getCurrentVersionName(context: Context): String = try {
+    fun getCurrentVersionName(context: Context): String = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
     } catch (_: PackageManager.NameNotFoundException) {
         ""

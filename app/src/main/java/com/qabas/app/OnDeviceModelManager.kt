@@ -115,6 +115,32 @@ object OnDeviceModelManager {
             description = "نموذج قوي مدرب على مليارات الأسطر البرمجية. مخصص لفحص الأخطاء المعقدة، بناء وحدات معمارية متكاملة، واستنباط الحلول التقنية.",
             isRecommended = false,
             badgeColorHex = 0xFFA855F7
+        ),
+        OnDeviceModelInfo(
+            id = "llama_3_2_1b_instruct",
+            name = "Meta Llama 3.2 1B",
+            tag = "فائق المرونة والسرعة 🦙",
+            sizeBytes = 815_000_000L,
+            sizeFormatted = "775 MB",
+            downloadUrl = "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+            fileName = "llama-3.2-1b-instruct-q4_k_m.gguf",
+            ramRequirement = "1.5 GB RAM",
+            description = "أحدث نموذج خفيف من Meta مخصص للهواتف المحمولة. كفاءة استثنائية في فهم المحادثات وتوليد الاستجابات الدقيقة.",
+            isRecommended = false,
+            badgeColorHex = 0xFF3B82F6
+        ),
+        OnDeviceModelInfo(
+            id = "deepseek_r1_distill_1_5b",
+            name = "DeepSeek R1 Distill 1.5B",
+            tag = "تفكير استدلالي عميق 🔬",
+            sizeBytes = 1_180_000_000L,
+            sizeFormatted = "1.12 GB",
+            downloadUrl = "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
+            fileName = "deepseek-r1-distill-qwen-1.5b-q4_k_m.gguf",
+            ramRequirement = "2.5 GB RAM",
+            description = "نموذج التفكير المنطقي الثوري بتقنية Reasoning Tokens. يبني سلاسل أفكار متسلسلة ويحل المشكلات البرمجية المعقدة خطوة بخطوة.",
+            isRecommended = false,
+            badgeColorHex = 0xFF10B981
         )
     )
 
@@ -153,6 +179,15 @@ object OnDeviceModelManager {
     fun getInstalledFileSize(context: Context, modelInfo: OnDeviceModelInfo): Long {
         val file = getModelFile(context, modelInfo)
         return if (file.exists()) file.length() else 0L
+    }
+
+    /**
+     * إجمالي حجم كافة النماذج المحلية المنزلة في الذاكرة
+     */
+    fun getTotalModelsSizeBytes(context: Context): Long {
+        val dir = getModelsDirectory(context)
+        if (!dir.exists() || !dir.isDirectory) return 0L
+        return dir.walkTopDown().filter { it.isFile }.map { it.length() }.sum()
     }
 
     /**

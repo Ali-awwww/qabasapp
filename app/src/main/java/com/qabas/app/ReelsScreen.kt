@@ -380,10 +380,11 @@ fun ReelsScreen(
                                     Text("تحديث", fontFamily = CairoFont, fontSize = 12.5.sp, maxLines = 1)
                                 }
                             }
-                            Spacer(modifier = Modifier.weight(1.2f))
                         }
+                        Spacer(modifier = Modifier.weight(1.2f))
                     }
-                } else {
+                }
+            } else {
                     VerticalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),

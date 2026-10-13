@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +95,7 @@ fun SpatialCommandHomeScreen(
     onRestoreWorkspaceDraft: (() -> Unit)? = null,
     onRules: () -> Unit = {},
     onAiStudioAgent: () -> Unit = {},
+    onViewDownloads: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -247,7 +249,8 @@ fun SpatialCommandHomeScreen(
                     onViewApiDocs = onViewApiDocs,
                     onDeveloperDashboard = onDeveloperDashboard,
                     onNavigateToRules = onRules,
-                    onAiStudioAgent = onAiStudioAgent
+                    onAiStudioAgent = onAiStudioAgent,
+                    onViewDownloads = onViewDownloads
                 )
             }
         }
@@ -339,6 +342,7 @@ fun SpatialCommandHomeScreen(
                         onViewNotifications = onViewNotifications,
                         onViewProfile = onViewProfile,
                         onDeveloperDashboard = onDeveloperDashboard,
+                        onViewDownloads = onViewDownloads,
                         isAdmin = isAdmin,
                         networkStatus = networkStatus
                     )
@@ -603,6 +607,7 @@ private fun SpatialHudTopBar(
     onViewNotifications: () -> Unit,
     onViewProfile: () -> Unit,
     onDeveloperDashboard: () -> Unit,
+    onViewDownloads: () -> Unit,
     isAdmin: Boolean,
     networkStatus: ConnectivityObserver.Status
 ) {
@@ -704,6 +709,20 @@ private fun SpatialHudTopBar(
                             modifier = Modifier.size(17.dp)
                         )
                     }
+                }
+
+                IconButton(
+                    onClick = onViewDownloads,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("spatial_hud_downloads_button")
+                ) {
+                    Icon(
+                        Icons.Default.CloudDownload,
+                        contentDescription = "مركز التنزيلات",
+                        tint = Color(0xFF00E5FF),
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
 
                 IconButton(

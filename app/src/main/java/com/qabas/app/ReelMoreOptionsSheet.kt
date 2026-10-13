@@ -97,6 +97,26 @@ fun ReelMoreOptionsSheet(
                 }
             )
 
+            // Download Reel to Download Hub
+            OptionRow(
+                icon = Icons.Default.FileDownload,
+                title = "تنزيل الريل إلى مركز التنزيلات 📥",
+                subtitle = "حفظ الفيديو في الهاتف لمشاهدته بجودة عالية بدون إنترنت",
+                tint = Color(0xFF00E5FF),
+                onClick = {
+                    DownloadsHubManager.downloadReel(
+                        context = context,
+                        reelId = reel.id,
+                        title = reel.title,
+                        videoUrl = reel.videoUrl,
+                        thumbnailUrl = reel.thumbnailUrl,
+                        author = reel.userName
+                    )
+                    Toast.makeText(context, "بدأ تنزيل الريل في مركز التنزيلات 🚀", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+            )
+
             // 2. Copy Link
             OptionRow(
                 icon = Icons.Default.ContentCopy,

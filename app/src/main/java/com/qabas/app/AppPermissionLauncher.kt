@@ -32,6 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,6 +51,14 @@ fun AppStartupPermissionHandler(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // التحقق من تسجيل الدخول: منع ظهور نوافذ الأذونات فوق شاشة تسجيل الدخول للحفاظ على التناسق والهدوء البصري
+    val authPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
+    if (!isLoggedIn) {
+        return
+    }
+
     val prefs = remember { context.getSharedPreferences("qabas_permissions_prefs", Context.MODE_PRIVATE) }
     var hasRequestedInitially by remember { mutableStateOf(prefs.getBoolean("initial_permissions_requested", false)) }
     var showPermissionDialog by remember { mutableStateOf(false) }
@@ -199,179 +209,223 @@ fun BackgroundPermissionsDialog(
 ) {
     val context = LocalContext.current
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF080D1A),
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier
-            .border(
-                1.5.dp,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 420.dp)
+                .wrapContentHeight()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = Color(0xFF090E1A).copy(alpha = 0.98f),
+            border = BorderStroke(
+                1.2.dp,
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF00E5FF).copy(alpha = 0.5f),
-                        GoldPrimary.copy(alpha = 0.3f),
-                        Color(0xFF1E293B).copy(alpha = 0.6f)
+                        Color(0xFF00E5FF).copy(alpha = 0.6f),
+                        GoldPrimary.copy(alpha = 0.45f),
+                        Color(0xFF1E293B).copy(alpha = 0.5f)
                     )
-                ),
-                RoundedCornerShape(24.dp)
+                )
             ),
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
-                        .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = Color(0xFF00E5FF),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        "درع الأذونات وحماية النظام",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        "SPATIAL HUD • PRAYER & STUDIO SENTINEL",
-                        fontFamily = NotoSansFont,
-                        color = Color(0xFF00E5FF),
-                        fontSize = 9.sp,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-            }
-        },
-        text = {
+            shadowElevation = 16.dp
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "لضمان دقة رفع الأذان بالثانية، حماية التنبيهات من تجميد النظام، وتشغيل أدوات استوديو الصوت والفيديو بكفاءة، يُرجى تفعيل الدروع التالية:",
-                    color = Color(0xFFCBD5E1),
-                    fontFamily = CairoFont,
-                    fontSize = 11.5.sp,
-                    lineHeight = 17.sp
-                )
-
-                // 1. إذن الإشعارات
-                PermissionStatusCard(
-                    icon = Icons.Default.NotificationsActive,
-                    title = "إشعارات الأذان والصلوات",
-                    desc = "لظهور تنبيهات دخول وقت الصلاة والأذكار على شاشة القفل",
-                    isGranted = isNotificationGranted,
-                    accentColor = Color(0xFF38BDF8),
-                    onAction = onRequestNotifications
-                )
-
-                // 2. استثناء تحسين البطارية (Doze mode)
-                PermissionStatusCard(
-                    icon = Icons.Default.BatteryChargingFull,
-                    title = "درع خلفية الأذان (استثناء البطارية)",
-                    desc = "لمنع أندرويد من إيقاف أو تأخير الأذان أثناء نوم وخمول الجهاز",
-                    isGranted = isBatteryIgnored,
-                    accentColor = Color(0xFF00E5FF),
-                    onAction = onRequestBattery
-                )
-
-                // 3. المنبهات الدقيقة (Exact Alarms)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    PermissionStatusCard(
-                        icon = Icons.Default.AlarmOn,
-                        title = "المنبهات الدقيقة في الوقت المحدد",
-                        desc = "لرفع الأذان في نفس اللحظة والثانية المحددة للصلوات الخمس",
-                        isGranted = canExactAlarm,
-                        accentColor = Color(0xFF10B981),
-                        onAction = onRequestExactAlarm
-                    )
-                }
-
-                // 4. ميكروفون استوديو الصوتيات إن كان معطلاً
-                if (!isMicGranted) {
-                    PermissionStatusCard(
-                        icon = Icons.Default.Mic,
-                        title = "ميكروفون استوديو التلاوة والصوت",
-                        desc = "لتسجيل التلاوات والمقاطع الصوتية داخل الاستوديو",
-                        isGranted = false,
-                        accentColor = Color(0xFFF59E0B),
-                        onAction = onRequestMic
-                    )
-                }
-
-                // 5. التشغيل التلقائي (لأجهزة شاومي وهواوي وسامسونج)
-                Surface(
-                    color = Color(0xFF101726).copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
+                // Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { BackgroundPermissionManager.openManufacturerAutostartSettings(context) }
-                            .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("إعدادات التشغيل التلقائي للهاتف", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 9.5.sp)
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
+                                .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "درع الأذونات وحماية النظام",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                "SPATIAL HUD • PRAYER & STUDIO SENTINEL",
+                                fontFamily = RobotoMonoFont,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 8.5.sp,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "إغلاق",
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "لضمان رفع الأذان في وقته بدقة تامة، وحماية التنبيهات من تجميد خلفية النظام، وتشغيل أدوات استوديو الصوت بكفاءة، يُرجى تفعيل الصلاحيات التالية:",
+                    color = Color(0xFF94A3B8),
+                    fontFamily = CairoFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+
+                // Scrollable permissions list
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 1. إذن الإشعارات
+                    PermissionStatusCard(
+                        icon = Icons.Default.NotificationsActive,
+                        title = "إشعارات الأذان والصلوات",
+                        desc = "لتنبيهات دخول وقت الصلاة والأذكار على شاشة القفل",
+                        isGranted = isNotificationGranted,
+                        accentColor = Color(0xFF38BDF8),
+                        onAction = onRequestNotifications
+                    )
+
+                    // 2. استثناء تحسين البطارية (Doze mode)
+                    PermissionStatusCard(
+                        icon = Icons.Default.BatteryChargingFull,
+                        title = "درع خلفية الأذان (استثناء البطارية)",
+                        desc = "لمنع النظام من تأخير أو إيقاف الأذان أثناء سكون الجهاز",
+                        isGranted = isBatteryIgnored,
+                        accentColor = Color(0xFF00E5FF),
+                        onAction = onRequestBattery
+                    )
+
+                    // 3. المنبهات الدقيقة (Exact Alarms)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        PermissionStatusCard(
+                            icon = Icons.Default.AlarmOn,
+                            title = "المنبهات الدقيقة في الوقت المحدد",
+                            desc = "لرفع الأذان في نفس الثانية المحددة لكل صلاة",
+                            isGranted = canExactAlarm,
+                            accentColor = Color(0xFF10B981),
+                            onAction = onRequestExactAlarm
+                        )
+                    }
+
+                    // 4. ميكروفون استوديو الصوتيات إن كان معطلاً
+                    if (!isMicGranted) {
+                        PermissionStatusCard(
+                            icon = Icons.Default.Mic,
+                            title = "ميكروفون استوديو التلاوة والصوت",
+                            desc = "لتسجيل التلاوات والمقاطع الصوتية داخل الاستوديو",
+                            isGranted = false,
+                            accentColor = Color(0xFFF59E0B),
+                            onAction = onRequestMic
+                        )
+                    }
+
+                    // 5. التشغيل التلقائي (لأجهزة شاومي وهواوي وسامسونج)
+                    Surface(
+                        color = Color(0xFF101726).copy(alpha = 0.85f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { BackgroundPermissionManager.openManufacturerAutostartSettings(context) }
+                                .padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text("إعدادات التشغيل التلقائي للهاتف", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 9.sp)
+                                }
+                            }
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+
+                // CTA Primary Button
+                Button(
+                    onClick = onGrantAll,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "تفعيل جميع الصلاحيات والدروع 🚀",
+                        color = DeepSlate,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp
+                    )
+                }
+
+                // Secondary Navigation Links
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("المتابعة لاحقاً", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 11.5.sp)
+                    }
+                    TextButton(onClick = onOpenFullHub) {
+                        Text("مركز الأذونات الكامل 🛸", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onGrantAll,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            ) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "تفعيل جميع الصلاحيات والدروع 🚀",
-                    color = DeepSlate,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp
-                )
-            }
-        },
-        dismissButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onDismiss) {
-                    Text("المتابعة لاحقاً", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.5.sp)
-                }
-                TextButton(onClick = onOpenFullHub) {
-                    Text("مركز الأذونات الكامل 🛸", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                }
-            }
         }
-    )
+    }
 }
 
 @Composable

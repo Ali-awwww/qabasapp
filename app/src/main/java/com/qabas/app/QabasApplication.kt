@@ -42,13 +42,10 @@ class QabasApplication : Application() {
             runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }
             // الطبيب الحي: فحص خفيف دوري (كل 6 ساعات) + علاج صامت للكاش فقط
             runCatching { DoctorMonitor.maybeRun(this@QabasApplication) }
-            // فحص التحديث في الخلفية (كل 6 ساعات فقط، لا يزعج المستخدم)
+            // فحص التحديث في الخلفية تلقائياً وبدء التنزيل فوراً إذا وجد إصدار أحدث مع إظهاره بمركز التنزيلات
             runCatching {
-                val update = UpdateManager.checkForUpdate(this@QabasApplication)
-                if (update != null) {
-                    Log.d("QabasApplication", "Update available: ${update.versionName}")
-                    UpdateManager.setPendingUpdate(update)
-                }
+                DownloadsHubManager.init(this@QabasApplication)
+                DownloadsHubManager.checkAndStartAutoUpdate(this@QabasApplication, force = false)
             }
         }
     }

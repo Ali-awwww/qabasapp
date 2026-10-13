@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -95,6 +96,7 @@ fun HomeScreen(
     onRestoreWorkspaceDraft: (() -> Unit)? = null,
     onRules: () -> Unit = {},
     onAiStudioAgent: () -> Unit = {},
+    onViewDownloads: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val homeStyle = HomeScreenStyleManager.currentStyle.collectAsState().value
@@ -137,6 +139,7 @@ fun HomeScreen(
             onRestoreWorkspaceDraft = onRestoreWorkspaceDraft,
             onRules = onRules,
             onAiStudioAgent = onAiStudioAgent,
+            onViewDownloads = onViewDownloads,
             bottomBar = bottomBar
         )
         return
@@ -278,7 +281,8 @@ fun HomeScreen(
                     onViewApiDocs = onViewApiDocs,
                     onDeveloperDashboard = onDeveloperDashboard,
                     onNavigateToRules = onRules,
-                    onAiStudioAgent = onAiStudioAgent
+                    onAiStudioAgent = onAiStudioAgent,
+                    onViewDownloads = onViewDownloads
                 )
             }
         }
@@ -440,6 +444,13 @@ fun HomeScreen(
                                     fontSize = 10.sp
                                 )
                             }
+                        }
+
+                        IconButton(
+                            onClick = onViewDownloads,
+                            modifier = Modifier.testTag("home_topbar_downloads_button")
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = "مركز التنزيلات", tint = Color(0xFF00E5FF))
                         }
 
                         IconButton(onClick = onViewNotifications) {
@@ -1428,7 +1439,8 @@ fun QabasNavigationDrawerContent(
     onViewApiDocs: () -> Unit,
     onDeveloperDashboard: () -> Unit,
     onNavigateToRules: () -> Unit = {},
-    onAiStudioAgent: () -> Unit = {}
+    onAiStudioAgent: () -> Unit = {},
+    onViewDownloads: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1588,6 +1600,15 @@ fun QabasNavigationDrawerContent(
                 badgeText = "AUTONOMOUS",
                 badgeColor = Color(0xFF00E5FF),
                 onClick = { onNavigateTo(onAiStudioAgent) }
+            )
+            QabasDrawerItem(
+                title = "مركز التنزيلات والنماذج المحلية",
+                subtitle = "إدارة نماذج GGUF بدون إنترنت، ريلز، صوتيات وذاكرة الجهاز",
+                icon = Icons.Default.CloudDownload,
+                iconTint = Color(0xFF00E5FF),
+                badgeText = "OFFLINE LLM",
+                badgeColor = Color(0xFF00E5FF),
+                onClick = { onNavigateTo(onViewDownloads) }
             )
             QabasDrawerItem(
                 title = "المحرر اليدوي الاحترافي",

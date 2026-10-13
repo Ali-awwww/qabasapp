@@ -172,6 +172,7 @@ fun AppNavigation(
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
                 onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onViewDownloads = { viewModel.updateState { copy(appState = AppState.DOWNLOAD_MANAGER) } },
                 bottomBar = bottomNav
             )
         }
@@ -546,6 +547,14 @@ fun AppNavigation(
         AppState.REELS -> {
             ReelsScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.DOWNLOAD_MANAGER -> {
+            DownloadsHubScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onOpenReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                onOpenAiAssistant = { viewModel.updateState { copy(appState = AppState.AI_ASSISTANT) } },
                 bottomBar = bottomNav
             )
         }
