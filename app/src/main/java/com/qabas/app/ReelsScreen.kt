@@ -254,6 +254,7 @@ fun ReelsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
+                    .padding(bottom = paddingValues.calculateBottomPadding())
             ) {
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

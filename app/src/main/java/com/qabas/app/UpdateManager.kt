@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -693,6 +694,56 @@ object UpdateManager {
         }
     }
 
+    private fun signatureHashes(pkgInfo: PackageInfo?): List<String> {
+        if (pkgInfo == null) return emptyList()
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val signing = pkgInfo.signingInfo ?: return emptyList()
+                val certs = if (signing.hasMultipleSigners()) {
+                    signing.apkContentsSigners
+                } else {
+                    signing.signingCertificateHistory
+                }
+                certs?.map { cert ->
+                    java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(cert.toByteArray())
+                        .joinToString("") { "%02X".format(it) }
+                } ?: emptyList()
+            } else {
+                @Suppress("DEPRECATION")
+                pkgInfo.signatures?.map { cert ->
+                    java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(cert.toByteArray())
+                        .joinToString("") { "%02X".format(it) }
+                } ?: emptyList()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "signatureHashes failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** true إذا كان الحزمة المثبتة بنفس الاسم لكن بتوقيع مختلف عن الـ APK الجديد */
+    private fun hasSignatureConflict(context: Context, apkFile: File): Boolean = try {
+        val installed = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_SIGNING_CERTIFICATES
+        )
+        val archive = context.packageManager.getPackageArchiveInfo(
+            apkFile.absolutePath,
+            PackageManager.GET_SIGNING_CERTIFICATES
+        ) ?: return false
+        val installedHashes = signatureHashes(installed)
+        val archiveHashes = signatureHashes(archive)
+        if (installedHashes.isEmpty() || archiveHashes.isEmpty()) return false
+        installedHashes.none { it in archiveHashes }
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
+    } catch (e: Exception) {
+        Log.w(TAG, "hasSignatureConflict failed: ${e.message}")
+        false
+    }
+
     private fun launchInstaller(context: Context, apkFile: File) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!context.packageManager.canRequestPackageInstalls()) {
@@ -712,6 +763,22 @@ object UpdateManager {
                 }
                 return
             }
+        }
+        // كشف تعارض التوقيع قبل فتح المثبّت: النسخة المثبتة موقّعة بمفتاح مختلف
+        if (hasSignatureConflict(context, apkFile)) {
+            android.widget.Toast.makeText(
+                context,
+                "النسخة المثبتة موقّعة بمفتاح مختلف — احذفها ثم ثبّت من جديد",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_DELETE, Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+            }
+            return
         }
         val uri = FileProvider.getUriForFile(
             context, "${context.packageName}.fileprovider", apkFile
