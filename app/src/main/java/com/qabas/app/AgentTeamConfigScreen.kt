@@ -29,7 +29,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AgentTeamConfigScreen(
     onBack: () -> Unit,
-    onSave: (List<AgentTeamMember>) -> Unit
+    onSave: (List<AgentTeamMember>) -> Unit,
+    onOpenKeyHub: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var team by remember { mutableStateOf(MultiModelAgentOrchestrator.loadTeam(context).toMutableStateList()) }
@@ -108,6 +109,13 @@ fun AgentTeamConfigScreen(
                             color = Color(0xFFEF4444), fontSize = 13.sp,
                             modifier = Modifier.padding(bottom(8.dp))
                         )
+                        OutlinedButton(
+                            onClick = onOpenKeyHub,
+                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFEF4444)
+                            )
+                        ) { Text("🔑 فتح مركز المفاتيح لإضافة مفتاح", fontSize = 13.sp) }
                     }
                     Button(
                         onClick = {

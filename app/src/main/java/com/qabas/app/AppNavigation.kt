@@ -436,6 +436,9 @@ fun AppNavigation(
                 onBack = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 onSave = { team ->
                     viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
+                },
+                onOpenKeyHub = {
+                    viewModel.updateState { copy(appState = AppState.DEVELOPER_KEY_STATUS_HUB) }
                 }
             )
         }
