@@ -204,8 +204,22 @@ object ReelPublishManager {
             .apply()
     }
 
+    /** مرحلة الفشل الدقيقة — للمطور فقط (لا تكشف أسراراً: أسماء مراحل فقط). */
+    enum class PublishStage { READ_FILE, UPLOAD_VIDEO, UPLOAD_THUMB, SAVE_ROW }
+
+    /** نتيجة النشر: نجاح يحمل الرابط، وفشل يحمل المرحلة والسبب التقني للمطور. */
+    sealed interface PublishResult {
+        data class Success(val videoUrl: String) : PublishResult
+        data class Failed(val stage: PublishStage, val devMessage: String) : PublishResult
+    }
+
+    enum class UploadPhase { VIDEO, THUMB }
+
     /**
-     * رفع المقطع السحابي أو المحلي وتخزينه في Supabase
+     * رفع المقطع السحابي أو المحلي وتخزينه في Supabase.
+     * - بث متدفق بلا تحميل كامل في الذاكرة (حماية من OOM).
+     * - عدّاد بايتات حي عبر onBytesProgress.
+     * - سبب فشل دقيق عبر PublishResult (المستخدم: رسالة عامة، المطور: المرحلة + السبب).
      */
     suspend fun publishReelWithUpload(
         context: Context,
@@ -220,8 +234,9 @@ object ReelPublishManager {
         category: String,
         isFeaturedByDev: Boolean = false,
         userAvatar: String? = null,
-        onProgressUpdate: (String) -> Unit = {}
-    ): Boolean = withContext(Dispatchers.IO) {
+        onProgressUpdate: (String) -> Unit = {},
+        onBytesProgress: (sentBytes: Long, totalBytes: Long, phase: UploadPhase) -> Unit = { _, _, _ -> }
+    ): PublishResult = withContext(Dispatchers.IO) {
         val isDev = isDeveloperUser(context, email)
 
         var finalVideoUrl = directUrl?.trim().orEmpty()
@@ -230,55 +245,82 @@ object ReelPublishManager {
         // 1. في حال تم اختيار ملف فيديو محلي من المعرض
         if (videoUri != null) {
             onProgressUpdate("جاري تجهيز وقراءة ملف الفيديو من الجهاز...")
-            val videoBytes = runCatching {
-                context.contentResolver.openInputStream(videoUri)?.use { it.readBytes() }
-            }.getOrNull()
+            val timestamp = System.currentTimeMillis()
+            val fileName = "reel_${userId.take(8)}_$timestamp.mp4"
+            val thumbFileName = "thumb_${userId.take(8)}_$timestamp.jpg"
 
-            if (videoBytes != null && videoBytes.isNotEmpty()) {
-                val timestamp = System.currentTimeMillis()
-                val fileName = "reel_${userId.take(8)}_$timestamp.mp4"
-                val thumbFileName = "thumb_${userId.take(8)}_$timestamp.jpg"
+            // نسخ متدفق لملف دائم (بلا readBytes الكامل — حماية الذاكرة)
+            val localReelDir = File(context.filesDir, "published_reels")
+            if (!localReelDir.exists()) localReelDir.mkdirs()
+            val localVideoFile = File(localReelDir, fileName)
+            val copyOk = runCatching {
+                val opened = context.contentResolver.openInputStream(videoUri)
+                    ?: return@runCatching false
+                opened.use { inp ->
+                    FileOutputStream(localVideoFile).use { out ->
+                        inp.copyTo(out, 256 * 1024)
+                    }
+                }
+                localVideoFile.exists() && localVideoFile.length() > 0
+            }.getOrDefault(false)
 
-                // حفظ نسخة محلية دائمة في مساحة التطبيق لضمان التشغيل الفوري حتى دون إنترنت
-                val localReelDir = File(context.filesDir, "published_reels")
-                if (!localReelDir.exists()) localReelDir.mkdirs()
-                val localVideoFile = File(localReelDir, fileName)
-                FileOutputStream(localVideoFile).use { it.write(videoBytes) }
-                finalVideoUrl = localVideoFile.toURI().toString()
+            if (!copyOk) {
+                Log.e(TAG, "Publish failed at READ_FILE: cannot read picked video")
+                return@withContext PublishResult.Failed(PublishStage.READ_FILE, "تعذر قراءة ملف الفيديو المختار من المعرض")
+            }
+            finalVideoUrl = localVideoFile.toURI().toString()
 
-                // رفع الفيديو لسحابة Supabase Storage إن كانت متاحة
-                if (SupabaseServices.isSupabaseAvailable) {
-                    onProgressUpdate("جاري رفع الفيديو إلى سحابة قبس الموثوقة...")
-                    val uploadedVideoUrl = SupabaseServices.Storage.uploadFile(
-                        bucketName = "user-uploads",
-                        path = "reels/$userId/$fileName",
-                        data = videoBytes
-                    ) ?: SupabaseServices.Storage.uploadFile(
+            // رفع الفيديو لسحابة Supabase Storage إن كانت متاحة (متدفق + عدّاد)
+            if (SupabaseServices.isSupabaseAvailable) {
+                onProgressUpdate("جاري رفع الفيديو إلى سحابة قبس الموثوقة...")
+                val totalBytes = localVideoFile.length()
+                onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
+                val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
+                    bucketName = "user-uploads",
+                    path = "reels/$userId/$fileName",
+                    file = localVideoFile,
+                    contentType = "video/mp4"
+                ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
+                    ?: SupabaseServices.Storage.uploadFileWithProgress(
                         bucketName = "media-assets",
                         path = "reels/$userId/$fileName",
-                        data = videoBytes
+                        file = localVideoFile,
+                        contentType = "video/mp4"
+                    ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
+
+                if (uploadedVideoUrl.isNullOrBlank()) {
+                    Log.e(TAG, "Publish failed at UPLOAD_VIDEO: storage upload returned null")
+                    return@withContext PublishResult.Failed(
+                        PublishStage.UPLOAD_VIDEO,
+                        "رفض التخزين السحابي الملف (تحقق من السلال user-uploads/media-assets والشبكة)"
                     )
+                }
+                finalVideoUrl = uploadedVideoUrl
 
-                    if (!uploadedVideoUrl.isNullOrBlank()) {
-                        finalVideoUrl = uploadedVideoUrl
-                    }
-
-                    // رفع الصورة المصغرة إن وجدت
-                    if (thumbnailBytes != null && thumbnailBytes.isNotEmpty()) {
-                        onProgressUpdate("جاري رفع غلاف المقطع...")
-                        finalThumbUrl = SupabaseServices.Storage.uploadFile(
+                // رفع الصورة المصغرة إن وجدت
+                if (thumbnailBytes != null && thumbnailBytes.isNotEmpty()) {
+                    onProgressUpdate("جاري رفع غلاف المقطع...")
+                    onBytesProgress(0, thumbnailBytes.size.toLong(), UploadPhase.THUMB)
+                    val tmpThumb = File(localReelDir, thumbFileName)
+                    runCatching {
+                        FileOutputStream(tmpThumb).use { it.write(thumbnailBytes) }
+                        val url = SupabaseServices.Storage.uploadFileWithProgress(
                             bucketName = "media-assets",
                             path = "thumbnails/$userId/$thumbFileName",
-                            data = thumbnailBytes
-                        )
-                    }
+                            file = tmpThumb,
+                            contentType = "image/jpeg"
+                        ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
+                        tmpThumb.delete()
+                        url
+                    }.getOrNull()?.let { finalThumbUrl = it }
+                    // فشل الغلاف لا يُسقط النشر — يُكمل بدونه
                 }
             }
         }
 
         if (finalVideoUrl.isBlank()) {
             Log.e(TAG, "Publish failed: video url is empty")
-            return@withContext false
+            return@withContext PublishResult.Failed(PublishStage.READ_FILE, "لا يوجد فيديو: لم يُختر ملف ولا رابط")
         }
 
         onProgressUpdate("جاري توثيق المقطع في مجتمع قبس الإيماني...")
@@ -301,16 +343,27 @@ object ReelPublishManager {
             }.getOrNull()
             ?: runCatching { FirebaseManager.getAuth().currentUser?.photoUrl?.toString() }.getOrNull()
 
-        val success = SupabaseServices.Profiles.saveReel(
-            userId = userId,
-            title = cleanTitle,
-            description = description,
-            videoUrl = finalVideoUrl,
-            thumbnailUrl = finalThumbUrl,
-            tags = finalTags,
-            userName = userName,
-            userAvatar = resolvedAvatar
-        )
+        val saveOk = runCatching {
+            SupabaseServices.Profiles.saveReel(
+                userId = userId,
+                title = cleanTitle,
+                description = description,
+                videoUrl = finalVideoUrl,
+                thumbnailUrl = finalThumbUrl,
+                tags = finalTags,
+                userName = userName,
+                userAvatar = resolvedAvatar
+            )
+        }.getOrDefault(false)
+
+        if (!saveOk) {
+            Log.e(TAG, "Publish failed at SAVE_ROW: reels insert rejected")
+            return@withContext PublishResult.Failed(
+                PublishStage.SAVE_ROW,
+                "رُفض إدراج الصف في جدول reels (RLS/شبكة/أعمدة) — راجع Logcat بوسم ReelPublish"
+            )
+        }
+        val success = true
 
         // حفظ المقطع أيضاً في السجل المحلي للمستخدم
         ReelPreferencesManager.recordWatch(
@@ -335,7 +388,7 @@ object ReelPublishManager {
             }
         }
 
-        return@withContext success
+        return@withContext PublishResult.Success(finalVideoUrl)
     }
 
     /**

@@ -79,6 +79,9 @@ fun ReelPublishDialog(
     var isPublishing by remember { mutableStateOf(false) }
     var publishProgressText by remember { mutableStateOf("جاري النشر...") }
     var generalErrorMessage by remember { mutableStateOf<String?>(null) }
+    // عدّاد الرفع الرقمي (بايتات مرسلة/كلية) — يُصفَّر مع كل عملية نشر
+    var uploadSentBytes by remember { mutableStateOf(0L) }
+    var uploadTotalBytes by remember { mutableStateOf(0L) }
 
     val categories = listOf("تلاوة قرآنية", "حديث نبوي", "قصص وعبر", "خواطر إيمانية", "أدعية وأذكار", "فوائد فقهية")
 
@@ -829,8 +832,10 @@ fun ReelPublishDialog(
                         is ReelPublishManager.ValidationResult.Valid -> {
                             isPublishing = true
                             generalErrorMessage = null
+                            uploadSentBytes = 0L
+                            uploadTotalBytes = 0L
                             scope.launch {
-                                val success = ReelPublishManager.publishReelWithUpload(
+                                val result = ReelPublishManager.publishReelWithUpload(
                                     context = context,
                                     userId = currentUserId,
                                     userName = currentUserName,
@@ -844,16 +849,28 @@ fun ReelPublishDialog(
                                     isFeaturedByDev = isFeaturedByDev,
                                     onProgressUpdate = { progressText ->
                                         publishProgressText = progressText
+                                    },
+                                    onBytesProgress = { sent, total, _ ->
+                                        uploadSentBytes = sent
+                                        uploadTotalBytes = total
                                     }
                                 )
 
                                 isPublishing = false
-                                if (success) {
-                                    Toast.makeText(context, "تم نشر المقطع الإيماني بنجاح! جزاك الله خيراً 🌿", Toast.LENGTH_LONG).show()
-                                    onPublishedSuccess()
-                                    onDismiss()
-                                } else {
-                                    generalErrorMessage = "تعذر حفظ المقطع في السحابة (فشلت المزامنة مع الخادم). يرجى إعادة المحاولة."
+                                when (result) {
+                                    is ReelPublishManager.PublishResult.Success -> {
+                                        Toast.makeText(context, "تم نشر المقطع الإيماني بنجاح! جزاك الله خيراً 🌿", Toast.LENGTH_LONG).show()
+                                        onPublishedSuccess()
+                                        onDismiss()
+                                    }
+                                    is ReelPublishManager.PublishResult.Failed -> {
+                                        // فصل أمني: المستخدم يرى رسالة عامة، والمطور يرى المرحلة والسبب
+                                        generalErrorMessage = if (AdminGuard.isDashboardAccessAllowed(context)) {
+                                            "فشل النشر [${result.stage}]: ${result.devMessage}"
+                                        } else {
+                                            "تعذر نشر المقطع — تحقق من الاتصال وحاول مجدداً."
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -889,6 +906,51 @@ fun ReelPublishDialog(
                         color = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f),
                         fontSize = 14.sp
                     )
+                }
+            }
+
+            // العدّاد الرقمي للرفع: ميجابايت مرسلة/كلية + نسبة + شريط
+            if (isPublishing && uploadTotalBytes > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                val pct = (uploadSentBytes.toFloat() / uploadTotalBytes.coerceAtLeast(1L)).coerceIn(0f, 1f)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF0B1324),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${uploadSentBytes / (1024 * 1024)}MB / ${uploadTotalBytes / (1024 * 1024)}MB",
+                                color = GoldPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                            Text(
+                                text = "${(pct * 100).toInt()}٪",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { pct },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = GoldPrimary,
+                            trackColor = Color(0xFF1E293B)
+                        )
+                    }
                 }
             }
         }

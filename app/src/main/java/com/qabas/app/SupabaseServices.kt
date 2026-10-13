@@ -12,8 +12,17 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okio.BufferedSink
+import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -982,6 +991,78 @@ object SupabaseServices {
     // ==========================================
     object Storage {
         val DEFAULT_BUCKETS = listOf("media-assets", "audio-tracks", "bug_reports")
+
+        private val rawHttpClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.MINUTES)
+                .writeTimeout(10, TimeUnit.MINUTES)
+                .build()
+        }
+
+        /** جسم طلب عدّاد: يبث البايتات المرسلة أثناء الرفع (عداد رقمي حقيقي). */
+        private class CountingRequestBody(
+            private val file: File,
+            private val mime: String,
+            private val onProgress: (sent: Long, total: Long) -> Unit
+        ) : RequestBody() {
+            override fun contentType() = mime.toMediaType()
+            override fun contentLength() = file.length()
+            override fun writeTo(sink: BufferedSink) {
+                val total = file.length()
+                var sent = 0L
+                file.inputStream().use { inp ->
+                    val buf = ByteArray(256 * 1024)
+                    while (true) {
+                        val n = inp.read(buf)
+                        if (n < 0) break
+                        sink.write(buf, 0, n)
+                        sent += n
+                        onProgress(sent, total)
+                    }
+                }
+            }
+        }
+
+        /**
+         * رفع متدفق من ملف (بلا تحميل كامل في الذاكرة) مع عدّاد تقدم.
+         * يُعيد الرابط العام أو null — والسبب التفصيلي في Log للتشخيص.
+         */
+        suspend fun uploadFileWithProgress(
+            bucketName: String = "media-assets",
+            path: String,
+            file: File,
+            contentType: String = "video/mp4",
+            upsert: Boolean = true,
+            onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+        ): String? = withContext(Dispatchers.IO) {
+            runCatching {
+                if (!file.exists() || file.length() <= 0) {
+                    Log.e(TAG, "uploadFileWithProgress: missing/empty file ${file.absolutePath}")
+                    return@runCatching null
+                }
+                val base = SupabaseConfig.url.trimEnd('/')
+                val anon = KeyVault.supabaseAnonKey
+                if (anon.isBlank()) {
+                    Log.e(TAG, "uploadFileWithProgress: blank anon key")
+                    return@runCatching null
+                }
+                val req = Request.Builder()
+                    .url("$base/storage/v1/object/$bucketName/$path")
+                    .header("apikey", anon)
+                    .header("Authorization", "Bearer $anon")
+                    .header("x-upsert", if (upsert) "true" else "false")
+                    .post(CountingRequestBody(file, contentType, onProgress))
+                    .build()
+                rawHttpClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        Log.e(TAG, "uploadFileWithProgress HTTP ${resp.code}: ${resp.body?.string().orEmpty().take(200)}")
+                        return@runCatching null
+                    }
+                    "$base/storage/v1/object/public/$bucketName/$path"
+                }
+            }.onFailure { Log.e(TAG, "uploadFileWithProgress failed: ${it.message}") }.getOrNull()
+        }
 
         suspend fun uploadFile(
             bucketName: String = "media-assets",
