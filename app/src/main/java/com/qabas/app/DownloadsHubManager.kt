@@ -174,6 +174,10 @@ object DownloadsHubManager {
     private val _activeReelDownloads = MutableStateFlow<Map<String, ReelDownloadProgress>>(emptyMap())
     val activeReelDownloads: StateFlow<Map<String, ReelDownloadProgress>> = _activeReelDownloads.asStateFlow()
 
+    // تنزيلات الوسائط العامة (مثل أصوات الأذان) — نفس بنية عدّاد الريلز، عبر مدير التنزيلات نفسه
+    private val _activeMediaDownloads = MutableStateFlow<Map<String, ReelDownloadProgress>>(emptyMap())
+    val activeMediaDownloads: StateFlow<Map<String, ReelDownloadProgress>> = _activeMediaDownloads.asStateFlow()
+
     private val _appUpdateDownload = MutableStateFlow<AppUpdateDownloadItem?>(null)
     val appUpdateDownload: StateFlow<AppUpdateDownloadItem?> = _appUpdateDownload.asStateFlow()
 
@@ -604,6 +608,83 @@ object DownloadsHubManager {
         activeDownloadJobs[reelId]?.cancel()
         activeDownloadJobs.remove(reelId)
         _activeReelDownloads.value = _activeReelDownloads.value - reelId
+    }
+
+    /**
+     * تنزيل ملف وسائط عام (صوت أذان سحابي للتخزين المؤقت) مع عدّاد عبر مدير التنزيلات نفسه.
+     * يُعيد المسار المحلي عند النجاح أو null.
+     */
+    suspend fun downloadMedia(
+        context: Context,
+        mediaId: String,
+        title: String,
+        fileUrl: String,
+        extension: String = "mp3",
+        onProgress: ((sent: Long, total: Long) -> Unit)? = null
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            // كاش موجود؟ أعده فوراً
+            val existing = File(getMediaDirectory(context), "media_${mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.$extension")
+            if (existing.exists() && existing.length() > 0) return@withContext existing.absolutePath
+            // ملف محلي أصلاً (file://) — لا تنزيل needed
+            if (fileUrl.startsWith("file://") || fileUrl.startsWith("/")) return@withContext fileUrl
+
+            _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                reelId = mediaId, title = title, progress = 0f
+            ))
+            val tmp = File(getMediaDirectory(context), "${existing.name}.tmp")
+            val request = Request.Builder().url(fileUrl).build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                    reelId = mediaId, title = title, isError = true, errorMessage = "كود ${response.code}"
+                ))
+                return@withContext null
+            }
+            val body = response.body ?: return@withContext null
+            val total = body.contentLength().takeIf { it > 0 } ?: 5_000_000L
+            var done = 0L
+            var last = System.currentTimeMillis()
+            val start = last
+            body.byteStream().use { input ->
+                FileOutputStream(tmp).use { output ->
+                    val buf = ByteArray(32 * 1024)
+                    var r: Int
+                    while (input.read(buf).also { r = it } != -1) {
+                        output.write(buf, 0, r)
+                        done += r
+                        onProgress?.invoke(done, total)
+                        val now = System.currentTimeMillis()
+                        if (now - last >= 250) {
+                            val speed = if (now > start) ((done / 1024) / ((now - start) / 1000.0)).toLong() else 0L
+                            _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                                reelId = mediaId, title = title,
+                                progress = (done.toFloat() / total).coerceIn(0f, 1f),
+                                downloadedBytes = done, totalBytes = total, speedKbps = speed
+                            ))
+                            last = now
+                        }
+                    }
+                }
+            }
+            if (tmp.exists() && tmp.length() > 0) {
+                if (existing.exists()) existing.delete()
+                tmp.renameTo(existing)
+                _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
+                refreshStorageMetrics(context)
+                existing.absolutePath
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "Media download failed: ${e.message}")
+            _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                reelId = mediaId, title = title, isError = true, errorMessage = e.localizedMessage
+            ))
+            null
+        }
+    }
+
+    fun cancelMediaDownload(mediaId: String) {
+        _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
     }
 
     /**

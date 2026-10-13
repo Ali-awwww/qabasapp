@@ -909,49 +909,15 @@ fun ReelPublishDialog(
                 }
             }
 
-            // العدّاد الرقمي للرفع: ميجابايت مرسلة/كلية + نسبة + شريط
+            // عدّاد رفع الريلز — موحّد مع عدّادات الأذان والتنزيلات
             if (isPublishing && uploadTotalBytes > 0) {
                 Spacer(modifier = Modifier.height(10.dp))
-                val pct = (uploadSentBytes.toFloat() / uploadTotalBytes.coerceAtLeast(1L)).coerceIn(0f, 1f)
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF0B1324),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${uploadSentBytes / (1024 * 1024)}MB / ${uploadTotalBytes / (1024 * 1024)}MB",
-                                color = GoldPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
-                            Text(
-                                text = "${(pct * 100).toInt()}٪",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LinearProgressIndicator(
-                            progress = { pct },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = GoldPrimary,
-                            trackColor = Color(0xFF1E293B)
-                        )
-                    }
-                }
+                TransferCounterBar(
+                    label = publishProgressText.ifBlank { "رفع الريل 🚀" },
+                    sentBytes = uploadSentBytes,
+                    totalBytes = uploadTotalBytes,
+                    isUpload = true
+                )
             }
         }
     }

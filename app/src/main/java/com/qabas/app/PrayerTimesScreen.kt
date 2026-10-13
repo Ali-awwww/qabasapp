@@ -1501,6 +1501,7 @@ fun AzanVoicesDialog(
     var isSyncingCloud by remember { mutableStateOf(false) }
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
+    val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
     // المستخدم العادي: اختيار ملف من الهاتف (محلي فقط — لا يُرفع للسحابة أبداً)
     val localPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -1757,6 +1758,44 @@ fun AzanVoicesDialog(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
+                            // عدّاد تنزيل الأذان السحابي — عبر مدير التنزيلات نفسه
+                            val isCloudVoice = voice.id.startsWith("cloud_") && voice.streamUrl.startsWith("http")
+                            val dlProgress = mediaDownloads[voice.id]
+                            if (isCloudVoice) {
+                                if (dlProgress != null && !dlProgress.isError && !dlProgress.isCompleted) {
+                                    TransferCounterBar(
+                                        label = "تنزيل الأذان ⬇️",
+                                        sentBytes = dlProgress.downloadedBytes,
+                                        totalBytes = dlProgress.totalBytes,
+                                        isUpload = false,
+                                        speedText = if (dlProgress.speedKbps > 0) "${dlProgress.speedKbps} KB/ث" else null
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                DownloadsHubManager.init(context)
+                                                val local = DownloadsHubManager.downloadMedia(
+                                                    context, voice.id, voice.nameAr, voice.streamUrl
+                                                )
+                                                if (local != null) Toast.makeText(context, "اكتمل تنزيل الأذان ✅", Toast.LENGTH_SHORT).show()
+                                                else Toast.makeText(context, "تعذر التنزيل — تحقق من الاتصال", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.fillMaxWidth().height(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("تنزيل للاستماع دون إنترنت ⬇️", color = Color(0xFF10B981), fontSize = 10.5.sp, fontFamily = CairoFont)
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+
                             // Set as default Azan button
                             if (!isDefault) {
                                 OutlinedButton(
@@ -1943,6 +1982,8 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
     var isFajrOnly by remember { mutableStateOf(false) }
     var pickedUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var uploading by remember { mutableStateOf(false) }
+    var uploadSent by remember { mutableStateOf(0L) }
+    var uploadTotal by remember { mutableStateOf(0L) }
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri -> pickedUri = uri }
@@ -1973,7 +2014,14 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(if (pickedUri == null) "اختر ملف الصوت (MP3)" else "تم اختيار الملف ✅", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
                 }
-                if (uploading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Color(0xFF10B981))
+                if (uploading || uploadTotal > 0) {
+                    TransferCounterBar(
+                        label = "رفع الأذان للسحابة ☁️",
+                        sentBytes = uploadSent,
+                        totalBytes = uploadTotal,
+                        isUpload = true
+                    )
+                }
             }
         },
         confirmButton = {
@@ -1981,8 +2029,11 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
                 onClick = {
                     val uri = pickedUri ?: return@Button
                     uploading = true
+                    uploadSent = 0L; uploadTotal = 0L
                     scope.launch {
-                        val res = AzanCloudRepository.uploadAzanVoice(context, uri, title, muezzinName, description.ifBlank { "أذان سحابي بصوت $muezzinName" }, isFajrOnly)
+                        val res = AzanCloudRepository.uploadAzanVoice(context, uri, title, muezzinName, description.ifBlank { "أذان سحابي بصوت $muezzinName" }, isFajrOnly) { sent, total ->
+                            uploadSent = sent; uploadTotal = total
+                        }
                         uploading = false
                         if (res.isSuccess) {
                             Toast.makeText(context, "تم الرفع للسحابة بنجاح ☁️✅", Toast.LENGTH_SHORT).show()

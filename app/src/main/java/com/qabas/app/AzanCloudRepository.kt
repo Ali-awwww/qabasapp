@@ -55,7 +55,7 @@ object AzanCloudRepository {
 
     /**
      * يرفع ملف صوت الأذان إلى Supabase Storage ثم يحفظ صفاً في جدول azan_voices.
-     * لا يُستدعى إلا من حساب المطور (AdminGuard).
+     * لا يُستدعى إلا من حساب المطور (AdminGuard). يبث تقدم الرفع عبر onProgress لعرض العدّاد.
      */
     suspend fun uploadAzanVoice(
         context: Context,
@@ -63,7 +63,8 @@ object AzanCloudRepository {
         nameAr: String,
         muezzinAr: String,
         description: String,
-        isFajrSpecific: Boolean
+        isFajrSpecific: Boolean,
+        onProgress: (sent: Long, total: Long) -> Unit = { _, _ -> }
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             if (!AdminGuard.isDashboardAccessAllowed(context)) {
@@ -71,15 +72,31 @@ object AzanCloudRepository {
             }
             val client = SupabaseServices.client
                 ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
-            val bytes = context.contentResolver.openInputStream(fileUri)?.use { it.readBytes() }
-                ?: return@withContext Result.failure(IllegalStateException("تعذر قراءة الملف"))
-            if (bytes.size > 25 * 1024 * 1024) {
+            // ننسخ إلى ملف مؤقت لرفعه بتدفق مع عدّاد تقدم (بلا تحميل كامل في الذاكرة)
+            val tmp = java.io.File(context.cacheDir, "azan_upload_${UUID.randomUUID()}.mp3")
+            val totalBytes = try {
+                context.contentResolver.openInputStream(fileUri)?.use { input ->
+                    tmp.outputStream().use { input.copyTo(it) }
+                }
+                tmp.length()
+            } catch (e: Exception) {
+                return@withContext Result.failure(IllegalStateException("تعذر قراءة الملف"))
+            }
+            if (totalBytes <= 0) return@withContext Result.failure(IllegalStateException("الملف فارغ"))
+            if (totalBytes > 25 * 1024 * 1024) {
+                tmp.delete()
                 return@withContext Result.failure(IllegalStateException("حجم الملف يتجاوز 25MB"))
             }
-            val ext = "mp3"
-            val path = "azan_${UUID.randomUUID()}.$ext"
-            val publicUrl = SupabaseServices.Storage.uploadFile(BUCKET, path, bytes, upsert = false)
-                ?: return@withContext Result.failure(IllegalStateException("فشل رفع الملف للسحابة"))
+            val path = "azan_${UUID.randomUUID()}.mp3"
+            val publicUrl = SupabaseServices.Storage.uploadFileWithProgress(
+                bucketName = BUCKET, path = path, file = tmp,
+                contentType = "audio/mpeg", upsert = false,
+                onProgress = onProgress
+            )
+            tmp.delete()
+            if (publicUrl == null) {
+                return@withContext Result.failure(IllegalStateException("فشل رفع الملف للسحابة"))
+            }
             val row = AzanVoiceRow(
                 id = UUID.randomUUID().toString(),
                 nameAr = nameAr.trim(),

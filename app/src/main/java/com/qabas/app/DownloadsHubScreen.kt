@@ -2117,63 +2117,18 @@ private fun ActiveReelDownloadCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = Color(0xFFA855F7)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = progress.title,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "إلغاء", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                }
-            }
-
-            LinearProgressIndicator(
-                progress = { progress.progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = Color(0xFFA855F7),
-                trackColor = Color.White.copy(alpha = 0.1f)
+            // عدّاد تنزيل الريلز — موحّد عبر TransferCounterBar
+            TransferCounterBar(
+                label = "تنزيل: ${progress.title}",
+                sentBytes = progress.downloadedBytes,
+                totalBytes = progress.totalBytes,
+                isUpload = false,
+                speedText = if (progress.speedKbps > 0) "${progress.speedKbps} KB/ث" else null
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${(progress.progress * 100).toInt()}%",
-                    fontFamily = RobotoMonoFont,
-                    fontSize = 10.sp,
-                    color = Color(0xFFA855F7)
-                )
-                Text(
-                    text = "${StorageMetrics.formatBytes(progress.downloadedBytes)} / ${StorageMetrics.formatBytes(progress.totalBytes)} (${progress.speedKbps} KB/s)",
-                    fontFamily = RobotoMonoFont,
-                    fontSize = 10.sp,
-                    color = TextSecondary
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onCancel) {
+                    Text("إلغاء التنزيل", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
+                }
             }
         }
     }
