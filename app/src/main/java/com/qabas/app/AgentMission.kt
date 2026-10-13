@@ -673,26 +673,27 @@ suspend fun executeAgentMissionMultiModel(
 
     // تحويل نتائج الأعضاء إلى Steps متوافقة مع النظام الحالي
     val steps = mutableListOf<AgentExecutionStep>()
-    steps.add(
-        AgentExecutionStep(
-            title = "👑 خطة القائد",
-            description = report.leaderPlan?.rationale ?: "تم توزيع المهمة على ${team.size - 1} مساعد.",
-            toolName = "team_leader_plan",
-            outputSnippet = report.leaderPlan?.let {
-                it.subtasks.joinToString("\n") { "• ${it.title} → ${it.assigneeMemberId}" }
-            } ?: "(تعذر توليد خطة JSON صالحة)"
-        )
+    val leaderPlanStep = AgentExecutionStep(
+        title = "👑 خطة القائد",
+        description = report.leaderPlan?.rationale ?: "تم توزيع المهمة على ${team.size - 1} مساعد.",
+        toolName = "team_leader_plan",
+        outputSnippet = report.leaderPlan?.let {
+            it.subtasks.joinToString("\n") { "• ${it.title} → ${it.assigneeMemberId}" }
+        } ?: "(تعذر توليد خطة JSON صالحة)"
     )
+    steps.add(leaderPlanStep)
+    onUpdate(leaderPlanStep)
+
     report.memberResults.filter { it.role != AgentTeamRole.LEADER }.forEach { r ->
-        steps.add(
-            AgentExecutionStep(
-                title = "⚡ ${r.role.label} (${team.firstOrNull { it.id == r.memberId }?.displayName ?: r.memberId})",
-                description = "زمن التنفيذ: ${r.latencyMs}ms • التوكن: ${r.tokensUsed}",
-                toolName = "team_member_${r.memberId}",
-                outputSnippet = r.outputText.take(500),
-                isSuccess = r.isSuccess
-            )
+        val memberStep = AgentExecutionStep(
+            title = "⚡ ${r.role.label} (${team.firstOrNull { it.id == r.memberId }?.displayName ?: r.memberId})",
+            description = "زمن التنفيذ: ${r.latencyMs}ms • التوكن: ${r.tokensUsed}",
+            toolName = "team_member_${r.memberId}",
+            outputSnippet = r.outputText.take(500),
+            isSuccess = r.isSuccess
         )
+        steps.add(memberStep)
+        onUpdate(memberStep)
     }
     steps.add(
         AgentExecutionStep(

@@ -35,6 +35,24 @@ fun AgentTeamConfigScreen(
     var team by remember { mutableStateOf(MultiModelAgentOrchestrator.loadTeam(context).toMutableStateList()) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var showConfirmBack by remember { mutableStateOf(false) }
+    var keyValidationState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) } // 🔑 تحقق حي من صحة المفتاح لكل عضو
+
+    // 🔑 التحقق من صحة المفتاح لكل عضو (فوري)
+    LaunchedEffect(team) {
+        val newMap = mutableMapOf<String, Boolean>()
+        team.forEach { member ->
+            if (member.provider != DetectedProvider.NONE) {
+                // استخدم UniversalKeyBrain.prefsKeyFor للحصول على prefsKey ثم KeyPoolManager
+                val prefsKey = UniversalKeyBrain.prefsKeyFor(member.provider)
+                val keys = if (prefsKey.isNotBlank()) {
+                    KeyPoolManager.orderedKeysBySpeed(prefsKey)
+                } else emptyList()
+                val hasValidKey = keys.isNotEmpty()
+                newMap[member.id] = hasValidKey
+            }
+        }
+        keyValidationState = newMap
+    }
 
     val leaderCount = team.count { it.role == AgentTeamRole.LEADER }
     val hasLeader = leaderCount > 0
@@ -83,12 +101,20 @@ fun AgentTeamConfigScreen(
                             modifier = Modifier.padding(bottom(8.dp))
                         )
                     }
+                    // 🔑 تحذير إذا لم يكن لدى أي عضو مفتاح صالح
+                    if (team.none { keyValidationState[it.id] == true }) {
+                        Text(
+                            "⚠️ لا يوجد مفتاح API صالح في الشاشة الرئيسية لأي مزود!",
+                            color = Color(0xFFEF4444), fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom(8.dp))
+                        )
+                    }
                     Button(
                         onClick = {
                             MultiModelAgentOrchestrator.saveTeam(context, team)
                             onSave(team)
                         },
-                        enabled = hasLeader,
+                        enabled = hasLeader && team.any { keyValidationState[it.id] == true },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37), contentColor = Color.Black)
                     ) { Text("حفظ الفريق وبدء العمل 💪", fontSize = 16.sp, fontWeight = FontWeight.Bold) }

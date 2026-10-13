@@ -193,6 +193,9 @@ object MultiModelAgentOrchestrator {
 
         if (leaderPlan == null) {
             warnings.add("تعذر توليد خطة صالحة من القائد — سيتم تنفيذ المساعدين مباشرة على المهمة الأصلية.")
+            onUpdate("⚠️ ${leader.displayName}: تعذر توليد خطة صالحة — سيتم تنفيذ المساعدين على المهمة الأصلية.")
+        } else {
+            onUpdate("✅ ${leader.displayName}: تم توليد الخطة (${leaderPlan.subtasks.size} مهمة فرعية).")
         }
 
         // ═══ المرحلة 2: تنفيذ المساعدين (بالتوازي أو بالتسلسل حسب التبعيات) ═══
@@ -267,6 +270,9 @@ object MultiModelAgentOrchestrator {
                             )
                         )
                         executedIds.add(st.id)
+                        // 🔑 تحديث حالة التقدم بعد اكتمال كل مهمة فرعية
+                        val statusIcon = if (r.isSuccess) "✅" else "❌"
+                        onUpdate("$statusIcon ${member.displayName}: اكتمل «${st.title.take(30)}» (${r.latencyMs}ms)")
                     }
                 }
             }
