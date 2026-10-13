@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
@@ -107,6 +108,8 @@ fun AiStudioAgentScreen(
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
+    var showExitConfirmation by remember { mutableStateOf(false) }
+
     BackHandler {
         if (showExitConfirmation) {
             showExitConfirmation = false
@@ -127,7 +130,6 @@ fun AiStudioAgentScreen(
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
-    var showExitConfirmation by remember { mutableStateOf(false) }
     val TAG = "AiStudioAgentScreen"
     val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
@@ -1588,7 +1590,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                     Text("إلغاء", color = Color(0xFF94A3B8), fontFamily = CairoFont)
                 }
             },
-            properties = androidx.compose.material3.DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         )
     }
 }
