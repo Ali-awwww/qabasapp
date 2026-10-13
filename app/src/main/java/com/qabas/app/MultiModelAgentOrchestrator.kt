@@ -58,6 +58,7 @@ data class MemberRunResult(
     val memberId: String,
     val role: AgentTeamRole,
     val rank: Int,
+    val subtaskId: String = "",     // 🔑 معرف المهمة الفرعية المرتبطة
     val outputText: String = "",
     val latencyMs: Long = 0,
     val isSuccess: Boolean = false,
@@ -187,15 +188,16 @@ object MultiModelAgentOrchestrator {
         onUpdate("👑 ${leader.displayName}: جاري التخطيط...")
         val leaderSystemPrompt = """
             أنت قائد فريق مهندسين ذكاء اصطناعي (Leader AI Model).
-            لديك ${assistants.size} مساعد${if (assistants.size == 1) "" else "ين"}: ${team.joinToString("، ") { "${it.displayName} (${it.role.label})" }}.
+            لديك ${assistants.size} مساعد${if (assistants.size == 1) "" else "ين"}:
+            ${assistants.joinToString("\n") { "- معرف المساعد: `${it.id}` — الاسم: ${it.displayName} — الدور: ${it.role.label} — الرتبة: #${it.rank} — المزود: ${it.provider.displayName} — النموذج: ${it.modelId}" }}.
             مهمتك: توزيع المهمة التالية على المساعدين بناءً على قدراتهم.
 
             المهمة من المستخدم: "$prompt"
 
             أخرج خطتك بصيغة JSON فقط (بدون markdown code fence) بالشكل:
-            {"overall_task":"...","rationale":"...","subtasks":[{"id":"st1","title":"...","description":"...","assignee":"exec_1"}]}
+            {"overall_task":"...","rationale":"...","subtasks":[{"id":"st1","title":"...","description":"...","assignee":"<معرف المساعد الحقيقي>"}]}
 
-            يجب أن يحتوي assignee على معرف المساعد (مثل exec_1). لا تضع مهمة لنفسك كقائد، فقط للمساعدين.
+            يجب أن يحتوي assignee على المعرف الحقيقي للمساعد من القائمة أعلاه (مثل `${assistants.firstOrNull()?.id ?: "exec_1"}`). لا تضع مهمة لنفسك كقائد، فقط للمساعدين.
         """.trimIndent()
 
         val planResult = callModel(leader, leaderSystemPrompt, prompt, providerKeys[leader.provider] ?: "")
@@ -240,12 +242,14 @@ object MultiModelAgentOrchestrator {
             val memberById = assistants.associateBy { it.id }
 
             // مراعاة التبعيات: ننفذ على دفعات (batch) حسب dependsOn
-            val executedIds = mutableSetOf<String>()
+            // 🔑 نستخدم succeededIds للمهام الناجحة فقط — المهمة الفاشلة تُوقف تبعاتها
+            val succeededIds = mutableSetOf<String>()
+            val failedIds = mutableSetOf<String>()
             val remaining = subtasks.toMutableList()
 
             while (remaining.isNotEmpty()) {
                 val batch = remaining.filter { st ->
-                    st.dependsOn.all { dep -> executedIds.contains(dep) } &&
+                    st.dependsOn.all { dep -> succeededIds.contains(dep) } &&
                             memberById.containsKey(st.assigneeMemberId)
                 }
                 if (batch.isEmpty()) {
@@ -266,7 +270,7 @@ object MultiModelAgentOrchestrator {
                             val r = callModel(
                                 member,
                                 "أنت مساعد${if (member.role == AgentTeamRole.REVIEWER) " مراجع جودة" else " تنفيذي"} في فريق مهندسين AI. نفّذ المهمة المطلوبة بدقة وكفاءة، وقدّم مخرجات كاملة قابلة للاستخدام.",
-                                buildMemberPrompt(st, prompt, executedIds, memberResults),
+                                buildMemberPrompt(st, prompt, succeededIds, memberResults),
                                 providerKeys[member.provider] ?: ""
                             )
                             Pair(st, r)
@@ -277,12 +281,13 @@ object MultiModelAgentOrchestrator {
                         memberResults.add(
                             MemberRunResult(
                                 memberId = member.id, role = member.role, rank = member.rank,
+                                subtaskId = st.id,
                                 outputText = r.outputText, latencyMs = r.latencyMs,
                                 isSuccess = r.isSuccess, errorMessage = r.errorMessage,
                                 tokensUsed = r.tokensUsed
                             )
                         )
-                        executedIds.add(st.id)
+                        if (r.isSuccess) succeededIds.add(st.id) else failedIds.add(st.id)
                         // 🔑 تحديث حالة التقدم بعد اكتمال كل مهمة فرعية
                         val statusIcon = if (r.isSuccess) "✅" else "❌"
                         onUpdate("$statusIcon ${member.displayName}: اكتمل «${st.title.take(30)}» (${r.latencyMs}ms)")
@@ -295,7 +300,7 @@ object MultiModelAgentOrchestrator {
         currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل المرحلة الثالثة
         onUpdate("👑 ${leader.displayName}: جاري صياغة الخلاصة النهائية...")
         val successfulOutputs = memberResults.filter { it.isSuccess && it.role != AgentTeamRole.LEADER }
-            .joinToString("\n\n---\n\n") { "[$it.memberId] $it.outputText" }
+            .joinToString("\n\n---\n\n") { "[${it.memberId}] ${it.outputText}" }
 
         val synthesisResult = if (successfulOutputs.isNotBlank()) {
             callModel(
@@ -328,17 +333,22 @@ object MultiModelAgentOrchestrator {
     private fun buildMemberPrompt(
         st: LeaderSubtask,
         overallPrompt: String,
-        executedIds: Set<String>,
+        succeededIds: Set<String>,
         priorResults: List<MemberRunResult>
     ): String {
-        val priorContext = priorResults.filter { it.isSuccess && it.role != AgentTeamRole.LEADER }
-            .joinToString("\n") { "[${it.memberId}]: ${it.outputText.take(500)}" }
+        // 🔑 نُدرج مخرجات المهام الفرعية التي اعتمدت عليها هذه المهمة فقط
+        val deps = st.dependsOn
+        val relevantPrior = priorResults.filter { r ->
+            r.role != AgentTeamRole.LEADER && r.isSuccess &&
+                    (deps.isEmpty() || deps.contains(r.subtaskId))
+        }.joinToString("\n") { "[${it.subtaskId}|${it.memberId}]: ${it.outputText.take(500)}" }
+
         return buildString {
             append("السياق العام للمهمة من المستخدم: $overallPrompt\n\n")
             append("المهمة الفرعية: ${st.title}\n")
             append("الوصف: ${st.description}\n")
-            if (priorContext.isNotBlank()) {
-                append("\nمخرجات سابقة قد تحتاجها:\n$priorContext\n")
+            if (relevantPrior.isNotBlank()) {
+                append("\nمخرجات المهام السابقة التي تعتمد عليها:\n$relevantPrior\n")
             }
             append("\nقدّم مخرجاتك الآن.")
         }
