@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -1502,6 +1503,12 @@ fun AzanVoicesDialog(
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
     val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
+
+    fun reloadVoices() {
+        voicesList = MuezzinVoiceManager.getAllVoices(context)
+        defaultVoiceId = MuezzinVoiceManager.getDefaultVoiceId(context)
+    }
+
     // المستخدم العادي: اختيار ملف من الهاتف (محلي فقط — لا يُرفع للسحابة أبداً)
     val localPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -1527,11 +1534,6 @@ fun AzanVoicesDialog(
                 }
             }
         }
-    }
-
-    fun reloadVoices() {
-        voicesList = MuezzinVoiceManager.getAllVoices(context)
-        defaultVoiceId = MuezzinVoiceManager.getDefaultVoiceId(context)
     }
 
     // مزامنة أصوات السحابة (قراءة للجميع)
@@ -2050,5 +2052,4 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.Gray, fontFamily = CairoFont) } }
     )
-}
 }

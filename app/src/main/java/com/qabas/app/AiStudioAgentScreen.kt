@@ -1688,6 +1688,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 }
             },
             dismissButton = { TextButton(onClick = { showModelPicker = false }) { Text("إغلاق", color = Color(0xFF00E5FF), fontFamily = CairoFont) } },
+            confirmButton = {},
             containerColor = Color(0xFF0B132B)
         )
     }

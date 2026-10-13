@@ -106,7 +106,7 @@ private suspend fun executeAgentMissionInner(
         steps = initialSteps
     )
     onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
     val isOffline = OnDeviceModelManager.isOfflineModeActive(context)
     if (isOffline) {
@@ -127,7 +127,7 @@ private suspend fun executeAgentMissionInner(
                 finalReport = "يلزم تنزيل نموذج محلي أولاً لتشغيل الوكيل بدون إنترنت."
             )
             onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
             onFinished(mission)
             return
         }
@@ -142,7 +142,7 @@ private suspend fun executeAgentMissionInner(
         initialSteps.add(step1)
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.PLANNING)
         onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
         val startTime1 = System.currentTimeMillis()
         val planText = "تم تحليل الأمر «$prompt» بنجاح محلياً عبر ${readyModel.name}. النمط المستهدف: ${spec.title}. تم تحديد المكونات البرمجية وهيكل Compose المستهدف."
@@ -155,7 +155,7 @@ private suspend fun executeAgentMissionInner(
         )
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.INSPECTING)
         onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
         // الخطوة 2: فحص ملفات التطبيق وشجرة الكود محلياً
         val step2 = AgentExecutionStep(
@@ -167,7 +167,7 @@ private suspend fun executeAgentMissionInner(
         initialSteps.add(step2)
         mission = mission.copy(steps = initialSteps.toList())
         onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
         val localInspection = "الملفات المستهدفة بالمعالجة المحلية:\n• com.qabas.app.generated (${readyModel.name})\n• حزم واجهات Jetpack Compose التكيفية\n• فحص الذاكرة: ${readyModel.ramRequirement}"
         initialSteps[1] = step2.copy(
@@ -177,7 +177,7 @@ private suspend fun executeAgentMissionInner(
         )
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.WRITING)
         onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
         // الخطوة 3: صياغة وتوليد الكود البرمجي محلياً
         val step3 = AgentExecutionStep(
@@ -189,7 +189,7 @@ private suspend fun executeAgentMissionInner(
         initialSteps.add(step3)
         mission = mission.copy(steps = initialSteps.toList())
         onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
 
         val localResult = LocalAgentInferenceEngine.executeLocalCodeSynthesis(
             context = context,
@@ -210,7 +210,7 @@ private suspend fun executeAgentMissionInner(
                 finalReport = "تعذر إكمال التوليد المحلي: $err"
             )
             onUpdate(mission)
-    kotlinx.coroutines.ensureActive()
+    coroutineContext.ensureActive()
             onFinished(mission)
             return
         }
