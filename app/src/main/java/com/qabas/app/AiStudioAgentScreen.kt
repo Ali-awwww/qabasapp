@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.experimental.enableBackHandlerConfirmation
 import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
@@ -107,7 +108,11 @@ fun AiStudioAgentScreen(
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
-    BackHandler { onBack() }
+    BackHandler(confirmation = {
+        "الرجاء التأكد من الخروج من التطبيق"
+    }) {
+        onBack()
+    }
 
     // State
     var promptInput by remember { mutableStateOf("") }
