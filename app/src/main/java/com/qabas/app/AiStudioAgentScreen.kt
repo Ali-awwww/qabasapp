@@ -1535,6 +1535,11 @@ LaunchedEffect(currentMission, isOfflineMode) {
             initialTab = keyDialogInitialTab,
             onKeySaved = { refreshDiagnostics() },
             onOpenOnDeviceModels = { showOnDeviceDialog = true },
+            onExportMission = { exportMissionJson() },
+            onImportMission = {
+                val json = prefs.getString("active_mission_json", "") ?: ""
+                if (json.isNotBlank()) importMissionFromJson(json)
+            },
             onDismiss = { showKeyDialog = false }
         )
     }
@@ -2352,7 +2357,7 @@ fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, pref
 }
 
 fun FileImport(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
-    val json = prefs.getString("active_mission_json", "")
+    val json = prefs.getString("active_mission_json", "") ?: return
     if (json.isNotBlank()) {
         importMissionFromJson(currentMission, json)
     }
@@ -2364,6 +2369,8 @@ fun ApiKeySetupDialog(
     initialTab: Int = 0,
     onKeySaved: () -> Unit = {},
     onOpenOnDeviceModels: () -> Unit = {},
+    onExportMission: () -> String = { "" },
+    onImportMission: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember(initialTab) { mutableStateOf(initialTab) }
@@ -2651,7 +2658,9 @@ fun ApiKeySetupDialog(
                                     },
                                     onGoToInput = {
                                         selectedTab = 0
-                                    }
+                                    },
+                                    onExportMission = onExportMission,
+                                    onImportMission = onImportMission
                                 )
                             }
                         }
@@ -2682,8 +2691,12 @@ fun CodingPlatformCard(
     platform: CodingPlatformGuide,
     onOpenUrl: () -> Unit,
     onCopyUrl: () -> Unit,
-    onGoToInput: () -> Unit
+    onGoToInput: () -> Unit,
+    onExportMission: () -> String = { "" },
+    onImportMission: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = Color(0xFF0F172A).copy(alpha = 0.9f),
@@ -2895,10 +2908,12 @@ fun CodingPlatformCard(
             ) {
                 OutlinedButton(
                     onClick = {
-                        val json = exportMissionJson()
+                        val json = onExportMission()
                         if (json.isNotBlank()) {
-                            clipboardManager.setText(json)
-                            Toast.makeText(context, "مهمة التصدير kopied to clipboard", Toast.LENGTH_SHORT).show()
+                            clipboardManager.setText(AnnotatedString(json))
+                            Toast.makeText(context, "تم نسخ المهمة إلى الحافظة", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "لا توجد مهمة للتصدير", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
@@ -2910,18 +2925,13 @@ fun CodingPlatformCard(
                 }
                 OutlinedButton(
                     onClick = {
-                        val json = prefs.getString("active_mission_json", "")
-                        if (json.isNotBlank()) {
-                            importMissionFromJson(json)
-                            Toast.makeText(context, "تم استيراد المهمة من الحالة المحفوظة", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "لا توجد مهمة محفوظة", Toast.LENGTH_SHORT).show()
-                        }
+                        onImportMission()
+                        Toast.makeText(context, "تم استيراد المهمة من الحالة المحفوظة", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.FileImport, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("استيراد مهمة", fontSize = 10.sp, color = Color(0xFF00E5FF))
                 }

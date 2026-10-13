@@ -200,7 +200,7 @@ fun OnDeviceModelDownloadDialog(
                                     }
                                 },
                                 onCancelDownload = {
-                                    OnDeviceModelManager.cancelDownload()
+                                    OnDeviceModelManager.cancelDownload(context, model)
                                     Toast.makeText(context, "تم إلغاء التنزيل", Toast.LENGTH_SHORT).show()
                                 },
                                 onSelectAsActive = {
@@ -260,6 +260,7 @@ fun OnDeviceModelCard(
     val isThisDownloading = downloadState is ModelDownloadState.Downloading && downloadState.modelId == model.id
     || downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id
     val badgeColor = Color(model.badgeColorHex)
+    val coroutineScope = rememberCoroutineScope()
 
     Surface(
         shape = RoundedCornerShape(10.dp),

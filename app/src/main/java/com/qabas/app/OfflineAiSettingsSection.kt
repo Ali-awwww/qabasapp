@@ -184,6 +184,7 @@ when {
         }
     }
 }
+}
 
 private suspend fun downloadModel(context: Context, onProgress: (Float) -> Unit) {
     withContext(Dispatchers.IO) {

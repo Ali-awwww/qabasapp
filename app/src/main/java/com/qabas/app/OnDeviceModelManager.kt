@@ -234,6 +234,8 @@ object OnDeviceModelManager {
             Log.i(TAG, "Resuming download of ${modelInfo.id} from $resumeBytes/${savedTotalBytes}")
         }
 
+        var downloadedBytes = resumeBytes
+
         try {
             _downloadState.value = ModelDownloadState.Downloading(
                 modelId = modelInfo.id,
@@ -253,7 +255,7 @@ object OnDeviceModelManager {
                 // حفظ progress Interrupted قبل الخطأ
                 prefs.edit()
                     .putLong("model_resume_${modelInfo.id}", resumeBytes)
-                    .putLong("model_total_${modelInfo.id}", totalBytes)
+                    .putLong("model_total_${modelInfo.id}", savedTotalBytes)
                     .apply()
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
@@ -264,14 +266,13 @@ object OnDeviceModelManager {
                 // حفظ progress Interrupted قبل الخطأ
                 prefs.edit()
                     .putLong("model_resume_${modelInfo.id}", resumeBytes)
-                    .putLong("model_total_${modelInfo.id}", totalBytes)
+                    .putLong("model_total_${modelInfo.id}", savedTotalBytes)
                     .apply()
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
             }
 
             val totalBytes = if (body.contentLength() > 0) body.contentLength() else modelInfo.sizeBytes
-            var downloadedBytes = resumeBytes
             val startTime = System.currentTimeMillis()
             var lastUpdateTime = startTime
 
@@ -372,17 +373,6 @@ object OnDeviceModelManager {
 
         // استدعاء التنزيل من النقطة المحفوظة (سيستخدم الملف المؤقت الموجود)
         return downloadModel(context, modelInfo)
-    }
-
-    /**
-     * إلغاء التنزيل الجاري وحذف الملف الجزئي
-     */
-fun cancelDownload(context: Context, modelInfo: OnDeviceModelInfo) {
-        isCancelled = true
-        val destFile = File(context.filesDir, "models/local/${modelInfo.id}")
-        val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
-        if (tempFile.exists()) tempFile.delete()
-        _downloadState.value = ModelDownloadState.Idle
     }
 
     /**
