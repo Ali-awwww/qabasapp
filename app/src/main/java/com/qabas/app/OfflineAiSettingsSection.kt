@@ -27,6 +27,7 @@ fun OfflineAiSettingsSection() {
     var downloadProgress by remember { mutableStateOf(0f) }
     var statusMessage by remember { mutableStateOf("") }
     var downloadInterrupted by remember { mutableStateOf(false) }
+    var selectedModel by remember { mutableStateOf<OnDeviceModelInfo?>(null) }
     
     LaunchedEffect(Unit) {
         val modelFile = File(context.filesDir, "models/llama/gemma-3-1b-it-q4_k_m.gguf")

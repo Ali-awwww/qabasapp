@@ -442,7 +442,7 @@ fun OnDeviceModelCard(
                                 border = BorderStroke(1.dp, Color(0xFF00E5FF)),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.ArrowDownCircle, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("استكمال التنزيل", fontSize = 10.sp, color = Color(0xFF00E5FF))
                             }

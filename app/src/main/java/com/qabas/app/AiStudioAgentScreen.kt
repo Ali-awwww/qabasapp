@@ -116,11 +116,9 @@ fun AiStudioAgentScreen(
     var showRepoDialog by remember { mutableStateOf(false) }
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.preference.PreferenceManager
-
-val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    var showOnDeviceDialog by remember { mutableStateOf(false) }
+    val TAG = "AiStudioAgentScreen"
+    val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
 
     // Mission State Management
     var missionAutoSwitched by remember { mutableStateOf(false) }
