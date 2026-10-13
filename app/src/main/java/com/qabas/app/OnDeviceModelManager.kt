@@ -377,9 +377,9 @@ object OnDeviceModelManager {
     /**
      * إلغاء التنزيل الجاري وحذف الملف الجزئي
      */
-    fun cancelDownload() {
+fun cancelDownload(context: Context, modelInfo: OnDeviceModelInfo) {
         isCancelled = true
-        val destFile = File(context.filesDir, "models/local/${modelInfo.id}") // simplified
+        val destFile = File(context.filesDir, "models/local/${modelInfo.id}")
         val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
         if (tempFile.exists()) tempFile.delete()
         _downloadState.value = ModelDownloadState.Idle
