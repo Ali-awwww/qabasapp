@@ -67,43 +67,6 @@ fun ProfileScreen(
         mutableStateOf(prefs.getString("user_email", "user@example.com") ?: "user@example.com")
     }
 
-    // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
-    // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
-    LaunchedEffect(Unit) {
-        val emailLooksFake = userEmail.isBlank() ||
-            userEmail.equals("user@example.com", ignoreCase = true) ||
-            userEmail.equals("guest@qabas.studio", ignoreCase = true)
-        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
-        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
-            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
-        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank()) return@LaunchedEffect
-
-        val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
-        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()
-        val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
-            ?: SupabaseServices.Auth.getCurrentUserMeta("name")
-        val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
-            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
-
-        val realEmail = fb?.email?.takeIf { it.isNotBlank() } ?: sbEmail?.takeIf { it.isNotBlank() }
-        val realName = fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
-
-        if (emailLooksFake && realEmail != null) {
-            userEmail = realEmail
-            prefs.edit().putString("user_email", realEmail).apply()
-        }
-        if (nameLooksFake && realName != null) {
-            displayName = realName
-            prefs.edit().putString("user_display_name", realName).putString("user_name", realName).apply()
-        }
-        if (avatarUriString.isBlank() && realAvatar != null) {
-            avatarUriString = realAvatar
-            prefs.edit().putString("user_avatar_uri", realAvatar).apply()
-        }
-    }
-    
     // User Profile State with real persistence
     var displayName by remember { 
         val savedName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
@@ -141,6 +104,43 @@ fun ProfileScreen(
     var showAvatarPickerSheet by remember { mutableStateOf(false) }
     var showPublishDialogInProfile by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+
+    // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
+    // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
+    LaunchedEffect(Unit) {
+        val emailLooksFake = userEmail.isBlank() ||
+            userEmail.equals("user@example.com", ignoreCase = true) ||
+            userEmail.equals("guest@qabas.studio", ignoreCase = true)
+        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
+        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
+            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
+        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank()) return@LaunchedEffect
+
+        val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
+        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
+            ?: SupabaseServices.Auth.getCurrentUserMeta("name")
+        val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
+
+        val realEmail = fb?.email?.takeIf { it.isNotBlank() } ?: sbEmail?.takeIf { it.isNotBlank() }
+        val realName = fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
+        val realAvatar = fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+
+        if (emailLooksFake && realEmail != null) {
+            userEmail = realEmail
+            prefs.edit().putString("user_email", realEmail).apply()
+        }
+        if (nameLooksFake && realName != null) {
+            displayName = realName
+            prefs.edit().putString("user_display_name", realName).putString("user_name", realName).apply()
+        }
+        if (avatarUriString.isBlank() && realAvatar != null) {
+            avatarUriString = realAvatar
+            prefs.edit().putString("user_avatar_uri", realAvatar).apply()
+        }
+    }
 
     // Image Picker Launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(
