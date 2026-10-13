@@ -134,9 +134,9 @@ object MultiModelAgentOrchestrator {
 
     /** فريق افتراضي (يُعاد استخدامه إذا لم تكن هناك إعدادات محفوظة) */
     fun defaultTeam(): List<AgentTeamMember> = listOf(
-        AgentTeamMember("leader_1", "القائد (Claude)", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, rank = 1),
-        AgentTeamMember("exec_1", "المساعد 1 (Gemini)", DetectedProvider.GEMINI, "gemini-3.5-flash", AgentTeamRole.EXECUTOR, rank = 2),
-        AgentTeamMember("exec_2", "المساعد 2 (Groq)", DetectedProvider.GROQ, "llama-3.3-70b-versatile", AgentTeamRole.EXECUTOR, rank = 3)
+        AgentTeamMember("leader_1", "القائد (Claude)", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, rank = 1, enabled = true),
+        AgentTeamMember("exec_1", "المساعد 1 (Gemini)", DetectedProvider.GEMINI, "gemini-3.5-flash", AgentTeamRole.EXECUTOR, rank = 2, enabled = true),
+        AgentTeamMember("exec_2", "المساعد 2 (Groq)", DetectedProvider.GROQ, "llama-3.3-70b-versatile", AgentTeamRole.EXECUTOR, rank = 3, enabled = true)
     )
 
     /**
