@@ -540,36 +540,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            // Local Models center shortcut
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF1E293B),
-                                border = BorderStroke(0.8.dp, if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF475569)),
-                                modifier = Modifier
-                                    .clickable { showOnDeviceDialog = true }
-                                    .wrapContentWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CloudDownload,
-                                        contentDescription = null,
-                                        tint = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8),
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "النماذج المحلية",
-                                        fontSize = 9.sp,
-                                        color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFFCBD5E1),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
+                            // (أُزيل اختصار النماذج المكرر — بطاقة الرادار أدناه تفتح نفس الحوار)
                         }
 
                         Text(
@@ -625,7 +596,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "رادار الفحص الحي والاستجابة (Live Network Telemetry)",
+                                    text = "رادار الفحص الحي 📡",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -1077,12 +1048,12 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "درع مناعة المنصة المعمارية // Studio Engine Shield",
+                                    text = "درع المنصة 🛡️",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFE2E8F0),
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    softWrap = false
                                 )
                             }
                             Surface(
@@ -1105,23 +1076,15 @@ LaunchedEffect(currentMission, isOfflineMode) {
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            item {
-                                ShieldBadge(label = "Kotlin Daemon", value = "3072 MB OOM-Safe", color = Color(0xFF00E5FF))
-                            }
-                            item {
-                                ShieldBadge(label = "Gradle Heap", value = "2560 MB G1GC", color = Color(0xFF38BDF8))
-                            }
-                            item {
-                                ShieldBadge(label = "Keystore Signing", value = "Stable & Synced", color = Color(0xFFE5B842))
-                            }
-                            item {
-                                ShieldBadge(label = "CI Workflow", value = "Memory Guarded", color = Color(0xFF10B981))
-                            }
-                        }
+                        // شريط حالة مدمج: سليم + توقيع ثابت — بدل 4 شارات بمعلومات بناء لا حية
+                        Text(
+                            text = "سليم 100% ✅ • توقيع ثابت ومتزامن 🔏 • حماية ذاكرة OOM 🛡️",
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF6EE7B7),
+                            fontFamily = CairoFont,
+                            maxLines = 2,
+                            lineHeight = 15.sp
+                        )
                     }
                 }
             }
@@ -1140,10 +1103,13 @@ LaunchedEffect(currentMission, isOfflineMode) {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "أعطِ أمرك للوكيل البرمجي (Prompt Order):",
+                                text = "أعطِ أمرك للوكيل البرمجي:",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
 
                             Surface(
@@ -1152,7 +1118,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 modifier = Modifier.wrapContentWidth()
                             ) {
                                 Text(
-                                    text = "PROMPT-DRIVEN ⚡",
+                                    text = "⚡ PROMPT",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF00E5FF),
@@ -1815,40 +1781,6 @@ fun LiveMissionExecutionCard(
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * شارة عنصر درع صحة المنصة ومناعة الذاكرة
- */
-@Composable
-fun ShieldBadge(label: String, value: String, color: Color) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFF1E293B).copy(alpha = 0.8f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
-        modifier = Modifier.wrapContentWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-                text = "$label: $value",
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                color = color,
-                maxLines = 1,
-                softWrap = false
-            )
         }
     }
 }
