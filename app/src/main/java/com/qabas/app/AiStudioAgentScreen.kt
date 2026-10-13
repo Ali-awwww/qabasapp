@@ -43,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.ExperimentalBackHandlerConfirmation
 import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
@@ -108,11 +107,12 @@ fun AiStudioAgentScreen(
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
-    @OptIn(ExperimentalBackHandlerConfirmation::class)
-    BackHandler(confirmation = {
-        "الرجاء التأكد من الخروج من التطبيق"
-    }) {
-        onBack()
+    BackHandler {
+        if (showExitConfirmation) {
+            showExitConfirmation = false
+            return@BackHandler
+        }
+        showExitConfirmation = true
     }
 
     // State
@@ -127,6 +127,7 @@ fun AiStudioAgentScreen(
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
+    var showExitConfirmation by remember { mutableStateOf(false) }
     val TAG = "AiStudioAgentScreen"
     val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
@@ -1566,6 +1567,28 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 activeLocalModel = OnDeviceModelManager.getSelectedModel(context)
             },
             onDismiss = { showOnDeviceDialog = false }
+        )
+    }
+
+    if (showExitConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showExitConfirmation = false },
+            title = { Text("تأكيد الخروج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("هل تريد حقاً الخروج من التطبيق؟", color = Color(0xFFE2E8F0), fontFamily = NotoSansFont) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitConfirmation = false
+                    onBack()
+                }) {
+                    Text("نعم، خروج", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitConfirmation = false }) {
+                    Text("إلغاء", color = Color(0xFF94A3B8), fontFamily = CairoFont)
+                }
+            },
+            properties = androidx.compose.material3.DialogProperties(usePlatformDefaultWidth = false)
         )
     }
 }
