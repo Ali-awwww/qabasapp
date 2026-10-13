@@ -471,7 +471,8 @@ object AgentConnectivityEngine {
         provider: DetectedProvider,
         apiKey: String,
         userPrompt: String,
-        architecturalPlan: String
+        architecturalPlan: String,
+        model: String? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val synthesisInstruction = """
             أنت مهندس برمجيات متخصص في نظام Android (Kotlin + Jetpack Compose + Material 3).
@@ -489,7 +490,8 @@ object AgentConnectivityEngine {
             provider = provider,
             apiKey = apiKey,
             prompt = "اكتب الكود التنفيذي الكامل للتعديل المطلوب بناءً على الخطة المعتمدة.",
-            systemInstruction = synthesisInstruction
+            systemInstruction = synthesisInstruction,
+            model = model
         )
     }
 }

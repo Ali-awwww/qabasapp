@@ -227,7 +227,8 @@ object UniversalKeyBrain {
         provider: DetectedProvider,
         prompt: String,
         systemInstruction: String,
-        fallbackSingleKey: String = ""
+        fallbackSingleKey: String = "",
+        model: String? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val prefsKey = prefsKeyFor(provider)
         val keys = if (prefsKey.isNotBlank()) {
@@ -241,7 +242,7 @@ object UniversalKeyBrain {
         var lastError: Exception? = null
         for (k in keys) {
             val start = System.currentTimeMillis()
-            val res = executeRealAgentStep(provider, k, prompt, systemInstruction)
+            val res = executeRealAgentStep(provider, k, prompt, systemInstruction, model)
             val ms = System.currentTimeMillis() - start
             if (res.isSuccess) {
                 if (prefsKey.isNotBlank()) {
@@ -263,13 +264,15 @@ object UniversalKeyBrain {
         provider: DetectedProvider,
         apiKey: String,
         prompt: String,
-        systemInstruction: String
+        systemInstruction: String,
+        model: String? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val client = SharedHttpClient.instance
         try {
             when (provider) {
                 DetectedProvider.GEMINI -> {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+                    val geminiModel = model?.takeIf { it.isNotBlank() } ?: "gemini-3.5-flash"
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$apiKey"
                     val jsonBody = org.json.JSONObject().apply {
                         put("contents", org.json.JSONArray().apply {
                             put(org.json.JSONObject().apply {
@@ -312,7 +315,7 @@ object UniversalKeyBrain {
                 DetectedProvider.OPENROUTER -> {
                     val url = "https://openrouter.ai/api/v1/chat/completions"
                     val jsonBody = org.json.JSONObject().apply {
-                        put("model", "anthropic/claude-sonnet-4.5")
+                        put("model", model?.takeIf { it.isNotBlank() } ?: "anthropic/claude-sonnet-4.5")
                         put("messages", org.json.JSONArray().apply {
                             put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
                             put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })

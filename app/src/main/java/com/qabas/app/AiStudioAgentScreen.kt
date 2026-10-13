@@ -69,6 +69,7 @@ enum class AgentTaskStatus(val label: String, val color: Color) {
     INSPECTING("فحص شجرة وملفات الكود 🔍", Color(0xFFF59E0B)),
     WRITING("صياغة وتعديل الكود ✍️", Color(0xFFA855F7)),
     BUILDING("تشغيل البناء السحابي 🚀", Color(0xFF00E5FF)),
+    CANCELLED("أُلغيت المهمة ⏹️", Color(0xFFF59E0B)),
     COMPLETED("اكتمل التنفيذ بنجاح ✅", Color(0xFF10B981)),
     FAILED("تعذر الإكمال ❌", Color(0xFFEF4444))
 }
@@ -130,6 +131,10 @@ fun AiStudioAgentScreen(
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
+    var executionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var lastExecutedPrompt by remember { mutableStateOf<String>("") }
+    var showModelPicker by remember { mutableStateOf(false) }
+    var selectedModel by remember { mutableStateOf<String>("gemini-3.5-flash") }
     val TAG = "AiStudioAgentScreen"
     val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
@@ -1158,6 +1163,45 @@ LaunchedEffect(currentMission, isOfflineMode) {
 
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        // Model Selector + Token Budget
+                        if (!isOfflineMode) {
+                            val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
+                            val models = when (provider) {
+                                DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro", "gemini-2.0-flash")
+                                DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
+                                DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
+                                DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
+                                else -> listOf("gemini-3.5-flash")
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showModelPicker = true },
+                                    modifier = Modifier.wrapContentWidth().height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f),
+                                        contentColor = Color(0xFF00E5FF)
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("النموذج: $selectedModel", fontSize = 11.sp, fontFamily = CairoFont)
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "ميزانية التوكن: ~4000 توكن/طلب • تكلفة تقريبية: \$0.01–0.05",
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         // Quick Chips
                         Text(
                             text = "أوامر سريعة مقترحة:",
@@ -1366,90 +1410,161 @@ LaunchedEffect(currentMission, isOfflineMode) {
                             val isCloudReady = !isOfflineMode && keyResolution.third != KeySource.NONE
                             val canExecute = if (isOfflineMode) isLocalReady else isCloudReady
 
-                            Button(
-                                onClick = {
-                                    if (isOfflineMode && !isLocalReady) {
-                                        showOnDeviceDialog = true
-                                        Toast.makeText(context, "الرجاء تنزيل النموذج المحلي أولاً للعمل بدون إنترنت", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    if (!isOfflineMode && !isCloudReady) {
-                                        showKeyDialog = true
-                                        Toast.makeText(context, "يلزم إدخال مفتاح API وفحصه حياً أولاً", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    val prompt = promptInput.trim()
-                                    if (prompt.isBlank()) {
-                                        Toast.makeText(context, "يرجى كتابة أمر للوكيل أولاً", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-
-                                    isExecuting = true
-                                    coroutineScope.launch {
-                                        executeAgentMission(
-                                            context = context,
-                                            prompt = prompt,
-                                            spec = selectedSpec,
-                                            repo = activeRepo,
-                                            onUpdate = { mission ->
-                                                currentMission = mission
-                                            },
-                                            onFinished = { finalMission ->
-                                                currentMission = finalMission
-                                                missionHistory = listOf(finalMission) + missionHistory
-                                                isExecuting = false
-                                                promptInput = ""
-                                            }
-                                        )
-                                    }
-                                },
-                                enabled = !isExecuting && (promptInput.isNotBlank() || !canExecute),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .testTag("agent_studio_execute_btn"),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF00E5FF),
-                                    contentColor = if (!canExecute) Color.White else Color(0xFF070B14)
-                                ),
-                                shape = RoundedCornerShape(10.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 if (isExecuting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = Color(0xFF070B14),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isOfflineMode) "معالجة محلية On-Device..." else "الوكيل ينفذ المهمة...",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                } else if (!canExecute) {
-                                    Icon(
-                                        imageVector = if (isOfflineMode) Icons.Default.Download else Icons.Default.Key,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isOfflineMode) "تنزيل النموذج المحلي 📥" else "إدخال وتفعيل المفتاح 🔑",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
+                                    Button(
+                                        onClick = {
+                                            executionJob?.cancel()
+                                            executionJob = null
+                                            isExecuting = false
+                                            Toast.makeText(context, "تم إلغاء المهمة ⏹️", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("إيقاف المهمة ⏹️", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
                                 } else {
-                                    Icon(
-                                        imageVector = if (isOfflineMode) Icons.Default.Memory else Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isOfflineMode) "تنفيذ الأمر محلياً 📴" else "تنفيذ المهمة عبر الوكيل 🚀",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
+                                    Button(
+                                        onClick = {
+                                            if (isOfflineMode && !isLocalReady) {
+                                                showOnDeviceDialog = true
+                                                Toast.makeText(context, "الرجاء تنزيل النموذج المحلي أولاً للعمل بدون إنترنت", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            if (!isOfflineMode && !isCloudReady) {
+                                                showKeyDialog = true
+                                                Toast.makeText(context, "يلزم إدخال مفتاح API وفحصه حياً أولاً", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            val prompt = promptInput.trim()
+                                            if (prompt.isBlank()) {
+                                                Toast.makeText(context, "يرجى كتابة أمر للوكيل أولاً", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+
+                                            lastExecutedPrompt = prompt
+                                            isExecuting = true
+                                            val job = coroutineScope.launch {
+                                                try {
+                                                    executeAgentMission(
+                                                        context = context,
+                                                        prompt = prompt,
+                                                        spec = selectedSpec,
+                                                        repo = activeRepo,
+                                                        selectedModel = selectedModel,
+                                                        onUpdate = { mission ->
+                                                            currentMission = mission
+                                                        },
+                                                        onFinished = { finalMission ->
+                                                            currentMission = finalMission
+                                                            missionHistory = listOf(finalMission) + missionHistory
+                                                            isExecuting = false
+                                                            executionJob = null
+                                                            promptInput = ""
+                                                        }
+                                                    )
+                                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                                    isExecuting = false
+                                                    executionJob = null
+                                                }
+                                            }
+                                            executionJob = job
+                                        },
+                                        enabled = !isExecuting && (promptInput.isNotBlank() || !canExecute),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                            .testTag("agent_studio_execute_btn"),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF00E5FF),
+                                            contentColor = if (!canExecute) Color.White else Color(0xFF070B14)
+                                        ),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        if (!canExecute) {
+                                            Icon(
+                                                imageVector = if (isOfflineMode) Icons.Default.Download else Icons.Default.Key,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (isOfflineMode) "تنزيل النموذج المحلي 📥" else "إدخال وتفعيل المفتاح 🔑",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isOfflineMode) Icons.Default.Memory else Icons.AutoMirrored.Filled.Send,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (isOfflineMode) "تنفيذ الأمر محلياً 📴" else "تنفيذ المهمة عبر الوكيل 🚀",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+
+                                    if (lastExecutedPrompt.isNotBlank()) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val prompt = lastExecutedPrompt
+                                                promptInput = prompt
+                                                isExecuting = true
+                                                val job = coroutineScope.launch {
+                                                    try {
+                                                        executeAgentMission(
+                                                            context = context,
+                                                            prompt = prompt,
+                                                            spec = selectedSpec,
+                                                            repo = activeRepo,
+                                                            selectedModel = selectedModel,
+                                                            onUpdate = { mission -> currentMission = mission },
+                                                            onFinished = { finalMission ->
+                                                                currentMission = finalMission
+                                                                missionHistory = listOf(finalMission) + missionHistory
+                                                                isExecuting = false
+                                                                executionJob = null
+                                                                promptInput = ""
+                                                            }
+                                                        )
+                                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                                        isExecuting = false
+                                                        executionJob = null
+                                                    }
+                                                }
+                                                executionJob = job
+                                            },
+                                            modifier = Modifier.wrapContentWidth().height(48.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("إعادة المحاولة 🔁", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+
+                                if (promptInput.isNotBlank() && !isExecuting) {
+                                    OutlinedButton(
+                                        onClick = { promptInput = "" },
+                                        modifier = Modifier.height(48.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF64748B))
+                                    ) {
+                                        Text("مسح", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    }
                                 }
                             }
 
@@ -1542,6 +1657,36 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 activeLocalModel = OnDeviceModelManager.getSelectedModel(context)
             },
             onDismiss = { showOnDeviceDialog = false }
+        )
+    }
+
+    // Model Picker Dialog
+    if (showModelPicker) {
+        val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
+        val models = when (provider) {
+            DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro", "gemini-2.0-flash")
+            DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
+            DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
+            DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
+            else -> listOf("gemini-3.5-flash")
+        }
+
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showModelPicker = false },
+            title = { Text("اختر النموذج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    models.forEach { m ->
+                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .clickable { selectedModel = m; showModelPicker = false }
+                            .background(if (selectedModel == m) Color(0xFF00E5FF).copy(alpha = 0.15f) else Color.Transparent))
+                    }
+                }
+            },
+            dismissButton = { TextButton(onClick = { showModelPicker = false }) { Text("إغلاق", color = Color(0xFF00E5FF), fontFamily = CairoFont) } },
+            containerColor = Color(0xFF0B132B)
         )
     }
 
@@ -1862,9 +2007,33 @@ suspend fun executeAgentMission(
     prompt: String,
     spec: AgentSpecialization,
     repo: RepoVaultEntry?,
+    selectedModel: String = "gemini-3.5-flash",
     onUpdate: (AgentMissionSession) -> Unit,
     onFinished: (AgentMissionSession) -> Unit
 ) = withContext(Dispatchers.IO) {
+    try {
+        executeAgentMissionInner(context, prompt, spec, repo, selectedModel, onUpdate, onFinished)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        val cancelled = AgentMissionSession(
+            userPrompt = prompt,
+            specialization = spec,
+            status = AgentTaskStatus.CANCELLED,
+            finalReport = "أُلغيت المهمة بواسطتك ⏹️ — لم يُرسل أي طلب جديد بعد الإلغاء."
+        )
+        onFinished(cancelled)
+        throw e
+    }
+}
+
+private suspend fun executeAgentMissionInner(
+    context: Context,
+    prompt: String,
+    spec: AgentSpecialization,
+    repo: RepoVaultEntry?,
+    selectedModel: String,
+    onUpdate: (AgentMissionSession) -> Unit,
+    onFinished: (AgentMissionSession) -> Unit
+) {
     val initialSteps = mutableListOf<AgentExecutionStep>()
     var mission = AgentMissionSession(
         userPrompt = prompt,
@@ -1873,6 +2042,7 @@ suspend fun executeAgentMission(
         steps = initialSteps
     )
     onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
     val isOffline = OnDeviceModelManager.isOfflineModeActive(context)
     if (isOffline) {
@@ -1893,8 +2063,9 @@ suspend fun executeAgentMission(
                 finalReport = "يلزم تنزيل نموذج محلي أولاً لتشغيل الوكيل بدون إنترنت."
             )
             onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
             onFinished(mission)
-            return@withContext
+            return
         }
 
         // الخطوة 1: التحليل والتخطيط المعماري المحلي
@@ -1907,6 +2078,7 @@ suspend fun executeAgentMission(
         initialSteps.add(step1)
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.PLANNING)
         onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
         val startTime1 = System.currentTimeMillis()
         val planText = "تم تحليل الأمر «$prompt» بنجاح محلياً عبر ${readyModel.name}. النمط المستهدف: ${spec.title}. تم تحديد المكونات البرمجية وهيكل Compose المستهدف."
@@ -1919,6 +2091,7 @@ suspend fun executeAgentMission(
         )
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.INSPECTING)
         onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
         // الخطوة 2: فحص ملفات التطبيق وشجرة الكود محلياً
         val step2 = AgentExecutionStep(
@@ -1930,6 +2103,7 @@ suspend fun executeAgentMission(
         initialSteps.add(step2)
         mission = mission.copy(steps = initialSteps.toList())
         onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
         val localInspection = "الملفات المستهدفة بالمعالجة المحلية:\n• com.qabas.app.generated (${readyModel.name})\n• حزم واجهات Jetpack Compose التكيفية\n• فحص الذاكرة: ${readyModel.ramRequirement}"
         initialSteps[1] = step2.copy(
@@ -1939,6 +2113,7 @@ suspend fun executeAgentMission(
         )
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.WRITING)
         onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
         // الخطوة 3: صياغة وتوليد الكود البرمجي محلياً
         val step3 = AgentExecutionStep(
@@ -1950,6 +2125,7 @@ suspend fun executeAgentMission(
         initialSteps.add(step3)
         mission = mission.copy(steps = initialSteps.toList())
         onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
 
         val localResult = LocalAgentInferenceEngine.executeLocalCodeSynthesis(
             context = context,
@@ -1970,8 +2146,9 @@ suspend fun executeAgentMission(
                 finalReport = "تعذر إكمال التوليد المحلي: $err"
             )
             onUpdate(mission)
+    kotlinx.coroutines.ensureActive()
             onFinished(mission)
-            return@withContext
+            return
         }
 
         val inferenceData = localResult.getOrNull()!!
@@ -2002,7 +2179,7 @@ suspend fun executeAgentMission(
             status = AgentTaskStatus.COMPLETED
         )
         onFinished(mission)
-        return@withContext
+        return
     }
 
     // التحقق الصادق من توفر مفتاح حقيقي
@@ -2024,13 +2201,13 @@ suspend fun executeAgentMission(
         )
         onUpdate(mission)
         onFinished(mission)
-        return@withContext
+        return
     }
 
     // الخطوة 1: التحليل المعماري الحقيقي عبر الذكاء الاصطناعي (Agent Reasoning & Planning)
     val step1 = AgentExecutionStep(
         title = "تحليل الأمر والتخطيط المعماري 🧠",
-        description = "إرسال الأمر لنموذج ${provider.displayName} وتوليد خطة العمل التنفيذية...",
+        description = "إرسال الأمر لنموذج $selectedModel (${provider.displayName}) وتوليد خطة العمل...",
         toolName = "generate_plan",
         isRunning = true
     )
@@ -2048,7 +2225,7 @@ suspend fun executeAgentMission(
 
     val startTime1 = System.currentTimeMillis()
     // تجاوز تلقائي: عند فشل المفتاح النشط ينتقل للبديل الأسرع المتصل فوراً
-    val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, prompt, sysInstruction, apiKey)
+    val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, prompt, sysInstruction, apiKey, selectedModel)
     val latencyMs1 = System.currentTimeMillis() - startTime1
 
     if (planResult.isFailure) {
@@ -2065,7 +2242,7 @@ suspend fun executeAgentMission(
         )
         onUpdate(mission)
         onFinished(mission)
-        return@withContext
+        return
     }
 
     val planData = planResult.getOrNull()
@@ -2133,7 +2310,8 @@ suspend fun executeAgentMission(
         provider = provider,
         apiKey = apiKey,
         userPrompt = prompt,
-        architecturalPlan = planText
+        architecturalPlan = planText,
+        model = selectedModel
     )
     val latencyMs3 = System.currentTimeMillis() - startTime3
 
@@ -2151,7 +2329,7 @@ suspend fun executeAgentMission(
         )
         onUpdate(mission)
         onFinished(mission)
-        return@withContext
+        return
     }
 
     val codeData = codeResult.getOrNull()
