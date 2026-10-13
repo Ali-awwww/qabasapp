@@ -274,8 +274,8 @@ fun AIAssistantScreen(
                 val contextHistory = messages.takeLast(10).map { Pair(it.first, it.second) }
                 val orKey = prefs.getString("openrouter_key", "") ?: ""
                 val response = if (toolsMode && orKey.isNotBlank()) {
-                    val (text, used) = OpenRouterService.chatWithTools(
-                        orKey, fullSystemInstruction, contextHistory,
+                    val (text, used) = OpenRouterService.chatWithToolsPooled(
+                        fullSystemInstruction, contextHistory,
                         AiTools.definitions(context), selectedOrModel
                     )
                     val finalText = text.ifBlank { "تعذر التنفيذ بالأدوات — أُعيد التوجيه للمسار العادي." }

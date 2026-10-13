@@ -111,6 +111,40 @@ fun detectKeysForAutoFill(text: String): Map<String, String> {
     return found
 }
 
+/**
+ * كشف نوع المفتاح الواحد للصق الذكي — مرتب من الأدق للأعم:
+ * البادئات المميزة أولاً، والأنماط العامة (hex المجرد) أخيراً حتى لا تسرق مفاتيح غيرها.
+ */
+private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
+    "gemini" to Regex("""AIzaSy[A-Za-z0-9_\-]{33}"""),
+    "groq" to Regex("""(?:gsk_[A-Za-z0-9_\-]{10,}|xai-[A-Za-z0-9_\-]{10,})"""),
+    "openrouter" to Regex("""sk-or-v1-[A-Za-z0-9_\-]{10,}"""),
+    "openai" to Regex("""sk-[A-Za-z0-9_\-]{20,}"""),
+    "huggingface" to Regex("""hf_[A-Za-z0-9]{10,}"""),
+    "elevenlabs" to Regex("""xi-[A-Za-z0-9_\-]{10,}"""),
+    "higgsfield" to Regex("""hfld_[A-Za-z0-9_\-]{16,}"""),
+    "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}"""),
+    "pexels" to Regex("""[A-Za-z0-9]{56}"""),
+    "azure" to Regex("""(?i)[a-f0-9]{32}""")
+)
+
+/** تنظيف اللصق: مسافات وأسطر واقتباس وبادئة Bearer ومحارف خفية. */
+fun normalizePastedKey(raw: String): String {
+    var s = raw.trim()
+        .replace(Regex("[\u200B\u200C\u200D\uFEFF]"), "")
+        .replace(Regex("\\s+"), "")
+    s = s.removeSurrounding("\"").removeSurrounding("'")
+    if (s.startsWith("Bearer ", ignoreCase = true)) s = s.substring(7)
+    return s.trim().removeSurrounding("\"").removeSurrounding("'")
+}
+
+/** أول تطابق كامل حسب الترتيب الدقيق — null تعني غير معروف. */
+fun detectSingleKeyService(input: String): String? {
+    val key = normalizePastedKey(input)
+    if (key.length < 8) return null
+    return ORDERED_SINGLE_KEY_PATTERNS.firstOrNull { (_, rx) -> rx.matches(key) }?.first
+}
+
 object ApiKeysBackupManager {
     fun generateExportJson(
         prefs: SharedPreferences,
@@ -236,6 +270,10 @@ object ApiKeysBackupManager {
                 editor.putString(k, v.trim())
             }
             editor.apply()
+            // إعادة ضبط مسابح المستوردة على القيم الجديدة حتى لا يطغى قديم
+            importedMap.forEach { (k, v) ->
+                runCatching { KeyPoolManager.setSingleKey(k, v.trim()) }
+            }
         }
 
         return Pair(importedMap.size, importedMap)
@@ -433,6 +471,14 @@ fun ApiKeysScreen(onBack: () -> Unit) {
     var smartPasteText by remember { mutableStateOf("") }
     var lastGlobalClipboard by remember { mutableStateOf("") }
 
+    // اللصق الذكي الموحد: حقل واحد يقبل أي صيغة ويكشف نوعها
+    var smartInput by remember { mutableStateOf("") }
+    var smartShowKey by remember { mutableStateOf(false) }
+    var smartTesting by remember { mutableStateOf(false) }
+    var smartLatencyMs by remember { mutableStateOf<Long?>(null) }
+    val smartDetectedId = remember(smartInput) { detectSingleKeyService(smartInput) }
+    val smartDetectedSvc = remember(smartDetectedId) { ALL_SERVICES.find { it.id == smartDetectedId } }
+
     fun refreshTelemetry() {
         mainScope.launch {
             usageStats = ApiUsageTracker.snapshot(context)
@@ -499,9 +545,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // Save individual key
+    // Save individual key (single source of truth = pool; legacy mirrored)
     fun saveKey(prefKey: String, value: String) {
-        prefs.edit().putString(prefKey, value.trim()).apply()
+        KeyPoolManager.setSingleKey(prefKey, value.trim())
         keysState = keysState + (prefKey to value.trim())
         Toast.makeText(context, "تم حفظ المفتاح بنجاح 💾", Toast.LENGTH_SHORT).show()
     }
@@ -568,6 +614,44 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             isTestingAll = false
             refreshTelemetry()
             Toast.makeText(context, "اكتمل الفحص الشامل لجميع الخدمات الحية بنجاح ⚡", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // اللصق الذكي: تعبئة الحقل الصحيح تلقائياً + تطبيق متطلباته + فحص فوري مع السرعة
+    fun runSmartFillAndTest() {
+        val clean = normalizePastedKey(smartInput)
+        val svcId = detectSingleKeyService(clean)
+        if (svcId == null) {
+            Toast.makeText(context, "تعذر التعرف على نوع المفتاح — تأكد من نسخه كاملاً دون نقص", Toast.LENGTH_LONG).show()
+            return
+        }
+        val svc = ALL_SERVICES.find { it.id == svcId } ?: return
+        KeyPoolManager.setSingleKey(svc.prefsKey, clean)
+        keysState = keysState + (svc.prefsKey to clean)
+        if (svc.hasRegion && azureRegion.isBlank()) {
+            Toast.makeText(context, "تم حفظ مفتاح ${svc.name} — أدخل المنطقة (Region) في بطاقته ثم افحص", Toast.LENGTH_LONG).show()
+        }
+        mainScope.launch {
+            smartTesting = true
+            smartLatencyMs = null
+            try {
+                val region = if (svc.hasRegion) azureRegion.trim().ifBlank { null } else null
+                val t0 = System.nanoTime()
+                val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, region)
+                val ms = ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1L)
+                smartLatencyMs = ms
+                validationResults = validationResults + (svc.id to res)
+                refreshTelemetry()
+                Toast.makeText(
+                    context,
+                    if (res.isValid) "✅ ${svc.name}: يعمل (${ms}ms)" else "❌ ${svc.name}: ${res.summary}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "خطأ أثناء الفحص: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            } finally {
+                smartTesting = false
+            }
         }
     }
 
@@ -844,6 +928,161 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                         }
 
                         // Services List
+                        // Smart Paste Box: one field accepts any format, detects its type,
+                        // applies its requirements, and tests it with live latency.
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1324)),
+                                border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "اللصق الذكي 🧠 — الصق أي مفتاح فيتعرف عليه تلقائياً",
+                                            color = Color.White,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+
+                                    OutlinedTextField(
+                                        value = smartInput,
+                                        onValueChange = { smartInput = it },
+                                        label = { Text("الصق المفتاح هنا بأي صيغة (gsk_ ، sk- ، AIzaSy ، hf_ ...)", fontFamily = CairoFont, fontSize = 11.sp) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        visualTransformation = if (smartShowKey) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            Row {
+                                                IconButton(onClick = {
+                                                    val clip = androidClipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+                                                    if (clip.isNotBlank()) smartInput = clip
+                                                }) {
+                                                    Icon(Icons.Default.ContentPaste, contentDescription = "لصق", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                                }
+                                                IconButton(onClick = { smartShowKey = !smartShowKey }) {
+                                                    Icon(
+                                                        if (smartShowKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                        contentDescription = "إظهار",
+                                                        tint = TextSecondary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                if (smartInput.isNotBlank()) {
+                                                    IconButton(onClick = {
+                                                        smartInput = ""
+                                                        smartLatencyMs = null
+                                                    }) {
+                                                        Icon(Icons.Default.Clear, contentDescription = "مسح", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = GoldPrimary,
+                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedLabelColor = GoldPrimary,
+                                            unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                                        )
+                                    )
+
+                                    // Live detection chip
+                                    if (smartDetectedSvc != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF10B981).copy(alpha = 0.12f),
+                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                Text(
+                                                    text = "تم التعرف: ${smartDetectedSvc.name} (${smartDetectedSvc.provider}) ⚡",
+                                                    color = Color(0xFF10B981),
+                                                    fontFamily = CairoFont,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = if (smartDetectedSvc.hasRegion)
+                                                        "المتطلبات: يحتاج المنطقة (Region) — املأها في بطاقته أدناه قبل الفحص"
+                                                    else
+                                                        "المتطلبات: لا شيء إضافي — جاهز للفحص المباشر",
+                                                    color = TextSecondary,
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
+                                    } else if (normalizePastedKey(smartInput).length >= 8) {
+                                        Text(
+                                            text = "غير معروف بعد 🟡 — تأكد من لصق المفتاح كاملاً",
+                                            color = Color(0xFFF59E0B),
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.5.sp
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = { runSmartFillAndTest() },
+                                        enabled = smartDetectedSvc != null && !smartTesting,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = GoldPrimary,
+                                            disabledContainerColor = Color.White.copy(alpha = 0.12f),
+                                            contentColor = DeepSlate,
+                                            disabledContentColor = Color.White.copy(alpha = 0.4f)
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(46.dp)
+                                    ) {
+                                        if (smartTesting) {
+                                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("يفحص الاتصال ويقيس السرعة...", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                        } else {
+                                            Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("تعبئة وفحص تلقائياً ⚡", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        }
+                                    }
+
+                                    // Live result + latency
+                                    val smartRes = smartDetectedId?.let { validationResults[it] }
+                                    if (smartRes != null) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                if (smartRes.isValid) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                                                contentDescription = null,
+                                                tint = if (smartRes.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = smartRes.summary +
+                                                    (smartLatencyMs?.let { " • سرعة الاتصال: ${it}ms" } ?: ""),
+                                                color = Color.White,
+                                                fontFamily = CairoFont,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         items(ALL_SERVICES, key = { it.id }) { service ->
                             val currentKey = keysState[service.prefsKey].orEmpty()
                             val stat = usageStats[service.trackerName] ?: ApiUsageTracker.ApiStat()
@@ -875,8 +1114,8 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                     }
                                 },
                                 onClear = {
+                                    KeyPoolManager.clearAll(service.prefsKey)
                                     keysState = keysState + (service.prefsKey to "")
-                                    prefs.edit().remove(service.prefsKey).apply()
                                     Toast.makeText(context, "تم مسح المفتاح", Toast.LENGTH_SHORT).show()
                                 },
                                 onTest = {
@@ -890,6 +1129,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                 onRegionChange = {
                                     azureRegion = it
                                     prefs.edit().putString("azure_speech_region", it.trim()).apply()
+                                },
+                                onPoolActiveChanged = { activeKey ->
+                                    keysState = keysState + (service.prefsKey to activeKey)
                                 }
                             )
                         }
@@ -1052,7 +1294,8 @@ private fun ProfessionalServiceCard(
     onOpenUrl: () -> Unit,
     hasRegion: Boolean = false,
     regionValue: String = "",
-    onRegionChange: (String) -> Unit = {}
+    onRegionChange: (String) -> Unit = {},
+    onPoolActiveChanged: (String) -> Unit = {}
 ) {
     val configured = keyText.isNotBlank()
 
@@ -1278,6 +1521,13 @@ private fun ProfessionalServiceCard(
                 }
             }
 
+            // Key Pool: backup keys with manual switch + per-key test (auto-failover reads active)
+            KeyPoolSection(
+                service = service,
+                regionValue = regionValue,
+                onPoolActiveChanged = onPoolActiveChanged
+            )
+
             // Real Live Request Telemetry Strip
             Spacer(modifier = Modifier.height(10.dp))
             Surface(
@@ -1436,6 +1686,255 @@ private fun ProfessionalServiceCard(
             }
         }
     }
+}
+
+@Composable
+private fun KeyPoolSection(
+    service: ServiceUiConfig,
+    regionValue: String,
+    onPoolActiveChanged: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var expanded by remember { mutableStateOf(false) }
+    var refreshTick by remember { mutableStateOf(0) }
+    var newKeyInput by remember { mutableStateOf("") }
+    var testingIdx by remember { mutableStateOf<Int?>(null) }
+    var poolResults by remember { mutableStateOf<Map<Int, KeyValidationResult>>(emptyMap()) }
+
+    val pool = remember(refreshTick) { KeyPoolManager.getKeys(service.prefsKey) }
+    val activeIdx = remember(refreshTick) { KeyPoolManager.getActiveIndex(service.prefsKey) }
+
+    fun syncParent() {
+        onPoolActiveChanged(KeyPoolManager.getActiveKey(service.prefsKey))
+        refreshTick++
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0xFF0B0F19),
+            border = BorderStroke(1.dp, Color(0xFF334155)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.VpnKey,
+                        contentDescription = null,
+                        tint = if (pool.size > 1) Color(0xFF10B981) else TextSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "مفاتيح احتياطية (${pool.size}) 🔑",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (pool.size > 1) {
+                        Text(
+                            text = "تجاوز تلقائي مفعّل ⚡",
+                            color = Color(0xFF10B981),
+                            fontFamily = CairoFont,
+                            fontSize = 9.5.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        if (expanded) {
+            Spacer(modifier = Modifier.height(6.dp))
+            // Add row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedTextField(
+                    value = newKeyInput,
+                    onValueChange = { newKeyInput = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("الصق مفتاحاً احتياطياً...", color = Color(0xFF64748B), fontSize = 10.sp) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedContainerColor = Color(0xFF0B0F19),
+                        unfocusedContainerColor = Color(0xFF0B0F19),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                Button(
+                    onClick = {
+                        val clean = normalizePastedKey(newKeyInput)
+                        if (clean.isBlank()) return@Button
+                        val detected = detectSingleKeyService(clean)
+                        if (detected != null && detected != service.id) {
+                            val other = ALL_SERVICES.find { it.id == detected }?.name ?: detected
+                            Toast.makeText(context, "هذا المفتاح يبدو لـ $other — أضفه في بطاقتها", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (KeyPoolManager.addKey(service.prefsKey, clean)) {
+                            newKeyInput = ""
+                            syncParent()
+                            Toast.makeText(context, "أُضيف المفتاح الاحتياطي ✅", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "المفتاح موجود مسبقاً أو غير صالح", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("إضافة", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            // Pool rows
+            if (pool.isEmpty()) {
+                Text(
+                    text = "لا مفاتيح بعد — المفتاح المحفوظ أعلاه هو الأساسي. أضف بدائل هنا للتجاوز التلقائي.",
+                    color = TextSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
+            } else {
+                pool.forEachIndexed { idx, key ->
+                    val isActive = idx == activeIdx
+                    val testing = testingIdx == idx
+                    val res = poolResults[idx]
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isActive) Color(0xFF10B981).copy(alpha = 0.08f) else Color(0xFF0B0F19),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isActive) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF334155)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isActive) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isActive) Color(0xFF10B981) else TextSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = maskKey(key),
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.5.sp,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (!isActive) {
+                                    TextButton(
+                                        onClick = {
+                                            if (KeyPoolManager.setActiveIndex(service.prefsKey, idx)) {
+                                                syncParent()
+                                                Toast.makeText(context, "تم التبديل اليدوي للمفتاح البديل 🔀", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("تفعيل", fontSize = 10.sp, color = Color(0xFF00E5FF), fontFamily = CairoFont)
+                                    }
+                                } else {
+                                    Text(
+                                        "نشط ✅",
+                                        fontSize = 9.5.sp,
+                                        color = Color(0xFF10B981),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        testingIdx = idx
+                                        scope.launch {
+                                            try {
+                                                val region = if (service.hasRegion) regionValue.trim().ifBlank { null } else null
+                                                val r = ApiKeyValidator.validateKey(context, service.serviceType, key, region)
+                                                poolResults = poolResults + (idx to r)
+                                            } finally {
+                                                testingIdx = null
+                                            }
+                                        }
+                                    },
+                                    enabled = testingIdx == null,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    if (testing) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), color = GoldPrimary, strokeWidth = 1.5.dp)
+                                    } else {
+                                        Icon(Icons.Default.FlashOn, contentDescription = "فحص", tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                                IconButton(
+                                    onClick = {
+                                        if (KeyPoolManager.removeKeyAt(service.prefsKey, idx)) {
+                                            poolResults = poolResults - idx
+                                            syncParent()
+                                        }
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                                }
+                            }
+                            if (res != null) {
+                                Text(
+                                    text = (if (res.isValid) "✅ " else "❌ ") + res.summary,
+                                    color = if (res.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                    fontFamily = CairoFont,
+                                    fontSize = 9.5.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                    if (idx < pool.size - 1) Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun maskKey(key: String): String {
+    val t = key.trim()
+    return if (t.length <= 12) "••••••" else "${t.take(6)}…${t.takeLast(4)}"
 }
 
 @Composable

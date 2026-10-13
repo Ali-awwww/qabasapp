@@ -38,6 +38,9 @@ object KeyVault {
     }
 
     private fun resolve(prefsKey: String, fromBuildConfig: String?): String {
+        // مسبح البدائل أولاً (التبديل اليدوي/التلقائي)، ثم المفرد، ثم BuildConfig
+        val poolActive = runCatching { KeyPoolManager.getActiveKey(prefsKey) }.getOrDefault("")
+        if (isReal(poolActive)) return poolActive.trim()
         val fromPrefs = prefs().getString(prefsKey, "") ?: ""
         if (isReal(fromPrefs)) return fromPrefs.trim()
         if (isReal(fromBuildConfig)) return fromBuildConfig!!.trim()
@@ -707,11 +710,8 @@ object RealGeminiService {
     suspend fun generateDeveloperPrompts(request: AppRequestService.AppRequest): String = withContext(Dispatchers.IO) {
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
-            // بلا Gemini: جرّب OpenRouter المجاني ثم المخطط المحلي
-            val orKey = KeyVault.openrouter
-            if (orKey.isNotBlank()) {
-                OpenRouterService.generatePlan(request, orKey)?.let { return@withContext it }
-            }
+            // بلا Gemini: جرّب OpenRouter المجاني (مع تجاوز المسبح) ثم المخطط المحلي
+            OpenRouterService.generatePlanPooled(request)?.let { return@withContext it }
             return@withContext LocalPromptPlanner.generatePlan(request)
         }
         
@@ -759,10 +759,8 @@ object RealGeminiService {
                 
             val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(httpRequest).execute() }
             if (!response.isSuccessful) {
-                // فشل Gemini: OpenRouter المجاني ثم المحلي
-                KeyVault.openrouter.takeIf { it.isNotBlank() }?.let { orKey ->
-                    OpenRouterService.generatePlan(request, orKey)?.let { return@safeApiCall it }
-                }
+                // فشل Gemini: OpenRouter المجاني (مع تجاوز المسبح) ثم المحلي
+                OpenRouterService.generatePlanPooled(request)?.let { return@safeApiCall it }
                 return@safeApiCall LocalPromptPlanner.generatePlan(request)
             }
             
@@ -779,9 +777,7 @@ object RealGeminiService {
                     if (text.isNotBlank()) return@safeApiCall text
                 }
             }
-            KeyVault.openrouter.takeIf { it.isNotBlank() }?.let { orKey ->
-                OpenRouterService.generatePlan(request, orKey)?.let { return@safeApiCall it }
-            }
+            OpenRouterService.generatePlanPooled(request)?.let { return@safeApiCall it }
             LocalPromptPlanner.generatePlan(request)
         }
     }
@@ -1558,12 +1554,11 @@ object AppServices {
             }
         }
 
-        // 3) OpenRouter بمفتاحك (نماذج مجانية قوية + اختيار النموذج)
-        val orKey = KeyVault.openrouter
-        if (orKey.isNotBlank()) {
+        // 3) OpenRouter بمفتاحك (تجاوز تلقائي للمسبح + اختيار النموذج)
+        run {
             val system = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
             val orResponse = try {
-                OpenRouterService.chatWithHistory(orKey, system, messages, preferredOpenRouterModel)
+                OpenRouterService.chatWithHistoryPooled(system, messages, preferredOpenRouterModel)
             } catch (e: Exception) { null }
             if (!orResponse.isNullOrBlank()) {
                 SystemLogsManager.addLog("INFO", "رد محادثة بـ OpenRouter ✅", Color(0xFF10B981))

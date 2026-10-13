@@ -162,19 +162,28 @@ object AiModelLatencyRouter {
     }
 
     private fun pingGroq(): ModelBenchmarkResult {
-        val apiKey = KeyVault.groq
-        if (apiKey.isBlank()) {
-            return ModelBenchmarkResult(
-                id = "groq",
-                name = "Groq",
-                provider = "Groq Cloud (LPU)",
-                modelSpec = "llama-3.3-70b-versatile",
-                latencyMs = -1L,
-                isSuccess = false,
-                message = "مفتاح Groq غير متوفر في الإعدادات"
-            )
+        // تجاوز تلقائي: جرّب مفاتيح المسبح بالترتيب ورقِّ الفائز
+        val keys = KeyPoolManager.orderedKeys("groq_key", KeyVault.groq)
+        var last: ModelBenchmarkResult? = null
+        for (k in keys) {
+            last = tryPingGroq(k)
+            if (last.isSuccess) {
+                KeyPoolManager.promoteKey("groq_key", k)
+                return last
+            }
         }
+        return last ?: ModelBenchmarkResult(
+            id = "groq",
+            name = "Groq",
+            provider = "Groq Cloud (LPU)",
+            modelSpec = "llama-3.3-70b-versatile",
+            latencyMs = -1L,
+            isSuccess = false,
+            message = "مفتاح Groq غير متوفر في الإعدادات"
+        )
+    }
 
+    private fun tryPingGroq(apiKey: String): ModelBenchmarkResult {
         val startTime = System.currentTimeMillis()
         return try {
             val isXai = apiKey.startsWith("xai-", ignoreCase = true)
@@ -240,18 +249,27 @@ object AiModelLatencyRouter {
     }
 
     private fun pingGemini(): ModelBenchmarkResult {
-        val apiKey = KeyVault.gemini
-        if (apiKey.isBlank()) {
-            return ModelBenchmarkResult(
-                id = "gemini",
-                name = "Gemini",
-                provider = "Google AI Studio",
-                modelSpec = "gemini-2.5-flash",
-                latencyMs = -1L,
-                isSuccess = false,
-                message = "مفتاح Gemini غير متوفر في الإعدادات"
-            )
+        val keys = KeyPoolManager.orderedKeys("gemini_key", KeyVault.gemini)
+        var last: ModelBenchmarkResult? = null
+        for (k in keys) {
+            last = tryPingGemini(k)
+            if (last.isSuccess) {
+                KeyPoolManager.promoteKey("gemini_key", k)
+                return last
+            }
         }
+        return last ?: ModelBenchmarkResult(
+            id = "gemini",
+            name = "Gemini",
+            provider = "Google AI Studio",
+            modelSpec = "gemini-2.5-flash",
+            latencyMs = -1L,
+            isSuccess = false,
+            message = "مفتاح Gemini غير متوفر في الإعدادات"
+        )
+    }
+
+    private fun tryPingGemini(apiKey: String): ModelBenchmarkResult {
 
         val startTime = System.currentTimeMillis()
         return try {
@@ -317,19 +335,27 @@ object AiModelLatencyRouter {
     }
 
     private fun pingOpenAI(): ModelBenchmarkResult {
-        val apiKey = KeyVault.openai
-        if (apiKey.isBlank()) {
-            return ModelBenchmarkResult(
-                id = "openai",
-                name = "OpenAI",
-                provider = "OpenAI Platform",
-                modelSpec = "gpt-4o-mini",
-                latencyMs = -1L,
-                isSuccess = false,
-                message = "مفتاح OpenAI غير متوفر"
-            )
+        val keys = KeyPoolManager.orderedKeys("openai_key", KeyVault.openai)
+        var last: ModelBenchmarkResult? = null
+        for (k in keys) {
+            last = tryPingOpenAI(k)
+            if (last.isSuccess) {
+                KeyPoolManager.promoteKey("openai_key", k)
+                return last
+            }
         }
+        return last ?: ModelBenchmarkResult(
+            id = "openai",
+            name = "OpenAI",
+            provider = "OpenAI Platform",
+            modelSpec = "gpt-4o-mini",
+            latencyMs = -1L,
+            isSuccess = false,
+            message = "مفتاح OpenAI غير متوفر"
+        )
+    }
 
+    private fun tryPingOpenAI(apiKey: String): ModelBenchmarkResult {
         val startTime = System.currentTimeMillis()
         return try {
             val jsonBody = JSONObject().apply {

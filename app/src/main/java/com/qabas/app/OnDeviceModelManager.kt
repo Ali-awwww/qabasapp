@@ -280,7 +280,7 @@ object OnDeviceModelManager {
             val appendMode = if (resumeBytes > 0 && tempFile.exists()) true else false
             val byteStream = body.byteStream()
             FileOutputStream(tempFile, appendMode).use { output ->
-                val buffer = ByteArray(32 * 1024) // 32KB buffer for speed
+                val buffer = ByteArray(256 * 1024) // 256KB buffer: fewer syscalls, faster writes
                 var bytesRead: Int
 
                 if (resumeBytes > 0) {

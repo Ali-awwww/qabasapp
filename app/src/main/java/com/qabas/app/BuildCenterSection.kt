@@ -812,7 +812,7 @@ fun BuildCenterSection(
                             scope.launch {
                                 val live = AppRequestService.getActiveBuildRequest(context) ?: req
                                 val plan = live.generatedPrompts?.takeIf { it.isNotBlank() } ?: LocalPromptPlanner.generatePlan(live)
-                                val files = OpenRouterService.generateStarterFiles(live, plan, orKey)
+                                val files = OpenRouterService.generateStarterFilesPooled(live, plan)
                                 var created = 0
                                 var pr: Int? = null
                                 if (files.isNotEmpty()) {

@@ -353,4 +353,44 @@ object OpenRouterService {
             false
         }
     }
+
+    // ── متغيرات مُجمّعة: تجاوز تلقائي لمفاتيح المسبح (الفائز يُرقَّى) ──
+
+    suspend fun chatPooled(system: String, prompt: String, maxTokens: Int = 6000): String? =
+        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+            chat(k, system, prompt, maxTokens)
+        }
+
+    suspend fun chatWithHistoryPooled(
+        system: String,
+        history: List<Pair<Boolean, String>>,
+        model: String? = null
+    ): String? = KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+        chatWithHistory(k, system, history, model)
+    }
+
+    suspend fun generatePlanPooled(request: AppRequestService.AppRequest): String? =
+        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+            generatePlan(request, k)
+        }
+
+    suspend fun generateStarterFilesPooled(
+        request: AppRequestService.AppRequest,
+        plan: String
+    ): List<Pair<String, String>> =
+        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+            generateStarterFiles(request, plan, k).takeIf { it.isNotEmpty() }
+        } ?: emptyList()
+
+    suspend fun chatWithToolsPooled(
+        system: String,
+        history: List<Pair<Boolean, String>>,
+        tools: List<AiTools.ToolDef>,
+        model: String? = null,
+        maxTurns: Int = 4
+    ): Pair<String, List<String>> =
+        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+            chatWithTools(k, system, history, tools, model, maxTurns)
+                .takeIf { it.first.isNotBlank() }
+        } ?: Pair("", emptyList())
 }

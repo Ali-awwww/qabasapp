@@ -38,7 +38,6 @@ fun OnDeviceModelDownloadDialog(
     onModelActivated: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
     val downloadState by OnDeviceModelManager.downloadState.collectAsState()
 
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
@@ -189,19 +188,20 @@ fun OnDeviceModelDownloadDialog(
                                 isSelected = selectedModel.id == model.id,
                                 downloadState = downloadState,
                                 onDownload = {
-                                    coroutineScope.launch {
-                                        val success = OnDeviceModelManager.downloadModel(context, model)
-                                        if (success) {
-                                            selectedModel = model
-                                            isOfflineMode = true
-                                            OnDeviceModelManager.setOfflineModeActive(context, true)
-                                            refreshKey++
-                                            onModelActivated()
-                                            Toast.makeText(context, "تم تنزيل وتفعيل ${model.name} بنجاح ✅", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    // الخدمة الأمامية: عدّاد إشعار + يعمل بالخلفية حتى مع الخروج
+                                    ModelDownloadService.start(context, model.id)
+                                    Toast.makeText(context, "بدأ التنزيل في الخلفية — تابع العدّاد في الإشعارات 📥", Toast.LENGTH_LONG).show()
+                                },
+                                onDownloadSuccess = {
+                                    selectedModel = model
+                                    isOfflineMode = true
+                                    OnDeviceModelManager.setOfflineModeActive(context, true)
+                                    refreshKey++
+                                    onModelActivated()
+                                    Toast.makeText(context, "تم تنزيل وتفعيل ${model.name} بنجاح ✅", Toast.LENGTH_SHORT).show()
                                 },
                                 onCancelDownload = {
+                                    ModelDownloadService.cancel(context)
                                     OnDeviceModelManager.cancelDownload(context, model)
                                     Toast.makeText(context, "تم إلغاء التنزيل", Toast.LENGTH_SHORT).show()
                                 },
@@ -256,8 +256,24 @@ fun OnDeviceModelCard(
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onSelectAsActive: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onDownloadSuccess: () -> Unit = {}
 ) {
+    // نجاح الخلفية: الخدمة الأمامية تُكمل التنزيل وخروج التطبيق لا يلغيه
+    // الحارس يمنع إعادة الإطلاق عند كل إعادة تركيب والحالة ما زالت Success
+    var successHandledFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(downloadState) {
+        if (downloadState is ModelDownloadState.Success &&
+            downloadState.modelId == model.id &&
+            successHandledFor != model.id
+        ) {
+            successHandledFor = model.id
+            onDownloadSuccess()
+        }
+        if (downloadState !is ModelDownloadState.Success) {
+            successHandledFor = null
+        }
+    }
     val isInstalled = remember(model.id) { OnDeviceModelManager.isModelInstalled(context, model) }
     val isThisDownloading = downloadState is ModelDownloadState.Downloading && downloadState.modelId == model.id
     || downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id

@@ -506,8 +506,7 @@ private fun DevToolsPanel(    context: Context,
                             المحادثة:
                             $history
                         """.trimIndent()
-                        val brief = OpenRouterService.chat(
-                            orKey,
+                        val brief = OpenRouterService.chatPooled(
                             "أنت محلل طلبات دقيق وموجز. تجيب بالعربية وتنهي بسطر PRICE: الرقم.",
                             prompt, 1500
                         )

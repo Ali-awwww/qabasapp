@@ -136,6 +136,10 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <service
+            android:name=".ModelDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".AudioPlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />

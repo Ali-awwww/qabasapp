@@ -362,10 +362,7 @@ fun AiEditorSection(
             val system = "أنت محرر كود محترف. تجيب بسطر وصف واحد ثم الملف الكامل داخل كتلة كود واحدة."
             // 1) OpenRouter بمفتاحك (نماذج مجانية قوية) • 2) مجاني بلا مفتاح • 3) مفاتيحك الأخرى
             var source: String? = null
-            val orKey = KeyVault.openrouter
-            var answer: String? = if (orKey.isNotBlank()) {
-                OpenRouterService.chat(orKey, system, prompt)?.also { source = "OpenRouter 🆓" }
-            } else null
+            var answer: String? = OpenRouterService.chatPooled(system, prompt)?.also { source = "OpenRouter 🆓" }
             if (answer == null) {
                 answer = pollinationsChat(prompt, system)?.also { source = "مجاني" }
             }
