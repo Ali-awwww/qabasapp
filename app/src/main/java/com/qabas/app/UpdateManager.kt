@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -425,9 +426,10 @@ object UpdateManager {
         val handle = DownloadHandle()
         val key = "${update.versionName}|${update.versionCode}"
         activeHandles[key] = handle
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         val emitProgress: (DownloadProgress) -> Unit = { p ->
             _downloadProgress.value = p
-            onProgress(p)
+            mainHandler.post { onProgress(p) }
         }
         val emitDone: (Boolean, String) -> Unit = { ok, msg ->
             activeHandles.remove(key)
@@ -550,7 +552,7 @@ object UpdateManager {
         authToken: String?,
         handle: DownloadHandle
     ): File? {
-        val dest = File(context.filesDir, "xdelta3")
+        val dest = File(context.applicationInfo.nativeLibraryDir, "libxdelta3.so")
         if (dest.exists() && dest.canExecute() && dest.length() > 10_000) {
             return dest
         }
@@ -568,9 +570,10 @@ object UpdateManager {
         }
 
         Log.d(TAG, "📥 Downloading $assetName…")
-        val tmp = downloadFile(url, context.filesDir, "xdelta3.download", authToken, handle) { _, _, _ -> }
+        val tmp = downloadFile(url, context.cacheDir, "xdelta3.download", authToken, handle) { _, _, _ -> }
             ?: return null
 
+        dest.parentFile?.mkdirs()
         if (dest.exists()) dest.delete()
         if (!tmp.renameTo(dest)) {
             tmp.copyTo(dest, overwrite = true)
@@ -722,7 +725,8 @@ object UpdateManager {
     }
 
     private fun getCurrentVersionCode(context: Context): Int = try {
-        context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        PackageInfoCompat.getLongVersionCode(info).toInt()
     } catch (_: PackageManager.NameNotFoundException) {
         0
     }

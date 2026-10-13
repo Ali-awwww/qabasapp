@@ -318,7 +318,7 @@ object ReelPublishManager {
             reelId = "pub_${System.currentTimeMillis()}",
             title = cleanTitle,
             userName = userName,
-            userAvatar = null,
+            userAvatar = resolvedAvatar,
             videoUrl = finalVideoUrl,
             category = category,
             durationSec = 10

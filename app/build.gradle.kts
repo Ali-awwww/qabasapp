@@ -149,6 +149,7 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
+  implementation(libs.androidx.security.crypto)
   implementation(libs.googleid)
   // implementation(libs.firebase.analytics)
   // implementation(libs.firebase.crashlytics)

@@ -50,7 +50,6 @@ class AccountService(private val context: Context) {
 
     var dailyVideoCount: Int
         get() {
-            if (isDeveloperOrAdmin || hasCustomKeys) return 0
             val lastDate = prefs.getString("last_video_date", "")
             return if (lastDate == getCurrentDateStr()) {
                 prefs.getInt("daily_video_count", 0)
@@ -67,7 +66,6 @@ class AccountService(private val context: Context) {
 
     var dailyImageCount: Int
         get() {
-            if (isDeveloperOrAdmin || hasCustomKeys) return 0
             val lastDate = prefs.getString("last_image_date", "")
             return if (lastDate == getCurrentDateStr()) {
                 prefs.getInt("daily_image_count", 0)

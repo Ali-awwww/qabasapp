@@ -140,11 +140,15 @@ fun AiStudioAgentScreen(
     fun saveMissionState() {
         currentMission?.let { mission ->
             val json = JSONObject().apply {
-                put("id", mission.id)
+                put("missionId", mission.id)
                 put("userPrompt", mission.userPrompt)
                 put("specialization", mission.specialization.name)
-                put("steps", mission.steps.joinToString(",") { step -> step.id })
-                put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+                val stepsArray = org.json.JSONArray()
+                mission.steps.forEach { step -> stepsArray.put(step.id) }
+                put("steps", stepsArray)
+                val modifiedArray = org.json.JSONArray()
+                mission.modifiedFiles.forEach { modifiedArray.put(it) }
+                put("modifiedFiles", modifiedArray)
                 put("buildTriggered", mission.buildTriggered)
                 put("apkUrl", mission.apkUrl)
                 put("timestamp", mission.timestamp)
@@ -172,7 +176,7 @@ fun AiStudioAgentScreen(
             }
 
             return AgentMissionSession(
-                id = obj.getString("id"),
+                id = obj.getString("missionId"),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
                 status = AgentTaskStatus.PLANNING,
@@ -187,7 +191,6 @@ fun AiStudioAgentScreen(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to restore mission state: ${e.message}")
-            // Clear corrupted state
             prefs.edit().remove("active_mission_json").apply()
             return null
         }
@@ -200,8 +203,12 @@ fun AiStudioAgentScreen(
                 put("missionId", mission.id)
                 put("userPrompt", mission.userPrompt)
                 put("specialization", mission.specialization.name)
-                put("steps", mission.steps.joinToString(",") { step -> step.id })
-                put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+                val stepsArray = org.json.JSONArray()
+                mission.steps.forEach { step -> stepsArray.put(step.id) }
+                put("steps", stepsArray)
+                val modifiedArray = org.json.JSONArray()
+                mission.modifiedFiles.forEach { modifiedArray.put(it) }
+                put("modifiedFiles", modifiedArray)
                 put("buildTriggered", mission.buildTriggered)
                 put("apkUrl", mission.apkUrl)
                 put("timestamp", mission.timestamp)
@@ -225,7 +232,7 @@ fun AiStudioAgentScreen(
             }
 
             currentMission = AgentMissionSession(
-                id = obj.getString("missionId"),
+                id = obj.optString("missionId", obj.optString("id", "")),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
                 status = AgentTaskStatus.PLANNING,
@@ -2293,8 +2300,12 @@ fun exportMissionJson(currentMission: AgentMissionSession?): String {
             put("missionId", mission.id)
             put("userPrompt", mission.userPrompt)
             put("specialization", mission.specialization.name)
-            put("steps", mission.steps.joinToString(",") { step -> step.id })
-            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            val stepsArray = org.json.JSONArray()
+            mission.steps.forEach { step -> stepsArray.put(step.id) }
+            put("steps", stepsArray)
+            val modifiedArray = org.json.JSONArray()
+            mission.modifiedFiles.forEach { modifiedArray.put(it) }
+            put("modifiedFiles", modifiedArray)
             put("buildTriggered", mission.buildTriggered)
             put("apkUrl", mission.apkUrl)
             put("timestamp", mission.timestamp)
@@ -2316,7 +2327,7 @@ fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, js
             )
         }
         currentMission.value = AgentMissionSession(
-            id = obj.getString("missionId"),
+            id = obj.optString("missionId", obj.optString("id", "")),
             userPrompt = obj.getString("userPrompt"),
             specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
             status = AgentTaskStatus.PLANNING,
@@ -2338,11 +2349,15 @@ fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, js
 fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
     currentMission.value?.let { mission ->
         val json = JSONObject().apply {
-            put("id", mission.id)
+            put("missionId", mission.id)
             put("userPrompt", mission.userPrompt)
             put("specialization", mission.specialization.name)
-            put("steps", mission.steps.joinToString(",") { step -> step.id })
-            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            val stepsArray = org.json.JSONArray()
+            mission.steps.forEach { step -> stepsArray.put(step.id) }
+            put("steps", stepsArray)
+            val modifiedArray = org.json.JSONArray()
+            mission.modifiedFiles.forEach { modifiedArray.put(it) }
+            put("modifiedFiles", modifiedArray)
             put("buildTriggered", mission.buildTriggered)
             put("apkUrl", mission.apkUrl)
             put("timestamp", mission.timestamp)
@@ -2369,7 +2384,7 @@ fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, pref
         }
 
         return AgentMissionSession(
-            id = obj.getString("id"),
+            id = obj.optString("missionId", obj.optString("id", "")),
             userPrompt = obj.getString("userPrompt"),
             specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
             status = AgentTaskStatus.PLANNING,

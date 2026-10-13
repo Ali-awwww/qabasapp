@@ -24,7 +24,7 @@ fun ApiServerSettingsSection() {
     var apiKey by remember { mutableStateOf(prefs.getString("api_server_key", generateApiKey()) ?: generateApiKey()) }
     var showInstructions by remember { mutableStateOf(false) }
     
-    val server = remember { LocalApiServer(context, apiKey) }
+    val server = remember { LocalApiServer(context) { prefs.getString("api_server_key", "") ?: "" } }
     
     Card(
         colors = CardDefaults.cardColors(containerColor = CardSurface),

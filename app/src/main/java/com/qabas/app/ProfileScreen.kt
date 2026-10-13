@@ -115,7 +115,10 @@ fun ProfileScreen(
             ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
         val nameLooksFake = nameSnapshot.isNullOrBlank() ||
             nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
-        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank()) return@LaunchedEffect
+        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank() &&
+            prefs.getString("user_email", null) != null &&
+            nameSnapshot != null
+        ) return@LaunchedEffect
 
         val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
         val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()

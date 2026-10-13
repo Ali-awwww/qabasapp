@@ -34,7 +34,7 @@ object AdminGuard {
     }
 
     fun isDashboardAccessAllowed(context: Context): Boolean =
-        isCloudUserOwner() || localDeveloperFlag(context) || SupabaseServices.Auth.verifiedRole.value != "free"
+        isCloudUserOwner() || localDeveloperFlag(context) || (SupabaseServices.Auth.verifiedRole.value in setOf("admin", "developer", "owner"))
 
     /**
      * Checks if the user is an admin based on Supabase Auth metadata.

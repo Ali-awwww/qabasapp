@@ -373,6 +373,12 @@ fun OnDeviceModelCard(
             if (isThisDownloading) {
                 val state: ModelDownloadState.Downloading = when (downloadState) {
                     is ModelDownloadState.Downloading -> downloadState
+                    is ModelDownloadState.Interrupted -> ModelDownloadState.Downloading(
+                        modelId = downloadState.modelId,
+                        progress = if (downloadState.totalBytes > 0) downloadState.downloadedBytes.toFloat() / downloadState.totalBytes else 0f,
+                        downloadedBytes = downloadState.downloadedBytes,
+                        totalBytes = downloadState.totalBytes
+                    )
                     else -> throw IllegalStateException("Unexpected download state: $downloadState")
                 }
                 val downloadedMb = state.downloadedBytes / (1024 * 1024)

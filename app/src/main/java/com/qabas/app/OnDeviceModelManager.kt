@@ -368,10 +368,6 @@ object OnDeviceModelManager {
             totalBytes = savedTotal
         )
 
-        // حذف حالة الانقطاع المحفوظة لأننا نبدأ عملية جديدة
-        prefs.edit().remove("model_resume_${modelInfo.id}").remove("model_total_${modelInfo.id}").apply()
-
-        // استدعاء التنزيل من النقطة المحفوظة (سيستخدم الملف المؤقت الموجود)
         return downloadModel(context, modelInfo)
     }
 

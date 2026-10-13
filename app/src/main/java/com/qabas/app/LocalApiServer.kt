@@ -9,7 +9,10 @@ import java.io.OutputStreamWriter
 import java.net.ServerSocket
 import java.net.Socket
 
-class LocalApiServer(private val context: Context, private val apiKey: String = "QABAS_API_KEY_123") {
+class LocalApiServer(
+    private val context: Context,
+    private val apiKeyProvider: () -> String = { "QABAS_API_KEY_123" }
+) {
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + Job())
@@ -62,7 +65,7 @@ class LocalApiServer(private val context: Context, private val apiKey: String = 
                     }
                 }
 
-                if (authHeader != "Bearer $apiKey") {
+                if (authHeader != "Bearer ${apiKeyProvider()}") {
                     sendResponse(writer, 401, JSONObject().put("error", "Unauthorized: Invalid API Key").toString())
                     return@launch
                 }
