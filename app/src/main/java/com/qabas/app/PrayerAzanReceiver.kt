@@ -120,6 +120,10 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 🔑 نُظهر الشاشة الكاملة فقط في أوضاع الصوت الفعّالة (وليس الوضع الصامت)
+        val isSilentMode = soundMode == "SILENT" || soundMode == "OFF" || soundMode.isBlank()
+        val isStrongSound = soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY"
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(appIcon)
@@ -130,10 +134,10 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openPendingIntent)
-            // 🔑 يفتح شاشة الأذان كاملة حتى لو كان الجهاز مقفلاً أو التطبيق مغلقًا
-            .setFullScreenIntent(fullScreenPendingIntent, true)
+            // 🔑 يفتح شاشة الأذان كاملة فقط في أوضاع الصوت الفعّالة (تجاوز الوضع الصامت)
+            .setFullScreenIntent(fullScreenPendingIntent, isStrongSound)
             .setAutoCancel(true)
-            .setOngoing(soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY")
+            .setOngoing(isStrongSound)
             .addAction(android.R.drawable.ic_media_pause, "إيقاف الأذان", stopAzanPendingIntent)
 
         QabasNotificationHelper.addActionMarkDone(
@@ -150,7 +154,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             val azanAlarmChannel = NotificationChannel(
                 "qabas_azan_alarm_channel",
                 "منبه الأذان (شاشة كاملة)",
-                NotificationManager.IMPORTANCE_MAX
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "إشعار الأذان الذي يفتح شاشة كاملة فوق أي تطبيق أو قفل"
                 setSound(null, null)
