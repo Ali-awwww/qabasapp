@@ -33,17 +33,19 @@ object KeyVault {
         AppServices.appContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
 
     private fun isReal(value: String?): Boolean {
-        val t = value?.trim() ?: return false
+        val t = KeyPoolManager.sanitizeApiKey(value ?: return false)
         return t.isNotEmpty() && !t.lowercase().startsWith("your_")
     }
 
     private fun resolve(prefsKey: String, fromBuildConfig: String?): String {
         // مسبح البدائل أولاً (التبديل اليدوي/التلقائي)، ثم المفرد، ثم BuildConfig
-        val poolActive = runCatching { KeyPoolManager.getActiveKey(prefsKey) }.getOrDefault("")
-        if (isReal(poolActive)) return poolActive.trim()
-        val fromPrefs = prefs().getString(prefsKey, "") ?: ""
-        if (isReal(fromPrefs)) return fromPrefs.trim()
-        if (isReal(fromBuildConfig)) return fromBuildConfig!!.trim()
+        // sanitize في كل قراءة: أي مفتاح مخزن ملوث بمحارف خفية يُنظف قبل الإرسال
+        val poolActive = runCatching { KeyPoolManager.sanitizeApiKey(KeyPoolManager.getActiveKey(prefsKey)) }.getOrDefault("")
+        if (isReal(poolActive)) return poolActive
+        val fromPrefs = KeyPoolManager.sanitizeApiKey(prefs().getString(prefsKey, "") ?: "")
+        if (isReal(fromPrefs)) return fromPrefs
+        val cleanBuild = KeyPoolManager.sanitizeApiKey(fromBuildConfig ?: "")
+        if (isReal(cleanBuild)) return cleanBuild
         return ""
     }
 

@@ -179,9 +179,9 @@ fun AIAssistantScreen(
     var toolsMode by remember(hasOrKey) { mutableStateOf(hasOrKey) }
     val orModelLabels = remember {
         mapOf(
-            "meta-llama/llama-3.3-70b-instruct:free" to "🦙 Llama 3.3",
-            "google/gemma-3-27b-it:free" to "💎 Gemma 3",
-            "qwen/qwen3-32b:free" to "🌊 Qwen 3"
+            "poolside/laguna-s-2.1:free" to "🦙 Laguna Code",
+            "google/gemma-4-31b-it:free" to "💎 Gemma 4",
+            "cohere/north-mini-code:free" to "🌊 North Code"
         )
     }
     var customInstructionText by remember { mutableStateOf("") }

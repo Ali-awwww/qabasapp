@@ -45,24 +45,25 @@ object AgentConnectivityEngine {
      */
     fun resolveKeyWithSource(context: Context): Triple<DetectedProvider, String, KeySource> {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        fun clean(v: String?) = KeyPoolManager.sanitizeApiKey(v ?: "")
 
-        // 1. فحص التخزين المحلي للمستخدم أولاً
-        val geminiPrefs = prefs.getString("gemini_key", "")?.trim() ?: ""
+        // 1. فحص التخزين المحلي للمستخدم أولاً (بتنظيف صارم للمحارف الخفية)
+        val geminiPrefs = clean(prefs.getString("gemini_key", ""))
         if (geminiPrefs.isNotEmpty() && !geminiPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GEMINI, geminiPrefs, KeySource.KEY_VAULT)
         }
 
-        val openrouterPrefs = prefs.getString("openrouter_key", "")?.trim() ?: ""
+        val openrouterPrefs = clean(prefs.getString("openrouter_key", ""))
         if (openrouterPrefs.isNotEmpty() && !openrouterPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENROUTER, openrouterPrefs, KeySource.KEY_VAULT)
         }
 
-        val groqPrefs = prefs.getString("groq_key", "")?.trim() ?: ""
+        val groqPrefs = clean(prefs.getString("groq_key", ""))
         if (groqPrefs.isNotEmpty() && !groqPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GROQ, groqPrefs, KeySource.KEY_VAULT)
         }
 
-        val openaiPrefs = prefs.getString("openai_key", "")?.trim() ?: ""
+        val openaiPrefs = clean(prefs.getString("openai_key", ""))
         if (openaiPrefs.isNotEmpty() && !openaiPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENAI, openaiPrefs, KeySource.KEY_VAULT)
         }

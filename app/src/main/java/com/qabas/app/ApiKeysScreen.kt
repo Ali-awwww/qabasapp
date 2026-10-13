@@ -130,12 +130,11 @@ private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
 
 /** تنظيف اللصق: مسافات وأسطر واقتباس وبادئة Bearer ومحارف خفية. */
 fun normalizePastedKey(raw: String): String {
-    var s = raw.trim()
-        .replace(Regex("[\u200B\u200C\u200D\uFEFF]"), "")
+    var s = KeyPoolManager.sanitizeApiKey(raw)
         .replace(Regex("\\s+"), "")
     s = s.removeSurrounding("\"").removeSurrounding("'")
     if (s.startsWith("Bearer ", ignoreCase = true)) s = s.substring(7)
-    return s.trim().removeSurrounding("\"").removeSurrounding("'")
+    return KeyPoolManager.sanitizeApiKey(s).removeSurrounding("\"").removeSurrounding("'")
 }
 
 /** أول تطابق كامل حسب الترتيب الدقيق — null تعني غير معروف. */

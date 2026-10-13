@@ -322,7 +322,7 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                         else -> "https://api.groq.com/openai/v1/chat/completions"
                     }
                     val model = when (provider) {
-                        DetectedProvider.OPENROUTER -> "anthropic/claude-3.5-sonnet"
+                        DetectedProvider.OPENROUTER -> "anthropic/claude-sonnet-4.5"
                         DetectedProvider.OPENAI -> "gpt-4o"
                         else -> "llama-3.3-70b-versatile"
                     }

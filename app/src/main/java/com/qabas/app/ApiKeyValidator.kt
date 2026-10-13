@@ -72,7 +72,7 @@ object ApiKeyValidator {
     }
 
     private suspend fun executeValidation(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
-        val trimmedKey = key.trim()
+        val trimmedKey = KeyPoolManager.sanitizeApiKey(key)
         val isPlaceholder = trimmedKey.isEmpty() ||
                 trimmedKey.length < 5 ||
                 trimmedKey.startsWith("your_", ignoreCase = true) ||

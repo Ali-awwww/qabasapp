@@ -26,6 +26,17 @@ object KeyPoolManager {
         return t.isNotEmpty() && !t.lowercase().startsWith("your_") && t.length >= 5
     }
 
+    /**
+     * تنظيف صارم للمفاتيح: يزيل كل المحارف غير المرئية التي يلتقطها النسخ
+     * (علامات اتجاه RTL/LTR ‏U+200E ‏U+200F، مسافات صلبة U+00A0، كل فئة Cf)
+     * والتي يتجاهلها trim() فتفسد ترويسة Authorization بصمت.
+     */
+    fun sanitizeApiKey(raw: String): String {
+        return raw
+            .replace(Regex("[\\p{Cf}\\u00A0\\u2000-\\u200B]"), "")
+            .trim()
+    }
+
     /** كل المفاتيح: النشط أولاً ثم البقية (بدون تكرار)، ثم الإرثي، ثم BuildConfig. */
     fun orderedKeys(prefsKey: String, legacyFallback: String = ""): List<String> {
         val pool = getKeys(prefsKey).toMutableList()

@@ -86,7 +86,7 @@ enum class DetectedProvider(
     val defaultModel: String,
     val color: Color
 ) {
-    OPENROUTER("openrouter", "OpenRouter AI Gateway", "sk-or-", "anthropic/claude-3.5-sonnet", Color(0xFF38BDF8)),
+    OPENROUTER("openrouter", "OpenRouter AI Gateway", "sk-or-", "anthropic/claude-sonnet-4.5", Color(0xFF38BDF8)),
     GEMINI("gemini", "Google Gemini 3.5 Flash", "AIza", "gemini-3.5-flash", Color(0xFF00E5FF)),
     GROQ("groq", "Groq Lightning Llama", "gsk_", "llama-3.3-70b-versatile", Color(0xFFF59E0B)),
     OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981)),
@@ -263,7 +263,7 @@ object UniversalKeyBrain {
                 DetectedProvider.OPENROUTER -> {
                     val url = "https://openrouter.ai/api/v1/chat/completions"
                     val jsonBody = org.json.JSONObject().apply {
-                        put("model", "anthropic/claude-3.5-sonnet")
+                        put("model", "anthropic/claude-sonnet-4.5")
                         put("messages", org.json.JSONArray().apply {
                             put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
                             put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
@@ -4025,11 +4025,11 @@ private fun ToolsTab(context: Context) {
                     ) {
                         listOf(
                             null to "⚡ تلقائي (حسب المفتاح)",
-                            "anthropic/claude-3.5-sonnet" to "🧠 Claude 3.5 Sonnet",
+                            "anthropic/claude-sonnet-4.5" to "🧠 Claude Sonnet 4.5",
                             "gemini-2.0-flash" to "💎 Gemini 2.0 Flash",
                             "llama-3.3-70b-versatile" to "⚡ Groq Llama 70B",
-                            "meta-llama/llama-3.3-70b-instruct:free" to "🦙 Llama Free",
-                            "qwen/qwen3-32b:free" to "🌊 Qwen 32B"
+                            "poolside/laguna-s-2.1:free" to "🦙 Laguna Code Free",
+                            "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free"
                         ).forEach { (id, label) ->
                             val isSelected = model == id
                             Surface(

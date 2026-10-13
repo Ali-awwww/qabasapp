@@ -23,9 +23,9 @@ object OpenRouterService {
 
     /** نماذج مجانية تُجرَّب بالترتيب حتى ينجح أحدها. */
     val FREE_MODELS = listOf(
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-3-27b-it:free",
-        "qwen/qwen3-32b:free"
+        "poolside/laguna-s-2.1:free",
+        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free"
     )
 
     private val client = OkHttpClient.Builder()
