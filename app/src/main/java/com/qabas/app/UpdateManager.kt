@@ -446,12 +446,54 @@ object UpdateManager {
         }
     }
 
+    /** حالة أحدث تشغيل لسير توليد الديلتا — لمنع التكرار وعرض التقدم الحي. */
+    data class XdeltaRunInfo(
+        val runId: Long,
+        val status: String,
+        val conclusion: String?,
+        val createdAt: String,
+        val event: String
+    ) {
+        fun isActive(): Boolean = status == "queued" || status == "in_progress" ||
+            status == "waiting" || status == "requested" || status == "pending"
+        fun isSuccess(): Boolean = status == "completed" && conclusion == "success"
+        fun isFailed(): Boolean = status == "completed" && conclusion != null && conclusion != "success"
+    }
+
+    /** أحدث تشغيل لسير xdelta (الأول = الأحدث) — null عند غيابه أو تعذر القراءة. */
+    suspend fun fetchLatestXdeltaRun(
+        owner: String,
+        repo: String,
+        token: String?
+    ): Result<XdeltaRunInfo?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val builder = Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/actions/workflows/xdelta--updates.yml/runs?per_page=5")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "Qabas-Studio")
+            if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
+            client.newCall(builder.build()).execute().use { resp ->
+                if (!resp.isSuccessful) throw IllegalStateException("GitHub: ${resp.code}")
+                val runs = JSONObject(resp.body?.string().orEmpty()).optJSONArray("workflow_runs")
+                    ?: return@runCatching null
+                if (runs.length() == 0) return@runCatching null
+                val r = runs.getJSONObject(0)
+                XdeltaRunInfo(
+                    runId = r.optLong("id", 0),
+                    status = r.optString("status", ""),
+                    conclusion = r.optString("conclusion", "").ifBlank { null },
+                    createdAt = r.optString("created_at", ""),
+                    event = r.optString("event", "")
+                )
+            }
+        }
+    }
+
     /**
      * تشغيل سير توليد الديلتا على GitHub (workflow_dispatch) — للمطور فقط.
      * يتطلب PAT بصلاحية actions:write. يرمي 204 عند القبول.
      */
-    suspend fun dispatchDeltaWorkflow(
-        owner: String,
+    suspend fun dispatchDeltaWorkflow(        owner: String,
         repo: String,
         token: String,
         targetTag: String,

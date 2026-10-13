@@ -43,6 +43,33 @@ import kotlinx.coroutines.withContext
  * شاشة الاتصال المباشر بمستودع GitHub وفحص إصدارات وتحديثات xdelta التفاضلية
  * بنمط Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)
  */
+
+/** عمر تشغيل السير بالدقائق من created_at (ISO8601) — كبير عند تعذر الحساب. */
+private fun runAgeMinutes(info: UpdateManager.XdeltaRunInfo): Long {
+    return runCatching {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+        fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        val created = fmt.parse(info.createdAt)?.time ?: return 9999L
+        ((System.currentTimeMillis() - created) / 60000L).coerceAtLeast(0L)
+    }.getOrDefault(9999L)
+}
+
+private fun runAgeText(info: UpdateManager.XdeltaRunInfo): String {
+    val m = runAgeMinutes(info)
+    return when {
+        m < 1 -> "قبل لحظات"
+        m < 60 -> "منذ $m د"
+        else -> "منذ ${m / 60} س و${m % 60} د"
+    }
+}
+
+private fun runStatusText(info: UpdateManager.XdeltaRunInfo): String = when {
+    info.isSuccess() -> "اكتمل بنجاح ✅"
+    info.isFailed() -> "فشل (${info.conclusion}) ❌"
+    info.status == "queued" -> "في الانتظار ⏳"
+    info.status == "in_progress" -> "يعمل الآن ⚙️"
+    else -> info.status
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GithubXdeltaHubScreen(
@@ -90,6 +117,9 @@ fun GithubXdeltaHubScreen(
     // حالة توليد الديلتا عن بُعد (زر المطور)
     var isDispatching by remember { mutableStateOf(false) }
     var dispatchMessage by remember { mutableStateOf<String?>(null) }
+    // تتبع حي لتشغيل التوليد: يمنع الضغط المكرر ويعرض التقدم لحظة بلحظة
+    var trackingRun by remember { mutableStateOf(false) }
+    var trackedRun by remember { mutableStateOf<UpdateManager.XdeltaRunInfo?>(null) }
 
     // حالة التحميل والتثبيت
     val downloadProgress by UpdateManager.downloadProgress.collectAsState()
@@ -180,6 +210,15 @@ fun GithubXdeltaHubScreen(
         coroutineScope.launch {
             val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
             val repo = repoInput.trim().ifBlank { "qabasapp" }
+            // منع التكرار: إن كان تشغيل نشط وحديث — تتبعه بدل إرسال أمر جديد
+            val existing = UpdateManager.fetchLatestXdeltaRun(owner, repo, pat).getOrNull()
+            if (existing != null && existing.isActive() && runAgeMinutes(existing) < 30) {
+                isDispatching = false
+                trackedRun = existing
+                trackingRun = true
+                dispatchMessage = "التوليد يعمل بالفعل (بدأ ${runAgeText(existing)}) — أتتبعه حياً بدل التكرار ⏳"
+                return@launch
+            }
             val tags = UpdateManager.fetchLatestTwoReleaseTags(owner, repo, pat.ifBlank { null })
             val (target, prev) = tags.getOrNull() ?: run {
                 isDispatching = false
@@ -195,7 +234,8 @@ fun GithubXdeltaHubScreen(
             isDispatching = false
             res.fold(
                 onSuccess = {
-                    dispatchMessage = "انطلق التوليد لـ $target من $prev ⚡ — أعد الفحص بعد 3-5 دقائق"
+                    dispatchMessage = "انطلق التوليد لـ $target من $prev ⚡ — أتتبع التقدم حياً..."
+                    trackingRun = true
                     Toast.makeText(context, "تم إرسال أمر توليد الديلتا 🚀", Toast.LENGTH_LONG).show()
                 },
                 onFailure = { err ->
@@ -203,6 +243,34 @@ fun GithubXdeltaHubScreen(
                 }
             )
         }
+    }
+
+    // حلقة التتبع الحي: تستعلم كل 30 ثانية حتى الاكتمال (12 دقيقة حداً أقصى)
+    LaunchedEffect(trackingRun) {
+        if (!trackingRun) return@LaunchedEffect
+        val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
+        val repo = repoInput.trim().ifBlank { "qabasapp" }
+        val pat = tokenInput.trim()
+        repeat(24) {
+            kotlinx.coroutines.delay(30000)
+            val info = UpdateManager.fetchLatestXdeltaRun(owner, repo, pat.ifBlank { null }).getOrNull()
+            trackedRun = info
+            if (info == null || !info.isActive()) {
+                trackingRun = false
+                when {
+                    info?.isSuccess() == true -> {
+                        dispatchMessage = "اكتمل التوليد ✅ — أعيد الفحص لالتقاط الديلتا..."
+                        checkReleases()
+                    }
+                    info?.isFailed() == true ->
+                        dispatchMessage = "فشل التوليد (${info.conclusion}) ❌ — راجع سجل Actions في GitHub"
+                    else -> dispatchMessage = "انتهت المتابعة — أعد الفحص يدوياً"
+                }
+                return@LaunchedEffect
+            }
+        }
+        trackingRun = false
+        dispatchMessage = "طال التشغيل — تابع من Actions ثم أعد الفحص يدوياً"
     }
 
     fun saveRepoCredentials() {
@@ -655,7 +723,7 @@ fun GithubXdeltaHubScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = { triggerDeltaGeneration() },
-                    enabled = !isDispatching,
+                    enabled = !isDispatching && !trackingRun,
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
@@ -702,6 +770,53 @@ fun GithubXdeltaHubScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+                // بطاقة التتبع الحي: حالة التشغيل + عمره + شريط متحرك أثناء العمل
+                if (trackingRun || trackedRun != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF0B1324),
+                        border = BorderStroke(
+                            1.dp,
+                            if (trackedRun?.isFailed() == true) Color(0xFFEF4444).copy(alpha = 0.5f)
+                            else Color(0xFF00E5FF).copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = trackedRun?.let { "التشغيل #${it.runId} • ${runStatusText(it)}" }
+                                        ?: "بانتظار أول قراءة...",
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp
+                                )
+                                if (trackingRun) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = Color(0xFF00E5FF),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+                            trackedRun?.let { info ->
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "بدأ ${runAgeText(info)} • حدّث تلقائياً كل 30 ثانية — لا تضغط مجدداً",
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
