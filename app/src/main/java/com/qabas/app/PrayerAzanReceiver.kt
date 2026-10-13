@@ -107,6 +107,19 @@ class PrayerAzanReceiver : BroadcastReceiver() {
 
         val appIcon = QabasNotificationHelper.getAppIconBitmap(context)
 
+        val fullScreenIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "prayer_times")
+            putExtra("full_screen_azan", true)
+            putExtra("prayer_name", prayerName)
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            context,
+            9930,
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(appIcon)
@@ -117,6 +130,10 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openPendingIntent)
+            // 🔑 يفتح شاشة الأذان كاملة حتى لو كان الجهاز مقفلاً أو التطبيق مغلقًا
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setAutoCancel(true)
+            .setOngoing(soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY")
             .addAction(android.R.drawable.ic_media_pause, "إيقاف الأذان", stopAzanPendingIntent)
 
         QabasNotificationHelper.addActionMarkDone(
@@ -127,6 +144,22 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         )
 
         builder.setAutoCancel(true)
+
+        // 🔑 استخدام الاستيرادية القصوى للقناة الجديدة (Azan Alarm) حتى تظهر فوق شاشة القفل
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val azanAlarmChannel = NotificationChannel(
+                "qabas_azan_alarm_channel",
+                "منبه الأذان (شاشة كاملة)",
+                NotificationManager.IMPORTANCE_MAX
+            ).apply {
+                description = "إشعار الأذان الذي يفتح شاشة كاملة فوق أي تطبيق أو قفل"
+                setSound(null, null)
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notificationManager.createNotificationChannel(azanAlarmChannel)
+            builder.setChannelId("qabas_azan_alarm_channel")
+        }
 
         notificationManager.notify(notifId, builder.build())
     }

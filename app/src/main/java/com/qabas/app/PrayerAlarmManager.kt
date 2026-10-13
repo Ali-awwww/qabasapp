@@ -132,16 +132,26 @@ object PrayerAlarmManager {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+                    // 🔑 أقوى مستوى: setAlarmClock - يظهر كأيقونة ساعة في شريط الحالة ولا يتأثر بـ Doze
+                    alarmManager.setAlarmClock(
+                        AlarmManager.AlarmClockInfo(triggerMillis, pendingIntent),
+                        pendingIntent
+                    )
                 } else {
+                    Log.w(TAG, "Exact alarm permission NOT granted for $prayerKey. Falling back to inexact.")
                     alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
                 }
             } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+                alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(triggerMillis, pendingIntent),
+                    pendingIntent
+                )
             }
         } catch (e: SecurityException) {
             Log.w(TAG, "Exact alarm permission missing: ${e.message}, falling back to setAndAllowWhileIdle")
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            try {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            } catch (_: Exception) {}
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule alarm for $prayerKey: ${e.message}")
         }

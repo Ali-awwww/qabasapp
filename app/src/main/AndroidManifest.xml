@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <queries>
         <intent>
@@ -87,6 +88,19 @@
                 <action android:name="com.qabas.app.ACTION_NOTIFICATION_LISTEN" />
                 <action android:name="com.qabas.app.ACTION_NOTIFICATION_SNOOZE" />
                 <action android:name="com.qabas.app.ACTION_NOTIFICATION_OPEN_SECTION" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".PrayerAzanBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
         <receiver
