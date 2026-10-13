@@ -1,7 +1,11 @@
 package com.qabas.app
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -38,8 +42,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
-import androidx.preference.PreferenceManager
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
@@ -118,15 +122,14 @@ fun AiStudioAgentScreen(
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
     val TAG = "AiStudioAgentScreen"
-    val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
     // Mission State Management
     var missionAutoSwitched by remember { mutableStateOf(false) }
 
     // Save current mission state to SharedPreferences
     fun saveMissionState() {
-        val mission = currentMission.value
-        if (mission == null) return
+        val mission = currentMission.value ?: return
 
         val json = JSONObject().apply {
             put("id", mission.id)
@@ -166,7 +169,10 @@ fun AiStudioAgentScreen(
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
                 status = AgentTaskStatus.PLANNING,
                 steps = steps,
-                modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
+                modifiedFiles = if (obj.has("modifiedFiles")) {
+                    val arr = obj.getJSONArray("modifiedFiles")
+                    (0 until arr.length()).map { arr.getString(it) }
+                } else emptyList(),
                 buildTriggered = obj.getBoolean("buildTriggered"),
                 apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
                 timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
@@ -217,7 +223,10 @@ fun AiStudioAgentScreen(
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
                 status = AgentTaskStatus.PLANNING,
                 steps = steps,
-                modifiedFiles = if (obj.has("modifiedFiles")) obj.getJSONArray("modifiedFiles").toList().asSequence().map { it.toString() } else emptyList(),
+                modifiedFiles = if (obj.has("modifiedFiles")) {
+                    val arr = obj.getJSONArray("modifiedFiles")
+                    (0 until arr.length()).map { arr.getString(it) }
+                } else emptyList(),
                 buildTriggered = obj.getBoolean("buildTriggered"),
                 apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
                 timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
@@ -297,7 +306,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
             missionAutoSwitched.value = false
             // Could restore mission state here - currently manual
         }
-    },
+    }
 
     // Periodic auto-save every 30 seconds
     LaunchedEffect(Unit) {
