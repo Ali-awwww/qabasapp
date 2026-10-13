@@ -472,7 +472,9 @@ object AgentConnectivityEngine {
         apiKey: String,
         userPrompt: String,
         architecturalPlan: String,
-        model: String? = null
+        model: String? = null,
+        stream: Boolean = false,
+        onPartial: ((String) -> Unit)? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val synthesisInstruction = """
             أنت مهندس برمجيات متخصص في نظام Android (Kotlin + Jetpack Compose + Material 3).
@@ -486,12 +488,14 @@ object AgentConnectivityEngine {
             قدم الكود داخل كتل برمجية واضحة مع شرح دقيق وموجز للتغييرات.
         """.trimIndent()
 
-        UniversalKeyBrain.executeRealAgentStep(
+        UniversalKeyBrain.executeRealAgentStepWithFailover(
             provider = provider,
-            apiKey = apiKey,
             prompt = "اكتب الكود التنفيذي الكامل للتعديل المطلوب بناءً على الخطة المعتمدة.",
             systemInstruction = synthesisInstruction,
-            model = model
+            fallbackSingleKey = apiKey,
+            model = model,
+            stream = stream,
+            onPartial = onPartial
         )
     }
 }

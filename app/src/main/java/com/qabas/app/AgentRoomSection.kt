@@ -228,7 +228,9 @@ object UniversalKeyBrain {
         prompt: String,
         systemInstruction: String,
         fallbackSingleKey: String = "",
-        model: String? = null
+        model: String? = null,
+        stream: Boolean = false,
+        onPartial: ((String) -> Unit)? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val prefsKey = prefsKeyFor(provider)
         val keys = if (prefsKey.isNotBlank()) {
@@ -242,7 +244,11 @@ object UniversalKeyBrain {
         var lastError: Exception? = null
         for (k in keys) {
             val start = System.currentTimeMillis()
-            val res = executeRealAgentStep(provider, k, prompt, systemInstruction, model)
+            val res = if (stream && onPartial != null) {
+                AgentStreaming.stream(provider, k, model, prompt, systemInstruction, onPartial)
+            } else {
+                executeRealAgentStep(provider, k, prompt, systemInstruction, model)
+            }
             val ms = System.currentTimeMillis() - start
             if (res.isSuccess) {
                 if (prefsKey.isNotBlank()) {

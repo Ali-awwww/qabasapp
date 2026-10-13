@@ -93,6 +93,8 @@ data class AgentMissionSession(
     val steps: List<AgentExecutionStep> = emptyList(),
     val finalReport: String = "",
     val modifiedFiles: List<String> = emptyList(),
+    val proposedDiffs: List<FileDiff> = emptyList(),
+    val appliedPaths: List<String> = emptyList(),
     val buildTriggered: Boolean = false,
     val apkUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis()
@@ -135,6 +137,7 @@ fun AiStudioAgentScreen(
     var lastExecutedPrompt by remember { mutableStateOf<String>("") }
     var showModelPicker by remember { mutableStateOf(false) }
     var selectedModel by remember { mutableStateOf<String>("gemini-3.5-flash") }
+    var applyingDiffPath by remember { mutableStateOf<String?>(null) }
     val TAG = "AiStudioAgentScreen"
     val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
@@ -1599,7 +1602,41 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     )
                                 }
                             }
-                        }
+                        },
+                        onApplyDiff = { diff ->
+                            if (activeRepo == null || activeRepo.token.isBlank()) {
+                                Toast.makeText(context, "اربط مستودع GitHub برمز صالح أولاً 🔗", Toast.LENGTH_LONG).show()
+                            } else {
+                                applyingDiffPath = diff.filePath
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
+                                    val ok = client.updateFile(
+                                        diff.filePath,
+                                        activeRepo.defaultBranch.ifBlank { "main" },
+                                        "feat(agent): update ${diff.filePath.substringAfterLast("/")}",
+                                        diff.diffText
+                                    )
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        applyingDiffPath = null
+                                        if (ok) {
+                                            currentMission = mission.copy(
+                                                appliedPaths = mission.appliedPaths + diff.filePath
+                                            )
+                                            Toast.makeText(context, "تم الاعتماد والدفع ✅", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "تعذر الدفع — تحقق من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onDiscardDiff = { diff ->
+                            currentMission = mission.copy(
+                                proposedDiffs = mission.proposedDiffs.filterNot { it.filePath == diff.filePath }
+                            )
+                            Toast.makeText(context, "تم تجاهل المقترح (تراجع) 🗑️", Toast.LENGTH_SHORT).show()
+                        },
+                        applyingPath = applyingDiffPath
                     )
                 }
             }
@@ -1719,7 +1756,10 @@ LaunchedEffect(currentMission, isOfflineMode) {
 @Composable
 fun LiveMissionExecutionCard(
     mission: AgentMissionSession,
-    onTriggerBuild: () -> Unit
+    onTriggerBuild: () -> Unit,
+    onApplyDiff: (FileDiff) -> Unit = {},
+    onDiscardDiff: (FileDiff) -> Unit = {},
+    applyingPath: String? = null
 ) {
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
@@ -1921,6 +1961,105 @@ fun LiveMissionExecutionCard(
                                 Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("بدء تجميع حزمة الـ APK على GitHub الآن ⚡", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Proposed Diffs: معاينة الفروقات + اعتماد (دفع GitHub) أو تجاهل (تراجع)
+            if (mission.proposedDiffs.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "🧩 مقترحات الكود (${mission.proposedDiffs.size}) — عاين ثم اعتمد أو تجاهل:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFE5B842)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                mission.proposedDiffs.forEach { diff ->
+                    var expanded by remember(diff.filePath) { mutableStateOf(false) }
+                    val isApplied = diff.filePath in mission.appliedPaths
+                    val isApplying = applyingPath == diff.filePath
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF0B1324),
+                        border = BorderStroke(1.dp, if (isApplied) Color(0xFF10B981) else Color(0xFFE5B842).copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = diff.filePath.substringAfterLast("/"),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "+${diff.additions}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF10B981),
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (expanded) diff.diffText else diff.diffText.lines().take(8).joinToString("\n"),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFCBD5E1),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF070B14), RoundedCornerShape(4.dp))
+                                    .padding(6.dp)
+                                    .clickable { expanded = !expanded },
+                                maxLines = if (expanded) Int.MAX_VALUE else 8,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (isApplied) {
+                                    Text(
+                                        text = "تم الاعتماد والدفع ✅",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF10B981)
+                                    )
+                                } else {
+                                    Button(
+                                        onClick = { onApplyDiff(diff) },
+                                        enabled = !isApplying,
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981), contentColor = Color.White),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.weight(1f).height(36.dp)
+                                    ) {
+                                        if (isApplying) {
+                                            CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                                        } else {
+                                            Text("اعتماد ودفع 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    OutlinedButton(
+                                        onClick = { onDiscardDiff(diff) },
+                                        enabled = !isApplying,
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                        modifier = Modifier.weight(1f).height(36.dp)
+                                    ) {
+                                        Text("تجاهل (تراجع) 🗑️", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                    }
+                                }
                             }
                         }
                     }
@@ -2224,8 +2363,18 @@ private suspend fun executeAgentMissionInner(
     """.trimIndent()
 
     val startTime1 = System.currentTimeMillis()
-    // تجاوز تلقائي: عند فشل المفتاح النشط ينتقل للبديل الأسرع المتصل فوراً
-    val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, prompt, sysInstruction, apiKey, selectedModel)
+    // بثّ تدريجي حي + تجاوز تلقائي للمفتاح البديل عند الفشل
+    val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(
+        provider, prompt, sysInstruction, apiKey, selectedModel,
+        stream = true,
+        onPartial = { partial ->
+            initialSteps[0] = step1.copy(
+                outputSnippet = (partial.take(350) + " ▍")
+            )
+            mission = mission.copy(steps = initialSteps.toList())
+            onUpdate(mission)
+        }
+    )
     val latencyMs1 = System.currentTimeMillis() - startTime1
 
     if (planResult.isFailure) {
@@ -2311,7 +2460,15 @@ private suspend fun executeAgentMissionInner(
         apiKey = apiKey,
         userPrompt = prompt,
         architecturalPlan = planText,
-        model = selectedModel
+        model = selectedModel,
+        stream = true,
+        onPartial = { partial ->
+            initialSteps[2] = step3.copy(
+                outputSnippet = (partial.take(350) + " ▍")
+            )
+            mission = mission.copy(steps = initialSteps.toList())
+            onUpdate(mission)
+        }
     )
     val latencyMs3 = System.currentTimeMillis() - startTime3
 
@@ -2341,7 +2498,13 @@ private suspend fun executeAgentMissionInner(
         isSuccess = true,
         outputSnippet = generatedCode + tokensInfo3
     )
-    mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.COMPLETED)
+    // استخراج مقترحات الفروقات من كتل الكود لمعاينتها واعتمادها أو تجاهلها
+    val diffs = AgentPatchKit.extractDiffs(prompt, generatedCode)
+    mission = mission.copy(
+        steps = initialSteps.toList(),
+        status = AgentTaskStatus.COMPLETED,
+        proposedDiffs = diffs
+    )
     onUpdate(mission)
 
     // الخطوة 4: التقرير النهائي الحقيقي بنسبة 100%
