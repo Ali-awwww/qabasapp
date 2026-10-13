@@ -86,7 +86,7 @@ object RepoVaultManager {
         if (list.isEmpty()) {
             val curOwner = prefs.getString("build_center_owner", "Ali-awwww")?.ifBlank { "Ali-awwww" } ?: "Ali-awwww"
             val curRepo = prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp"
-            val curToken = prefs.getString("build_center_token", "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")?.ifBlank { "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" } ?: "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"
+            val curToken = prefs.getString("build_center_token", "") ?: ""
             val defaultEntry = RepoVaultEntry(
                 id = "repo_ali_awwww_qabasapp",
                 owner = curOwner,

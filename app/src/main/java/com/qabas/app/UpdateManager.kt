@@ -25,7 +25,18 @@ object UpdateManager {
     private const val DEFAULT_REPO = "Ali-awwww/qabasapp"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 
+    // توكن مسرّب متقاعد: يُرفض في كل المسارات ولا يُرسل أبداً.
+    // (أبطل مفعوله من إعدادات GitHub أيضاً)
+    private const val RETIRED_LEAKED_TOKEN = "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"
+
+    fun isRetiredToken(token: String): Boolean = token.trim() == RETIRED_LEAKED_TOKEN
+
     fun getEffectiveRepo(context: Context): String {
+        // قناة التحديث الرسمية إجبارية لغير المطور — لا يمكن لأي مستخدم
+        // توجيه محدّث التطبيق نحو مستودع آخر (حماية من مستودعات خبيثة)
+        if (!AdminGuard.isDashboardAccessAllowed(context)) {
+            return DEFAULT_REPO
+        }
         val active = runCatching { RepoVaultManager.getActiveRepo(context) }.getOrNull()
         if (active != null && active.owner.isNotBlank() && active.repo.isNotBlank()) {
             return "${active.owner.trim()}/${active.repo.trim()}"
@@ -44,12 +55,17 @@ object UpdateManager {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val cachedToken = prefs.getString("github_token_cached", null)?.trim()
             if (!cachedToken.isNullOrBlank()) {
-                Log.d(TAG, "✅ Using cached GitHub token")
-                return@withContext cachedToken
+                if (isRetiredToken(cachedToken)) {
+                    Log.w(TAG, "⚠️ Retired leaked token found in cache — purging")
+                    prefs.edit().remove("github_token_cached").apply()
+                } else {
+                    Log.d(TAG, "✅ Using cached GitHub token")
+                    return@withContext cachedToken
+                }
             }
 
             val token = fetchGitHubTokenFromSupabase()
-            if (!token.isNullOrBlank()) {
+            if (!token.isNullOrBlank() && !isRetiredToken(token)) {
                 Log.d(TAG, "✅ GitHub token fetched from Supabase")
                 prefs.edit().putString("github_token_cached", token).apply()
                 return@withContext token

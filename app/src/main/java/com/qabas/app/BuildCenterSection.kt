@@ -82,7 +82,7 @@ fun BuildCenterSection(
         mutableStateOf(activeRepoEntry?.repo ?: (prefs.getString("build_center_repo", "qabasapp") ?: "qabasapp"))
     }
     var token by remember(activeRepoEntry) {
-        mutableStateOf(if (!activeRepoEntry?.token.isNullOrBlank()) activeRepoEntry!!.token else (prefs.getString("build_center_token", "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") ?: "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"))
+        mutableStateOf(if (!activeRepoEntry?.token.isNullOrBlank()) activeRepoEntry!!.token else (prefs.getString("build_center_token", "") ?: ""))
     }
 
     var showToken by remember { mutableStateOf(false) }

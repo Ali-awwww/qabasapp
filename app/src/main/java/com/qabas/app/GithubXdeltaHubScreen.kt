@@ -53,7 +53,9 @@ fun GithubXdeltaHubScreen(
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
-    // بيانات المستودع
+    // بيانات المستودع — القيم الرسمية ثابتة للجميع، والتوكن والمستودع
+    // المخصص للمطور فقط (AdminGuard). لا يُضمَّن أي سر في الكود.
+    val isDevMode = remember { AdminGuard.isDashboardAccessAllowed(context) }
     var ownerInput by remember {
         mutableStateOf(prefs.getString("build_center_owner", "Ali-awwww")?.ifBlank { "Ali-awwww" } ?: "Ali-awwww")
     }
@@ -61,10 +63,24 @@ fun GithubXdeltaHubScreen(
         mutableStateOf(prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp")
     }
     var tokenInput by remember {
-        mutableStateOf(prefs.getString("build_center_token", "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")?.ifBlank { "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" } ?: "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")
+        mutableStateOf(prefs.getString("build_center_token", "") ?: "")
     }
     var showToken by remember { mutableStateOf(false) }
     var isEditingRepo by remember { mutableStateOf(false) }
+
+    // تطهير لمرة واحدة: إسقاط أي توكن مسرّب قديم مخزن على الجهاز
+    LaunchedEffect(Unit) {
+        val stored = prefs.getString("build_center_token", "")
+        if (!stored.isNullOrBlank() && UpdateManager.isRetiredToken(stored)) {
+            prefs.edit().remove("build_center_token").apply()
+            tokenInput = ""
+        }
+        if (!isDevMode) {
+            ownerInput = "Ali-awwww"
+            repoInput = "qabasapp"
+            tokenInput = ""
+        }
+    }
 
     // حالة الفحص الحي
     var isChecking by remember { mutableStateOf(false) }
@@ -109,16 +125,18 @@ fun GithubXdeltaHubScreen(
         }
     }
 
-    // دالة الفحص المباشر
+    // دالة الفحص المباشر — غير المطور: القناة الرسمية فقط وبدون توكن
     fun checkReleases() {
         isChecking = true
         errorMessage = null
         coroutineScope.launch {
-            val targetRepo = "${ownerInput.trim()}/${repoInput.trim()}"
+            val dev = AdminGuard.isDashboardAccessAllowed(context)
+            val targetRepo = if (dev) "${ownerInput.trim()}/${repoInput.trim()}"
+                else "Ali-awwww/qabasapp"
             val res = UpdateManager.inspectGitHubRelease(
                 context = context,
                 customRepo = targetRepo,
-                customToken = tokenInput.trim()
+                customToken = if (dev) tokenInput.trim().ifBlank { null } else null
             )
             isChecking = false
             res.fold(
@@ -143,6 +161,11 @@ fun GithubXdeltaHubScreen(
     }
 
     fun saveRepoCredentials() {
+        // كتابة بيانات المستودع والمفتاح حصرية للمطور
+        if (!AdminGuard.isDashboardAccessAllowed(context)) {
+            Toast.makeText(context, "إعدادات المستودع للمطور فقط 🔒", Toast.LENGTH_SHORT).show()
+            return
+        }
         prefs.edit()
             .putString("build_center_owner", ownerInput.trim())
             .putString("build_center_repo", repoInput.trim())
@@ -172,7 +195,7 @@ fun GithubXdeltaHubScreen(
     fun resetToOfficialDefaults() {
         ownerInput = "Ali-awwww"
         repoInput = "qabasapp"
-        tokenInput = "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"
+        tokenInput = ""
         saveRepoCredentials()
     }
 
@@ -307,7 +330,7 @@ fun GithubXdeltaHubScreen(
                                         .background(Color(0xFF10B981))
                                 )
                                 Text(
-                                    text = "متصل ومفوض ✓",
+                                    text = if (isDevMode && tokenInput.isNotBlank()) "متصل ومفوض ✓" else "القناة الرسمية ✓",
                                     color = Color(0xFF10B981),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -355,9 +378,11 @@ fun GithubXdeltaHubScreen(
                         }
                     }
 
+                    // قسم المطور فقط: التوكن والتحكم بالمستودع (مخفي عن المستخدمين)
+                    if (isDevMode) {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // عرض التوكن الآمن
+                    // عرض التوكن
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
@@ -376,7 +401,7 @@ fun GithubXdeltaHubScreen(
                             ) {
                                 Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(16.dp))
                                 Text(
-                                    text = if (showToken) tokenInput else "ghp_" + "•".repeat(24) + tokenInput.takeLast(6),
+                                    text = if (tokenInput.isBlank()) "بدون توكن (قناة عامة)" else if (showToken) tokenInput else "ghp_" + "•".repeat(24) + tokenInput.takeLast(6),
                                     color = Color(0xFF94A3B8),
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 11.sp,
@@ -464,6 +489,7 @@ fun GithubXdeltaHubScreen(
                             }
                         }
                     }
+                    } // end if (isDevMode) — قسم المطور
                 }
             }
 
