@@ -89,8 +89,9 @@ object MultiModelAgentOrchestrator {
     /**
      * تحميل فريق الوكيل من الإعدادات المحفوظة
      * يستخدم SharedPreferences للتخزين الدائم بين الجلسات
+     * @param onlyEnabled إذا true يعيد الأعضاء المفعّلين فقط (للتنفيذ)، وإلا يعيد الكل (للتعديل)
      */
-    fun loadTeam(context: Context): List<AgentTeamMember> {
+    fun loadTeam(context: Context, onlyEnabled: Boolean = false): List<AgentTeamMember> {
         val prefs = context.getSharedPreferences("qabas_agent_team", Context.MODE_PRIVATE)
         val teamJson = prefs.getString("team_config_json", null) ?: return defaultTeam()
         return try {
@@ -106,7 +107,7 @@ object MultiModelAgentOrchestrator {
                     rank = o.optInt("rank", 99),
                     enabled = o.optBoolean("enabled", true)
                 )
-            }.filter { it.enabled && it.provider != DetectedProvider.NONE }
+            }.filter { (!onlyEnabled || it.enabled) && it.provider != DetectedProvider.NONE }
         } catch (e: Exception) {
             Log.e(TAG_ORCH, "Failed to load team: ${e.message}")
             defaultTeam()
@@ -151,11 +152,14 @@ object MultiModelAgentOrchestrator {
     suspend fun executeWithTeam(
         context: Context,
         prompt: String,
-        team: List<AgentTeamMember>,
+        teamRaw: List<AgentTeamMember>,
         onUpdate: (String) -> Unit = {}
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
+
+        // 🔑 نستخدم الأعضاء المفعّلين فقط للتنفيذ
+        val team = teamRaw.filter { it.enabled }
 
         // 🔑 حل مفتاح لكل مزود على حدة (لا نمرر مفتاح مزود لمزود آخر)
         val providerKeys = mutableMapOf<DetectedProvider, String>()

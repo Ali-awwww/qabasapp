@@ -636,7 +636,7 @@ suspend fun executeAgentMissionMultiModel(
     val context_ = context
     val (provider, apiKey, keySource) = AgentConnectivityEngine.resolveKeyWithSource(context_)
 
-    val team = MultiModelAgentOrchestrator.loadTeam(context_)
+    val team = MultiModelAgentOrchestrator.loadTeam(context_, onlyEnabled = true)
 
     var currentStatus = AgentTaskStatus.PLANNING
     onStatusChange(currentStatus)

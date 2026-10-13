@@ -176,6 +176,9 @@ fun AgentTeamConfigScreen(
                             }
                             team[idx] = team[idx].copy(role = newRole)
                         },
+                        onEnabledChange = { newEnabled ->
+                            team[idx] = team[idx].copy(enabled = newEnabled)
+                        },
                         onProviderChange = { newProvider, newModel ->
                             team[idx] = team[idx].copy(provider = newProvider, modelId = newModel)
                         }
@@ -222,6 +225,7 @@ private fun TeamMemberCard(
     onRemove: () -> Unit,
     onRankChange: (Int) -> Unit,
     onRoleChange: (AgentTeamRole) -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
     onProviderChange: (DetectedProvider, String) -> Unit
 ) {
     Card(
@@ -232,7 +236,7 @@ private fun TeamMemberCard(
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(Modifier.padding(14.dp)) {
-            // رأس البطاقة: الاسم + الدور + زر الحذف
+            // رأس البطاقة: الاسم + الدور + مفتاح تفعيل + زر الحذف
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Star,
@@ -245,6 +249,17 @@ private fun TeamMemberCard(
                     "${member.displayName} • ${member.modelId.takeLast(25)}",
                     color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = member.enabled,
+                    onCheckedChange = onEnabledChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color(0xFF10B981),
+                        checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.4f),
+                        uncheckedThumbColor = Color(0xFFEF4444),
+                        uncheckedTrackColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier.height(28.dp)
                 )
                 IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Close, "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
