@@ -129,18 +129,20 @@ fun AiStudioAgentScreen(
 
     // Save current mission state to SharedPreferences
     fun saveMissionState() {
-        val mission = currentMission.value ?: return
-
-        val json = JSONObject().apply {
-            put("id", mission.id)
-            put("userPrompt", mission.userPrompt)
-            put("specialization", mission.specialization.name)
-            put("steps", mission.steps.joinToString(",") { it.id })
-            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
-            put("buildTriggered", mission.buildTriggered)
-            put("apkUrl", mission.apkUrl)
-            put("timestamp", mission.timestamp)
+        currentMission.value?.let { mission ->
+            val json = JSONObject().apply {
+                put("id", mission.id)
+                put("userPrompt", mission.userPrompt)
+                put("specialization", mission.specialization.name)
+                put("steps", mission.steps.joinToString(",") { step -> step.id })
+                put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+                put("buildTriggered", mission.buildTriggered)
+                put("apkUrl", mission.apkUrl)
+                put("timestamp", mission.timestamp)
+            }
+            prefs.edit().putString("active_mission_json", json.toString()).apply()
         }
+    }
 
         prefs.edit().putString("active_mission_json", json.toString()).apply()
     }
@@ -187,19 +189,18 @@ fun AiStudioAgentScreen(
 
     // Export mission as JSON string for backup/sharing
     fun exportMissionJson(): String {
-        val mission = currentMission.value
-        if (mission == null) return ""
-
-        return JSONObject().apply {
-            put("missionId", mission.id)
-            put("userPrompt", mission.userPrompt)
-            put("specialization", mission.specialization.name)
-            put("steps", mission.steps.joinToString(",") { it.id })
-            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
-            put("buildTriggered", mission.buildTriggered)
-            put("apkUrl", mission.apkUrl)
-            put("timestamp", mission.timestamp)
-        }.toString()
+        return currentMission.value?.let { mission ->
+            JSONObject().apply {
+                put("missionId", mission.id)
+                put("userPrompt", mission.userPrompt)
+                put("specialization", mission.specialization.name)
+                put("steps", mission.steps.joinToString(",") { step -> step.id })
+                put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+                put("buildTriggered", mission.buildTriggered)
+                put("apkUrl", mission.apkUrl)
+                put("timestamp", mission.timestamp)
+            }.toString()
+        } ?: ""
     }
 
     // Import mission from JSON string
