@@ -299,7 +299,9 @@ object MultiModelAgentOrchestrator {
             MemberCallResult(outputText = "تعذر إنتاج مخرجات من أي مساعد.", isSuccess = false)
         }
 
-        val anySuccess = memberResults.any { it.isSuccess } || synthesisResult.isSuccess
+        // 🔑 النجاح يتطلب نجاح مساعد واحد على الأقل (لا نكتفي بنجاح خطة القائد)
+        val assistantSuccessCount = memberResults.count { it.isSuccess && it.role != AgentTeamRole.LEADER }
+        val anySuccess = assistantSuccessCount > 0 && synthesisResult.isSuccess
 
         MultiModelRunReport(
             overallPrompt = prompt,
