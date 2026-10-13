@@ -772,7 +772,7 @@ fun ReelPublishDialog(
                                     onPublishedSuccess()
                                     onDismiss()
                                 } else {
-                                    generalErrorMessage = "تعذر إكمال النشر، يرجى التحقق من الاتصال بالإنترنت والمحاولة مجدداً."
+                                    generalErrorMessage = "تعذر حفظ المقطع في السحابة (فشلت المزامنة مع الخادم). يرجى إعادة المحاولة."
                                 }
                             }
                         }

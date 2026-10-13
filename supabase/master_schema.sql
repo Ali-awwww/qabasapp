@@ -149,6 +149,8 @@ CREATE TABLE IF NOT EXISTS public.content_guard_logs (
 CREATE TABLE IF NOT EXISTS public.reels (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     user_id TEXT NOT NULL,
+    user_name TEXT DEFAULT 'صانع محتوى قبس',
+    user_avatar TEXT,
     title TEXT NOT NULL,
     description TEXT,
     video_url TEXT NOT NULL,
