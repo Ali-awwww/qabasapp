@@ -9,43 +9,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 /**
- * استخراج مقترحات الفروقات من نص الكود المولّد:
- * كل كتلة ``` تصبح FileDiff قابلاً للمعاينة والاعتماد (دفع GitHub) أو التجاهل (تراجع).
+ * البثّ التدريجي الحقيقي لاستجابة النموذج (Streaming SSE):
+ * يعرض النص لحظة بلحظة بدل انتظار الدفعة الكاملة، مع دعم الإلغاء بين المقاطع.
+ * - Gemini: streamGenerateContent?alt=sse
+ * - OpenAI/Groq/OpenRouter: chat/completions مع stream:true (صيغة data: ... و [DONE])
  */
-object AgentPatchKit {
-    fun extractDiffs(prompt: String, codeText: String): List<FileDiff> {
-        val blocks = Regex("```(\\w*)\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
-            .findAll(codeText)
-            .map { it.groupValues[2].trim() }
-            .filter { it.length > 20 }
-            .toList()
-        if (blocks.isEmpty()) {
-            if (codeText.contains("fun ") || codeText.contains("class ")) {
-                val target = runCatching { extractTargetFile(prompt, codeText) }.getOrDefault("مقترح_عام.kt")
-                return listOf(
-                    FileDiff(
-                        filePath = "app/src/main/java/com/qabas/app/$target",
-                        additions = codeText.lines().size,
-                        deletions = 0,
-                        diffText = codeText.take(4000)
-                    )
-                )
-            }
-            return emptyList()
-        }
-        val mainTarget = runCatching { extractTargetFile(prompt, codeText) }
-            .getOrDefault("مقترح_عام.kt")
-        return blocks.take(5).mapIndexed { idx, code ->
-            val name = if (idx == 0) mainTarget else "مقترح_${idx + 1}.kt"
-            FileDiff(
-                filePath = "app/src/main/java/com/qabas/app/$name",
-                additions = code.lines().size,
-                deletions = 0,
-                diffText = code.take(4000)
-            )
-        }
-    }
-}
 object AgentStreaming {
 
     suspend fun stream(
