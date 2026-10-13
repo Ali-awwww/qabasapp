@@ -427,7 +427,16 @@ fun AppNavigation(
             AiStudioAgentScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
+                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
                 bottomBar = bottomNav
+            )
+        }
+        AppState.AGENT_TEAM_CONFIG -> {
+            AgentTeamConfigScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onSave = { team ->
+                    viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
+                }
             )
         }
         AppState.TELEPROMPTER -> {

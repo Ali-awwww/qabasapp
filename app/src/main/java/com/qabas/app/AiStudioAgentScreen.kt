@@ -70,6 +70,7 @@ import java.util.UUID
 fun AiStudioAgentScreen(
     onBack: () -> Unit,
     onOpenDeveloperDashboard: () -> Unit = {},
+    onOpenTeamConfig: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -92,6 +93,8 @@ fun AiStudioAgentScreen(
     var isExecuting by remember { mutableStateOf(false) }
     var currentMission by remember { mutableStateOf<AgentMissionSession?>(null) }
     var missionHistory by remember { mutableStateOf<List<AgentMissionSession>>(emptyList()) }
+    var isTeamMode by remember { mutableStateOf(false) }   // 🔑 وضع الفريق (Multi-Model)
+    var teamProgressText by remember { mutableStateOf("") } // نص تقدم الفريق الحي
     var showKeyDialog by remember { mutableStateOf(false) }
     var keyDialogInitialTab by remember { mutableStateOf(0) }
     var showRepoDialog by remember { mutableStateOf(false) }
@@ -1160,6 +1163,21 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("النموذج: $selectedModel", fontSize = 11.sp, fontFamily = CairoFont)
                                 }
+                                // 🔑 زر فتح تكوين فريق النماذج المتعددة
+                                OutlinedButton(
+                                    onClick = onOpenTeamConfig,
+                                    modifier = Modifier.wrapContentWidth().height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f),
+                                        contentColor = Color(0xFFD4AF37)
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("👥 فريق النماذج", fontSize = 11.sp, fontFamily = CairoFont)
+                                }
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
                                     text = "ميزانية التوكن: ~4000 توكن/طلب • تكلفة تقريبية: \$0.01–0.05",
@@ -1421,7 +1439,20 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                             isExecuting = true
                                             val job = coroutineScope.launch {
                                                 try {
-                                                    executeAgentMission(
+                                                    if (isTeamMode) {
+                                                        // 🔑 وضع الفريق متعدد النماذج
+                                                        val mission = executeAgentMissionMultiModel(
+                                                            context = context,
+                                                            userPrompt = prompt,
+                                                            specialization = selectedSpec,
+                                                            onTeamProgress = { progressText ->
+                                                                teamProgressText = progressText
+                                                            }
+                                                        )
+                                                        currentMission = mission
+                                                        missionHistory = listOf(mission) + missionHistory
+                                                    } else {
+                                                        executeAgentMission(
                                                         context = context,
                                                         prompt = prompt,
                                                         spec = selectedSpec,
@@ -1433,11 +1464,9 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                         onFinished = { finalMission ->
                                                             currentMission = finalMission
                                                             missionHistory = listOf(finalMission) + missionHistory
-                                                            isExecuting = false
-                                                            executionJob = null
-                                                            promptInput = ""
                                                         }
                                                     )
+                                                    }
                                                 } catch (e: kotlinx.coroutines.CancellationException) {
                                                     isExecuting = false
                                                     executionJob = null
