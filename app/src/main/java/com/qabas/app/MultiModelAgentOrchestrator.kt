@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -172,6 +174,7 @@ object MultiModelAgentOrchestrator {
         }
 
         // ═══ المرحلة 1: القائد يُصدر خطة عمل ═══
+        currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل البدء
         onUpdate("👑 ${leader.displayName}: جاري التخطيط...")
         val leaderSystemPrompt = """
             أنت قائد فريق مهندسين ذكاء اصطناعي (Leader AI Model).
@@ -199,6 +202,7 @@ object MultiModelAgentOrchestrator {
         }
 
         // ═══ المرحلة 2: تنفيذ المساعدين (بالتوازي أو بالتسلسل حسب التبعيات) ═══
+        currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل المرحلة الثانية
         val memberResults = mutableListOf<MemberRunResult>()
         memberResults.add(
             MemberRunResult(
@@ -279,6 +283,7 @@ object MultiModelAgentOrchestrator {
         }
 
         // ═══ المرحلة 3: القائد يجمع النتيجة النهائية ═══
+        currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل المرحلة الثالثة
         onUpdate("👑 ${leader.displayName}: جاري صياغة الخلاصة النهائية...")
         val successfulOutputs = memberResults.filter { it.isSuccess && it.role != AgentTeamRole.LEADER }
             .joinToString("\n\n---\n\n") { "[$it.memberId] $it.outputText" }
