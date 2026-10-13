@@ -788,24 +788,26 @@ object UpdateManager {
     }
 
     /** true إذا كان الحزمة المثبتة بنفس الاسم لكن بتوقيع مختلف عن الـ APK الجديد */
-    private fun hasSignatureConflict(context: Context, apkFile: File): Boolean = try {
-        val installed = context.packageManager.getPackageInfo(
-            context.packageName,
-            PackageManager.GET_SIGNING_CERTIFICATES
-        )
-        val archive = context.packageManager.getPackageArchiveInfo(
-            apkFile.absolutePath,
-            PackageManager.GET_SIGNING_CERTIFICATES
-        ) ?: return false
-        val installedHashes = signatureHashes(installed)
-        val archiveHashes = signatureHashes(archive)
-        if (installedHashes.isEmpty() || archiveHashes.isEmpty()) return false
-        installedHashes.none { it in archiveHashes }
-    } catch (e: PackageManager.NameNotFoundException) {
-        false
-    } catch (e: Exception) {
-        Log.w(TAG, "hasSignatureConflict failed: ${e.message}")
-        false
+    private fun hasSignatureConflict(context: Context, apkFile: File): Boolean {
+        return try {
+            val installed = context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES
+            )
+            val archive = context.packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES
+            ) ?: return false
+            val installedHashes = signatureHashes(installed)
+            val archiveHashes = signatureHashes(archive)
+            if (installedHashes.isEmpty() || archiveHashes.isEmpty()) return false
+            installedHashes.none { it in archiveHashes }
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        } catch (e: Exception) {
+            Log.w(TAG, "hasSignatureConflict failed: ${e.message}")
+            false
+        }
     }
 
     private fun launchInstaller(context: Context, apkFile: File) {
