@@ -2,6 +2,8 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -261,6 +263,31 @@ fun OnDeviceModelCard(
     || downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id
     val badgeColor = Color(model.badgeColorHex)
     val coroutineScope = rememberCoroutineScope()
+    var isFileBusy by remember { mutableStateOf(false) }
+    var fileProgress by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    val importPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            isFileBusy = true
+            fileProgress = 0L to model.sizeBytes
+            coroutineScope.launch {
+                val res = OnDeviceModelManager.importModel(context, model, uri) { done, total ->
+                    fileProgress = done to total
+                }
+                isFileBusy = false
+                fileProgress = null
+                Toast.makeText(
+                    context,
+                    when (res) {
+                        is OnDeviceModelManager.ModelFileResult.Ok -> res.message
+                        is OnDeviceModelManager.ModelFileResult.Err -> res.message
+                    },
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(10.dp),
@@ -499,8 +526,40 @@ fun OnDeviceModelCard(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    OutlinedButton(
+                        onClick = {
+                            isFileBusy = true
+                            fileProgress = 0L to model.sizeBytes
+                            coroutineScope.launch {
+                                val res = OnDeviceModelManager.exportModel(context, model) { done, total ->
+                                    fileProgress = done to total
+                                }
+                                isFileBusy = false
+                                fileProgress = null
+                                Toast.makeText(
+                                    context,
+                                    when (res) {
+                                        is OnDeviceModelManager.ModelFileResult.Ok -> res.message
+                                        is OnDeviceModelManager.ModelFileResult.Err -> res.message
+                                    },
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        },
+                        enabled = !isFileBusy,
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Upload, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("تصدير نسخة احتياطية", fontSize = 9.sp, color = Color(0xFF00E5FF))
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                     OutlinedButton(
                         onClick = onDelete,
                         border = BorderStroke(1.dp, Color(0xFF475569)),
@@ -512,6 +571,20 @@ fun OnDeviceModelCard(
                         Spacer(modifier = Modifier.width(3.dp))
                         Text("حذف الملف لتحرير المساحة", fontSize = 9.sp, color = Color(0xFF94A3B8))
                     }
+                }
+                // شريط تقدم النسخ (تصدير) داخل البطاقة
+                if (fileProgress != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val (done, total) = fileProgress!!
+                    LinearProgressIndicator(
+                        progress = { if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF00E5FF),
+                        trackColor = Color(0xFF1E293B)
+                    )
                 }
             } else {
                 // Not Installed: Download Button
@@ -529,6 +602,42 @@ fun OnDeviceModelCard(
                         text = "تنزيل النموذج (${model.sizeFormatted}) 📥",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                OutlinedButton(
+                    onClick = { importPicker.launch("*/*") },
+                    enabled = !isFileBusy,
+                    border = BorderStroke(1.dp, Color(0xFF475569)),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "أو استيراد ملف محفوظ (${model.fileName}) 📂",
+                        fontSize = 10.sp,
+                        color = Color(0xFF94A3B8),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // شريط تقدم النسخ (استيراد) داخل البطاقة
+                if (fileProgress != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val (done, total) = fileProgress!!
+                    LinearProgressIndicator(
+                        progress = { if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF00E5FF),
+                        trackColor = Color(0xFF1E293B)
                     )
                 }
             }

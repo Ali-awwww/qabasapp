@@ -390,4 +390,149 @@ object OnDeviceModelManager {
             deleted
         } else false
     }
+
+    sealed interface ModelFileResult {
+        data class Ok(val message: String) : ModelFileResult
+        data class Err(val message: String) : ModelFileResult
+    }
+
+    /**
+     * تصدير النموذج إلى مجلد Downloads (يبقى بعد حذف التطبيق) — نسخ بتقدم.
+     * التحقق عند الاستيراد: تطابق الحجم بالبايت (لا بصمات sha256 في البيانات).
+     */
+    suspend fun exportModel(
+        context: Context,
+        modelInfo: OnDeviceModelInfo,
+        onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }
+    ): ModelFileResult = withContext(Dispatchers.IO) {
+        try {
+            val src = getModelFile(context, modelInfo)
+            if (!src.exists() || src.length() < 100_000_000L) {
+                return@withContext ModelFileResult.Err("النموذج غير مكتمل — نزّله أولاً")
+            }
+            val total = src.length()
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, modelInfo.fileName)
+                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                    put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/QabasModels")
+                }
+                val resolver = context.contentResolver
+                val uri = resolver.insert(
+                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+                ) ?: return@withContext ModelFileResult.Err("تعذر إنشاء ملف التصدير")
+                resolver.openOutputStream(uri)?.use { out ->
+                    src.inputStream().use { inp ->
+                        val buf = ByteArray(256 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = inp.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            onProgress(done, total)
+                        }
+                    }
+                } ?: run {
+                    resolver.delete(uri, null, null)
+                    return@withContext ModelFileResult.Err("تعذر الكتابة لملف التصدير")
+                }
+                onProgress(total, total)
+                ModelFileResult.Ok("تم التصدير إلى Downloads/QabasModels ✅")
+            } else {
+                @Suppress("DEPRECATION")
+                val dest = java.io.File(
+                    android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS
+                    ), "QabasModels/${modelInfo.fileName}"
+                )
+                dest.parentFile?.mkdirs()
+                src.inputStream().use { inp ->
+                    dest.outputStream().use { out ->
+                        val buf = ByteArray(256 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = inp.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            onProgress(done, total)
+                        }
+                    }
+                }
+                onProgress(total, total)
+                ModelFileResult.Ok("تم التصدير إلى Downloads/QabasModels ✅")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "exportModel failed: ${e.message}", e)
+            ModelFileResult.Err("فشل التصدير: ${e.message}")
+        }
+    }
+
+    /**
+     * استيراد نموذج من ملف يختاره المستخدم — يُقبل فقط عند تطابق الحجم
+     * بالبايت مع الحجم المعلن (حماية من الملفات الناقصة/الخاطئة).
+     */
+    suspend fun importModel(
+        context: Context,
+        modelInfo: OnDeviceModelInfo,
+        sourceUri: android.net.Uri,
+        onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }
+    ): ModelFileResult = withContext(Dispatchers.IO) {
+        try {
+            val resolver = context.contentResolver
+            val srcSize = resolver.openFileDescriptor(sourceUri, "r")?.use { it.statSize } ?: -1L
+            if (srcSize != modelInfo.sizeBytes) {
+                return@withContext ModelFileResult.Err(
+                    "الحجم غير متطابق (الموجود: ${formatBytes(srcSize)}، المطلوب: ${modelInfo.sizeFormatted}) — تأكد أن الملف هو ${modelInfo.fileName}"
+                )
+            }
+            val destFile = getModelFile(context, modelInfo)
+            val tmpFile = java.io.File(destFile.parentFile, "${destFile.name}.import.tmp")
+            if (tmpFile.exists()) tmpFile.delete()
+            resolver.openInputStream(sourceUri)?.use { inp ->
+                tmpFile.outputStream().use { out ->
+                    val buf = ByteArray(256 * 1024)
+                    var done = 0L
+                    while (true) {
+                        val n = inp.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        done += n
+                        onProgress(done, srcSize)
+                    }
+                }
+            } ?: return@withContext ModelFileResult.Err("تعذر قراءة الملف المختار")
+            if (tmpFile.length() != modelInfo.sizeBytes) {
+                tmpFile.delete()
+                return@withContext ModelFileResult.Err("اكتمل النسخ بحجم ناقص — أعد المحاولة")
+            }
+            if (destFile.exists()) destFile.delete()
+            if (!tmpFile.renameTo(destFile)) {
+                tmpFile.copyTo(destFile, overwrite = true)
+                tmpFile.delete()
+            }
+            onProgress(srcSize, srcSize)
+            setSelectedModel(context, modelInfo.id)
+            prefsCleanupAfterImport(context, modelInfo)
+            ModelFileResult.Ok("تم استيراد ${modelInfo.name} وتفعيله ✅")
+        } catch (e: Exception) {
+            Log.e(TAG, "importModel failed: ${e.message}", e)
+            ModelFileResult.Err("فشل الاستيراد: ${e.message}")
+        }
+    }
+
+    private fun prefsCleanupAfterImport(context: Context, modelInfo: OnDeviceModelInfo) {
+        getPrefs(context).edit()
+            .remove("model_resume_${modelInfo.id}")
+            .remove("model_total_${modelInfo.id}")
+            .apply()
+        _downloadState.value = ModelDownloadState.Success(modelInfo.id)
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 0) return "غير معروف"
+        if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
+        return "${bytes / (1024 * 1024)} MB"
+    }
 }
