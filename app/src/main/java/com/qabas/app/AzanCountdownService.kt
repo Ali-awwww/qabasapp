@@ -1,0 +1,188 @@
+package com.qabas.app
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
+
+/**
+ * إشعار العدّاد التنازلي للأذان: يعرض الوقت المتبقي للصلاة القادمة ويُحدّث كل ثانية،
+ * وعند الوصول يشغّل الأذان عبر AzanPlaybackService.
+ * يعمل كـ ForegroundService ليصمد أمام Doze وإدارة البطارية.
+ */
+class AzanCountdownService : Service() {
+
+    companion object {
+        const val CHANNEL_ID = "qabas_azan_countdown_channel"
+        const val NOTIF_ID = 8855
+        const val ACTION_START = "com.qabas.app.COUNTDOWN_START"
+        const val ACTION_STOP = "com.qabas.app.COUNTDOWN_STOP"
+
+        fun start(context: Context) {
+            val i = Intent(context, AzanCountdownService::class.java).apply { action = ACTION_START }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
+            else context.startService(i)
+        }
+
+        fun stop(context: Context) {
+            context.startService(Intent(context, AzanCountdownService::class.java).apply { action = ACTION_STOP })
+        }
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var job: Job? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> { stopTicking(); stopSelf(); return START_NOT_STICKY }
+            else -> startTicking()
+        }
+        return START_STICKY
+    }
+
+    private fun startTicking() {
+        createChannel()
+        startForeground(NOTIF_ID, buildNotif("جارٍ حساب موعد الصلاة القادمة…", null))
+        job?.cancel()
+        job = scope.launch {
+            while (true) {
+                val next = findNextPrayer(applicationContext)
+                if (next == null) {
+                    updateNotif("فعّل مواقيت الصلاة من الإعدادات 🕌", null)
+                    delay(60_000)
+                    continue
+                }
+                val remaining = next.triggerMillis - System.currentTimeMillis()
+                if (remaining <= 0) {
+                    // فات الموعد بأقل من دقيقتين؟ شغّل الأذان فوراً (حماية من Doze)
+                    if (remaining > -120_000) {
+                        AzanPlaybackService.startAzan(applicationContext, next.voiceId, next.prayerName)
+                    }
+                    PrayerAlarmManager.scheduleAllPrayers(applicationContext)
+                    delay(5_000)
+                    continue
+                }
+                val text = "المتبقي على ${next.prayerName}: ${formatRemaining(remaining)} ⏳"
+                updateNotif(text, next)
+                delay(if (remaining < 60_000) 1_000 else 5_000)
+            }
+        }
+    }
+
+    private fun stopTicking() {
+        job?.cancel()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun updateNotif(text: String, next: NextPrayer?) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotif(text, next))
+    }
+
+    private fun buildNotif(text: String, next: NextPrayer?): android.app.Notification {
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "prayer_times")
+        }
+        val openPI = PendingIntent.getActivity(this, 8861, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val stopPI = PendingIntent.getService(
+            this, 8862,
+            Intent(this, AzanCountdownService::class.java).apply { action = ACTION_STOP },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("🕌 عدّاد الأذان")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setContentIntent(openPI)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إخفاء العدّاد", stopPI)
+            .build()
+    }
+
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "عدّاد اقتراب الأذان", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "إشعار ثابت يعرض الوقت المتبقي على الأذان القادم"
+                }
+            )
+        }
+    }
+
+    private data class NextPrayer(val prayerName: String, val triggerMillis: Long, val voiceId: String)
+
+    private fun findNextPrayer(context: Context): NextPrayer? {
+        return try {
+            val prefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("prayer_notifications_enabled", true)) return null
+            val city = PrayerCalculationHelper.getSavedCity(context)
+            val now = Calendar.getInstance()
+            val today = PrayerCalculationHelper.calculatePrayerTimes(now, city, city.defaultMethod)
+            val pairs = listOf(
+                PrayerAlarmManager.PRAYER_FAJR to ("صلاة الفجر" to today.fajr),
+                PrayerAlarmManager.PRAYER_SUNRISE to ("الشروق" to today.sunrise),
+                PrayerAlarmManager.PRAYER_DHUHR to ("صلاة الظهر" to today.dhuhr),
+                PrayerAlarmManager.PRAYER_ASR to ("صلاة العصر" to today.asr),
+                PrayerAlarmManager.PRAYER_MAGHRIB to ("صلاة المغرب" to today.maghrib),
+                PrayerAlarmManager.PRAYER_ISHA to ("صلاة العشاء" to today.isha)
+            )
+            val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
+            var best: NextPrayer? = null
+            for ((key, named) in pairs) {
+                if (!prefs.getBoolean("notify_$key", true)) continue
+                val cal = parseTime(named.second) ?: continue
+                if (cal.timeInMillis <= System.currentTimeMillis()) cal.add(Calendar.DAY_OF_YEAR, 1)
+                val voice = prefs.getString("voice_id_$key", defaultVoice) ?: defaultVoice
+                val candidate = NextPrayer(named.first, cal.timeInMillis, voice)
+                if (best == null || candidate.triggerMillis < best.triggerMillis) best = candidate
+            }
+            best
+        } catch (_: Exception) { null }
+    }
+
+    private fun parseTime(t: String): Calendar? {
+        return try {
+            val p = t.trim().split(":")
+            Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, p[0].toInt())
+                set(Calendar.MINUTE, p[1].toInt())
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun formatRemaining(millis: Long): String {
+        val h = TimeUnit.MILLISECONDS.toHours(millis)
+        val m = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
+        val s = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
+        return if (h > 0) "%02d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+    }
+
+    override fun onDestroy() {
+        job?.cancel()
+        scope.cancel()
+        super.onDestroy()
+    }
+}

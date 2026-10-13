@@ -1497,10 +1497,55 @@ fun AzanVoicesDialog(
     var voicesList by remember { mutableStateOf(MuezzinVoiceManager.getAllVoices(context)) }
     var defaultVoiceId by remember { mutableStateOf(MuezzinVoiceManager.getDefaultVoiceId(context)) }
     var showAddMuezzinDialog by remember { mutableStateOf(false) }
+    var showDevUploadDialog by remember { mutableStateOf(false) }
+    var isSyncingCloud by remember { mutableStateOf(false) }
+    val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
+    val scope = rememberCoroutineScope()
+    // المستخدم العادي: اختيار ملف من الهاتف (محلي فقط — لا يُرفع للسحابة أبداً)
+    val localPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val localUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    MuezzinVoiceManager.copyLocalAzanFile(context, uri, "azan_user.mp3")
+                }
+                if (localUrl != null) {
+                    val v = AzanVoice(
+                        id = "custom_" + System.currentTimeMillis(),
+                        nameAr = "أذان من هاتفي 📱",
+                        muezzinAr = "ملف محلي خاص بي",
+                        description = "صوت أذان محفوظ على جهازك فقط — لا يُشارك ولا يُرفع للسحابة.",
+                        streamUrl = localUrl
+                    )
+                    MuezzinVoiceManager.addCustomVoice(context, v)
+                    reloadVoices()
+                    Toast.makeText(context, "تمت إضافة صوتك من الهاتف ✅ (محلي فقط)", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "تعذر نسخ الملف", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     fun reloadVoices() {
         voicesList = MuezzinVoiceManager.getAllVoices(context)
         defaultVoiceId = MuezzinVoiceManager.getDefaultVoiceId(context)
+    }
+
+    // مزامنة أصوات السحابة (قراءة للجميع)
+    LaunchedEffect(Unit) {
+        if (SupabaseServices.isSupabaseAvailable) {
+            isSyncingCloud = true
+            val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AzanCloudRepository.fetchCloudVoices()
+            }
+            if (cloud.isNotEmpty()) {
+                MuezzinVoiceManager.cacheCloudVoices(context, cloud)
+                reloadVoices()
+            }
+            isSyncingCloud = false
+        }
     }
 
     AlertDialog(
@@ -1524,7 +1569,7 @@ fun AzanVoicesDialog(
                 }
 
                 Surface(
-                    onClick = { showAddMuezzinDialog = true },
+                    onClick = { localPicker.launch("audio/*") },
                     shape = RoundedCornerShape(8.dp),
                     color = GoldPrimary.copy(alpha = 0.18f),
                     border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
@@ -1535,7 +1580,25 @@ fun AzanVoicesDialog(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("إضافة مؤذن", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Text("من الهاتف 📱", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (isDeveloper) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        onClick = { showDevUploadDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("رفع سحابي ☁️", color = Color(0xFF10B981), fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -1740,6 +1803,14 @@ fun AzanVoicesDialog(
             }
         )
     }
+
+    // نافذة رفع المطور إلى Supabase (تظهر للمطور فقط)
+    if (showDevUploadDialog && isDeveloper) {
+        DevAzanUploadDialog(
+            onDismiss = { showDevUploadDialog = false },
+            onUploaded = { reloadVoices(); showDevUploadDialog = false }
+        )
+    }
 }
 
 /**
@@ -1856,4 +1927,77 @@ fun AddCustomMuezzinDialog(
             }
         }
     )
+}
+
+/**
+ * نافذة رفع المطور: تختار ملفاً من الهاتف فيُرفع إلى Supabase Storage (azan-voices)
+ * ويُحفظ في جدول azan_voices ليصل لكل المستخدمين. لا تظهر إلا للمطور.
+ */
+@Composable
+fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var title by remember { mutableStateOf("") }
+    var muezzinName by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var isFajrOnly by remember { mutableStateOf(false) }
+    var pickedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var uploading by remember { mutableStateOf(false) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> pickedUri = uri }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A),
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("رفع أذان للسحابة ☁️ (مطور)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("يُرفع الملف إلى Supabase ويظهر لجميع المستخدمين فوراً.", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("عنوان الأذان", fontFamily = CairoFont, fontSize = 11.sp) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = muezzinName, onValueChange = { muezzinName = it }, label = { Text("اسم المؤذن", fontFamily = CairoFont, fontSize = 11.sp) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("وصف مختصر", fontFamily = CairoFont, fontSize = 11.sp) }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("مخصص للفجر فقط", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                    Switch(checked = isFajrOnly, onCheckedChange = { isFajrOnly = it }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF10B981)))
+                }
+                OutlinedButton(onClick = { picker.launch("audio/*") }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.AudioFile, contentDescription = null, tint = Color(0xFF10B981))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (pickedUri == null) "اختر ملف الصوت (MP3)" else "تم اختيار الملف ✅", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                }
+                if (uploading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Color(0xFF10B981))
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val uri = pickedUri ?: return@Button
+                    uploading = true
+                    scope.launch {
+                        val res = AzanCloudRepository.uploadAzanVoice(context, uri, title, muezzinName, description.ifBlank { "أذان سحابي بصوت $muezzinName" }, isFajrOnly)
+                        uploading = false
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "تم الرفع للسحابة بنجاح ☁️✅", Toast.LENGTH_SHORT).show()
+                            onUploaded()
+                        } else {
+                            Toast.makeText(context, "فشل الرفع: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                shape = RoundedCornerShape(10.dp),
+                enabled = title.isNotBlank() && muezzinName.isNotBlank() && pickedUri != null && !uploading
+            ) { Text("رفع ☁️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.Gray, fontFamily = CairoFont) } }
+    )
+}
 }

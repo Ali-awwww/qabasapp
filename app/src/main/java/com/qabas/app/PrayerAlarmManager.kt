@@ -73,6 +73,9 @@ object PrayerAlarmManager {
         scheduleSinglePrayer(context, PRAYER_ISHA, todayTimes.isha, tomorrowTimes.isha, "صلاة العشاء")
         scheduleSinglePrayer(context, PRAYER_SUHUR, todayTimes.qiyamStart, tomorrowTimes.qiyamStart, "قيام الليل والسحر")
 
+        // شغّل عدّاد الأذان الثابت بعد كل جدولة ناجحة
+        try { AzanCountdownService.start(context) } catch (_: Exception) {}
+
         Log.d(TAG, "Scheduled all real prayer alarms successfully for city: ${city.nameAr}")
     }
 
