@@ -273,23 +273,44 @@ fun ReelsScreen(
                         }
                     }
                 } else if (allReels.isEmpty()) {
+                    // Empty state: geometric balance (gradient void + weighted centering + capped width)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF0B1324), Color.Black, Color(0xFF070B14))
+                                )
+                            )
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                            .padding(horizontal = 24.dp),
-                        contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
+                        // Faint watermark emblem filling the void
+                        Icon(
+                            imageVector = Icons.Default.SlowMotionVideo,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.04f),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.85f))
-                                .border(BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)), RoundedCornerShape(24.dp))
-                                .padding(24.dp)
+                                .size(280.dp)
+                                .align(Alignment.Center)
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .widthIn(max = 420.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                    .border(BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)), RoundedCornerShape(24.dp))
+                                    .padding(24.dp)
+                            ) {
                             Surface(
                                 shape = CircleShape,
                                 color = GoldPrimary.copy(alpha = 0.15f),
@@ -338,11 +359,12 @@ fun ReelsScreen(
                                     onClick = { showPublishDialog = true },
                                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
                                     shape = RoundedCornerShape(16.dp),
-                                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+                                    modifier = Modifier.heightIn(min = 44.dp)
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("نشر مقطع الآن", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("نشر مقطع الآن", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
                                 }
 
                                 OutlinedButton(
@@ -350,13 +372,15 @@ fun ReelsScreen(
                                     shape = RoundedCornerShape(16.dp),
                                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    modifier = Modifier.heightIn(min = 44.dp)
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تحديث", fontFamily = CairoFont, fontSize = 12.5.sp)
+                                    Text("تحديث", fontFamily = CairoFont, fontSize = 12.5.sp, maxLines = 1)
                                 }
                             }
+                            Spacer(modifier = Modifier.weight(1.2f))
                         }
                     }
                 } else {
@@ -544,7 +568,7 @@ fun ReelsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Back Button in circular frosted glass pill
@@ -564,16 +588,22 @@ fun ReelsScreen(
                                 )
                             }
 
-                            // Center Cybernetic Tabs Capsule (متابعون | لك)
+                            // Center Cybernetic Tabs Capsule (متابعون | لك) — weighted for symmetric geometry
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
                                 color = Color(0xFF0F172A).copy(alpha = 0.65f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                modifier = Modifier.padding(horizontal = 4.dp)
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .height(40.dp)
+                                    .padding(horizontal = 4.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 4.dp)
                                 ) {
                                     // For You Tab
                                     Box(
@@ -629,15 +659,17 @@ fun ReelsScreen(
                                 }
                             }
 
-                            // Right Spatial Actions Pill (Publish + Search + Settings)
+                            // Right Spatial Actions Pill (Publish + Search + Settings) — same 40dp rhythm
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
                                 color = Color(0xFF0F172A).copy(alpha = 0.65f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                modifier = Modifier.height(40.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.padding(horizontal = 5.dp)
                                 ) {
                                     val isDeveloper = remember(currentUserEmail) {
                                         ReelPublishManager.isDeveloperUser(context, currentUserEmail)
