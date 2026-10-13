@@ -151,11 +151,20 @@ object MultiModelAgentOrchestrator {
         context: Context,
         prompt: String,
         team: List<AgentTeamMember>,
-        activeApiKey: String = "",
         onUpdate: (String) -> Unit = {}
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
+
+        // 🔑 حل مفتاح لكل مزود على حدة (لا نمرر مفتاح مزود لمزود آخر)
+        val providerKeys = mutableMapOf<DetectedProvider, String>()
+        team.map { it.provider }.distinct().forEach { p ->
+            val prefsKey = UniversalKeyBrain.prefsKeyFor(p)
+            if (prefsKey.isNotBlank()) {
+                val keys = KeyPoolManager.orderedKeysBySpeed(prefsKey)
+                if (keys.isNotEmpty()) providerKeys[p] = keys.first()
+            }
+        }
 
         val leader = team.firstOrNull { it.role == AgentTeamRole.LEADER }
         if (leader == null) {
@@ -189,7 +198,7 @@ object MultiModelAgentOrchestrator {
             يجب أن يحتوي assignee على معرف المساعد (مثل exec_1). لا تضع مهمة لنفسك كقائد، فقط للمساعدين.
         """.trimIndent()
 
-        val planResult = callModel(leader, leaderSystemPrompt, prompt, activeApiKey)
+        val planResult = callModel(leader, leaderSystemPrompt, prompt, providerKeys[leader.provider] ?: "")
         val leaderPlan: LeaderPlan? = if (planResult.isSuccess) {
             parseLeaderPlan(planResult.outputText, team)
         } else null
@@ -258,7 +267,7 @@ object MultiModelAgentOrchestrator {
                                 member,
                                 "أنت مساعد${if (member.role == AgentTeamRole.REVIEWER) " مراجع جودة" else " تنفيذي"} في فريق مهندسين AI. نفّذ المهمة المطلوبة بدقة وكفاءة، وقدّم مخرجات كاملة قابلة للاستخدام.",
                                 buildMemberPrompt(st, prompt, executedIds, memberResults),
-                                activeApiKey
+                                providerKeys[member.provider] ?: ""
                             )
                             Pair(st, r)
                         }
@@ -293,7 +302,7 @@ object MultiModelAgentOrchestrator {
                 leader,
                 "أنت القائد — اجمع مخرجات المساعدين التالية في تقرير نهائي واحد متسق ومُحكم يحقق المهمة الأصلية. لا تكرر نفس النص، بل ادمج وأعد صياغة لتقديم إجابة نهائية موحدة.",
                 "المهمة الأصلية: $prompt\n\nمخرجات المساعدين:\n$successfulOutputs\n\nأنتج التقرير النهائي الآن.",
-                activeApiKey
+                providerKeys[leader.provider] ?: ""
             )
         } else {
             MemberCallResult(outputText = "تعذر إنتاج مخرجات من أي مساعد.", isSuccess = false)
@@ -335,12 +344,12 @@ object MultiModelAgentOrchestrator {
         }
     }
 
-    /** استدعاء نموذج واحد عبر UniversalKeyBrain مع مهلة زمنية */
+    /** استدعاء نموذج واحد عبر UniversalKeyBrain مع مهلة زمنية — يمرر مفتاح المزود المطابق فقط */
     private suspend fun callModel(
         member: AgentTeamMember,
         systemPrompt: String,
         userPrompt: String,
-        activeApiKey: String = ""
+        providerKey: String = ""
     ): MemberCallResult {
         val start = System.currentTimeMillis()
         val res = withTimeoutOrNull(PER_CALL_TIMEOUT_MS) {
@@ -348,7 +357,7 @@ object MultiModelAgentOrchestrator {
                 provider = member.provider,
                 prompt = userPrompt,
                 systemInstruction = systemPrompt,
-                fallbackSingleKey = activeApiKey,
+                fallbackSingleKey = providerKey,
                 model = member.modelId
             )
         }

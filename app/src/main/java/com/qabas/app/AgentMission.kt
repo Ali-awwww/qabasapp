@@ -650,12 +650,11 @@ suspend fun executeAgentMissionMultiModel(
         )
     }
 
-    // تشغيل الـ Orchestrator (يُدير القائد والمساعدين)
+    // تشغيل الـ Orchestrator (يُدير القائد والمساعدين) — يحل مفتاح كل مزود داخليًا
     val report = MultiModelAgentOrchestrator.executeWithTeam(
         context = context_,
         prompt = userPrompt,
         team = team,
-        activeApiKey = apiKey,
         onUpdate = onTeamProgress
     )
 
