@@ -15,8 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import io.github.jan.supabase.postgrest.postgrest
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -413,6 +417,66 @@ object UpdateManager {
                 totalAssetsCount = assets.length(),
                 isNewerThanCurrent = isNewer
             )
+        }
+    }
+
+    /** أحدث وسمين للإصدارات (الهدف + السابق) لتوليد الديلتا — للمطور فقط. */
+    suspend fun fetchLatestTwoReleaseTags(
+        owner: String,
+        repo: String,
+        token: String?
+    ): Result<Pair<String, String?>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val builder = Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/releases?per_page=5")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "Qabas-Studio")
+            if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
+            client.newCall(builder.build()).execute().use { resp ->
+                if (!resp.isSuccessful) throw IllegalStateException("GitHub: ${resp.code}")
+                val arr = JSONArray(resp.body?.string().orEmpty())
+                if (arr.length() == 0) throw IllegalStateException("لا توجد إصدارات في المستودع")
+                val target = arr.getJSONObject(0).optString("tag_name", "")
+                if (target.isBlank()) throw IllegalStateException("تعذر قراءة وسم الإصدار الأخير")
+                val prev = if (arr.length() > 1) {
+                    arr.getJSONObject(1).optString("tag_name", "").ifBlank { null }
+                } else null
+                target to prev
+            }
+        }
+    }
+
+    /**
+     * تشغيل سير توليد الديلتا على GitHub (workflow_dispatch) — للمطور فقط.
+     * يتطلب PAT بصلاحية actions:write. يرمي 204 عند القبول.
+     */
+    suspend fun dispatchDeltaWorkflow(
+        owner: String,
+        repo: String,
+        token: String,
+        targetTag: String,
+        prevTag: String?
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = JSONObject()
+                .put("ref", "main")
+                .put("inputs", JSONObject()
+                    .put("target_tag", targetTag)
+                    .put("previous_tag", prevTag ?: ""))
+                .toString()
+                .toRequestBody("application/json".toMediaType())
+            val req = Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/actions/workflows/xdelta--updates.yml/dispatches")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "Qabas-Studio")
+                .header("Authorization", "Bearer $token")
+                .post(body)
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code == 204) return@withContext Result.success(Unit)
+                val errBody = resp.body?.string().orEmpty().take(200)
+                throw IllegalStateException("GitHub: ${resp.code} $errBody")
+            }
         }
     }
 

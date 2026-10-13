@@ -87,6 +87,10 @@ fun GithubXdeltaHubScreen(
     var inspectionResult by remember { mutableStateOf<UpdateManager.GitHubReleaseInspection?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // حالة توليد الديلتا عن بُعد (زر المطور)
+    var isDispatching by remember { mutableStateOf(false) }
+    var dispatchMessage by remember { mutableStateOf<String?>(null) }
+
     // حالة التحميل والتثبيت
     val downloadProgress by UpdateManager.downloadProgress.collectAsState()
     val downloadResult by UpdateManager.downloadResult.collectAsState()
@@ -158,6 +162,47 @@ fun GithubXdeltaHubScreen(
     // فحص تلقائي أولي عند الدخول
     LaunchedEffect(Unit) {
         checkReleases()
+    }
+
+    // توليد الديلتا عن بُعد: يشغّل سير xdelta على GitHub ثم يعيد الفحص — للمطور فقط
+    fun triggerDeltaGeneration() {
+        if (!AdminGuard.isDashboardAccessAllowed(context)) {
+            Toast.makeText(context, "توليد الديلتا للمطور فقط 🔒", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val pat = tokenInput.trim()
+        if (pat.isBlank()) {
+            Toast.makeText(context, "أدخل رمز PAT بصلاحية actions:write أولاً", Toast.LENGTH_LONG).show()
+            return
+        }
+        isDispatching = true
+        dispatchMessage = null
+        coroutineScope.launch {
+            val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
+            val repo = repoInput.trim().ifBlank { "qabasapp" }
+            val tags = UpdateManager.fetchLatestTwoReleaseTags(owner, repo, pat.ifBlank { null })
+            val (target, prev) = tags.getOrNull() ?: run {
+                isDispatching = false
+                dispatchMessage = tags.exceptionOrNull()?.message ?: "تعذر قراءة الإصدارات"
+                return@launch
+            }
+            if (prev == null) {
+                isDispatching = false
+                dispatchMessage = "لا يوجد إصدار سابق للمقارنة — الديلتا تحتاج إصدارين على الأقل"
+                return@launch
+            }
+            val res = UpdateManager.dispatchDeltaWorkflow(owner, repo, pat, target, prev)
+            isDispatching = false
+            res.fold(
+                onSuccess = {
+                    dispatchMessage = "انطلق التوليد لـ $target من $prev ⚡ — أعد الفحص بعد 3-5 دقائق"
+                    Toast.makeText(context, "تم إرسال أمر توليد الديلتا 🚀", Toast.LENGTH_LONG).show()
+                },
+                onFailure = { err ->
+                    dispatchMessage = err.message ?: "فشل إرسال الأمر (تحقق من صلاحية actions:write)"
+                }
+            )
+        }
     }
 
     fun saveRepoCredentials() {
@@ -605,9 +650,63 @@ fun GithubXdeltaHubScreen(
                 }
             }
 
+            // زر توليد الديلتا عن بُعد — للمطور فقط، يظهر عند غياب الديلتا
+            if (isDevMode && inspectionResult?.deltaAsset == null && !isChecking) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { triggerDeltaGeneration() },
+                    enabled = !isDispatching,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    if (isDispatching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color(0xFF10B981),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "جاري إرسال أمر التوليد...",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "توليد الديلتا على GitHub ⚡",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        )
+                    }
+                }
+                if (dispatchMessage != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = dispatchMessage!!,
+                        color = Color(0xFF94A3B8),
+                        fontFamily = CairoFont,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             // رسالة الخطأ إن وجدت
-            if (errorMessage != null) {
-                Surface(
+            if (errorMessage != null) {                Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFFEF4444).copy(alpha = 0.12f),
                     border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)),
