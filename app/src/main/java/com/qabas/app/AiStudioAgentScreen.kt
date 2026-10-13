@@ -129,7 +129,7 @@ fun AiStudioAgentScreen(
 
     // Save current mission state to SharedPreferences
     fun saveMissionState() {
-        currentMission.value?.let { mission ->
+        currentMission?.let { mission ->
             val json = JSONObject().apply {
                 put("id", mission.id)
                 put("userPrompt", mission.userPrompt)
@@ -142,9 +142,6 @@ fun AiStudioAgentScreen(
             }
             prefs.edit().putString("active_mission_json", json.toString()).apply()
         }
-    }
-
-        prefs.edit().putString("active_mission_json", json.toString()).apply()
     }
 
     // Restore mission state from SharedPreferences
@@ -189,7 +186,7 @@ fun AiStudioAgentScreen(
 
     // Export mission as JSON string for backup/sharing
     fun exportMissionJson(): String {
-        return currentMission.value?.let { mission ->
+        return currentMission?.let { mission ->
             JSONObject().apply {
                 put("missionId", mission.id)
                 put("userPrompt", mission.userPrompt)
@@ -218,7 +215,7 @@ fun AiStudioAgentScreen(
                 )
             }
 
-            currentMission.value = AgentMissionSession(
+            currentMission = AgentMissionSession(
                 id = obj.getString("missionId"),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
@@ -233,7 +230,7 @@ fun AiStudioAgentScreen(
                 timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
             )
 
-            missionHistory.value = missionHistory.value + listOf(currentMission.value!!)
+            missionHistory = missionHistory + listOf(currentMission!!)
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import mission: ${e.message}")
@@ -294,17 +291,17 @@ LaunchedEffect(currentMission, isOfflineMode) {
 
         // If offline mode is active but no local model is available, auto-switch to cloud
         if (isOfflineMode && currentMission != null && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
-            if (!missionAutoSwitched.value) {
-                missionAutoSwitched.value = true
+            if (!missionAutoSwitched) {
+                missionAutoSwitched = true
                 // Save current mission before switching
                 saveMissionState()
                 // Switch to cloud mode - show key dialog or use default key
                 showKeyDialog = true
                 keyDialogInitialTab = 1  // Switch to API keys tab
             }
-        } else if (missionAutoSwitched.value && OnDeviceModelManager.hasAnyInstalledModel(context)) {
+        } else if (missionAutoSwitched && OnDeviceModelManager.hasAnyInstalledModel(context)) {
             // User returned to local mode with a model installed
-            missionAutoSwitched.value = false
+            missionAutoSwitched = false
             // Could restore mission state here - currently manual
         }
     }
