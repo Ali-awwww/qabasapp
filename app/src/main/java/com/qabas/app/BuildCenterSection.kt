@@ -76,10 +76,10 @@ fun BuildCenterSection(
     }
 
     var owner by remember(activeRepoEntry) {
-        mutableStateOf(activeRepoEntry?.owner ?: (prefs.getString("build_center_owner", "Ali-awwww") ?: "Ali-awwww"))
+        mutableStateOf(activeRepoEntry?.owner ?: (prefs.getString("build_center_owner", "") ?: ""))
     }
     var repo by remember(activeRepoEntry) {
-        mutableStateOf(activeRepoEntry?.repo ?: (prefs.getString("build_center_repo", "qabasapp") ?: "qabasapp"))
+        mutableStateOf(activeRepoEntry?.repo ?: (prefs.getString("build_center_repo", "") ?: ""))
     }
     var token by remember(activeRepoEntry) {
         mutableStateOf(if (!activeRepoEntry?.token.isNullOrBlank()) activeRepoEntry!!.token else (prefs.getString("build_center_token", "") ?: ""))
@@ -128,6 +128,44 @@ fun BuildCenterSection(
             .putString("build_center_repo", repo.trim())
             .putString("build_center_token", token.trim())
             .apply()
+        // مزامنة سحابية صامتة (بدون توكن) عند توفر حساب
+        scope.launch {
+            runCatching {
+                DevRepoSync.snapshotLocal(context)?.let { DevRepoSync.pushDevRepo(context, it) }
+            }
+        }
+    }
+
+    // مزامنة أولية: سحابة ← محلي، أو رفع المحلي المدخَل يدوياً، أو تنظيف الموروث
+    LaunchedEffect(Unit) {
+        runCatching {
+            val cloud = DevRepoSync.fetchDevRepo(context)
+            if (cloud != null && !cloud.isBlank()) {
+                DevRepoSync.applyLocally(context, cloud)
+                savedRepos = RepoVaultManager.getRepositories(context)
+                activeRepoId = RepoVaultManager.getActiveRepoId(context)
+                val applied = RepoVaultManager.getActiveRepo(context)
+                if (applied != null) {
+                    owner = applied.owner
+                    repo = applied.repo
+                    if (applied.token.isNotBlank()) token = applied.token
+                }
+            } else {
+                val local = DevRepoSync.snapshotLocal(context)
+                val isDev = AdminGuard.isDashboardAccessAllowed(context)
+                when {
+                    local == null || local.isBlank() -> Unit // حالة فارغة نظيفة — بلا إجراء
+                    local.isOfficialDefault() && !isDev ->
+                        DevRepoSync.clearInheritedDefault(context).also {
+                            savedRepos = emptyList()
+                            activeRepoId = null
+                            owner = ""
+                            repo = ""
+                        }
+                    else -> DevRepoSync.pushDevRepo(context, local)
+                }
+            }
+        }
     }
 
     suspend fun apiGet(path: String, auth: Boolean): String? = withContext(Dispatchers.IO) {
@@ -905,6 +943,43 @@ fun BuildCenterSection(
             // ──────────────────────────────────────────────────────────
             0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // حالة فارغة نظيفة: لا مستودع مربوط — دعوة للربط بدل عرض مستودع غريب
+                    if (savedRepos.isEmpty() && owner.isBlank() && repo.isBlank()) {
+                        Surface(
+                            color = Color(0xFF0B1324),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FolderOpen,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E5FF),
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Text(
+                                    "لا يوجد مستودع مربوط 🔗",
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    "اربط مستودع GitHub الخاص بك أدناه ليبدأ الوكيل التنفيذ عليه — بياناتك تُزامَن مع حسابك فقط",
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
                     // 1) بطاقة ربط مستودع مباشر برابط ومفتاح (Direct Link & Key)
                     Surface(
                         color = Color(0xFF0B1324),

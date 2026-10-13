@@ -60,8 +60,8 @@ fun SpatialDevSettingsDialog(
 
     // بيانات مستودع GitHub
     val activeRepo = remember { RepoVaultManager.getActiveRepo(context) }
-    var ownerText by remember { mutableStateOf(activeRepo?.owner ?: prefs.getString("build_center_owner", "Ali-awwww") ?: "Ali-awwww") }
-    var repoText by remember { mutableStateOf(activeRepo?.repo ?: prefs.getString("build_center_repo", "qabasapp") ?: "qabasapp") }
+    var ownerText by remember { mutableStateOf(activeRepo?.owner ?: prefs.getString("build_center_owner", "") ?: "") }
+    var repoText by remember { mutableStateOf(activeRepo?.repo ?: prefs.getString("build_center_repo", "") ?: "") }
     var tokenText by remember { mutableStateOf(activeRepo?.token ?: prefs.getString("build_center_token", "") ?: "") }
     var branchText by remember { mutableStateOf(activeRepo?.defaultBranch ?: "main") }
     var showToken by remember { mutableStateOf(false) }

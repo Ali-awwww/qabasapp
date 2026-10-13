@@ -82,24 +82,8 @@ object RepoVaultManager {
             } catch (_: Exception) {}
         }
 
-        // إذا كانت الخزانة فارغة، أضف المستودع الرسمي المعتمد
-        if (list.isEmpty()) {
-            val curOwner = prefs.getString("build_center_owner", "Ali-awwww")?.ifBlank { "Ali-awwww" } ?: "Ali-awwww"
-            val curRepo = prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp"
-            val curToken = prefs.getString("build_center_token", "") ?: ""
-            val defaultEntry = RepoVaultEntry(
-                id = "repo_ali_awwww_qabasapp",
-                owner = curOwner,
-                repo = curRepo,
-                token = curToken,
-                customName = "مستودع قبس الرسمي (Ali-awwww/qabasapp)",
-                description = "مستودع GitHub المباشر لتحديثات xdelta وبناء الـ APK"
-            )
-            list.add(defaultEntry)
-            saveRepositories(context, list)
-            setActiveRepo(context, defaultEntry.id)
-        }
-
+        // لا بذر تلقائي: الخزانة الفارغة تعني مستخدماً جديداً بلا مستودع.
+        // قناة التحديث الرسمية تُحل عبر UpdateManager.getEffectiveRepo (DEFAULT_REPO).
         return list
     }
 

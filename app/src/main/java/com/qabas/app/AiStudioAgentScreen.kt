@@ -456,7 +456,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = activeRepo?.repo ?: "qabasapp",
+                                    text = activeRepo?.repo ?: "بدون مستودع",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.White,
@@ -2158,8 +2158,8 @@ suspend fun executeAgentMission(
     mission = mission.copy(steps = initialSteps.toList())
     onUpdate(mission)
 
-    val targetRepo = repo ?: RepoVaultEntry(owner = "Ali-awwww", repo = "qabasapp")
-    val inspectionResult = if (targetRepo.token.isNotBlank()) {
+    val targetRepo = repo
+    val inspectionResult = if (targetRepo != null && targetRepo.token.isNotBlank()) {
         try {
             val rc = GitHubRepoClient(targetRepo.owner, targetRepo.repo, targetRepo.token)
             val tree = rc.getTree(targetRepo.defaultBranch)
@@ -2262,7 +2262,7 @@ suspend fun triggerBuildDirectly(
     repo: RepoVaultEntry?,
     onStepResult: (AgentExecutionStep) -> Unit
 ) = withContext(Dispatchers.IO) {
-    val targetRepo = repo ?: RepoVaultEntry(owner = "Ali-awwww", repo = "qabasapp")
+    val targetRepo = repo
     val step = AgentExecutionStep(
         title = "تشغيل البناء السحابي على GitHub Actions",
         description = "إرسال dispatch لملف سير العمل android-ci.yml...",
@@ -2270,6 +2270,17 @@ suspend fun triggerBuildDirectly(
         isRunning = true
     )
     onStepResult(step)
+
+    if (targetRepo == null) {
+        onStepResult(
+            step.copy(
+                isRunning = false,
+                isSuccess = false,
+                outputSnippet = "لا يوجد مستودع مربوط — اربط مستودعك أولاً من مركز البناء 🔗"
+            )
+        )
+        return@withContext
+    }
 
     val ctx = CodeTools.Ctx(
         owner = targetRepo.owner,
