@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -124,8 +126,8 @@ when {
                     downloadInterrupted -> {
                         OutlinedButton(
                             onClick = {
-                                rememberCoroutineScope().launch {
-                                    OnDeviceModelManager.resumeDownload(context, selectedModel)
+                                scope.launch {
+                                    OnDeviceModelManager.resumeDownload(context, selectedModel!!)
                                 }
                                 downloadInterrupted = false
                                 statusMessage = "جاري استكمال التنزيل..."
@@ -144,9 +146,7 @@ when {
                                     try {
                                         isDownloading = true
                                         statusMessage = "جاري التنزيل..."
-                                        OnDeviceModelManager.downloadModel(context) { progress ->
-                                            downloadProgress = progress
-                                        }
+                                        OnDeviceModelManager.downloadModel(context, selectedModel!!)
                                         isModelReady = true
                                         statusMessage = "✓ الموديل جاهز"
                                         downloadInterrupted = false
@@ -169,8 +169,7 @@ when {
                             fontSize = 11.sp
                         )
                     }
-                }
-                isModelReady && !isOfflineMode -> {
+                    isModelReady && !isOfflineMode -> {
                     OutlinedButton(
                         onClick = {
                             prefs.edit().putBoolean("offline_ai_mode", true).apply()
@@ -181,10 +180,10 @@ when {
                     ) {
                         Text("تفعيل الوضع المحلي")
                     }
-                }
             }
         }
     }
+}
 
 private suspend fun downloadModel(context: Context, onProgress: (Float) -> Unit) {
     withContext(Dispatchers.IO) {

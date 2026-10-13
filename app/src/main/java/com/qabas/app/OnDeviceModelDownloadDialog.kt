@@ -370,9 +370,8 @@ fun OnDeviceModelCard(
 
             // Download State / Controls
             if (isThisDownloading) {
-                val state = when (downloadState) {
+                val state: ModelDownloadState.Downloading = when (downloadState) {
                     is ModelDownloadState.Downloading -> downloadState
-                    is ModelDownloadState.Interrupted -> downloadState as ModelDownloadState.Interrupted
                     else -> throw IllegalStateException("Unexpected download state: $downloadState")
                 }
                 val downloadedMb = state.downloadedBytes / (1024 * 1024)
@@ -433,7 +432,9 @@ fun OnDeviceModelCard(
                         is ModelDownloadState.Interrupted -> {
                             OutlinedButton(
                                 onClick = {
-                                    OnDeviceModelManager.resumeDownload(context, model)
+                                    coroutineScope.launch {
+                                        OnDeviceModelManager.resumeDownload(context, model)
+                                    }
                                     Toast.makeText(context, "استكمال التنزيل...", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier

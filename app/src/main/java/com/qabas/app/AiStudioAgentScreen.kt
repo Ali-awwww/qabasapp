@@ -2251,6 +2251,114 @@ suspend fun triggerBuildDirectly(
  * حوار إعداد واختبار مفاتيح الذكاء الاصطناعي مع دليل المنصات المجانية المخصصة للبرمجة
  */
 @Composable
+fun exportMissionJson(currentMission: AgentMissionSession?): String {
+    return currentMission?.let { mission ->
+        JSONObject().apply {
+            put("missionId", mission.id)
+            put("userPrompt", mission.userPrompt)
+            put("specialization", mission.specialization.name)
+            put("steps", mission.steps.joinToString(",") { step -> step.id })
+            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            put("buildTriggered", mission.buildTriggered)
+            put("apkUrl", mission.apkUrl)
+            put("timestamp", mission.timestamp)
+        }.toString()
+    } ?: ""
+}
+
+fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, jsonString: String): Boolean {
+    try {
+        val obj = JSONObject(jsonString)
+        val stepsList = obj.getJSONArray("steps")
+        val steps = (0 until stepsList.length()).map { idx ->
+            AgentExecutionStep(
+                id = stepsList.getString(idx),
+                title = "",
+                description = "",
+                toolName = "",
+                outputSnippet = ""
+            )
+        }
+        currentMission.value = AgentMissionSession(
+            id = obj.getString("missionId"),
+            userPrompt = obj.getString("userPrompt"),
+            specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+            status = AgentTaskStatus.PLANNING,
+            steps = steps,
+            modifiedFiles = if (obj.has("modifiedFiles")) {
+                val arr = obj.getJSONArray("modifiedFiles")
+                (0 until arr.length()).map { arr.getString(it) }
+            } else emptyList(),
+            buildTriggered = obj.getBoolean("buildTriggered"),
+            apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
+            timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
+        )
+        return true
+    } catch (e: Exception) {
+        return false
+    }
+}
+
+fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
+    currentMission.value?.let { mission ->
+        val json = JSONObject().apply {
+            put("id", mission.id)
+            put("userPrompt", mission.userPrompt)
+            put("specialization", mission.specialization.name)
+            put("steps", mission.steps.joinToString(",") { step -> step.id })
+            put("modifiedFiles", mission.modifiedFiles.joinToString(","))
+            put("buildTriggered", mission.buildTriggered)
+            put("apkUrl", mission.apkUrl)
+            put("timestamp", mission.timestamp)
+        }
+        prefs.edit().putString("active_mission_json", json.toString()).apply()
+    }
+}
+
+fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences): AgentMissionSession? {
+    val json = prefs.getString("active_mission_json", null)
+    if (json.isNullOrBlank()) return null
+
+    try {
+        val obj = JSONObject(json)
+        val stepsList = obj.getJSONArray("steps")
+        val steps = (0 until stepsList.length()).map { idx ->
+            AgentExecutionStep(
+                id = stepsList.getString(idx),
+                title = "",
+                description = "",
+                toolName = "",
+                outputSnippet = ""
+            )
+        }
+
+        return AgentMissionSession(
+            id = obj.getString("id"),
+            userPrompt = obj.getString("userPrompt"),
+            specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
+            status = AgentTaskStatus.PLANNING,
+            steps = steps,
+            modifiedFiles = if (obj.has("modifiedFiles")) {
+                val arr = obj.getJSONArray("modifiedFiles")
+                (0 until arr.length()).map { arr.getString(it) }
+            } else emptyList(),
+            buildTriggered = obj.getBoolean("buildTriggered"),
+            apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
+            timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
+        )
+    } catch (e: Exception) {
+        return null
+    }
+}
+
+fun FileImport(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
+    val json = prefs.getString("active_mission_json", "")
+    if (json.isNotBlank()) {
+        importMissionFromJson(currentMission, json)
+    }
+}
+
+@Composable
 fun ApiKeySetupDialog(
     context: Context,
     initialTab: Int = 0,
@@ -2262,6 +2370,8 @@ fun ApiKeySetupDialog(
     var rawKey by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val contextLocal = LocalContext.current
+    val prefs: SharedPreferences = contextLocal.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<LiveHealthStatus?>(null) }
     val currentEngine = remember { UniversalKeyBrain.getActiveEngine() }

@@ -205,7 +205,7 @@ object OnDeviceModelManager {
      * إلغاء التنزيل الجاري وحذف الملف الجزئي
      * يُستدعى من dialog أو viewmodel بتمرير modelInfo
      */
-    fun cancelDownload(modelInfo: OnDeviceModelInfo) {
+    fun cancelDownload(context: Context, modelInfo: OnDeviceModelInfo) {
         isCancelled = true
         val destFile = File(context.filesDir, "models/local/${modelInfo.id}")
         val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
@@ -237,9 +237,9 @@ object OnDeviceModelManager {
         try {
             _downloadState.value = ModelDownloadState.Downloading(
                 modelId = modelInfo.id,
-                progress = if (totalBytes > 0) resumeBytes.toFloat() / totalBytes else 0f,
+                progress = if (savedTotalBytes > 0) resumeBytes.toFloat() / savedTotalBytes else 0f,
                 downloadedBytes = resumeBytes,
-                totalBytes = totalBytes
+                totalBytes = savedTotalBytes
             )
 
             val request = Request.Builder()
@@ -277,17 +277,16 @@ object OnDeviceModelManager {
 
             // إذا كان هناك ملف مؤقت مسبق يحتوي على بايتات، الكتابة بعده (append)
             val appendMode = if (resumeBytes > 0 && tempFile.exists()) true else false
+            val byteStream = body.byteStream()
             FileOutputStream(tempFile, appendMode).use { output ->
                 val buffer = ByteArray(32 * 1024) // 32KB buffer for speed
                 var bytesRead: Int
 
-                // إذا كنا نستأنف من نقطة معينة، ن跳跃 over الـ bytes السابقة في التدفق
                 if (resumeBytes > 0) {
-                    var skipped = input.skip(resumeBytes)
-                    // fallback: if skip didn't skip enough, we'll just write from current position
+                    byteStream.skip(resumeBytes)
                 }
 
-                while (input.read(buffer).also { bytesRead = it } != -1) {
+                while (byteStream.read(buffer).also { bytesRead = it } != -1) {
                     if (isCancelled) {
                         tempFile.delete()
                         _downloadState.value = ModelDownloadState.Idle
@@ -333,15 +332,14 @@ object OnDeviceModelManager {
             false
         } catch (e: Exception) {
             Log.e(TAG, "Download error: ${e.message}", e)
-            // حفظ progress Interrupted قبل الخطأ للتجدد لاحقاً
             prefs.edit()
                 .putLong("model_resume_${modelInfo.id}", downloadedBytes)
-                .putLong("model_total_${modelInfo.id}", totalBytes ?: modelInfo.sizeBytes)
+                .putLong("model_total_${modelInfo.id}", savedTotalBytes)
                 .apply()
             _downloadState.value = ModelDownloadState.Interrupted(
                 modelId = modelInfo.id,
                 downloadedBytes = downloadedBytes,
-                totalBytes = totalBytes ?: modelInfo.sizeBytes
+                totalBytes = savedTotalBytes
             )
             if (tempFile.exists() && tempFile.length() > 0) {
                 // الملف الجزئي موجود ويمكن استئنافه
