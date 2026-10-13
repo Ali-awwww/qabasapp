@@ -150,8 +150,10 @@ fun AgentTeamConfigScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 itemsIndexed(team) { idx, member ->
+                    val hasValidKey = keyValidationState[member.id] == true
                     TeamMemberCard(
                         member = member,
+                        hasValidKey = hasValidKey,
                         onRemove = { team.removeAt(idx) },
                         onRankChange = { newRank ->
                             team[idx] = team[idx].copy(rank = newRank)
@@ -199,6 +201,7 @@ fun AgentTeamConfigScreen(
 @Composable
 private fun TeamMemberCard(
     member: AgentTeamMember,
+    hasValidKey: Boolean = false,
     onRemove: () -> Unit,
     onRankChange: (Int) -> Unit,
     onRoleChange: (AgentTeamRole) -> Unit,
@@ -276,7 +279,15 @@ private fun TeamMemberCard(
             Spacer(Modifier.height(6.dp))
 
             // المزود + النموذج
-            Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (hasValidKey) "مفتاح ✅" else "لا مفتاح ❌",
+                    color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
+                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }

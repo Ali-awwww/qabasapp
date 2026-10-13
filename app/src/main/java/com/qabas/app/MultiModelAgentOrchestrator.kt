@@ -253,7 +253,7 @@ object MultiModelAgentOrchestrator {
                             val r = callModel(
                                 member,
                                 "أنت مساعد${if (member.role == AgentTeamRole.REVIEWER) " مراجع جودة" else " تنفيذي"} في فريق مهندسين AI. نفّذ المهمة المطلوبة بدقة وكفاءة، وقدّم مخرجات كاملة قابلة للاستخدام.",
-                                buildMemberPrompt(st, executedIds, memberResults),
+                                buildMemberPrompt(st, prompt, executedIds, memberResults),
                                 activeApiKey
                             )
                             Pair(st, r)
@@ -309,10 +309,16 @@ object MultiModelAgentOrchestrator {
     }
 
     /** بناء prompt لكل مساعد — يتضمن سياق المهمة + مخرجات من سبقه إن وُجدت */
-    private fun buildMemberPrompt(st: LeaderSubtask, executedIds: Set<String>, priorResults: List<MemberRunResult>): String {
+    private fun buildMemberPrompt(
+        st: LeaderSubtask,
+        overallPrompt: String,
+        executedIds: Set<String>,
+        priorResults: List<MemberRunResult>
+    ): String {
         val priorContext = priorResults.filter { it.isSuccess && it.role != AgentTeamRole.LEADER }
             .joinToString("\n") { "[${it.memberId}]: ${it.outputText.take(500)}" }
         return buildString {
+            append("السياق العام للمهمة من المستخدم: $overallPrompt\n\n")
             append("المهمة الفرعية: ${st.title}\n")
             append("الوصف: ${st.description}\n")
             if (priorContext.isNotBlank()) {
@@ -364,9 +370,20 @@ object MultiModelAgentOrchestrator {
     /** تحليل خطة القائد من JSON */
     private fun parseLeaderPlan(raw: String, team: List<AgentTeamMember>): LeaderPlan? {
         return try {
-            // إزالة أي علامات code fence
-            val cleaned = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-            val obj = org.json.JSONObject(cleaned)
+            // 🔑 إزالة أي علامات code fence + استخراج JSON من نص قد يكون محاطًا بجمل
+            val cleaned = raw.trim()
+                .removePrefix("```json").removePrefix("```\n").removePrefix("```")
+                .removeSuffix("\n```").removeSuffix("```")
+                .trim()
+
+            // استخراج JSON من نص محاط (قد يُسبق بجملة مثل "هذه خطتي:")
+            val jsonStart = cleaned.indexOf('{')
+            val jsonEnd = cleaned.lastIndexOf('}')
+            val jsonCandidate = if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                cleaned.substring(jsonStart, jsonEnd + 1)
+            } else cleaned
+
+            val obj = org.json.JSONObject(jsonCandidate)
             val subtasksArr = obj.optJSONArray("subtasks") ?: return null
             val subtasks = (0 until subtasksArr.length()).mapNotNull { i ->
                 val o = subtasksArr.optJSONObject(i) ?: return@mapNotNull null
