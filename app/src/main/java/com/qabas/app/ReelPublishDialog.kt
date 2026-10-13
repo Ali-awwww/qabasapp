@@ -10,8 +10,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +36,7 @@ import com.qabas.app.ui.theme.RobotoMonoFont
 import kotlinx.coroutines.launch
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReelPublishDialog(
     currentUserId: String,
@@ -425,6 +423,73 @@ fun ReelPublishDialog(
                     }
                 }
 
+                // Confirmation banner when a video is picked (so user knows it registered)
+                selectedVideoUri?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "تم اختيار المقطع ✅",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                    if (selectedVideoDurationMs > 0) {
+                                        val totalSec = (selectedVideoDurationMs / 1000).toInt()
+                                        Text(
+                                            text = "المدة: ${totalSec / 60}:${"%02d".format(totalSec % 60)}",
+                                            fontFamily = CairoFont,
+                                            fontSize = 10.5.sp,
+                                            color = Color.White.copy(alpha = 0.65f),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    selectedVideoUri = null
+                                    selectedVideoThumbnailFile = null
+                                    selectedVideoThumbnailBytes = null
+                                    selectedVideoDurationMs = 0L
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "إزالة المقطع",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Collapsible Optional Direct Link for advanced users
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -486,8 +551,12 @@ fun ReelPublishDialog(
                 color = GoldPrimary
             )
             Spacer(modifier = Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories) { cat ->
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                categories.forEach { cat ->
                     val isSelected = selectedCategory == cat
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -501,7 +570,9 @@ fun ReelPublishDialog(
                             fontSize = 11.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSelected) DeepSlate else Color.White,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -519,48 +590,58 @@ fun ReelPublishDialog(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Title
-            OutlinedTextField(
-                value = title,
-                onValueChange = {
-                    title = it
-                    generalErrorMessage = null
-                },
-                label = { Text("عنوان المقطع * (مثال: تلاوة خاشعة للشيخ...)", fontFamily = CairoFont, fontSize = 12.sp) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = GoldPrimary,
-                    unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
-                )
-            )
+            // Title + Description grouped in one card (visual consistency with other sections)
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White.copy(alpha = 0.04f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    // Title
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = {
+                            title = it
+                            generalErrorMessage = null
+                        },
+                        label = { Text("عنوان المقطع * (مثال: تلاوة خاشعة للشيخ...)", fontFamily = CairoFont, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GoldPrimary,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedLabelColor = GoldPrimary,
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                        )
+                    )
 
-            Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-            // Description
-            OutlinedTextField(
-                value = description,
-                onValueChange = {
-                    description = it
-                    generalErrorMessage = null
-                },
-                label = { Text("الوصف أو نص الآية الكريمة (اختياري)", fontFamily = CairoFont, fontSize = 12.sp) },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 3,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = GoldPrimary,
-                    unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
-                )
-            )
+                    // Description
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = {
+                            description = it
+                            generalErrorMessage = null
+                        },
+                        label = { Text("الوصف أو نص الآية الكريمة (اختياري)", fontFamily = CairoFont, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GoldPrimary,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedLabelColor = GoldPrimary,
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                        )
+                    )
+                }
+            }
 
             // Developer Pinning Feature
             if (isDeveloper) {
