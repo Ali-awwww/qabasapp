@@ -67,17 +67,17 @@ fun UnifiedMasterStudioScreen(
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
-    // 1. مدخلات المشروع الموحد
-    var topicText by remember { mutableStateOf(initialTopic.ifBlank { "فضل الصلاة على النبي ﷺ وبركتها في تفريج الهموم" }) }
-    var selectedRatio by remember { mutableStateOf("9:16") } // 9:16, 16:9, 1:1
-    var selectedVoice by remember { mutableStateOf("ar-SA-HamedNeural") }
-    var selectedTone by remember { mutableStateOf("خاشع ومؤثر") }
-    var selectedVisualModel by remember { mutableStateOf("flux") } // flux, broll, hybrid
+    // 1. مدخلات المشروع الموحد — 🔑 نستخدم rememberSaveable لحفظ الحالة عند تدوير الشاشة
+    var topicText by rememberSaveable { mutableStateOf(initialTopic.ifBlank { "فضل الصلاة على النبي ﷺ وبركتها في تفريج الهموم" }) }
+    var selectedRatio by rememberSaveable { mutableStateOf("9:16") } // 9:16, 16:9, 1:1
+    var selectedVoice by rememberSaveable { mutableStateOf("ar-SA-HamedNeural") }
+    var selectedTone by rememberSaveable { mutableStateOf("خاشع ومؤثر") }
+    var selectedVisualModel by rememberSaveable { mutableStateOf("flux") } // flux, broll, hybrid
 
     // 2. حالة التوليد الموحد
-    var isGeneratingMasterpiece by remember { mutableStateOf(false) }
-    var generationStage by remember { mutableStateOf("") }
-    var generationProgress by remember { mutableFloatStateOf(0f) }
+    var isGeneratingMasterpiece by rememberSaveable { mutableStateOf(false) }
+    var generationStage by rememberSaveable { mutableStateOf("") }
+    var generationProgress by rememberSaveable { mutableFloatStateOf(0f) }
 
     // 3. المخرجات الموحدة للعمل المتقن
     var generatedScenes by remember { mutableStateOf<List<Scene>>(emptyList()) }
@@ -90,11 +90,11 @@ fun UnifiedMasterStudioScreen(
     var activePreviewSceneIndex by remember { mutableIntStateOf(0) }
 
     // 4. التبويب النشط في قمرة العرض (0: العمل المتكامل, 1: المشاهد والمونتاج, 2: البوستر والمصغرة, 3: الصوت, 4: النشر والـ SEO)
-    var selectedCockpitTab by remember { mutableIntStateOf(0) }
+    var selectedCockpitTab by rememberSaveable { mutableIntStateOf(0) }
 
     // 5. محرك التوليد البصري وحركة الكاميرا (FLUX.1 vs Higgsfield AI Video)
-    var selectedVisualEngine by remember { mutableStateOf("flux") } // "flux" or "higgsfield"
-    var selectedCameraMotion by remember { mutableStateOf("cinematic") } // "cinematic", "orbit", "drone", "push_in"
+    var selectedVisualEngine by rememberSaveable { mutableStateOf("flux") } // "flux" or "higgsfield"
+    var selectedCameraMotion by rememberSaveable { mutableStateOf("cinematic") } // "cinematic", "orbit", "drone", "push_in"
     val isHiggsfieldConfigured = remember { HiggsfieldVideoService.isConfigured(context) }
 
     val voiceOptions = remember {

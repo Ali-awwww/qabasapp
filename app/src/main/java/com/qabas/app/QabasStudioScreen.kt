@@ -1503,7 +1503,7 @@ private fun saveHadithCardBitmapToStorage(
             color = android.graphics.Color.parseColor("#E8C547")
             textSize = 28f * scale
             textAlign = android.graphics.Paint.Align.CENTER
-            isFakeBoldText = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         canvas.drawText("✦ قَبَس | بَطَاقَة حَدِيث شَرِيف ✦", width / 2f, 130f * scale, headerPaint)
 
@@ -1513,7 +1513,7 @@ private fun saveHadithCardBitmapToStorage(
             color = android.graphics.Color.WHITE
             textSize = 36f * scale
             textAlign = android.graphics.Paint.Align.CENTER
-            isFakeBoldText = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         canvas.drawText(title.ifBlank { "حديث نبوي شريف" }, width / 2f, 200f * scale, titlePaint)
 
@@ -1535,7 +1535,7 @@ private fun saveHadithCardBitmapToStorage(
             color = android.graphics.Color.parseColor("#F8FAFC")
             textSize = 34f * scale
             textAlign = android.graphics.Paint.Align.LEFT
-            isFakeBoldText = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
 
         val safeText = if (text.length > 350) text.take(345) + "..." else text
@@ -1583,7 +1583,7 @@ private fun saveHadithCardBitmapToStorage(
                 color = android.graphics.Color.parseColor("#0B0F19")
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
-                isFakeBoldText = true
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
             val badgeBgPaint = android.graphics.Paint().apply {
                 isAntiAlias = true
@@ -1622,7 +1622,7 @@ private fun saveHadithCardBitmapToStorage(
                 color = android.graphics.Color.parseColor("#E8C547")
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
-                isFakeBoldText = true
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
             canvas.drawText(userHandle, width / 2f, height - (95f * scale), handlePaint)
         }
