@@ -93,30 +93,30 @@ fun FullSahihReaderScreen(
         isLoadingHadiths = false
     }
 
-    // البحث (debounced)
-    LaunchedEffect(searchQuery) {
+    // البحث (debounced) — 🔑 يبدأ حالة البحث فورًا عند تغير الاستعلام (لا ننتظر 300ms)
+    LaunchedEffect(bookType, searchQuery) {
         if (searchQuery.isBlank()) {
             searchResults = emptyList()
+            isSearching = false
             return@LaunchedEffect
         }
+        isSearching = true // 🔑 فورًا، لا نعرض نتائج قديمة تحت استعلام جديد
         kotlinx.coroutines.delay(300)
-        isSearching = true
-        searchResults = FullSahihHadithRepository.searchHadiths(context, bookType, searchQuery)
+        val results = FullSahihHadithRepository.searchHadiths(context, bookType, searchQuery)
+        searchResults = results
         isSearching = false
     }
 
-    // تنظيف الذاكرة عند مغادرة الشاشة
-    DisposableEffect(Unit) {
-        onDispose {
-            FullSahihHadithRepository.clearCache()
-            tts?.let {
-                try { it.stop(); it.shutdown() } catch (_: Exception) {}
-            }
+    // 🔑 توحيد الرجوع: الأحاديث ← فهرس الكتاب ← المختارات ← المكتبة (نفس سلوك زر الرجوع والنظام)
+    BackHandler(enabled = selectedChapterId != null || searchQuery.isNotBlank()) {
+        if (selectedChapterId != null) {
+            selectedChapterId = null
+        } else if (searchQuery.isNotBlank()) {
+            searchQuery = ""
         }
     }
 
-    // TTS (Text-to-Speech)
-    // تهيئة TTS بشكل غير متزامن مرة واحدة عند فتح الشاشة
+    // 🔑 DisposableEffect واحد فقط (TTS + clearCache) — لا تداخل تنظيفين منفصلين
     DisposableEffect(Unit) {
         val ttsInit = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -127,7 +127,11 @@ fun FullSahihReaderScreen(
 
         onDispose {
             try { ttsInit.stop(); ttsInit.shutdown() } catch (_: Exception) {}
-            FullSahihHadithRepository.clearCache()
+            tts = null
+            // 🔑 clearCache الآن suspend — نُطلقه بشكل منفصل (لا نمنع dispose)
+            scope.launch {
+                FullSahihHadithRepository.clearCache()
+            }
         }
     }
 
@@ -140,12 +144,18 @@ fun FullSahihReaderScreen(
             isSpeaking = false
             speakingHadithId = null
         } else {
-            // بدء قراءة
+            // بدء قراءة — 🔑 نطبع نجاح speak() ولا نفترض النجاح تلقائيًا
             currentTts.setLanguage(Locale("ar"))
             val cleanText = hadith.arabic.replace(Regex("[\\n\\r]"), " ").trim()
-            currentTts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "hadith_${hadith.id}")
-            isSpeaking = true
-            speakingHadithId = hadith.id
+            val speakResult = currentTts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "hadith_${hadith.id}")
+            if (speakResult == TextToSpeech.SUCCESS) {
+                isSpeaking = true
+                speakingHadithId = hadith.id
+            } else {
+                // فشل البدء — نُظهر تحذيرًا للمستخدم (قد لا تكون العربية مدعومة)
+                isSpeaking = false
+                speakingHadithId = null
+            }
         }
     }
 

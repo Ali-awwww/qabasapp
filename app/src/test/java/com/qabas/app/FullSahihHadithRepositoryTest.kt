@@ -112,51 +112,113 @@ class FullSahihHadithRepositoryTest {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 3) البحث الكامل — يفحص البحث الفعلي داخل الأحاديث
+    // 3) البحث الكامل — 🔑 يستخدم HadithSearchNormalizer (يُطبّع التشكيل وأشكال الألف/الهمزة)
     // ═══════════════════════════════════════════════════════════
     @Test
-    fun `bukhari search finds the first hadith (intentions)`() {
-        val book = loadBook("sahih_bukhari.json.gz")
-
-        // 🔑 حديث النية هو أول حديث في صحيح البخاري — يجب أن نجده بالبحث
-        val results = book.hadiths.asSequence()
-            .filter { it.arabic.contains("النيات", ignoreCase = true) }
-            .toList()
-        assertTrue("البحث عن «النيات» يجب أن يُعيد حديث النية الأول (وجدنا ${results.size})", results.isNotEmpty())
-        assertTrue("حديث النية يجب أن يحتوي على idInBook=1", results.any { it.idInBook == 1 })
+    fun `normalizer strips diacritics and unifies alef`() {
+        // 🔑 اختبار أساسي لمنطق التطبيع (بدون بيانات)
+        val normalized = HadithSearchNormalizer.normalize("بِالنِّيَّاتِ")
+        assertTrue("التطبيع يجب أن يُزيل التشكيل من «بِالنِّيَّاتِ» (حصل: $normalized)", normalized.contains("بالنيات"))
+        assertFalse("التطبيع يجب ألا يحتوي على تشكيل (حصل: $normalized)", normalized.contains("ِ"))
     }
 
     @Test
-    fun `muslim search finds known hadith (purity/intentions)`() {
+    fun `bukhari search finds hadith 1 using UNDIACRITIZED query`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+
+        // 🔑 نبحث بكلمة غير مشكلة — التطبيع يجب أن يجدها في النص المشكّل «بِالنِّيَّاتِ»
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "بالنيات")
+            }
+        assertTrue("البحث غير المشكّل «بالنيات» يجب أن يجد حديث #1 (وجدنا ${results.size})", results.isNotEmpty())
+        assertTrue("حديث النية (idInBook=1) يجب أن يكون في النتائج", results.contains(1))
+    }
+
+    @Test
+    fun `bukhari search finds hadith 1 using DIACRITIZED query`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+
+        // 🔑 نبحث بكلمة مشكّلة — التطبيع يجب أن يجعلها متطابقة
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "بِالنِّيَّاتِ")
+            }
+        assertTrue("البحث المشكّل «بِالنِّيَّاتِ» يجب أن يجد حديث #1 (وجدنا ${results.size})", results.isNotEmpty())
+        assertTrue("حديث النية (idInBook=1) يجب أن يكون في النتائج", results.contains(1))
+    }
+
+    @Test
+    fun `muslim search finds known text (faith iman)`() {
         val book = loadBook("sahih_muslim.json.gz")
 
-        // 🔑 حديث مشهور في صحيح مسلم — الطهارة
-        val results = book.hadiths.asSequence()
-            .filter { it.arabic.contains("الطهارة", ignoreCase = true) }
-            .toList()
-        assertTrue("البحث عن «الطهارة» يجب أن يُعيد أحاديث كتاب الطهارة (وجدنا ${results.size})", results.isNotEmpty())
+        // 🔑 «الإيمان» موجودة في متن أحاديث كتاب الإيمان (الفصل الأول)
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "الايمان")
+            }
+        assertTrue("البحث عن «الايمان» يجب أن يُعيد أحاديث كتاب الإيمان (وجدنا ${results.size})", results.isNotEmpty())
+    }
+
+    @Test
+    fun `search for non-existent term returns empty list`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "كلمةغيرموجودةليس في الاحاديث")
+            }
+        assertTrue("البحث عن كلمة غير موجودة يجب أن يُعيد قائمة فارغة (حصل ${results.size})", results.isEmpty())
+    }
+
+    @Test
+    fun `search with whitespace-only query returns empty list`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "   ")
+            }
+        assertTrue("البحث بمسافات فقط يجب أن يُعيد قائمة فارغة (حصل ${results.size})", results.isEmpty())
+    }
+
+    @Test
+    fun `search reaches hadith near the END of bukhari (not just first page)`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+
+        // 🔑 نأخذ نص الحديث الأخير (idInBook=7277) ونبحث بأول 15 حرفًا منه
+        val last = book.hadiths.last()
+        assertTrue("يجب أن يكون هناك حديث أخير", last.idInBook > 7000)
+        val lastText = HadithSearchNormalizer.normalize(last.arabic)
+        val firstWords = lastText.split(" ").filter { it.length >= 3 }.take(3).joinToString(" ")
+        assertTrue("يجب أن يكون لدينا كلمات للبحث (حصل: '$firstWords')", firstWords.isNotBlank())
+
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, firstWords)
+            }
+        assertTrue("البحث بكلمات من الحديث الأخير يجب أن يجد حديثًا واحدًا على الأقل (حصل ${results.size})", results.isNotEmpty())
+        assertTrue("يجب أن يجد الحديث الأخير نفسه (id=${last.id})", results.contains(last.id))
     }
 
     @Test
     fun `search with limit returns at most limit results`() {
         val book = loadBook("sahih_bukhari.json.gz")
         val limit = 10
-        val results = book.hadiths.asSequence()
-            .filter { it.arabic.contains("الله", ignoreCase = true) } // موجود تقريبًا في كل الأحاديث
-            .take(limit)
-            .toList()
-        assertEquals("البحث مع limit=$limit يجب أن يُعيد بالضبط $limit", limit, results.size)
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "الله", limit = limit)
+            }
+        assertEquals("البحث مع limit=$limit يجب أن يُعيد بالضبط $limit (حصل ${results.size})", limit, results.size)
     }
 
     @Test
-    fun `search with empty query returns empty list`() {
+    fun `search with empty query returns empty list (matches repository behavior)`() {
         val book = loadBook("sahih_bukhari.json.gz")
-        val results = book.hadiths.asSequence()
-            .filter { it.arabic.contains("", ignoreCase = true) }
-            .take(50)
-            .toList()
-        // البحث الفارغ يُعيد أول 50 (سلوك بنية الـ take)
-        assertEquals("بحث فارغ + take(50) = 50 نتيجة", 50, results.size)
+        // 🔑 المستودع يعيد قائمة فارغة عند استعلام فارغ — نطابق نفس السلوك
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "")
+            }
+        assertTrue("البحث الفارغ يجب أن يُعيد قائمة فارغة (حصل ${results.size})", results.isEmpty())
     }
 
     @Test

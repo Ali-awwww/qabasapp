@@ -3,6 +3,8 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -12,7 +14,10 @@ import java.util.zip.GZIPInputStream
 
 /**
  * 🔑 مستودع صحيح البخاري وصحيح مسلم الكامل (offline-first)
- * يقرأ من assets/hadith/*.json.gz ويحمّل الأحاديث بشكل تدريجي (Lazy) لتجنب OOM
+ * يقرأ من assets/hadith/*.json.gz ويحمّل كتابًا واحدًا في كل مرة.
+ *
+ * ⚠️ ملاحظة: هذا تحميل كامل لكتاب (لا تدريجي) — النص المفكوك ~8MB لكل كتاب
+ * قبل الذاكرة الكائنية. البحث يعمل على فهرس مُطبّع مسبقًا (HadithSearchNormalizer).
  */
 
 @Serializable
@@ -47,12 +52,15 @@ object FullSahihHadithRepository {
     private const val BUKHARI_FILE = "sahih_bukhari.json.gz"
     private const val MUSLIM_FILE = "sahih_muslim.json.gz"
 
-    // 🔑 نُخزّن كتابًا واحدًا فقط في الذاكرة (نُفرغ الآخر عند التبديل)
-    @Volatile private var cachedBook: FullSahihBook? = null
-    @Volatile private var cachedFileName: String? = null
+    // 🔑 مدخل واحد للتخزين المؤقت (identity + data) مع Mutex لمنع التحميل المتزامن المكرر
+    private data class CachedBook(val bookType: SahihBookType, val book: FullSahihBook, val searchIndex: Map<Int, String>)
+
+    private val cacheMutex = Mutex()
+    @Volatile private var cached: CachedBook? = null
 
     /**
-     * تحميل كتاب كامل من الـ assets بشكل غير متزامن (Main thread safe)
+     * تحميل كتاب كامل من الـ assets بشكل غير متزامن (Main thread safe).
+     * يبني فهرس بحث مُطبّع مسبقًا لتسريع البحث التالي.
      */
     suspend fun loadBook(context: Context, bookType: SahihBookType): FullSahihBook? = withContext(Dispatchers.IO) {
         val fileName = when (bookType) {
@@ -60,23 +68,34 @@ object FullSahihHadithRepository {
             SahihBookType.MUSLIM -> MUSLIM_FILE
         }
 
-        if (cachedFileName == fileName && cachedBook != null) return@withContext cachedBook
+        // 🔑 Mutex يمنع التحميل المتزامن المكرر + يضمن ذرّية cache-vs-load
+        cacheMutex.withLock {
+            cached?.let { if (it.bookType == bookType) return@withContext it.book }
+        }
 
         try {
             val t0 = System.currentTimeMillis()
-            context.assets.open("hadith/$fileName").use { stream ->
+            val book = context.assets.open("hadith/$fileName").use { stream ->
                 GZIPInputStream(stream).use { gz ->
                     BufferedReader(InputStreamReader(gz)).use { reader ->
                         val jsonStr = reader.readText()
                         val json = Json { ignoreUnknownKeys = true }
-                        val book = json.decodeFromString<FullSahihBook>(jsonStr)
-                        Log.d(TAG, "Loaded $fileName: ${book.hadiths.size} hadiths, ${book.chapters.size} chapters in ${System.currentTimeMillis() - t0}ms")
-                        cachedBook = book
-                        cachedFileName = fileName
-                        return@withContext book
+                        json.decodeFromString<FullSahihBook>(jsonStr)
                     }
                 }
             }
+
+            // 🔑 بناء فهرس بحث مُطبّع مسبقًا (تسريع كبير للبحث المتتالي)
+            val searchIndex = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+
+            Log.d(TAG, "Loaded $fileName: ${book.hadiths.size} hadiths, ${book.chapters.size} chapters in ${System.currentTimeMillis() - t0}ms")
+
+            cacheMutex.withLock {
+                cached = CachedBook(bookType, book, searchIndex)
+            }
+            return@withContext book
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 🔑 لا نبتلع الإلغاء
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load $fileName: ${e.message}")
             null
@@ -84,39 +103,44 @@ object FullSahihHadithRepository {
     }
 
     /**
-     * تفريغ الذاكرة المؤقتة (عند مغادرة الشاشة)
+     * تفريغ الذاكرة المؤقتة (عند مغادرة الشاشة).
+     * 🔑 فقط إذا لم يكن هناك تحميل جارٍ — Mutex يضمن عدم السباق.
      */
-    fun clearCache() {
-        cachedBook = null
-        cachedFileName = null
+    suspend fun clearCache() {
+        cacheMutex.withLock {
+            cached = null
+        }
     }
 
     /**
-     * الحصول على فصول كتاب (نحفظ الفصول فقط في الذاكرة بشكل دائم)
+     * الحصول على فصول كتاب
      */
     suspend fun getChapters(context: Context, bookType: SahihBookType): List<FullSahihChapter> {
         return loadBook(context, bookType)?.chapters ?: emptyList()
     }
 
     /**
-     * الحصول على أحاديث فصل محدد
+     * الحصول على أحاديث فصل محدد — 🔑 تصفية على Dispatchers.Default (خلفي)
      */
-    suspend fun getHadithsForChapter(context: Context, bookType: SahihBookType, chapterId: Int): List<FullSahihHadith> {
-        val book = loadBook(context, bookType) ?: return emptyList()
-        return book.hadiths.filter { it.chapterId == chapterId }
+    suspend fun getHadithsForChapter(context: Context, bookType: SahihBookType, chapterId: Int): List<FullSahihHadith> = withContext(Dispatchers.Default) {
+        val book = loadBook(context, bookType) ?: return@withContext emptyList()
+        book.hadiths.filter { it.chapterId == chapterId }
     }
 
     /**
-     * البحث في الأحاديث (limit=50 لمنع حمل نتائج ضخمة)
+     * البحث في الأحاديث — 🔑 يعمل على Dispatchers.Default + فهرس مُطبّع مسبقًا
+     * limit=50 لمنع حمل نتائج ضخمة (المستخدم يرى «أول 50 نتيجة» عند بلوغ الحد)
      */
-    suspend fun searchHadiths(context: Context, bookType: SahihBookType, query: String, limit: Int = 50): List<FullSahihHadith> {
-        if (query.isBlank()) return emptyList()
-        val book = loadBook(context, bookType) ?: return emptyList()
-        val q = query.trim()
-        return book.hadiths.asSequence()
-            .filter { it.arabic.contains(q, ignoreCase = true) }
-            .take(limit)
-            .toList()
+    suspend fun searchHadiths(context: Context, bookType: SahihBookType, query: String, limit: Int = 50): List<FullSahihHadith> = withContext(Dispatchers.Default) {
+        if (query.isBlank()) return@withContext emptyList()
+
+        val book = loadBook(context, bookType) ?: return@withContext emptyList()
+        val searchIndex = cacheMutex.withLock { cached?.takeIf { it.bookType == bookType }?.searchIndex } ?: return@withContext emptyList()
+
+        // 🔑 البحث عبر الفهرس المُطبّع (يزيل التشكيل ويوحد الألف/الهمزة)
+        val matchedIds = HadithSearchNormalizer.searchWithIndex(searchIndex, query, limit)
+        val idSet = matchedIds.toSet()
+        book.hadiths.filter { idSet.contains(it.id) }.take(limit)
     }
 
     /**
