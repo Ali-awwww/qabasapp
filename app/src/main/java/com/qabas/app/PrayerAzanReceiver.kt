@@ -41,13 +41,13 @@ class PrayerAzanReceiver : BroadcastReceiver() {
                 "FULL_AZAN", "TAKBEER_ONLY" -> {
                     // تشغيل خدمة الأذان المباشرة
                     AzanPlaybackService.startAzan(context, voiceId, prayerName)
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName، استمع للأذان وتقبل الله طاعتكم 🕋")
+                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName، استمع للأذان وتقبل الله طاعتكم 🕋", soundMode)
                 }
                 "NOTIFICATION_ONLY" -> {
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName حسب توقيت مدينتك 🕌")
+                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName حسب توقيت مدينتك 🕌", soundMode)
                 }
                 "SILENT" -> {
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName (تنبيه صامت) 🌙")
+                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName (تنبيه صامت) 🌙", soundMode)
                 }
             }
 
@@ -64,7 +64,8 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         context: Context,
         prayerKey: String,
         prayerName: String,
-        message: String
+        message: String,
+        soundMode: String
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 

@@ -81,7 +81,7 @@ class AzanPlaybackService : Service() {
     private fun requestAudioFocus(): Boolean {
         val am = audioManager ?: return false
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            val request = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -94,7 +94,8 @@ class AzanPlaybackService : Service() {
                     }
                 }
                 .build()
-            am.requestAudioFocus(audioFocusRequest) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            audioFocusRequest = request
+            am.requestAudioFocus(request) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         } else {
             @Suppress("DEPRECATION")
             am.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) ==

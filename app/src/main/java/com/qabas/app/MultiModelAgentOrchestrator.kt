@@ -235,6 +235,9 @@ object MultiModelAgentOrchestrator {
         // ═══ المرحلة 2: تنفيذ المساعدين (بالتوازي أو بالتسلسل حسب التبعيات) ═══
         currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل المرحلة الثانية
         val memberResults = mutableListOf<MemberRunResult>()
+        // 🔑 نستخدم succeededIds للمهام الناجحة فقط — المهمة الفاشلة تُوقف تبعاتها
+        val succeededIds = mutableSetOf<String>()
+        val failedIds = mutableSetOf<String>()
         memberResults.add(
             MemberRunResult(
                 memberId = leader.id, role = AgentTeamRole.LEADER, rank = leader.rank,
@@ -262,9 +265,6 @@ object MultiModelAgentOrchestrator {
             val memberById = assistants.associateBy { it.id }
 
             // مراعاة التبعيات: ننفذ على دفعات (batch) حسب dependsOn
-            // 🔑 نستخدم succeededIds للمهام الناجحة فقط — المهمة الفاشلة تُوقف تبعاتها
-            val succeededIds = mutableSetOf<String>()
-            val failedIds = mutableSetOf<String>()
             val remaining = subtasks.toMutableList()
 
             while (remaining.isNotEmpty()) {

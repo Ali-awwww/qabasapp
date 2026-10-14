@@ -93,14 +93,14 @@ fun AgentTeamConfigScreen(
                         Text(
                             "⚠️ يجب تعيين نموذج قائد واحد على الأقل!",
                             color = Color(0xFFEF4444), fontSize = 13.sp,
-                            modifier = Modifier.padding(bottom(8.dp))
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                     if (leaderCount > 1) {
                         Text(
                             "⚠️ يوجد أكثر من قائد — سيُستخدم القائد الأول فقط.",
                             color = Color(0xFFF59E0B), fontSize = 13.sp,
-                            modifier = Modifier.padding(bottom(8.dp))
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                     // 🔑 تحذير إذا لم يكن لدى أي عضو مفتاح صالح
@@ -108,7 +108,7 @@ fun AgentTeamConfigScreen(
                         Text(
                             "⚠️ لا يوجد مفتاح API صالح في الشاشة الرئيسية لأي مزود!",
                             color = Color(0xFFEF4444), fontSize = 13.sp,
-                            modifier = Modifier.padding(bottom(8.dp))
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                         OutlinedButton(
                             onClick = onOpenKeyHub,
