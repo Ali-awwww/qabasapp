@@ -93,16 +93,23 @@ fun FullSahihReaderScreen(
     }
 
     // TTS (Text-to-Speech)
-    fun speakHadith(hadith: FullSahihHadith) {
-        val currentTts = tts ?: TextToSpeech(context) { status ->
+    // تهيئة TTS بشكل غير متزامن مرة واحدة عند فتح الشاشة
+    DisposableEffect(Unit) {
+        val ttsInit = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts = tts // المحفوظ
+                tts?.setLanguage(Locale("ar"))
             }
-        }.let { createdTts ->
-            createdTts.language = Locale("ar")
-            tts = createdTts
-            createdTts
         }
+        tts = ttsInit
+
+        onDispose {
+            try { ttsInit.stop(); ttsInit.shutdown() } catch (_: Exception) {}
+            FullSahihHadithRepository.clearCache()
+        }
+    }
+
+    fun speakHadith(hadith: FullSahihHadith) {
+        val currentTts = tts ?: return
 
         if (isSpeaking && speakingHadithId == hadith.id) {
             // إيقاف
@@ -122,7 +129,6 @@ fun FullSahihReaderScreen(
     val bookTitle = when (bookType) {
         SahihBookType.BUKHARI -> "صحيح البخاري (كامل)"
         SahihBookType.MUSLIM -> "صحيح مسلم (كامل)"
-        else -> "الكتب الصحاح"
     }
     val goldColor = Color(0xFFD4AF37)
     val darkBg = Color(0xFF0B141A)
