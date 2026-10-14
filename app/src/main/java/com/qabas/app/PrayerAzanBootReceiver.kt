@@ -21,7 +21,6 @@ class PrayerAzanBootReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
 
         val isBootAction = action == Intent.ACTION_BOOT_COMPLETED ||
-                action == "android.intent.action.LOCKED_BOOT_COMPLETED" ||
                 action == "android.intent.action.QUICKBOOT_POWERON" ||
                 action == "com.htc.intent.action.QUICKBOOT_POWERON"
 
@@ -40,8 +39,12 @@ class PrayerAzanBootReceiver : BroadcastReceiver() {
         wakeLock?.acquire(15000L)
 
         try {
+            // 🔑 على targetSdk 36+، لا نستطيع بدء Foreground Service من broadcast receiver مباشرة
+            // نكتفي بإعادة جدولة AlarmManager فقط — الخدمة ستُبدأ عند وصول أول أذان
             PrayerAlarmManager.scheduleAllPrayers(context)
-            try { AzanCountdownService.start(context) } catch (_: Exception) {}
+
+            // نحاول بدء AzanCountdownService لكن نجاهل فشله (بدء FGS محدود على Android 14+)
+            try { AzanCountdownService.start(context) } catch (_: Exception) { /* target-36 boot-start restriction */ }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to re-schedule prayers: ${e.message}")
         } finally {

@@ -1475,8 +1475,6 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                         )
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
-                                                        promptInput = ""
-                                                        teamProgressText = ""
                                                     } else {
                                                         executeAgentMission(
                                                         context = context,
@@ -1490,20 +1488,16 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                         onFinished = { finalMission ->
                                                             currentMission = finalMission
                                                             missionHistory = listOf(finalMission) + missionHistory
-                                                            promptInput = ""
                                                         }
                                                     )
                                                     }
                                                 } catch (e: kotlinx.coroutines.CancellationException) {
+                                                    // do nothing — finally resets state
+                                                } finally {
                                                     isExecuting = false
                                                     executionJob = null
-                                                } finally {
-                                                    if (isExecuting) {
-                                                        isExecuting = false
-                                                    }
-                                                    if (executionJob == null || coroutineContext[kotlinx.coroutines.Job]?.children?.isEmpty() == true) {
-                                                        executionJob = null
-                                                    }
+                                                    promptInput = ""
+                                                    teamProgressText = ""
                                                 }
                                             }
                                             executionJob = job
@@ -1554,6 +1548,19 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                 isExecuting = true
                                                 val job = coroutineScope.launch {
                                                     try {
+                                                        if (isTeamMode) {
+                                                            // 🔑 نحفظ وضع الفريق عند إعادة المحاولة
+                                                            val mission = executeAgentMissionMultiModel(
+                                                                context = context,
+                                                                userPrompt = prompt,
+                                                                specialization = selectedSpec,
+                                                                onTeamProgress = { progressText ->
+                                                                    teamProgressText = progressText
+                                                                }
+                                                            )
+                                                            currentMission = mission
+                                                            missionHistory = listOf(mission) + missionHistory
+                                                        } else {
                                                         executeAgentMission(
                                                             context = context,
                                                             prompt = prompt,
@@ -1564,14 +1571,15 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                             onFinished = { finalMission ->
                                                                 currentMission = finalMission
                                                                 missionHistory = listOf(finalMission) + missionHistory
-                                                                isExecuting = false
-                                                                executionJob = null
-                                                                promptInput = ""
                                                             }
                                                         )
+                                                        }
                                                     } catch (e: kotlinx.coroutines.CancellationException) {
+                                                        // do nothing — finally will reset
+                                                    } finally {
                                                         isExecuting = false
                                                         executionJob = null
+                                                        teamProgressText = ""
                                                     }
                                                 }
                                                 executionJob = job
