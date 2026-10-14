@@ -190,7 +190,17 @@ object MultiModelAgentOrchestrator {
 
         val assistants = enabledTeam.filter { it.id != leader.id && it.role != AgentTeamRole.LEADER }.sortedBy { it.rank }
         if (assistants.isEmpty()) {
-            warnings.add("لا يوجد مساعدون في الفريق — سيقوم القائد بتنفيذ المهمة وحده.")
+            // 🔑 وضع «فريق» بلا مساعدين غير قابل للتنفيذ — نُفشل بوضوح بدلًا من جعل القائد يحاول وحده
+            return@withContext MultiModelRunReport(
+                overallPrompt = prompt,
+                team = enabledTeam,
+                totalLatencyMs = System.currentTimeMillis() - startTime,
+                overallSuccess = false,
+                warnings = listOf(
+                    "لا يوجد مساعد مفعّل في الفريق! وضع الفريق يتطلب قائد + مساعد واحد على الأقل. " +
+                            "إذا كنت تريد تشغيل نموذج واحد فقط، استخدم زر «فردي» بدلًا من وضع الفريق."
+                )
+            )
         }
 
         // ═══ المرحلة 1: القائد يُصدر خطة عمل ═══
@@ -326,6 +336,21 @@ object MultiModelAgentOrchestrator {
         // 🔑 النجاح يتطلب نجاح مساعد واحد على الأقل (لا نكتفي بنجاح خطة القائد)
         val assistantSuccessCount = memberResults.count { it.isSuccess && it.role != AgentTeamRole.LEADER }
         val anySuccess = assistantSuccessCount > 0 && synthesisResult.isSuccess
+
+        // 🔑 الإنجاز الجزئي: توجد مهام لم تُنفذ (حُظرت بسبب تبعياتها) رغم أن المهمة "نجحت"
+        // نُدرجها في التحذيرات ليُعرف المستخدم أن مهمة فرعية لم تُنفذ
+        val executedSubtaskIds = succeededIds + failedIds
+        val assistantIds = assistants.map { it.id }.toSet()
+        val blockedSubtasks = leaderPlan?.subtasks
+            ?.filter { st -> !executedSubtaskIds.contains(st.id) && assistantIds.contains(st.assigneeMemberId) }
+            ?: emptyList()
+
+        if (blockedSubtasks.isNotEmpty()) {
+            warnings.add(
+                "⚠️ تم تجاهل ${blockedSubtasks.size} مهمة فرعية (حُظرت بسبب فشل تبعياتها): " +
+                        blockedSubtasks.joinToString("، ") { it.title.take(40) }
+            )
+        }
 
         MultiModelRunReport(
             overallPrompt = prompt,
