@@ -179,6 +179,11 @@ fun UnifiedMasterStudioScreen(
                 val audioFile = AppServices.generateVoiceover(fullNarrativeText, selectedVoice)
                 voiceAudioPath = audioFile
 
+                // 🔑 تحذير المستخدم إذا فشل توليد الصوت (لا نتظاهر بنجاح وهمي)
+                if (voiceAudioPath.isNullOrBlank()) {
+                    Toast.makeText(context, "⚠️ تعذر توليد التعليق الصوتي — سيتم إكمال العمل بصمت", Toast.LENGTH_LONG).show()
+                }
+
                 generationProgress = 0.55f
                 if (selectedVisualEngine == "higgsfield") {
                     generationStage = "3/5 توليد لقطات الفيديو السينمائية بالذكاء الاصطناعي (Higgsfield AI)..."
