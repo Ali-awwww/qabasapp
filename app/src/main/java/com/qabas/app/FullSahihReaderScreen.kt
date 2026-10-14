@@ -26,7 +26,7 @@ import java.util.Locale
 
 /**
  * 🔑 شاشة قارئ صحيح البخاري وصحيح مسلم الكامل (7277 + 7459 حديثًا)
- * واجهة محسّنة: تصفح بالفصول، بحث، قراءة صوتية (TTS)، وضع ليلي تلقائي
+ * واجهة محسّنة: تصفح بالفصول، بحث، قراءة صوتية (TTS)، تحميل تدريجي (pagination)، وضع ليلي تلقائي
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +54,29 @@ fun FullSahihReaderScreen(
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var isSpeaking by remember { mutableStateOf(false) }
     var speakingHadithId by remember { mutableStateOf<Int?>(null) }
+
+    // 🔑 تحميل تدريجي (pagination) لتفادي تحميل آلاف البطاقات مرة واحدة
+    var visibleHadithCount by remember { mutableStateOf(30) }
+    val listState = rememberLazyListState()
+
+    // تحميل صفحة جديدة عند الاقتراب من النهاية
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= (visibleHadithCount - 10)
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            visibleHadithCount += 30 // تحميل 30 بطاقة إضافية
+        }
+    }
+
+    // إعادة تعيين عدد البطاقات المرئية عند تغيير الفصل/البحث
+    LaunchedEffect(selectedChapterId, searchQuery) {
+        visibleHadithCount = 30
+    }
 
     // تحميل الفصول عند فتح الشاشة
     LaunchedEffect(bookType) {
@@ -220,8 +243,8 @@ fun FullSahihReaderScreen(
                             Text("لا نتائج لـ «$searchQuery»", color = Color(0xFF94A3B8), fontSize = 14.sp)
                         }
                     } else {
-                        LazyColumn(contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(searchResults) { _, hadith ->
+                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
+                            itemsIndexed(searchResults.take(visibleHadithCount)) { _, hadith ->
                                 FullHadithCard(
                                     hadith = hadith,
                                     isExpanded = expandedHadithIds.contains(hadith.id),
@@ -245,8 +268,8 @@ fun FullSahihReaderScreen(
                             Text("لا توجد فصول متاحة", color = Color(0xFF94A3B8), fontSize = 14.sp)
                         }
                     } else {
-                        LazyColumn(contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(chapters) { idx, chapter ->
+                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
+                            itemsIndexed(chapters.take(visibleHadithCount)) { idx, chapter ->
                                 FullChapterCard(
                                     chapter = chapter,
                                     index = idx,
@@ -269,8 +292,8 @@ fun FullSahihReaderScreen(
                             Text("لا أحاديث في هذا الفصل", color = Color(0xFF94A3B8), fontSize = 14.sp)
                         }
                     } else {
-                        LazyColumn(contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(hadiths) { _, hadith ->
+                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
+                            itemsIndexed(hadiths.take(visibleHadithCount)) { _, hadith ->
                                 FullHadithCard(
                                     hadith = hadith,
                                     isExpanded = expandedHadithIds.contains(hadith.id),
