@@ -246,20 +246,21 @@ object VoiceStudioService {
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.byteStream()?.use { input ->
-                    FileOutputStream(outFile).use { output ->
-                        input.copyTo(output)
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    response.body?.byteStream()?.use { input ->
+                        FileOutputStream(outFile).use { output ->
+                            input.copyTo(output)
+                        }
                     }
-                }
-                if (outFile.exists() && outFile.length() > 500) {
-                    Result.success(outFile)
+                    if (outFile.exists() && outFile.length() > 500) {
+                        Result.success(outFile)
+                    } else {
+                        Result.failure(Exception("الملف الصوتي المُستلم فارغ أو تالف"))
+                    }
                 } else {
-                    Result.failure(Exception("الملف الصوتي المُستلم فارغ أو تالف"))
+                    Result.failure(Exception("خطأ من السيرفر (${response.code})"))
                 }
-            } else {
-                Result.failure(Exception("خطأ من السيرفر (${response.code})"))
             }
         } catch (e: Exception) {
             Result.failure(e)
