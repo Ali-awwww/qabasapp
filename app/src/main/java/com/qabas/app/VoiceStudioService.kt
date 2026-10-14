@@ -171,19 +171,33 @@ object VoiceStudioService {
         val start = System.currentTimeMillis()
         try {
             val pingEndpoints = listOf("$cleanUrl/ping", "$cleanUrl/health", "$cleanUrl/v1/models", "$cleanUrl/")
+            var actualEnginesCount = -1 // 🔑 -1 = غير معروف من الخادم (لا نُظهر رقمًا كاذبًا)
             for (ep in pingEndpoints) {
                 try {
                     val req = Request.Builder().url(ep).get().build()
-                    val res = httpClient.newCall(req).execute()
-                    val elapsed = System.currentTimeMillis() - start
-                    if (res.isSuccessful) {
-                        return@withContext VoiceStudioServerStatus(
-                            isOnline = true,
-                            serverUrl = cleanUrl,
-                            latencyMs = elapsed,
-                            enginesCount = 16,
-                            message = "متصل بنجاح بخادم VoiceStudio ($elapsed ms)"
-                        )
+                    httpClient.newCall(req).execute().use { res ->
+                        val elapsed = System.currentTimeMillis() - start
+                        if (res.isSuccessful) {
+                            // 🔑 نحاول قراءة العدد الفعلي للمحركات من استجابة الخادم
+                            actualEnginesCount = try {
+                                val body = res.body?.string() ?: ""
+                                val json = JSONObject(body)
+                                json.optInt("engines_count",
+                                    json.optInt("engines",
+                                        json.optJSONArray("models")?.length() ?: -1
+                                    )
+                                )
+                            } catch (_: Exception) { -1 }
+
+                            return@withContext VoiceStudioServerStatus(
+                                isOnline = true,
+                                serverUrl = cleanUrl,
+                                latencyMs = elapsed,
+                                enginesCount = actualEnginesCount,
+                                message = "متصل بنجاح بخادم VoiceStudio ($elapsed ms)" +
+                                        if (actualEnginesCount >= 0) " • $actualEnginesCount محرك" else ""
+                            )
+                        }
                     }
                 } catch (_: Exception) {}
             }
