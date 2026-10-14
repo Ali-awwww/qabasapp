@@ -83,7 +83,18 @@ object SupabaseServices {
                     }
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()
-                if (byEmail != null) return byEmail
+                if (byEmail != null) {
+                    if ((byEmail.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
+                        (byEmail.accountNumber.isNullOrBlank() && !accountNumber.isNullOrBlank())) {
+                        val updated = byEmail.copy(
+                            customId = byEmail.customId?.takeIf { it.isNotBlank() } ?: customId,
+                            accountNumber = byEmail.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
+                        )
+                        client.postgrest.from("users").upsert(updated)
+                        return updated
+                    }
+                    return byEmail
+                }
             }
 
             // 2. ثم بالمعرّف الخارجي
@@ -94,7 +105,18 @@ object SupabaseServices {
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
 
-            if (existing != null) return existing
+            if (existing != null) {
+                if ((existing.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
+                    (existing.accountNumber.isNullOrBlank() && !accountNumber.isNullOrBlank())) {
+                    val updated = existing.copy(
+                        customId = existing.customId?.takeIf { it.isNotBlank() } ?: customId,
+                        accountNumber = existing.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
+                    )
+                    client.postgrest.from("users").upsert(updated)
+                    return updated
+                }
+                return existing
+            }
 
             val newUser = UserRow(
                 id = externalId,
@@ -110,6 +132,39 @@ object SupabaseServices {
             client.postgrest.from("users").upsert(newUser)
             newUser
         }.onFailure { Log.e(TAG, "ensureUser failed: ${it.message}") }.getOrNull()
+
+        suspend fun getUserByEmail(email: String): UserRow? = runCatching {
+            val client = client ?: return null
+            val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
+            if (cleanEmail.isBlank()) return null
+            client.postgrest.from("users").select {
+                filter {
+                    ilike("email", cleanEmail)
+                }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()
+        }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
+
+        suspend fun getUserByCustomId(customId: String): UserRow? = runCatching {
+            val client = client ?: return null
+            val cleanId = customId.trim().removePrefix("@").lowercase(java.util.Locale.ROOT)
+            if (cleanId.isBlank()) return null
+            client.postgrest.from("users").select {
+                filter {
+                    eq("custom_id", cleanId)
+                }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()
+        }.onFailure { Log.e(TAG, "getUserByCustomId failed: ${it.message}") }.getOrNull()
+
+        suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
+            val client = client ?: return 1
+            val users = client.postgrest.from("users").select().decodeList<UserRow>()
+            val maxSeq = users.mapNotNull { user ->
+                user.accountNumber?.removePrefix("#")?.removePrefix("QBS-")?.toIntOrNull()
+            }.maxOrNull() ?: 0
+            maxSeq + 1
+        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrDefault(1)
 
         suspend fun saveUser(
             id: String,

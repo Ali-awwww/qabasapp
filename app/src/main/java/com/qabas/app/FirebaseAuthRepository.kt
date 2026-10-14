@@ -112,7 +112,12 @@ class FirebaseAuthRepository(
     /**
      * مزامنة أو إنشاء ملف تعريف المستخدم في Firestore
      */
-    suspend fun syncUserProfile(user: FirebaseUser, fcmToken: String? = null) {
+    suspend fun syncUserProfile(
+        user: FirebaseUser, 
+        fcmToken: String? = null,
+        customId: String? = null,
+        accountNumber: String? = null
+    ) {
         val firestore = db ?: return
         val docRef = firestore.collection("users").document(user.uid)
         try {
@@ -125,6 +130,12 @@ class FirebaseAuthRepository(
             user.photoUrl?.let { payload["photoUrl"] = it.toString() }
             if (!fcmToken.isNullOrBlank()) {
                 payload["fcmToken"] = fcmToken
+            }
+            if (!customId.isNullOrBlank()) {
+                payload["customId"] = customId
+            }
+            if (!accountNumber.isNullOrBlank()) {
+                payload["accountNumber"] = accountNumber
             }
 
             // Create if not exists with createdAt

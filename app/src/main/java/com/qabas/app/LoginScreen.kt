@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,11 +31,13 @@ import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import com.qabas.app.ui.TestTags
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 
 /**
  * شاشة تسجيل الدخول والمصادقة الأمنية بتصميم Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)
- * تدعم تسجيل الدخول بالبريد والرمز، أو المصادقة بنقرة واحدة عبر Google Credential Manager و Supabase Auth.
+ * تدعم تسجيل الدخول الموحد بالبريد الإلكتروني، رقم الحساب الرسمي، أو المعرف المخصص وكلمة المرور عبر سحابة Supabase.
  */
 @Composable
 fun LoginScreen(
@@ -49,142 +52,25 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-    var isGoogleLoading by remember { mutableStateOf(false) }
-    var showGoogleSetupDialog by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
+    var showUnregisteredDialog by remember { mutableStateOf(false) }
+    var unregisteredTargetEmail by remember { mutableStateOf("") }
+    var unregisteredTargetPassword by remember { mutableStateOf("") }
+    var isQuickRegistering by remember { mutableStateOf(false) }
 
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
-    // Pre-fill last saved email or custom identifier if available
+    // Pre-fill last saved email or custom identifier ONLY if rememberMe was explicitly saved
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val savedAccount = prefs.getString("saved_login_email", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_custom_id", "") ?: ""
+        val savedAccount = prefs.getString("saved_login_email", "")?.trim().orEmpty()
         if (savedAccount.isNotBlank()) {
             accountInput = savedAccount
-        }
-    }
-
-    // الدالة المركزية لتسجيل الدخول عبر Google
-    val handleGoogleSignIn: () -> Unit = {
-        val webClientId = GoogleAuthHelper.getWebClientId(context)
-        if (webClientId.isBlank() || webClientId.contains("your_")) {
-            Toast.makeText(context, "الرجاء إدخال معرّف Google Web Client ID أولاً لتفعيل الدخول السحابي", Toast.LENGTH_LONG).show()
-            showGoogleSetupDialog = true
+            rememberMe = true
         } else {
-            isGoogleLoading = true
-            coroutineScope.launch {
-                val result = GoogleAuthHelper.signInWithGoogle(context, webClientId)
-                result.onSuccess { googleResult ->
-                    val lowerEmail = googleResult.email.lowercase(java.util.Locale.ROOT)
-                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    
-                    // محاولة تسجيل الدخول في Supabase أولاً لضمان مزامنة الجلسة
-                    var supabaseSuccess = false
-                    if (SupabaseServices.isSupabaseAvailable) {
-                        supabaseSuccess = SupabaseServices.Auth.loginWithGoogle(googleResult.idToken)
-                    }
-
-                    if (SupabaseServices.isSupabaseAvailable && !supabaseSuccess) {
-                        isGoogleLoading = false
-                        Toast.makeText(context, "فشل الاتصال بسحابة قبس (Supabase). تأكد من إعدادات Google Auth في لوحة التحكم.", Toast.LENGTH_LONG).show()
-                        showGoogleSetupDialog = true
-                        return@launch
-                    }
-
-                    val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
-                    val isRelative = prefs.getBoolean("is_relative", false)
-
-                    // إنشاء أو استعادة المعرّف الخاص للمستخدم ورقم الحساب الرسمي
-                    val customId = UserIdentifierManager.getOrCreateCustomId(context, lowerEmail, googleResult.displayName)
-                    val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, lowerEmail, googleResult.displayName)
-
-                    val externalId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
-                    var userType = if (isAdmin) "مطور" else "مجاني"
-                    
-                    if (SupabaseServices.isSupabaseAvailable) {
-                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, googleResult.displayName, customId, accountNumber)
-                        if (existing != null && existing.type.isNotBlank()) userType = existing.type
-                        SupabaseServices.Database.saveUser(
-                            externalId,
-                            googleResult.displayName ?: lowerEmail.substringBefore('@'),
-                            lowerEmail,
-                            userType,
-                            customId,
-                            accountNumber
-                        )
-                    }
-
-                    val finalIsAdmin = isAdmin || userType == "مطور" || userType == "خاص"
-                    val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
-
-                    val effectiveGoogleName = googleResult.displayName ?: googleResult.email.substringBefore('@')
-                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveGoogleName, accountNumber)
-
-                    LocalAccountRegistry.registerOrUpdateAccount(
-                        context = context,
-                        account = LocalAccountRegistry.AccountRecord(
-                            id = lowerEmail,
-                            name = effectiveGoogleName,
-                            email = lowerEmail,
-                            customId = customId,
-                            accountNumber = accountNumber,
-                            type = if (finalIsDeveloper) "مطور" else "مجاني",
-                            status = "active"
-                        )
-                    )
-
-                    prefs.edit().apply {
-                        putBoolean("is_logged_in", true)
-                        putBoolean("is_guest", false)
-                        putBoolean("is_admin", finalIsAdmin)
-                        putBoolean("is_developer", finalIsDeveloper)
-                        putBoolean("is_premium", true)
-                        putBoolean("is_relative", isRelative)
-                        putString("user_email", lowerEmail)
-                        putString("user_name", effectiveGoogleName)
-                        putString("user_display_name", effectiveGoogleName)
-                        putString("user_custom_id", customId)
-                        putString("user_tag", UserIdentifierManager.formatDisplay(customId))
-                        putString("user_account_number", accountNumber)
-                        putString("user_name_with_account", nameWithAccount)
-                        if (!googleResult.displayName.isNullOrBlank()) {
-                            putString("user_name", googleResult.displayName)
-                        }
-                        if (rememberMe) {
-                            putString("saved_login_email", lowerEmail)
-                        }
-                        apply()
-                    }
-
-                    SupabaseRepository.getInstance().emitLocalAuthenticated(
-                        email = googleResult.email,
-                        name = googleResult.displayName,
-                        isAdmin = finalIsAdmin
-                    )
-
-                    CloudServices.syncAdminClaim(context)
-                    val firstUserBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
-                    Toast.makeText(
-                        context,
-                        "مرحباً بك ${googleResult.displayName ?: googleResult.email}! رقم حسابك: $accountNumber$firstUserBadge 🚀",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    onLoginSuccess(finalIsAdmin)
-                }.onFailure { err ->
-                    if (err is androidx.credentials.exceptions.GetCredentialCancellationException) {
-                        // User cancelled
-                    } else {
-                        val msg = err.message ?: "خطأ أثناء محاولة تسجيل الدخول عبر Google"
-                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                        // Automatically show guide dialog if no credentials or mismatch
-                        showGoogleSetupDialog = true
-                    }
-                }
-                isGoogleLoading = false
-            }
+            accountInput = ""
         }
     }
 
@@ -258,50 +144,48 @@ fun LoginScreen(
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Google One-Tap SSO Section (Top Priority as requested)
-            GoogleSignInButton(
-                isLoading = isGoogleLoading,
-                onClick = handleGoogleSignIn,
-                onConfigureClick = { showGoogleSetupDialog = true }
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // SSO / Password Divider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            // Cloud Link Status Ribbon
+            Surface(
+                color = CardSurface.copy(alpha = 0.5f),
+                shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color.White.copy(alpha = 0.15f))
-                            )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    color = if (SupabaseServices.isSupabaseAvailable) primaryColor else Color(0xFFF59E0B),
+                                    shape = CircleShape
+                                )
                         )
-                )
-                Text(
-                    text = "أو عبر البريد الرقمي // IDENTITY",
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontFamily = RobotoMonoFont,
-                    fontSize = 9.sp,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color.White.copy(alpha = 0.15f), Color.Transparent)
-                            )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (SupabaseServices.isSupabaseAvailable) "SUPABASE CLOUD // ONLINE" else "LOCAL CACHE // STANDBY",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontFamily = RobotoMonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            letterSpacing = 1.sp
                         )
-                )
+                    }
+                    Text(
+                        text = "SECURE PROTOCOL",
+                        color = primaryColor,
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -323,17 +207,46 @@ fun LoginScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Fields Header
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(12.dp, 2.dp).background(primaryColor))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "بيانات الهوية المحلية",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                    // Fields Header with dynamic mode badge
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(12.dp, 2.dp).background(primaryColor))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "بيانات الهوية والمصادقة",
+                                color = Color.White.copy(alpha = 0.95f),
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp
+                            )
+                        }
+
+                        val trimmedInput = accountInput.trim()
+                        val (modeBadgeText, modeBadgeColor) = when {
+                            trimmedInput.isEmpty() -> "AWAITING CREDENTIALS" to Color.Gray.copy(alpha = 0.7f)
+                            trimmedInput.contains("@") -> "EMAIL PROTOCOL" to AiCyan
+                            trimmedInput.all { it.isDigit() } -> "ACCOUNT #$trimmedInput" to primaryColor
+                            else -> "CUSTOM USER ID" to accentColor
+                        }
+
+                        Surface(
+                            color = modeBadgeColor.copy(alpha = 0.12f),
+                            shape = CutCornerShape(4.dp),
+                            border = BorderStroke(1.dp, modeBadgeColor.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = modeBadgeText,
+                                color = modeBadgeColor,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
 
                     // Diagnostic Error Message Banner
@@ -361,32 +274,50 @@ fun LoginScreen(
                         }
                     }
 
-                    // Dual-Mode Field: Email (Gmail) or Custom Identifier
+                    // Unified Credential Field: Email, Custom ID, or Account Number
                     OutlinedTextField(
                         value = accountInput,
                         onValueChange = { 
                             accountInput = it
                             authErrorMessage = null
                         },
-                        label = { Text("البريد الإلكتروني (Gmail) أو المعرّف الخاص", fontFamily = CairoFont, fontSize = 12.sp) },
+                        label = { Text("البريد الإلكتروني / رقم الحساب / المعرّف", fontFamily = CairoFont, fontSize = 12.sp) },
                         placeholder = { 
                             Text(
-                                "user@gmail.com أو @username أو QBS-1082", 
+                                "user@gmail.com أو 000001 أو USR-8291", 
                                 color = Color.Gray.copy(alpha = 0.5f), 
                                 fontSize = 11.sp, 
                                 fontFamily = CairoFont
                             ) 
                         },
                         leadingIcon = {
-                            val isLikelyEmail = UserIdentifierManager.isEmail(accountInput)
+                            val trimmed = accountInput.trim()
+                            val (iconVector, iconTint) = when {
+                                trimmed.contains("@") -> Icons.Default.Email to AiCyan
+                                trimmed.isNotEmpty() && trimmed.all { it.isDigit() } -> Icons.Default.AccountBox to primaryColor
+                                trimmed.isNotEmpty() -> Icons.Default.Person to accentColor
+                                else -> Icons.Default.AccountCircle to primaryColor.copy(alpha = 0.7f)
+                            }
                             Icon(
-                                if (isLikelyEmail) Icons.Default.Email else Icons.Default.Person, 
+                                imageVector = iconVector, 
                                 contentDescription = null, 
-                                tint = primaryColor.copy(alpha = 0.8f), 
-                                modifier = Modifier.size(18.dp)
+                                tint = iconTint, 
+                                modifier = Modifier.size(19.dp)
                             )
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            if (accountInput.isNotEmpty()) {
+                                IconButton(onClick = { accountInput = ""; authErrorMessage = null }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = Color.White.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag(TestTags.LOGIN_SCREEN + "_account_input"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = primaryColor,
                             unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
@@ -415,7 +346,7 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "نظام موحد: يمكنك كتابة بريدك (Gmail) أو معرّفك الخاص مباشرة",
+                            text = "نظام موحد: يمكنك كتابة بريدك أو رقم الحساب أو المعرّف الخاص",
                             color = Color(0xFF94A3B8),
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp
@@ -522,17 +453,27 @@ fun LoginScreen(
                                     var userType = if (isAdmin) "مطور" else "مجاني"
 
                                     // حفظ أو استعادة المعرّف الخاص
-                                    val finalCustomId = if (detectedCustomId.isNotBlank()) {
+                                    var finalCustomId = if (detectedCustomId.isNotBlank()) {
                                         UserIdentifierManager.saveCustomId(context, detectedCustomId, targetEmail)
                                         detectedCustomId
                                     } else {
                                         UserIdentifierManager.getOrCreateCustomId(context, targetEmail)
                                     }
-                                    val accountNumber = UserIdentifierManager.getOrCreateAccountNumber(context, targetEmail)
+                                    var accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail)
 
                                     if (SupabaseServices.isSupabaseAvailable) {
                                         val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, null, finalCustomId, accountNumber)
-                                        if (existing != null && existing.type.isNotBlank()) userType = existing.type
+                                        if (existing != null) {
+                                            if (existing.type.isNotBlank()) userType = existing.type
+                                            if (!existing.customId.isNullOrBlank()) {
+                                                finalCustomId = existing.customId
+                                                UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
+                                            }
+                                            if (!existing.accountNumber.isNullOrBlank()) {
+                                                accountNumber = existing.accountNumber
+                                                UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
+                                            }
+                                        }
                                         SupabaseServices.Database.saveUser(
                                             id = externalId,
                                             name = lowerEmail.substringBefore('@'),
@@ -592,11 +533,30 @@ fun LoginScreen(
                                     ).show()
                                     onLoginSuccess(finalIsAdmin)
                                 } else {
-                                    val descriptiveError = diagResult.userFriendlyErrorMessage 
-                                        ?: "فشلت المصادقة: لم يتم العثور على جلسة سحابية مفعلة (Session Null)."
-                                    authErrorMessage = descriptiveError
-                                    android.util.Log.e("LoginScreen", "[AuthDiagnostics] Login Failed -> $descriptiveError (raw: ${diagResult.rawErrorMessage})")
-                                    Toast.makeText(context, descriptiveError, Toast.LENGTH_LONG).show()
+                                    val cloudUser = if (SupabaseServices.isSupabaseAvailable) {
+                                        SupabaseServices.Database.getUserByEmail(lowerEmail)
+                                    } else null
+
+                                    val rawErr = diagResult.rawErrorMessage ?: ""
+                                    val isNotFound = (cloudUser == null) && (
+                                        rawErr.contains("Invalid login credentials", ignoreCase = true) ||
+                                        rawErr.contains("User not found", ignoreCase = true) ||
+                                        rawErr.contains("invalid_grant", ignoreCase = true) ||
+                                        rawErr.isBlank()
+                                    )
+
+                                    if (isNotFound && UserIdentifierManager.isEmail(targetEmail)) {
+                                        unregisteredTargetEmail = targetEmail
+                                        unregisteredTargetPassword = password
+                                        showUnregisteredDialog = true
+                                        authErrorMessage = null
+                                    } else {
+                                        val descriptiveError = diagResult.userFriendlyErrorMessage 
+                                            ?: "فشلت المصادقة: لم يتم العثور على جلسة سحابية مفعلة (Session Null)."
+                                        authErrorMessage = descriptiveError
+                                        android.util.Log.e("LoginScreen", "[AuthDiagnostics] Login Failed -> $descriptiveError (raw: ${diagResult.rawErrorMessage})")
+                                        Toast.makeText(context, descriptiveError, Toast.LENGTH_LONG).show()
+                                    }
                                 }
                                 isLoading = false
                             }
@@ -625,6 +585,66 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // New User Registration Callout Banner
+            Surface(
+                color = primaryColor.copy(alpha = 0.08f),
+                shape = CutCornerShape(10.dp),
+                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        val currentTyped = accountInput.trim()
+                        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                        if (UserIdentifierManager.isEmail(currentTyped)) {
+                            prefs.edit().putString("draft_register_email", currentTyped).apply()
+                        }
+                        if (password.isNotBlank()) {
+                            prefs.edit().putString("draft_register_password", password).apply()
+                        }
+                        onNavigateToRegister() 
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            tint = primaryColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "مستخدم جديد؟ اضغط لإنشاء حساب",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "سيتم توليد معرّفك الخاص ورقم حسابك فوراً",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    Text(
+                        text = "تسجيل ✦",
+                        color = primaryColor,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Navigation Options
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -633,8 +653,18 @@ fun LoginScreen(
                 TextButton(onClick = onNavigateToForgotPassword) {
                     Text("نسيان الرمز؟", color = accentColor, fontFamily = CairoFont, fontSize = 12.sp)
                 }
-                TextButton(onClick = onNavigateToRegister) {
-                    Text("بناء حساب جديد // REGISTER", color = Color.White.copy(alpha = 0.7f), fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                TextButton(onClick = {
+                    val currentTyped = accountInput.trim()
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    if (UserIdentifierManager.isEmail(currentTyped)) {
+                        prefs.edit().putString("draft_register_email", currentTyped).apply()
+                    }
+                    if (password.isNotBlank()) {
+                        prefs.edit().putString("draft_register_password", password).apply()
+                    }
+                    onNavigateToRegister()
+                }) {
+                    Text("إنشاء حساب جديد // REGISTER", color = primaryColor.copy(alpha = 0.9f), fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
 
@@ -714,15 +744,352 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Setup Guide HUD Dialog
-        if (showGoogleSetupDialog) {
-            GoogleSupabaseSetupDialog(
-                onDismiss = { showGoogleSetupDialog = false },
-                onTestSignIn = {
-                    showGoogleSetupDialog = false
-                    handleGoogleSignIn()
+
+        // Unregistered Account Prompt HUD Dialog
+        if (showUnregisteredDialog) {
+            UnregisteredAccountDialog(
+                email = unregisteredTargetEmail,
+                password = unregisteredTargetPassword,
+                isCreating = isQuickRegistering,
+                onDismiss = { showUnregisteredDialog = false },
+                onNavigateToRegister = {
+                    showUnregisteredDialog = false
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("draft_register_email", unregisteredTargetEmail)
+                        .putString("draft_register_password", unregisteredTargetPassword)
+                        .apply()
+                    onNavigateToRegister()
+                },
+                onQuickRegister = {
+                    val passToUse = unregisteredTargetPassword.ifBlank { "Qabas#2026" }
+                    if (passToUse.length < 6) {
+                        Toast.makeText(context, "كلمة المرور يجب أن تكون 6 خانات على الأقل للإنشاء السريع أو انتقل لشاشة التسجيل", Toast.LENGTH_LONG).show()
+                    } else {
+                        isQuickRegistering = true
+                        coroutineScope.launch {
+                            try {
+                                var regSuccess = false
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    regSuccess = SupabaseServices.Auth.register(unregisteredTargetEmail, passToUse)
+                                    if (!regSuccess) {
+                                        regSuccess = SupabaseServices.Auth.login(unregisteredTargetEmail, passToUse)
+                                    }
+                                } else {
+                                    regSuccess = true
+                                }
+
+                                if (regSuccess) {
+                                    val lower = unregisteredTargetEmail.lowercase(java.util.Locale.ROOT)
+                                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                    val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lower)
+                                    val userType = if (isAdmin) "مطور" else "مجاني"
+                                    val userId = SupabaseServices.Auth.getCurrentUserId() ?: lower
+                                    val defaultName = unregisteredTargetEmail.substringBefore('@')
+
+                                    val customId = UserIdentifierManager.getOrCreateCustomId(context, unregisteredTargetEmail, defaultName)
+                                    val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, unregisteredTargetEmail, defaultName)
+
+                                    if (SupabaseServices.isSupabaseAvailable) {
+                                        SupabaseServices.Database.ensureUser(userId, lower, defaultName, customId, accountNumber)
+                                        SupabaseServices.Database.saveUser(
+                                            id = userId,
+                                            name = defaultName,
+                                            email = unregisteredTargetEmail,
+                                            type = userType,
+                                            customId = customId,
+                                            accountNumber = accountNumber
+                                        )
+                                    }
+
+                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(defaultName, accountNumber)
+
+                                    LocalAccountRegistry.registerOrUpdateAccount(
+                                        context = context,
+                                        account = LocalAccountRegistry.AccountRecord(
+                                            id = unregisteredTargetEmail,
+                                            name = defaultName,
+                                            email = unregisteredTargetEmail,
+                                            customId = customId,
+                                            accountNumber = accountNumber,
+                                            type = userType,
+                                            status = "active"
+                                        )
+                                    )
+
+                                    prefs.edit().apply {
+                                        putBoolean("is_logged_in", true)
+                                        putBoolean("is_guest", false)
+                                        putBoolean("is_admin", isAdmin)
+                                        putBoolean("is_developer", CloudServices.isOwnerAccount(lower))
+                                        putBoolean("is_premium", true)
+                                        putString("user_email", unregisteredTargetEmail)
+                                        putString("user_name", defaultName)
+                                        putString("user_display_name", defaultName)
+                                        putString("user_custom_id", customId)
+                                        putString("user_tag", UserIdentifierManager.formatDisplay(customId))
+                                        putString("user_account_number", accountNumber)
+                                        putString("user_name_with_account", nameWithAccount)
+                                        if (rememberMe) putString("saved_login_email", unregisteredTargetEmail) else remove("saved_login_email")
+                                        apply()
+                                    }
+
+                                    SupabaseRepository.getInstance().emitLocalAuthenticated(
+                                        email = unregisteredTargetEmail,
+                                        isAdmin = isAdmin
+                                    )
+                                    CloudServices.syncAdminClaim(context)
+                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
+                                    Toast.makeText(
+                                        context,
+                                        "تم إنشاء الحساب والتوثيق بنجاح! رقم حسابك: $accountNumber$firstBadge",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    showUnregisteredDialog = false
+                                    onLoginSuccess(isAdmin)
+                                } else {
+                                    Toast.makeText(context, "تعذر الإنشاء التلقائي. يرجى التوجه لشاشة التسجيل.", Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isQuickRegistering = false
+                            }
+                        }
+                    }
                 }
             )
+        }
+    }
+}
+
+/**
+ * نافذة حوار مخصصة عند إدخال بريد غير مسجل مسبقاً،
+ * تتيح للمستخدم إما إنشاء الحساب فوراً والدخول برقم حساب رسمي،
+ * أو الانتقال لشاشة إنشاء الحساب مع نقل البريد والرمز المدخل تلقائياً.
+ */
+@Composable
+fun UnregisteredAccountDialog(
+    email: String,
+    password: String,
+    isCreating: Boolean,
+    onDismiss: () -> Unit,
+    onNavigateToRegister: () -> Unit,
+    onQuickRegister: () -> Unit
+) {
+    val context = LocalContext.current
+    val primaryColor = qabasPrimary()
+    val accentColor = qabasAccent()
+    val nextAccNum = remember { UserIdentifierManager.peekNextAccountNumber(context) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+                .padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 480.dp),
+                shape = CutCornerShape(14.dp),
+                color = DeepSlate,
+                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.45f)),
+                shadowElevation = 16.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // HUD Badge & Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = primaryColor.copy(alpha = 0.12f),
+                            shape = CutCornerShape(6.dp),
+                            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = "IDENTITY NOT FOUND // 0x404",
+                                color = primaryColor,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Icon and Title
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .background(primaryColor.copy(alpha = 0.12f), CutCornerShape(12.dp))
+                            .border(1.dp, primaryColor.copy(alpha = 0.35f), CutCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            tint = primaryColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "البريد الإلكتروني غير مسجل",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "لم نجد حساباً مسجلاً في السحابة بهذا البريد، ولكن يمكنك تفعيله فوراً:",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Email info pill
+                    Surface(
+                        color = Color.White.copy(alpha = 0.04f),
+                        shape = CutCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("البريد المدخل:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text(email, color = Color.White, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("رقم الحساب المتاح لك:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                                Surface(
+                                    color = accentColor.copy(alpha = 0.15f),
+                                    shape = CutCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "$nextAccNum ✦",
+                                        color = accentColor,
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Action 1: Quick Create & Login
+                    Button(
+                        onClick = onQuickRegister,
+                        enabled = !isCreating,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = DeepSlate
+                        ),
+                        shape = CutCornerShape(8.dp)
+                    ) {
+                        if (isCreating) {
+                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "إنشاء الحساب فوراً ومتابعة الدخول",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Action 2: Go to full register screen
+                    OutlinedButton(
+                        onClick = onNavigateToRegister,
+                        enabled = !isCreating,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.4f)),
+                        shape = CutCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AppRegistration, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "الانتقال لشاشة إنشاء الحساب (تخصيص البيانات)",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Action 3: Cancel / Edit
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isCreating
+                    ) {
+                        Text(
+                            text = "تعديل البريد المدخل // CANCEL",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }

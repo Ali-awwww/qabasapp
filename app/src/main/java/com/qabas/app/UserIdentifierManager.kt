@@ -211,30 +211,215 @@ object UserIdentifierManager {
     }
 
     /**
-     * استرجاع المعرّف الخاص للمستخدم الحالي أو إنشاؤه وتخزينه إن لم يكن متوفراً.
+     * استعراض رقم الحساب الرسمي القادم المتوقع للمستخدم الجديد دون تثبيته في العداد بعد.
+     */
+    fun peekNextAccountNumber(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
+        val currentSeq = prefs.getInt(KEY_NEXT_ACCOUNT_SEQ, 0)
+        val candidateSeq = if (existingAccounts.isEmpty() && currentSeq <= 1) {
+            1
+        } else {
+            if (currentSeq < 1) 2 else currentSeq + 1
+        }
+        return "#QBS-" + String.format(Locale.ROOT, "%04d", candidateSeq)
+    }
+
+    /**
+     * استعلام ومزامنة الهوية السحابية للمستخدم (اليوزر ورقم الحساب).
+     * يقوم بجلب بيانات الحساب الموثقة من السحابة وتثبيتها محلياً إن وُجدت، أو رفعها إلى السحابة إن كانت جديدة.
+     */
+    suspend fun syncIdentityWithCloud(
+        context: Context,
+        email: String,
+        displayName: String? = null
+    ): Pair<String, String>? = withContext(Dispatchers.IO) {
+        if (email.isBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio") return@withContext null
+        if (!SupabaseServices.isSupabaseAvailable) return@withContext null
+
+        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
+
+        val localCustomId = getCustomId(context).ifBlank { getOrCreateCustomId(context, cleanEmail, displayName) }
+        val localAccountNumber = getOrCreateAccountNumber(context, cleanEmail, displayName)
+
+        if (cloudUser != null) {
+            val resolvedCustomId = cloudUser.customId?.takeIf { it.isNotBlank() } ?: localCustomId
+            val resolvedAccountNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() } ?: localAccountNumber
+
+            saveCustomId(context, resolvedCustomId, cleanEmail)
+            saveAccountNumber(context, cleanEmail, resolvedAccountNumber)
+
+            // إثراء السجل السحابي إذا كانت الحقول فارغة فيه
+            if (cloudUser.customId.isNullOrBlank() || cloudUser.accountNumber.isNullOrBlank()) {
+                val userId = cloudUser.id.ifBlank { SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail }
+                SupabaseServices.Database.saveUser(
+                    id = userId,
+                    name = cloudUser.name ?: displayName ?: cleanEmail.substringBefore("@"),
+                    email = cleanEmail,
+                    type = cloudUser.type,
+                    customId = resolvedCustomId,
+                    accountNumber = resolvedAccountNumber
+                )
+            }
+
+            Pair(resolvedCustomId, resolvedAccountNumber)
+        } else {
+            // مستخدم جديد في السحابة
+            val userId = SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
+            SupabaseServices.Database.saveUser(
+                id = userId,
+                name = displayName ?: cleanEmail.substringBefore("@"),
+                email = cleanEmail,
+                type = "مجاني",
+                customId = localCustomId,
+                accountNumber = localAccountNumber
+            )
+            Pair(localCustomId, localAccountNumber)
+        }
+    }
+
+    sealed class CustomIdAvailabilityResult {
+        object Available : CustomIdAvailabilityResult()
+        object CurrentUserOwnsIt : CustomIdAvailabilityResult()
+        data class Taken(val reason: String) : CustomIdAvailabilityResult()
+        data class Invalid(val reason: String) : CustomIdAvailabilityResult()
+    }
+
+    /**
+     * فحص هل المعرّف متاح أم مستخدم بالفعل من قبل شخص آخر لمنع تكرار المعرفات.
+     */
+    suspend fun checkCustomIdAvailability(
+        context: Context,
+        customId: String,
+        currentEmail: String? = null
+    ): CustomIdAvailabilityResult = withContext(Dispatchers.IO) {
+        val clean = normalize(customId)
+        if (clean.isBlank()) {
+            return@withContext CustomIdAvailabilityResult.Invalid("يرجى إدخال معرّف صحيح")
+        }
+        if (clean.length < 3) {
+            return@withContext CustomIdAvailabilityResult.Invalid("المعرّف يجب أن يكون 3 أحرف أو أرقام على الأقل")
+        }
+        if (clean.length > 25) {
+            return@withContext CustomIdAvailabilityResult.Invalid("المعرّف يجب ألا يتجاوز 25 حرفاً")
+        }
+
+        val cleanEmail = currentEmail?.trim()?.lowercase(Locale.ROOT)
+        val mySavedId = getCustomId(context)
+        if (clean.equals(normalize(mySavedId), ignoreCase = true)) {
+            return@withContext CustomIdAvailabilityResult.CurrentUserOwnsIt
+        }
+
+        // 1. التحقق من السجل المحلي
+        val localMatches = LocalAccountRegistry.getAllAccounts(context)
+        val localDuplicate = localMatches.firstOrNull {
+            it.customId.equals(clean, ignoreCase = true) &&
+            (cleanEmail.isNullOrBlank() || !it.email.equals(cleanEmail, ignoreCase = true))
+        }
+        if (localDuplicate != null) {
+            return@withContext CustomIdAvailabilityResult.Taken("المعرّف @$clean مستخدم بالفعل على هذا الجهاز")
+        }
+
+        // 2. التحقق من السحابة في قاعدة بيانات Supabase
+        if (SupabaseServices.isSupabaseAvailable) {
+            val cloudUser = SupabaseServices.Database.getUserByCustomId(clean)
+            if (cloudUser != null) {
+                val cloudEmail = cloudUser.email?.trim()?.lowercase(Locale.ROOT)
+                if (!cleanEmail.isNullOrBlank() && cloudEmail == cleanEmail) {
+                    return@withContext CustomIdAvailabilityResult.CurrentUserOwnsIt
+                }
+                return@withContext CustomIdAvailabilityResult.Taken("المعرّف @$clean محجوز بالفعل لمستخدم آخر في السحابة")
+            }
+        }
+
+        CustomIdAvailabilityResult.Available
+    }
+
+    /**
+     * جلب وتثبيت رقم الحساب الحقيقي من السحابة (Supabase Cloud).
+     * يضمن أن عداد الحسابات يجلب أرقام الحسابات من السحابة حصراً ولا يعتمد فقط على الذاكرة المحلية.
+     */
+    suspend fun ensureCloudAccountNumber(
+        context: Context,
+        email: String?,
+        displayName: String? = null
+    ): String = withContext(Dispatchers.IO) {
+        if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
+            return@withContext ""
+        }
+        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+
+        // 1. حساب المالك الرئيسي دائماً #QBS-0001
+        if (CloudServices.isOwnerAccount(cleanEmail) || cleanEmail.contains("mousa.alharbi.pro@gmail.com")) {
+            val firstAcc = "#QBS-0001"
+            saveAccountNumber(context, cleanEmail, firstAcc)
+            return@withContext firstAcc
+        }
+
+        // 2. التحقق من السحابة أولاً
+        if (SupabaseServices.isSupabaseAvailable) {
+            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
+            if (cloudUser != null && !cloudUser.accountNumber.isNullOrBlank()) {
+                val cloudAcc = formatAccountNumber(cloudUser.accountNumber)
+                saveAccountNumber(context, cleanEmail, cloudAcc)
+                return@withContext cloudAcc
+            }
+
+            // مستخدم ليس لديه رقم مسجل في السحابة -> استدعاء تسلسل العداد السحابي مباشرة
+            val cloudSeq = SupabaseServices.Database.getNextAccountSequenceFromCloud()
+            val generatedAcc = "#QBS-" + String.format(Locale.ROOT, "%04d", cloudSeq)
+            saveAccountNumber(context, cleanEmail, generatedAcc)
+
+            // تثبيته في السحابة في جدول المستخدمين
+            val userId = cloudUser?.id ?: SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
+            val currentCustomId = cloudUser?.customId ?: getCustomId(context).ifBlank { generateUniqueId(cleanEmail) }
+            SupabaseServices.Database.saveUser(
+                id = userId,
+                name = cloudUser?.name ?: displayName ?: cleanEmail.substringBefore("@"),
+                email = cleanEmail,
+                type = cloudUser?.type ?: "مجاني",
+                customId = currentCustomId,
+                accountNumber = generatedAcc
+            )
+            return@withContext generatedAcc
+        }
+
+        // 3. كاش محلي كخيار احتياطي في حال عدم الاتصال
+        getOrCreateAccountNumber(context, cleanEmail, displayName)
+    }
+
+    /**
+     * استرجاع المعرّف الخاص للمستخدم الحالي المسجل فقط.
+     * لا يقوم بتوليد يوزر وهمي عشوائي للمستخدمين غير المسجلين.
      */
     fun getCustomId(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedId = prefs.getString(KEY_CUSTOM_ID, null)
-        if (!savedId.isNullOrBlank()) {
+        val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+        val email = prefs.getString("user_email", null)
+
+        if (!savedId.isNullOrBlank() && (isLoggedIn || !email.isNullOrBlank())) {
             return savedId
         }
 
-        // فحص بديل من user_tag القديم
-        val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
-        if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user") {
-            val normalized = normalize(oldTag)
-            prefs.edit().putString(KEY_CUSTOM_ID, normalized).apply()
-            return normalized
+        // فحص بديل من user_tag القديم فقط إذا كان هناك جلسة نشطة
+        if (isLoggedIn || !email.isNullOrBlank()) {
+            val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
+            if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user") {
+                val normalized = normalize(oldTag)
+                prefs.edit().putString(KEY_CUSTOM_ID, normalized).apply()
+                return normalized
+            }
+
+            val name = prefs.getString("user_name", null)
+            val newId = generateUniqueId(name ?: email)
+            saveCustomId(context, newId, email)
+            return newId
         }
 
-        // توليد معرّف جديد بناءً على البريد أو الاسم
-        val email = prefs.getString("user_email", null)
-        val name = prefs.getString("user_name", null)
-        val newId = generateUniqueId(name ?: email)
-
-        saveCustomId(context, newId, email)
-        return newId
+        // المستخدم غير مسجل ولا توجد جلسة: الحقل فارغ تماماً ولا يولد اسماً عشوائياً
+        return ""
     }
 
     /**

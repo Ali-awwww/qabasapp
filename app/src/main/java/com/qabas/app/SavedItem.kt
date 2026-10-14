@@ -62,6 +62,8 @@ data class UserProfile(
     val has_reward: Boolean = false,
     val total_wins: Int = 0,
     val is_relative: Boolean = false,
+    val customId: String? = null,
+    val accountNumber: String? = null,
     @ServerTimestamp
     val createdAt: Date? = null,
     @ServerTimestamp

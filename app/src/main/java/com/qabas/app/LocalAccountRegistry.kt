@@ -136,18 +136,18 @@ object LocalAccountRegistry {
         }
 
         // 🌟 التأكد التام من إدراج الحساب الحالي المسجل على الهاتف إن لم يكن موجوداً في القائمة
-        val currentEmail = prefs.getString("user_email", "")?.trim().orEmpty()
-        val currentName = prefs.getString("user_name", "")?.trim()
-            ?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }
-            .orEmpty()
-        val currentCustomId = prefs.getString("user_custom_id", "")?.trim()
-            ?.ifBlank { UserIdentifierManager.getCustomId(context) }
-            .orEmpty()
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(currentEmail)
-        val isDev = prefs.getBoolean("is_developer", false) || isAdmin
+        val currentEmail = prefs.getString("user_email", "")?.trim().orEmpty()
 
         if (isLoggedIn && currentEmail.isNotBlank() && currentEmail != "guest@qabas.studio") {
+            val currentName = prefs.getString("user_name", "")?.trim()
+                ?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }
+                .orEmpty()
+            val currentCustomId = prefs.getString("user_custom_id", "")?.trim()
+                ?.ifBlank { UserIdentifierManager.getCustomId(context) }
+                .orEmpty()
+            val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(currentEmail)
+            val isDev = prefs.getBoolean("is_developer", false) || isAdmin
             val exists = list.any { it.email.equals(currentEmail, ignoreCase = true) }
             val accNum = UserIdentifierManager.getOrCreateAccountNumber(context, currentEmail, currentName)
             if (!exists) {

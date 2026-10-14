@@ -79,7 +79,13 @@ fun ProfileScreen(
         mutableStateOf(prefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
     }
     var userCustomTag by remember {
-        mutableStateOf(UserIdentifierManager.formatDisplay(UserIdentifierManager.getCustomId(context)))
+        val cid = UserIdentifierManager.getCustomId(context)
+        mutableStateOf(if (cid.isNotBlank()) UserIdentifierManager.formatDisplay(cid) else "@qabas_user")
+    }
+    var userAccountNumber by remember {
+        val acc = UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
+            ?: prefs.getString("user_account_number", "") ?: ""
+        mutableStateOf(acc)
     }
     var avatarUriString by remember {
         mutableStateOf(prefs.getString("user_avatar_uri", "") ?: "")
@@ -142,6 +148,16 @@ fun ProfileScreen(
         if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
             prefs.edit().putString("user_avatar_uri", realAvatar).apply()
+        }
+
+        // مزامنة وسحب رقم الحساب الحقيقي من السحابة لضمان الدقة وتحديث العداد
+        val targetEmail = realEmail ?: userEmail
+        if (targetEmail.isNotBlank() && !targetEmail.contains("guest")) {
+            val cloudAcc = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail, displayName)
+            if (cloudAcc.isNotBlank()) {
+                userAccountNumber = cloudAcc
+                prefs.edit().putString("user_account_number", cloudAcc).apply()
+            }
         }
     }
 
@@ -544,31 +560,98 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    // Row with Username and Account Number side-by-side
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                UserIdentifierManager.copyToClipboard(context, userCustomTag)
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
                     ) {
-                        Text(
-                            text = userCustomTag,
-                            color = qabasPrimary(),
-                            fontFamily = RobotoMonoFont,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            Icons.Default.ContentCopy,
-                            contentDescription = "نسخ المعرّف",
-                            tint = qabasPrimary().copy(alpha = 0.7f),
-                            modifier = Modifier.size(13.dp)
-                        )
+                        // 1. User Tag Chip
+                        Surface(
+                            color = qabasPrimary().copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, qabasPrimary().copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    UserIdentifierManager.copyToClipboard(context, userCustomTag)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = userCustomTag,
+                                    color = qabasPrimary(),
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = "نسخ المعرّف",
+                                    tint = qabasPrimary().copy(alpha = 0.7f),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+
+                        // 2. Mandatory Account Number Chip (Always visible & Cloud Verified - Non-Editable)
+                        val effectiveAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
+                            ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
+                            ?: UserIdentifierManager.peekNextAccountNumber(context)
+
                         Spacer(modifier = Modifier.width(8.dp))
+
+                        Surface(
+                            color = GoldPrimary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    UserIdentifierManager.copyAccountNumberToClipboard(context, effectiveAccountNumber)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "رقم حساب ثابت موثق",
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = UserIdentifierManager.formatAccountNumber(effectiveAccountNumber),
+                                    color = GoldPrimary,
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = "نسخ رقم الحساب",
+                                    tint = GoldPrimary.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                if (UserIdentifierManager.isFirstAccount(effectiveAccountNumber)) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "👑", fontSize = 11.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // 3. Verified Maker Badge
                         Surface(
                             color = qabasPrimary().copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
@@ -580,7 +663,7 @@ fun ProfileScreen(
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -1851,14 +1934,20 @@ fun ProfileScreen(
         )
     }
 
-    // Comprehensive Profile Edit Dialog (Name, Bio, Tag)
+    // Comprehensive Profile Edit Dialog (Name, Bio, Tag) - with Mandatory Locked Account Number & Unique Tag Check
     if (showEditProfileDialog) {
         var tempName by remember { mutableStateOf(displayName) }
         var tempTag by remember { mutableStateOf(userCustomTag) }
         var tempBio by remember { mutableStateOf(userBio) }
+        var tagError by remember { mutableStateOf<String?>(null) }
+        var isCheckingTag by remember { mutableStateOf(false) }
+
+        val activeAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
+            ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
+            ?: UserIdentifierManager.peekNextAccountNumber(context)
 
         AlertDialog(
-            onDismissRequest = { showEditProfileDialog = false },
+            onDismissRequest = { if (!isCheckingTag) showEditProfileDialog = false },
             title = {
                 Text("تعديل بيانات الملف الشخصي 👤", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             },
@@ -1867,8 +1956,69 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Display Name
-                    Text("اسم الحساب / القناة الدعوية:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    // 1. Mandatory & Non-Editable Account Number (Locked & Cloud Verified)
+                    Text(
+                        "رقم الحساب المعتمد (ثابت وموثق سحابياً - غير قابل للتعديل 🔒):",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp
+                    )
+                    Surface(
+                        color = Color(0xFF0F172A),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "رقم الحساب مقفول وموثق",
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = UserIdentifierManager.formatAccountNumber(activeAccountNumber),
+                                    color = GoldPrimary,
+                                    fontFamily = RobotoMonoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            Surface(
+                                color = GoldPrimary.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "موثق سحابياً ☁️",
+                                    color = GoldPrimary,
+                                    fontSize = 10.sp,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "🔒 رقم الحساب متسلسل ومربوط بحسابك في السحابة ولا يمكن تغييره لحماية الهوية، بينما يمكنك تعديل اسم الحساب والمعرّف الرقمي بحرية.",
+                        color = Color.Gray,
+                        fontFamily = CairoFont,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // 2. Display Name (Editable)
+                    Text("اسم الحساب / القناة الدعوية (قابل للتعديل):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
                     OutlinedTextField(
                         value = tempName,
                         onValueChange = { tempName = it },
@@ -1880,26 +2030,47 @@ fun ProfileScreen(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         ),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
                     )
 
-                    // Tag
-                    Text("المعرف الرقمي (Tag):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    // 3. User Tag / Identifier (Editable with uniqueness check to prevent duplicates)
+                    Text("المعرف الرقمي الفريد (Tag) (قابل للتعديل - يمنع التكرار):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
                     OutlinedTextField(
                         value = tempTag,
-                        onValueChange = { tempTag = it },
+                        onValueChange = {
+                            tempTag = it
+                            tagError = null
+                        },
                         placeholder = { Text("@qabas_creator", color = Color.Gray) },
                         modifier = Modifier.fillMaxWidth(),
+                        isError = tagError != null,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedBorderColor = if (tagError != null) Color(0xFFEF4444) else GoldPrimary,
+                            unfocusedBorderColor = if (tagError != null) Color(0xFFEF4444) else Color(0xFF1E293B),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         ),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
                     )
+                    if (tagError != null) {
+                        Text(
+                            text = "⚠️ $tagError",
+                            color = Color(0xFFEF4444),
+                            fontFamily = CairoFont,
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        Text(
+                            text = "يجب أن يكون فريداً وغير مستخدم من قبل أي صانع محتوى آخر في السحابة.",
+                            color = Color.Gray.copy(alpha = 0.8f),
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp
+                        )
+                    }
 
-                    // Bio
+                    // 4. Bio
                     Text("النبذة التعريفية (Bio):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
                     OutlinedTextField(
                         value = tempBio,
@@ -1920,29 +2091,79 @@ fun ProfileScreen(
             },
             confirmButton = {
                 Button(
+                    enabled = !isCheckingTag,
                     onClick = {
-                        displayName = tempName.ifBlank { "صانع المحتوى الدعوي" }
-                        userCustomTag = if (tempTag.startsWith("@")) tempTag else "@$tempTag"
-                        userBio = tempBio
-                        val cleanId = UserIdentifierManager.normalize(userCustomTag)
-                        UserIdentifierManager.saveCustomId(context, cleanId, userEmail)
-                        prefs.edit()
-                            .putString("user_display_name", displayName)
-                            .putString("user_tag", userCustomTag)
-                            .putString("user_custom_id", cleanId)
-                            .putString("user_bio", userBio)
-                            .apply()
-                        showEditProfileDialog = false
-                        Toast.makeText(context, "تم حفظ الملف الشخصي بنجاح! 💾", Toast.LENGTH_SHORT).show()
+                        val cleanId = UserIdentifierManager.normalize(tempTag)
+                        if (cleanId.isBlank()) {
+                            tagError = "يرجى إدخال معرّف صحيح"
+                            return@Button
+                        }
+
+                        isCheckingTag = true
+                        coroutineScope.launch {
+                            val checkResult = UserIdentifierManager.checkCustomIdAvailability(
+                                context = context,
+                                customId = cleanId,
+                                currentEmail = userEmail
+                            )
+
+                            when (checkResult) {
+                                is UserIdentifierManager.CustomIdAvailabilityResult.Taken -> {
+                                    isCheckingTag = false
+                                    tagError = checkResult.reason
+                                }
+                                is UserIdentifierManager.CustomIdAvailabilityResult.Invalid -> {
+                                    isCheckingTag = false
+                                    tagError = checkResult.reason
+                                }
+                                is UserIdentifierManager.CustomIdAvailabilityResult.Available,
+                                is UserIdentifierManager.CustomIdAvailabilityResult.CurrentUserOwnsIt -> {
+                                    displayName = tempName.ifBlank { "صانع المحتوى الدعوي" }
+                                    userCustomTag = UserIdentifierManager.formatDisplay(cleanId)
+                                    userBio = tempBio
+                                    UserIdentifierManager.saveCustomId(context, cleanId, userEmail)
+
+                                    prefs.edit()
+                                        .putString("user_display_name", displayName)
+                                        .putString("user_name", displayName)
+                                        .putString("user_tag", userCustomTag)
+                                        .putString("user_custom_id", cleanId)
+                                        .putString("user_bio", userBio)
+                                        .apply()
+
+                                    if (SupabaseServices.isSupabaseAvailable && userEmail.isNotBlank()) {
+                                        val userId = SupabaseServices.Auth.getCurrentUserId() ?: userEmail
+                                        SupabaseServices.Database.saveUser(
+                                            id = userId,
+                                            name = displayName,
+                                            email = userEmail,
+                                            type = prefs.getString("user_type", "مجاني") ?: "مجاني",
+                                            customId = cleanId,
+                                            accountNumber = activeAccountNumber
+                                        )
+                                    }
+
+                                    isCheckingTag = false
+                                    showEditProfileDialog = false
+                                    Toast.makeText(context, "تم حفظ الملف الشخصي وتأكيد المعرّف بنجاح! 💾", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("حفظ التغييرات", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    if (isCheckingTag) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("جاري التحقق...", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    } else {
+                        Text("حفظ التغييرات", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditProfileDialog = false }) {
+                TextButton(onClick = { if (!isCheckingTag) showEditProfileDialog = false }) {
                     Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
                 }
             },
