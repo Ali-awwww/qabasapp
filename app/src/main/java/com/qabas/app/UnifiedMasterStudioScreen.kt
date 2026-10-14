@@ -130,12 +130,35 @@ fun UnifiedMasterStudioScreen(
                 // 1. توليد السيناريو والمشاهد
                 delay(600)
                 val scriptPrompt = "قم بإخراج عمل دعوي سينمائي متقن بعنوان: $topicText. النبرة: $selectedTone. النسبة: $selectedRatio."
-                val rawScenes = PollinationsTextService.generateScript(
+                var rawScenes = PollinationsTextService.generateScript(
                     idea = topicText,
                     style = "Islamic Cinematic Slate & Gold Luxury #0B132B #E8C547",
                     contentType = "ريلز دعوي متقن",
                     tone = selectedTone
                 )
+
+                // 🔑 إذا فشل Pollinations، نُحاول مزودًا حقيقيًا (Groq → OpenAI)
+                if (rawScenes.isNullOrEmpty()) {
+                    val aiPrompt = "أخرج JSON فقط: [{\"title\":\"عنوان المشهد\",\"description\":\"وصف بالإنجليزية\",\"duration\":5,\"transitionType\":\"Fade\"}] " +
+                            "— 4-6 مشاهد لموضوع: $topicText، نبرة: $selectedTone"
+                    val rawAi = try { RealGroqService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
+                        ?: try { RealOpenAIService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
+                    if (!rawAi.isNullOrBlank() && rawAi.contains("[")) {
+                        try {
+                            val arr = org.json.JSONArray(rawAi.substring(rawAi.indexOf("["), rawAi.lastIndexOf("]") + 1))
+                            val scenesFromAi = (0 until arr.length()).mapNotNull { i ->
+                                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                                Scene(
+                                    title = o.optString("title", "مشهد ${i+1}"),
+                                    description = o.optString("description", ""),
+                                    durationSeconds = o.optInt("duration", 5),
+                                    transitionType = o.optString("transitionType", "Fade")
+                                )
+                            }
+                            if (scenesFromAi.isNotEmpty()) rawScenes = scenesFromAi
+                        } catch (_: Exception) {}
+                    }
+                }
 
                 val scenes = if (!rawScenes.isNullOrEmpty()) {
                     rawScenes
@@ -209,10 +232,30 @@ fun UnifiedMasterStudioScreen(
                 generationProgress = 0.90f
                 generationStage = "5/5 صياغة حزمة الانتشار والـ SEO والهاشتاغات الفيروسية..."
 
-                // 5. حزمة الـ SEO
-                seoTitle = "✨ $topicText | قبس"
-                seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
-                seoHashtags = "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
+                // 5. حزمة الـ SEO — 🔑 نستخدم ذكاءً اصطناعيًا حقيقيًا (Groq → OpenAI) بدل نص ثابت وهمي
+                try {
+                    val seoPrompt = "أنت خبير SEO للمحتوى الإسلامي القصير. بناءً على المشاهد التالية، أخرج JSON فقط بالشكل: " +
+                            "{\"title\":\"عنوان فيروسي جذاب (تحت 60 حرفًا)\",\"description\":\"وصف كامل\",\"hashtags\":\"#هاش #هاش\"}. " +
+                            "المشاهد: ${scenes.joinToString("؛ ") { "${it.title}: ${it.description}" }.take(400)}. الموضوع: $topicText."
+                    val rawSeo = try { RealGroqService.chatOrGenerate(seoPrompt) } catch (_: Exception) { null }
+                        ?: try { RealOpenAIService.chatOrGenerate(seoPrompt) } catch (_: Exception) { null }
+
+                    if (!rawSeo.isNullOrBlank() && rawSeo.contains("{")) {
+                        val obj = org.json.JSONObject(rawSeo.substring(rawSeo.indexOf("{"), rawSeo.lastIndexOf("}") + 1))
+                        seoTitle = obj.optString("title", "✨ $topicText | قبس")
+                        seoDescription = obj.optString("description", "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم.")
+                        seoHashtags = obj.optString("hashtags", "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور")
+                    } else {
+                        // fallback ثابت إذا لم يتوفر مزود حقيقي
+                        seoTitle = "✨ $topicText | قبس"
+                        seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
+                        seoHashtags = "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
+                    }
+                } catch (_: Exception) {
+                    seoTitle = "✨ $topicText | قبس"
+                    seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
+                    seoHashtags = "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
+                }
 
                 generationProgress = 1.0f
                 generationStage = "اكتمل إنتاج العمل المتقن بالكامل! ✨"

@@ -41,10 +41,30 @@ object CaptionStyles {
 
 /** إزالة كلمات الحشو من النص — على طريقة Descript. */
 object SmartCut {
-    private val Fillers = listOf("يعني", "أمم", "امم", "آه", "اه ", "همم", "زي ما قلت", "بصراحة يعني", "تمام؟")
+    // 🔑 نُدرج كلمات الحشو فقط في بداية/نهاية الجملة (لا نُفسد معنى الكلام في وسط الجملة)
+    private val LeadingFillers = listOf(
+        "يعني", "أمم", "امم", "آه", "اه", "همم", "زي ما قلت", "بصراحة يعني", "تمام؟"
+    )
+
     fun clean(text: String): String {
-        var t = " $text "
-        Fillers.forEach { t = t.replace(it, " ") }
-        return t.replace(Regex("\\s+"), " ").trim()
+        var t = " ${text.replace(Regex("\\s+"), " ").trim()} "
+
+        // 🔑 إزالة الحشو في بداية الجملة فقط
+        var changed = true
+        while (changed) {
+            changed = false
+            for (f in LeadingFillers) {
+                val leading = " $f "
+                if (t.startsWith(leading) || t.contains(". $f ") || t.contains("؟ $f ")) {
+                    t = t.replace(leading, " ")
+                        .replace(". $f ", ". ")
+                        .replace("؟ $f ", "؟ ")
+                    changed = true
+                }
+            }
+            t = t.replace(Regex("\\s+"), " ")
+        }
+
+        return t.trim()
     }
 }
