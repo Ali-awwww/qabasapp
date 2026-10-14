@@ -58,7 +58,6 @@ object FullSahihHadithRepository {
         val fileName = when (bookType) {
             SahihBookType.BUKHARI -> BUKHARI_FILE
             SahihBookType.MUSLIM -> MUSLIM_FILE
-            SahihBookType.NAWAWIS40 -> return@withContext null // نستخدم SahihHadithsRepository للأربعين النووية
         }
 
         if (cachedFileName == fileName && cachedBook != null) return@withContext cachedBook
