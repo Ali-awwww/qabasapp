@@ -145,8 +145,8 @@ object MultiModelAgentOrchestrator {
      *
      * @param context سياق التطبيق لقراءة المفاتيح
      * @param prompt المهمة من المستخدم
-     * @param team فريق الوكيل (يجب أن يحتوي على قائد واحد على الأقل)
-     * @param onUpdate استدعاء متكرر يمرر نص حالة تقدم حي (سطر لكل عضو)
+     * @param team فريق الوكيل (يجب أن يحتوي على قائد واحد على الأقل + مساعد واحد مفعّل)
+     * @param onUpdate استدعاء متكرر يُمرر على الخيط الرئيسي (Main thread) لتحديث واجهة المستخدم
      * @return تقرير شامل عن النتيجة
      */
     suspend fun executeWithTeam(
@@ -155,6 +155,12 @@ object MultiModelAgentOrchestrator {
         team: List<AgentTeamMember>,
         onUpdate: (String) -> Unit = {}
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
+        // 🔑 نُسلسل onUpdate إلى الخيط الرئيسي (Main) لتحديث UI بأمان من worker threads
+        val safeOnUpdate: suspend (String) -> Unit = { msg ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onUpdate(msg)
+            }
+        }
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
 
@@ -189,7 +195,7 @@ object MultiModelAgentOrchestrator {
 
         // ═══ المرحلة 1: القائد يُصدر خطة عمل ═══
         currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل البدء
-        onUpdate("👑 ${leader.displayName}: جاري التخطيط...")
+        safeOnUpdate("👑 ${leader.displayName}: جاري التخطيط...")
         val leaderSystemPrompt = """
             أنت قائد فريق مهندسين ذكاء اصطناعي (Leader AI Model).
             لديك ${assistants.size} مساعد${if (assistants.size == 1) "" else "ين"}:
@@ -211,9 +217,9 @@ object MultiModelAgentOrchestrator {
 
         if (leaderPlan == null) {
             warnings.add("تعذر توليد خطة صالحة من القائد — سيتم تنفيذ المساعدين مباشرة على المهمة الأصلية.")
-            onUpdate("⚠️ ${leader.displayName}: تعذر توليد خطة صالحة — سيتم تنفيذ المساعدين على المهمة الأصلية.")
+            safeOnUpdate("⚠️ ${leader.displayName}: تعذر توليد خطة صالحة — سيتم تنفيذ المساعدين على المهمة الأصلية.")
         } else {
-            onUpdate("✅ ${leader.displayName}: تم توليد الخطة (${leaderPlan.subtasks.size} مهمة فرعية).")
+            safeOnUpdate("✅ ${leader.displayName}: تم توليد الخطة (${leaderPlan.subtasks.size} مهمة فرعية).")
         }
 
         // ═══ المرحلة 2: تنفيذ المساعدين (بالتوازي أو بالتسلسل حسب التبعيات) ═══
@@ -264,13 +270,13 @@ object MultiModelAgentOrchestrator {
                 remaining.removeAll(batch.toSet())
 
                 // تنفيذ الدفعة بالتوازي
-                onUpdate("⚙️ تنفيذ ${batch.size} مهمة فرعية بالتوازي: ${batch.joinToString("، ") { it.title.take(30) }}")
+                safeOnUpdate("⚙️ تنفيذ ${batch.size} مهمة فرعية بالتوازي: ${batch.joinToString("، ") { it.title.take(30) }}")
 
                 coroutineScope {
                     val deferreds = batch.map { st ->
                         val member = memberById[st.assigneeMemberId]!!
                         async {
-                            onUpdate("⚡ ${member.displayName}: جاري تنفيذ «${st.title.take(40)}»...")
+                            safeOnUpdate("⚡ ${member.displayName}: جاري تنفيذ «${st.title.take(40)}»...")
                             val r = callModel(
                                 member,
                                 "أنت مساعد${if (member.role == AgentTeamRole.REVIEWER) " مراجع جودة" else " تنفيذي"} في فريق مهندسين AI. نفّذ المهمة المطلوبة بدقة وكفاءة، وقدّم مخرجات كاملة قابلة للاستخدام.",
@@ -294,7 +300,7 @@ object MultiModelAgentOrchestrator {
                         if (r.isSuccess) succeededIds.add(st.id) else failedIds.add(st.id)
                         // 🔑 تحديث حالة التقدم بعد اكتمال كل مهمة فرعية
                         val statusIcon = if (r.isSuccess) "✅" else "❌"
-                        onUpdate("$statusIcon ${member.displayName}: اكتمل «${st.title.take(30)}» (${r.latencyMs}ms)")
+                        safeOnUpdate("$statusIcon ${member.displayName}: اكتمل «${st.title.take(30)}» (${r.latencyMs}ms)")
                     }
                 }
             }
@@ -302,7 +308,7 @@ object MultiModelAgentOrchestrator {
 
         // ═══ المرحلة 3: القائد يجمع النتيجة النهائية ═══
         currentCoroutineContext().ensureActive() // 🔑 تحقق من عدم إلغاء المهمة قبل المرحلة الثالثة
-        onUpdate("👑 ${leader.displayName}: جاري صياغة الخلاصة النهائية...")
+        safeOnUpdate("👑 ${leader.displayName}: جاري صياغة الخلاصة النهائية...")
         val successfulOutputs = memberResults.filter { it.isSuccess && it.role != AgentTeamRole.LEADER }
             .joinToString("\n\n---\n\n") { "[${it.memberId}] ${it.outputText}" }
 
