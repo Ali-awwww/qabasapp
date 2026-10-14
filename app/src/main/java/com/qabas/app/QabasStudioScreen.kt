@@ -264,7 +264,7 @@ fun QabasStudioScreen(
     }
 
     // State Variables
-    var inputText by remember { mutableStateOf(initialVerseText ?: presets[0].text) }
+    var inputText by rememberSaveable { mutableStateOf(initialVerseText ?: presets[0].text) }
     var narratorText by remember { 
         mutableStateOf(
             if (isQuranMode) {
@@ -301,8 +301,8 @@ fun QabasStudioScreen(
     var isGeneratingAiImage by remember { mutableStateOf(false) }
 
     var selectedQuality by remember { mutableStateOf("4K") } // 4K (2160p), 2K (1440p), HD (1080p)
-    var isExportingImage by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(0) } // 0: الحديث, 1: المظهر, 2: الخطوط, 3: الذكاء الاصطناعي
+    var isExportingImage by rememberSaveable { mutableStateOf(false) }
+    var activeTab by rememberSaveable { mutableIntStateOf(0) } // 0: الحديث, 1: المظهر, 2: الخطوط, 3: الذكاء الاصطناعي
 
     val currentTheme = themes.firstOrNull { it.id == selectedThemeId } ?: themes[0]
 
