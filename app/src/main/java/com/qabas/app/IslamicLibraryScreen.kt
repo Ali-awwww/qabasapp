@@ -54,6 +54,7 @@ fun IslamicLibraryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var activeBookForReading by remember { mutableStateOf<IslamicBook?>(null) }
     var activeSahihBookType by remember { mutableStateOf<SahihBookType?>(null) }
+    var openFullSahihBook by remember { mutableStateOf(false) } // 🔑 فتح الكتاب الكامل (7277 حديثًا للبخاري)
     var showProgressionDialog by remember { mutableStateOf(false) }
 
     // Handling Back Button for sub-screens (The identified "Back Point" weak point)
@@ -67,10 +68,26 @@ fun IslamicLibraryScreen(
 
     // If a Sahih Book (Bukhari or Muslim) is selected, show the dedicated beautiful SahihReaderView
     if (activeSahihBookType != null) {
+        // 🔑 إذا كان المستخدم طلب الكتاب الكامل، نفتح FullSahihReaderScreen
+        if (openFullSahihBook) {
+            FullSahihReaderScreen(
+                bookType = activeSahihBookType!!,
+                onBack = {
+                    openFullSahihBook = false
+                    activeSahihBookType = null
+                }
+            )
+            return
+        }
+
         SahihReaderView(
             initialBookType = activeSahihBookType!!,
             onBack = { activeSahihBookType = null },
-            onNavigateToVideoCreation = onNavigateToVideoCreation
+            onNavigateToVideoCreation = onNavigateToVideoCreation,
+            onOpenFullBook = { bookType ->
+                activeSahihBookType = bookType
+                openFullSahihBook = true
+            }
         )
         return
     }

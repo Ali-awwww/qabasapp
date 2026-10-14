@@ -45,7 +45,8 @@ import java.util.Locale
 fun SahihReaderView(
     initialBookType: SahihBookType = SahihBookType.BUKHARI,
     onBack: () -> Unit,
-    onNavigateToVideoCreation: (quoteText: String) -> Unit = {}
+    onNavigateToVideoCreation: (quoteText: String) -> Unit = {},
+    onOpenFullBook: (SahihBookType) -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -58,6 +59,7 @@ fun SahihReaderView(
     var showOnlyBookmarks by remember { mutableStateOf(false) }
     var showOnlyQuranEvidence by remember { mutableStateOf(false) }
     var showChallengeDialog by remember { mutableStateOf(false) }
+    var showFullBookDialog by remember { mutableStateOf(false) } // 🔑 حوار فتح الكتاب الكامل
     var showQuranicHarmonyDialog by remember { mutableStateOf(false) }
     val userSavedFontSize by UserPreferencesManager.quranFontSize.collectAsState()
     var fontSizeSp by remember(userSavedFontSize) { mutableFloatStateOf(userSavedFontSize) }
@@ -288,6 +290,27 @@ fun SahihReaderView(
                                     )
                                 }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 🔑 زر فتح الكتاب الكامل (صحيح البخاري / مسلم — كامل)
+                        OutlinedButton(
+                            onClick = { onOpenFullBook(activeBook) },
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFD4AF37),
+                                containerColor = Color(0xFFD4AF37).copy(alpha = 0.08f)
+                            )
+                        ) {
+                            Icon(Icons.Default.LibraryBooks, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "📖 الكتاب كامل (7277 حديثًا للبخاري • 7459 لمسلم)",
+                                fontSize = 12.sp, fontFamily = CairoFont
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
