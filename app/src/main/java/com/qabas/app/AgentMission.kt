@@ -633,9 +633,7 @@ suspend fun executeAgentMissionMultiModel(
     onStatusChange: (AgentTaskStatus) -> Unit = {},
     onTeamProgress: (String) -> Unit = {}
 ): AgentMissionSession {
-    val context_ = context
-
-    val team = MultiModelAgentOrchestrator.loadTeam(context_, onlyEnabled = true)
+    val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
 
     var currentStatus = AgentTaskStatus.PLANNING
     onStatusChange(currentStatus)
@@ -652,7 +650,7 @@ suspend fun executeAgentMissionMultiModel(
 
     // تشغيل الـ Orchestrator (يُدير القائد والمساعدين) — يحل مفتاح كل مزود داخليًا
     val report = MultiModelAgentOrchestrator.executeWithTeam(
-        context = context_,
+        context = context,
         prompt = userPrompt,
         team = team,
         onUpdate = onTeamProgress

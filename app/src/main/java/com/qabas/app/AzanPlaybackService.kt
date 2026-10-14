@@ -60,15 +60,56 @@ class AzanPlaybackService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var audioFocusRequest: android.media.AudioFocusRequest? = null
+    private var audioManager: android.media.AudioManager? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Qabas:AzanPlaybackWakeLock")?.apply {
             setReferenceCounted(false)
+        }
+    }
+
+    /**
+     * 🔑 طلب تركيز الصوت (Audio Focus) — يوقف الموسيقى/الفيديو الأخرى أثناء الأذان
+     */
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener { focusChange ->
+                    if (focusChange == android.media.AudioManager.AUDIOFOCUS_LOSS) {
+                        stopPlayingAndSelf()
+                    }
+                }
+                .build()
+            am.requestAudioFocus(audioFocusRequest) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) ==
+                    android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        val am = audioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+            audioFocusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(null)
         }
     }
 
@@ -91,10 +132,26 @@ class AzanPlaybackService : Service() {
     private fun playAzanAudio(voiceId: String, prayerName: String) {
         val selectedVoice = MuezzinVoiceManager.getVoiceById(applicationContext, voiceId)
 
+        // 🔑 طلب تركيز الصوت قبل التشغيل — إذا فشل، نكمل مع تحذير
+        val gotFocus = requestAudioFocus()
+        if (!gotFocus) {
+            Log.w(TAG, "Failed to get audio focus — playing anyway (alarm usage may override)")
+        }
+
         wakeLock?.acquire(300000L) // 5 minutes max
 
         val notification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
         startForeground(NOTIFICATION_ID, notification)
+
+        // 🔑 احتياطي: جرب ملفًا محليًا محفوظًا قبل البث المباشر
+        val localFile = java.io.File(getExternalFilesDir(null), "azan_${voiceId}.mp3")
+        val dataSource: String = if (localFile.exists() && localFile.length() > 0) {
+            Log.d(TAG, "Using cached azan file: ${localFile.absolutePath}")
+            localFile.absolutePath
+        } else {
+            Log.d(TAG, "No cached file — streaming: ${selectedVoice.streamUrl}")
+            selectedVoice.streamUrl
+        }
 
         try {
             mediaPlayer?.release()
@@ -105,7 +162,11 @@ class AzanPlaybackService : Service() {
                         .setUsage(AudioAttributes.USAGE_ALARM) // يضمن سماع الأذان مع DND/الصوت المنخفض
                         .build()
                 )
-                setDataSource(applicationContext, Uri.parse(selectedVoice.streamUrl))
+                if (dataSource.startsWith("http")) {
+                    setDataSource(applicationContext, Uri.parse(dataSource))
+                } else {
+                    setDataSource(dataSource)
+                }
                 setOnPreparedListener { mp ->
                     mp.start()
                 }
@@ -135,6 +196,8 @@ class AzanPlaybackService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping media player: ${e.message}")
         }
+
+        abandonAudioFocus()
 
         if (wakeLock?.isHeld == true) {
             try { wakeLock?.release() } catch (_: Exception) {}
