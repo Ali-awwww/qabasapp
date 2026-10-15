@@ -166,11 +166,13 @@ fun AgentRoomSection(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        when (selectedTab) {
-            0 -> AgentLiveConsoleTab(context, scope, onJumpKeys, onJumpBuildCenter)
-            1 -> RequirementsTab(context, scope, onJumpBuildCenter, onJumpKeys)
-            2 -> ToolsTab(context)
-            else -> TaskHistoryLogTab(context)
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (selectedTab) {
+                0 -> AgentLiveConsoleTab(context, scope, onJumpKeys, onJumpBuildCenter)
+                1 -> RequirementsTab(context, scope, onJumpBuildCenter, onJumpKeys)
+                2 -> ToolsTab(context)
+                else -> TaskHistoryLogTab(context)
+            }
         }
     }
 }
@@ -179,7 +181,7 @@ fun AgentRoomSection(
  * ⚡ تبويب كونسول تشغيل الوكيل المباشر مع طابور الأوامر والإيقاف المؤقت
  */
 @Composable
-private fun AgentLiveConsoleTab(
+internal fun AgentLiveConsoleTab(
     context: Context,
     scope: kotlinx.coroutines.CoroutineScope,
     onJumpKeys: () -> Unit,
@@ -255,7 +257,7 @@ private fun AgentLiveConsoleTab(
     }
 
     var missionInput by remember {
-        mutableStateOf("أضف زر مشاركة فوري مع تأثير اهتزاز لمسي (Haptic Feedback) في الشاشة الرئيسية")
+        mutableStateOf("")
     }
 
     // إدارة الطابور وحالات التشغيل والإيقاف المؤقت
@@ -2480,11 +2482,11 @@ private fun AgentLiveConsoleTab(
                                     val closeBraces = text.count { it == '}' }
                                     val isBracesBalanced = openBraces == closeBraces
                                     sanityCheckResult = if (isBracesBalanced) {
-                                        "✅ الفحص سليم 100%: الكود متوازن البنية النحوية، الأقواس متطابقة ($openBraces/$closeBraces)، المتغيرات خالية من التعارضات، وتوافق Jetpack Compose كامل."
+                                        "✅ توازن الأقواس مطابق ($openBraces/$closeBraces). ملاحظة: هذا فحص بنيوي أساسي فقط، وليس تحققًا نحويًا كاملًا."
                                     } else {
                                         "⚠️ تنبيه فحص: يرجى مراجعة توازن الأقواس في التعديل المولد ($openBraces مفتوح / $closeBraces مغلق)."
                                     }
-                                    Toast.makeText(context, "اكتمل فحص سلامة الكود بنجاح 🧪", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم فحص توازن الأقواس 🧪", Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF152238)),
                                 border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
@@ -3039,7 +3041,7 @@ private fun ChatMessageBubble(message: AgentChatMessage) {
  * 🎯 تبويب شروط الجاهزية بنمط الزجاج السيبراني (Spatial HUD Readiness Matrix)
  */
 @Composable
-private fun RequirementsTab(
+internal fun RequirementsTab(
     context: Context,
     scope: kotlinx.coroutines.CoroutineScope,
     onJumpBuildCenter: () -> Unit,
@@ -3469,7 +3471,7 @@ private fun RequirementsTab(
  * 🛠️ تبويب مصفوفة الأدوات البرمجية وإعدادات الوكيل (Spatial Tool Arsenal)
  */
 @Composable
-private fun ToolsTab(context: Context) {
+internal fun ToolsTab(context: Context) {
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val dummyCtx = remember { CodeTools.Ctx("-", "-", "-", "-") }
     val allTools = remember { CodeTools.definitions(dummyCtx) + AiTools.definitions(context) }
@@ -3812,7 +3814,7 @@ private enum class TaskHistoryFilter(val label: String, val color: Color) {
 }
 
 @Composable
-private fun TaskHistoryLogTab(context: Context) {
+internal fun TaskHistoryLogTab(context: Context) {
     val clipboard = LocalClipboardManager.current
     var runs by remember { mutableStateOf(AgentRunLog.load(context)) }
     var expandedTime by remember { mutableStateOf<Long?>(null) }

@@ -73,7 +73,9 @@ fun LiveMissionExecutionCard(
     onDiscardDiff: (FileDiff) -> Unit = {},
     applyingPath: String? = null,
     teamProgress: String = "",
-    isTeamMode: Boolean = false
+    isTeamMode: Boolean = false,
+    onVerifyBuild: (() -> Unit)? = null,
+    verifyingBuild: Boolean = false
 ) {
     val hasRunning = mission.steps.any { it.isRunning }
     // عدّاد حي — يتحدث كل ثانية فقط أثناء التنفيذ الفعلي
@@ -158,6 +160,17 @@ fun LiveMissionExecutionCard(
             )
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            // أنميشن تنفيذ المهمة — يعكس التقدم الحقيقي أثناء العمل الفعلي فقط
+            if (hasRunning) {
+                AgentExecutionAnimation(
+                    progress = doneSteps.toFloat() / totalSteps,
+                    accent = mission.status.color,
+                    phaseLabel = mission.status.label,
+                    active = true
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // مؤشر التقدم الحي — يظهر فقط أثناء التنفيذ الفعلي
             if (hasRunning) {
@@ -368,6 +381,42 @@ fun LiveMissionExecutionCard(
                                 Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("بدء تجميع حزمة الـ APK على GitHub الآن ⚡", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // 🔗 بوابة البناء: بعد الدفع، يفحص الفريق نتيجة CI الحقيقية ويصلح عند الفشل
+                        if (isTeamMode && mission.appliedPaths.isNotEmpty() && onVerifyBuild != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onVerifyBuild,
+                                enabled = !verifyingBuild,
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.6f)),
+                                modifier = Modifier.fillMaxWidth().height(42.dp)
+                            ) {
+                                if (verifyingBuild) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color(0xFFE5B842),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("جاري فحص البناء الفعلي...", fontSize = 12.sp, color = Color(0xFFE5B842))
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE5B842),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "🛠️ افحص البناء الفعلي وأصلح عبر الفريق",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE5B842)
+                                    )
+                                }
                             }
                         }
                     }

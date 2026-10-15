@@ -60,9 +60,10 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * 🛸 استوديو الوكيل الذكي (Autonomous AI Agent Studio)
- * بيئة تطوير متكاملة قائمة على إعطاء الأوامر للوكيل باللغة الطبيعية
- * يقوم الوكيل بالتفكير، استدعاء الأدوات، فحص وكتابة الكود، وتشغيل البناء السحابي
+ * 🛸 مركز الوكيل الذكي الموحّد (Unified Autonomous Agent Center)
+ * شريط HUD نييوني هندسي واحد يجمع خمس وحدات مترابطة:
+ * 01 استوديو المهام · 02 التشغيل المباشر · 03 فحص الجاهزية · 04 ترسانة الأدوات · 05 سجل العمليات
+ * كل القيم المعروضة حقيقية ومقاسة لحظياً — لا بيانات وهمية أو محاكاة.
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,13 +72,15 @@ fun AiStudioAgentScreen(
     onBack: () -> Unit,
     onOpenDeveloperDashboard: () -> Unit = {},
     onOpenTeamConfig: () -> Unit = {},
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
+    initialTab: Int = 0
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
     var showExitConfirmation by remember { mutableStateOf(false) }
+    var topTab by remember { mutableStateOf(initialTab) }
 
     BackHandler {
         if (showExitConfirmation) {
@@ -95,6 +98,7 @@ fun AiStudioAgentScreen(
     var missionHistory by remember { mutableStateOf<List<AgentMissionSession>>(emptyList()) }
     var isTeamMode by remember { mutableStateOf(false) }   // 🔑 وضع الفريق (Multi-Model)
     var teamProgressText by remember { mutableStateOf("") } // نص تقدم الفريق الحي
+    var verifyingBuild by remember { mutableStateOf(false) } // 🔗 فحص البناء الفعلي عبر الفريق
     var showKeyDialog by remember { mutableStateOf(false) }
     var keyDialogInitialTab by remember { mutableStateOf(0) }
     var showRepoDialog by remember { mutableStateOf(false) }
@@ -358,7 +362,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
 
                         Column(modifier = Modifier.weight(1f, fill = true)) {
                             Text(
-                                text = "منصة استوديو الوكيل الذكي",
+                                text = "مركز الوكيل الذكي",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -536,18 +540,71 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 .padding(start = 8.dp)
                         )
                     }
+
+                    // HUD neon baseline (خيط نيون سفلي يفصل الرأس عن لوحة القيادة)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        Color(0xFF00E5FF).copy(alpha = 0.7f),
+                                        Color(0xFFE5B842).copy(alpha = 0.7f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
                 }
             }
         }
     ) { innerPadding ->
-        LazyColumn(
-            state = listState,
+        // مركز الوكيل الموحّد: شريط HUD واحد يدمج الاستوديو ووحدات غرفة الوكيل
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(Color(0xFF05070D))
         ) {
+            AgentHudTabRail(
+                tabs = listOf(
+                    AgentTab("01", "استوديو المهام", Icons.Default.RocketLaunch, Color(0xFF00E5FF)),
+                    AgentTab("02", "التشغيل المباشر", Icons.Default.Terminal, Color(0xFF10B981)),
+                    AgentTab("03", "فحص الجاهزية", Icons.Default.Shield, Color(0xFF38BDF8)),
+                    AgentTab("04", "ترسانة الأدوات", Icons.Default.Build, Color(0xFFF59E0B)),
+                    AgentTab("05", "سجل العمليات", Icons.Default.History, Color(0xFFA855F7))
+                ),
+                selectedIndex = topTab,
+                onSelect = { topTab = it }
+            )
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (topTab) {
+                    1 -> AgentLiveConsoleTab(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = {}
+                    )
+                    2 -> RequirementsTab(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpBuildCenter = {},
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true }
+                    )
+                    3 -> ToolsTab(context)
+                    4 -> TaskHistoryLogTab(context)
+                    else -> LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .cyberGridBackground()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
             item { Spacer(modifier = Modifier.height(8.dp)) }
 
             // 0. Live Network Telemetry & Diagnostics Radar (رادار الفحص الحي والاستجابة)
@@ -936,7 +993,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 }
 
                                 Text(
-                                    text = "الموديل: gemini-3.5-flash",
+                                    text = "الموديل: $selectedModel",
                                     fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFF00E5FF)
@@ -1002,81 +1059,91 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 }
             }
 
-            // 1.5 Studio Engine Architecture & Memory Shield (مناعة الذاكرة ومنع OOM)
+            // 1.5 Live Engineering Telemetry — قياس حي بقيم حقيقية فقط (بدون أي أرقام ثابتة أو وهمية)
             item {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF0B172A).copy(alpha = 0.85f),
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth()
+                val provider = activeEnginePair.value.first
+                val repoBound = activeRepo != null && activeRepo.token.isNotBlank()
+                val cloudOnline = !isOfflineMode && keyResolution.third != KeySource.NONE && geminiHealth.isConnected
+                val localReady = isOfflineMode && OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
+                val linkOk = if (isOfflineMode) localReady else cloudOnline
+                val accent = if (linkOk) Color(0xFF10B981) else Color(0xFFF59E0B)
+
+                HudPanel(
+                    title = "لوحة القياس الهندسي الحي",
+                    icon = Icons.Default.Sensors,
+                    accent = accent
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = null,
-                                    tint = Color(0xFF10B981),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "درع المنصة 🛡️",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE2E8F0),
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
-                                modifier = Modifier.wrapContentWidth()
-                            ) {
-                                Text(
-                                    text = "HEALTHY 100%",
-                                    fontSize = 9.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF10B981),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    maxLines = 1
-                                )
-                            }
-                        }
+                    HudMetric(
+                        label = "المحرك النشط",
+                        value = if (isOfflineMode) "ON-DEVICE" else provider.displayName,
+                        accent = if (isOfflineMode) Color(0xFFE5B842) else provider.color
+                    )
+                    HudMetric(
+                        label = "النموذج",
+                        value = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                        accent = Color(0xFF00E5FF)
+                    )
+                    HudMetric(
+                        label = "مصدر الاعتماد",
+                        value = if (isOfflineMode) "محلي — بدون مفتاح" else keyResolution.third.label,
+                        accent = if (isOfflineMode) Color(0xFFE5B842) else keyResolution.third.color
+                    )
+                    HudMetric(
+                        label = "رابط Gemini",
+                        value = if (isOfflineMode) {
+                            "معطّل (وضع محلي)"
+                        } else if (geminiHealth.isConnected) {
+                            "متصل • ${geminiHealth.latencyMs}ms"
+                        } else {
+                            geminiHealth.statusDetail
+                        },
+                        accent = if (!isOfflineMode && geminiHealth.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                    HudMetric(
+                        label = "رابط GitHub",
+                        value = if (githubHealth.isConnected) "متصل • ${githubHealth.latencyMs}ms" else githubHealth.statusDetail,
+                        accent = if (githubHealth.isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)
+                    )
+                    HudMetric(
+                        label = "المستودع",
+                        value = activeRepo?.fullName ?: "غير مرتبط",
+                        accent = if (repoBound) Color(0xFF10B981) else Color(0xFF94A3B8)
+                    )
+                    HudMetric(
+                        label = "تخصص الوكيل",
+                        value = selectedSpec.title,
+                        accent = selectedSpec.color
+                    )
+                    HudMetric(
+                        label = "وضع التنفيذ",
+                        value = if (isTeamMode) "فريق النماذج المتعددة" else "فردي",
+                        accent = if (isTeamMode) Color(0xFFD4AF37) else Color(0xFF94A3B8)
+                    )
 
+                    if (isPinging) {
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        // شريط حالة مدمج: سليم + توقيع ثابت — بدل 4 شارات بمعلومات بناء لا حية
                         Text(
-                            text = "سليم 100% ✅ • توقيع ثابت ومتزامن 🔏 • حماية ذاكرة OOM 🛡️",
-                            fontSize = 10.5.sp,
-                            color = Color(0xFF6EE7B7),
-                            fontFamily = CairoFont,
-                            maxLines = 2,
-                            lineHeight = 15.sp
+                            text = "… executing live network probe",
+                            fontSize = 10.sp,
+                            fontFamily = RobotoMonoFont,
+                            color = Color(0xFF00E5FF),
+                            maxLines = 1
                         )
                     }
                 }
             }
 
-            // 2. Command Prompt Cockpit
+            // 2. Command Prompt Cockpit — HUD console with laser corner brackets
             item {
-                GlassmorphicSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF0D1527).copy(alpha = 0.85f),
-                    borderColor = Color(0xFF00E5FF).copy(alpha = 0.35f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF0A101E).copy(alpha = 0.92f))
+                        .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f), RoundedCornerShape(16.dp))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFF00E5FF).copy(alpha = 0.75f))
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1207,8 +1274,10 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
+                                val promptChars = promptInput.length
+                                val promptTokens = if (promptChars == 0) 0 else promptChars / 4 + 1
                                 Text(
-                                    text = "ميزانية التوكن: ~4000 توكن/طلب • تكلفة تقريبية: \$0.01–0.05",
+                                    text = "طول الأمر الحالي: $promptChars حرف • ~$promptTokens توكن تقديري",
                                     fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFF64748B),
@@ -1539,6 +1608,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                             context = context,
                                                             userPrompt = prompt,
                                                             specialization = selectedSpec,
+                                                            onUpdate = { liveMission -> currentMission = liveMission },
                                                             onTeamProgress = { progressText ->
                                                                 teamProgressText = progressText
                                                             }
@@ -1624,6 +1694,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                                                 context = context,
                                                                 userPrompt = prompt,
                                                                 specialization = selectedSpec,
+                                                                onUpdate = { liveMission -> currentMission = liveMission },
                                                                 onTeamProgress = { progressText ->
                                                                     teamProgressText = progressText
                                                                 }
@@ -1699,6 +1770,60 @@ LaunchedEffect(currentMission, isOfflineMode) {
                         mission = mission,
                         teamProgress = teamProgressText,
                         isTeamMode = isTeamMode,
+                        verifyingBuild = verifyingBuild,
+                        onVerifyBuild = {
+                            if (activeRepo == null || activeRepo.token.isBlank()) {
+                                Toast.makeText(context, "اربط مستودع GitHub برمز صالح أولاً 🔗", Toast.LENGTH_LONG).show()
+                            } else if (!verifyingBuild) {
+                                verifyingBuild = true
+                                coroutineScope.launch {
+                                    try {
+                                        val gate = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            fetchTeamBuildFeedback(context)
+                                        }
+                                        when (gate.state) {
+                                            BuildVerificationEngine.BuildGateState.PASSED -> {
+                                                currentMission = mission.copy(
+                                                    buildTriggered = true,
+                                                    status = AgentTaskStatus.COMPLETED,
+                                                    steps = mission.steps + AgentExecutionStep(
+                                                        title = "✅ بوابة البناء",
+                                                        description = "نجح البناء الفعلي لكوميت ${gate.commitSha.take(8)}.",
+                                                        toolName = "ci_gate",
+                                                        isSuccess = true,
+                                                        outputSnippet = "CI: success — ${gate.runUrl}"
+                                                    )
+                                                )
+                                                Toast.makeText(context, "البناء ناجح ✅ — القبول مضمون بالبناء الفعلي", Toast.LENGTH_LONG).show()
+                                            }
+                                            BuildVerificationEngine.BuildGateState.PENDING -> {
+                                                Toast.makeText(context, "البناء قيد التشغيل ⏳ — انتظر دقيقة ثم أعد الفحص", Toast.LENGTH_LONG).show()
+                                            }
+                                            BuildVerificationEngine.BuildGateState.FAILED -> {
+                                                teamProgressText = "🛠️ فشل البناء — الفريق يعيد الإصلاح على أخطاء CI..."
+                                                val updated = executeAgentMissionMultiModel(
+                                                    context = context,
+                                                    userPrompt = mission.userPrompt,
+                                                    specialization = mission.specialization,
+                                                    onUpdate = { liveMission -> currentMission = liveMission },
+                                                    onTeamProgress = { progressText -> teamProgressText = progressText },
+                                                    buildFeedback = gate.feedback
+                                                )
+                                                currentMission = updated
+                                                missionHistory = listOf(updated) + missionHistory
+                                            }
+                                            else -> {
+                                                Toast.makeText(context, "تعذّر تحديد حالة البناء — تحقق من الربط والصلاحيات", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        // ignore
+                                    } finally {
+                                        verifyingBuild = false
+                                    }
+                                }
+                            }
+                        },
                         onTriggerBuild = {
                             coroutineScope.launch {
                                 triggerBuildDirectly(context, activeRepo) { step ->
@@ -1767,6 +1892,9 @@ LaunchedEffect(currentMission, isOfflineMode) {
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
+                    }
+                }
+            }
         }
     }
 

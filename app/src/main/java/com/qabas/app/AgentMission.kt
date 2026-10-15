@@ -676,23 +676,42 @@ suspend fun executeAgentMissionMultiModel(
     context: Context,
     userPrompt: String,
     specialization: AgentSpecialization,
-    onUpdate: (AgentExecutionStep) -> Unit = {},
+    onUpdate: (AgentMissionSession) -> Unit = {},
     onStatusChange: (AgentTaskStatus) -> Unit = {},
-    onTeamProgress: (String) -> Unit = {}
+    onTeamProgress: (String) -> Unit = {},
+    buildFeedback: String = ""
 ): AgentMissionSession {
     val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
 
-    var currentStatus = AgentTaskStatus.PLANNING
-    onStatusChange(currentStatus)
+    // 🔑 بثّ حيّ: نبني الجلسة خطوة بخطوة من أحداث الـOrchestrator لتظهر البطاقة
+    // والأنميشن أثناء التنفيذ الفعلي (لا ننتظر الانتهاء).
+    val stepsByKey = linkedMapOf<String, AgentExecutionStep>()
+    var session = AgentMissionSession(
+        userPrompt = userPrompt,
+        specialization = specialization,
+        status = AgentTaskStatus.PLANNING,
+        steps = emptyList()
+    )
+    onStatusChange(AgentTaskStatus.PLANNING)
+    onUpdate(session)
+
+    fun emit() {
+        session = session.copy(steps = stepsByKey.values.toList())
+        onUpdate(session)
+    }
 
     // 🔑 نتحقق فقط من مزود/مفتاح أعضاء الفريق الفعليين (لا المزود العالمي غير ذي الصلة)
     if (team.isEmpty()) {
-        return AgentMissionSession(
+        val failed = AgentMissionSession(
+            id = session.id,
             userPrompt = userPrompt,
             specialization = specialization,
             status = AgentTaskStatus.FAILED,
             finalReport = "🚫 لا يوجد فريق مفعّل! افتح '👥 فريق النماذج' وقم بتعيين قائد ومساعد واحد على الأقل."
         )
+        onStatusChange(AgentTaskStatus.FAILED)
+        onUpdate(failed)
+        return failed
     }
 
     // تشغيل الـ Orchestrator (يُدير القائد والمساعدين) — يحل مفتاح كل مزود داخليًا
@@ -700,78 +719,63 @@ suspend fun executeAgentMissionMultiModel(
         context = context,
         prompt = userPrompt,
         team = team,
-        onUpdate = onTeamProgress
+        onUpdate = onTeamProgress,
+        buildFeedback = buildFeedback,
+        onStep = { ev ->            val prev = stepsByKey[ev.key]
+            stepsByKey[ev.key] = AgentExecutionStep(
+                id = prev?.id ?: ev.key,
+                title = ev.title,
+                description = ev.description,
+                toolName = ev.toolName,
+                outputSnippet = ev.outputSnippet,
+                isRunning = ev.isRunning,
+                isSuccess = ev.isSuccess,
+                timestamp = prev?.timestamp ?: System.currentTimeMillis()
+            )
+            // تحديث حالة المهمة الحيّة بحسب طور الخطوة
+            val liveStatus = when {
+                ev.isRunning && ev.toolName == "team_leader_plan" -> AgentTaskStatus.PLANNING
+                ev.isRunning && ev.toolName.startsWith("team_member") -> AgentTaskStatus.WRITING
+                ev.isRunning -> session.status
+                else -> session.status
+            }
+            if (liveStatus != session.status) {
+                session = session.copy(status = liveStatus)
+                onStatusChange(liveStatus)
+            }
+            emit()
+        }
     )
 
     if (!report.overallSuccess) {
-        currentStatus = AgentTaskStatus.FAILED
-        onStatusChange(currentStatus)
+        onStatusChange(AgentTaskStatus.FAILED)
         // نموذج المطلوبات أولاً: إن تعثر البدء يُعرض ما ينقص بدل خطأ مبهم
         if (!report.preflight.ready && (report.preflight.missing.isNotEmpty() || report.preflight.questions.isNotEmpty())) {
-            val formStep = AgentExecutionStep(
-                title = "📋 نموذج مطلوبات البدء (المصدر: ${report.preflight.source})",
-                description = "القائد طلب استيفاء هذه المستلزمات قبل بدء العمل — لن يبدأ شيء ناقصاً.",
-                toolName = "team_preflight",
-                isSuccess = false,
-                outputSnippet = (report.preflight.missing.map { "⬜ $it" } +
-                    report.preflight.questions.map { "❓ $it" }).joinToString("\n")
-            )
-            onUpdate(formStep)
-            return AgentMissionSession(
-                userPrompt = userPrompt,
-                specialization = specialization,
+            val failed = session.copy(
                 status = AgentTaskStatus.FAILED,
-                steps = listOf(formStep),
+                steps = stepsByKey.values.toList(),
                 finalReport = "📋 تعذّر بدء العمل — المطلوبات:\n" +
                     report.preflight.missing.joinToString("\n") { "• $it" } +
                     report.preflight.questions.joinToString("\n") { "• $it" } +
                     "\n\nاستوفِ ما أعلاه ثم أعد التنفيذ."
             )
+            onUpdate(failed)
+            return failed
         }
         val errorText = report.memberResults.firstOrNull { !it.isSuccess && it.errorMessage != null }?.errorMessage ?: "فشل غير معروف"
-        return AgentMissionSession(
-            userPrompt = userPrompt,
-            specialization = specialization,
+        val failed = session.copy(
             status = AgentTaskStatus.FAILED,
+            steps = stepsByKey.values.toList(),
             finalReport = "❌ فشل فريق النماذج في إكمال المهمة.\n\nأول خطأ: $errorText\n\nتحذيرات: ${report.warnings.joinToString("، ")}"
         )
+        onUpdate(failed)
+        return failed
     }
 
-    // تحويل نتائج الأعضاء إلى Steps متوافقة مع النظام الحالي
-    val steps = mutableListOf<AgentExecutionStep>()
-    val leaderPlanStep = AgentExecutionStep(
-        title = "👑 خطة القائد",
-        description = report.leaderPlan?.rationale ?: "تم توزيع المهمة على ${team.size - 1} مساعد.",
-        toolName = "team_leader_plan",
-        outputSnippet = report.leaderPlan?.let {
-            it.subtasks.joinToString("\n") { "• ${it.title} → ${it.assigneeMemberId}" }
-        } ?: "(تعذر توليد خطة JSON صالحة)"
-    )
-    steps.add(leaderPlanStep)
-    onUpdate(leaderPlanStep)
+    // 🔑 الخريطة الحيّة تحتوي مسبقاً: preflight + خطة القائد + كل مساعد + الخلاصة
+    // (بُثّت أثناء التنفيذ) — لا نبنيها مجدداً حتى لا تتكرر الخطوات.
 
-    report.memberResults.filter { it.role != AgentTeamRole.LEADER }.forEach { r ->
-        val memberStep = AgentExecutionStep(
-            title = "⚡ ${r.role.label} (${team.firstOrNull { it.id == r.memberId }?.displayName ?: r.memberId})",
-            description = "زمن التنفيذ: ${r.latencyMs}ms • التوكن: ${r.tokensUsed}",
-            toolName = "team_member_${r.memberId}",
-            outputSnippet = r.outputText.take(500),
-            isSuccess = r.isSuccess
-        )
-        steps.add(memberStep)
-        onUpdate(memberStep)
-    }
-    steps.add(
-        AgentExecutionStep(
-            title = "📝 الخلاصة النهائية",
-            description = "دمج القائد لمخرجات الفريق في تقرير واحد.",
-            toolName = "team_leader_synthesis",
-            outputSnippet = report.leaderSynthesis.take(500)
-        )
-    )
-
-    currentStatus = AgentTaskStatus.COMPLETED
-    onStatusChange(currentStatus)
+    onStatusChange(AgentTaskStatus.COMPLETED)
 
     // الدفع حكر على القائد وبإذنك: مقترحاته فقط تظهر للاعتماد، ومخرجات
     // المساعدين نتائج تُسلَّم للقائد ولا تُدفع — لا دفع صامت أبداً.
@@ -785,17 +789,44 @@ suspend fun executeAgentMissionMultiModel(
         else -> ""
     }
 
-    return AgentMissionSession(
-        userPrompt = userPrompt,
-        specialization = specialization,
+    // 🔁 إن حدثت إعادة بعد التحقق، فالبناء السابق لم يعد مرجعاً صالحاً للملفات المُعدَّلة
+    val didRework = stepsByKey.keys.any { it.startsWith("rework_") }
+    val reworkNote = if (didRework && report.leaderDiffs.isNotEmpty()) {
+        if (stepsByKey["verify_redo"]?.isSuccess == false) {
+            "\n\n⚠️ أُعيد تنفيذ بعض المهام وما زالت دون معايير القبول حتى بعد إعادة التحقق — راجع بعناية قبل الدفع."
+        } else {
+            "\n\n🔁 أُعيد تنفيذ بعض المهام بعد التحقق — بعد اعتماد الدفع، أعد تشغيل البناء وأعد فحص البوابة للتأكد من نجاح CI على النسخة المُعدَّلة."
+        }
+    } else ""
+
+    val finalSession = session.copy(
         status = AgentTaskStatus.COMPLETED,
-        steps = steps,
+        steps = stepsByKey.values.toList(),
         finalReport = report.leaderSynthesis.ifBlank {
             "تم إكمال المهمة عبر ${report.memberResults.size} مشارك بنجاح.\n\nمخرجات الفريق:\n" +
                     report.memberResults.joinToString("\n\n") { "[${it.role.label}] ${it.outputText.take(300)}" }
-        } + pushNote,
+        } + pushNote + reworkNote,
         modifiedFiles = report.leaderDiffs.map { it.filePath },
         proposedDiffs = report.leaderDiffs,
         buildTriggered = false
+    )
+    session = finalSession
+    onUpdate(finalSession)
+    return finalSession
+}
+
+/**
+ * 🔗 بوابة البناء: تجلب نتيجة بناء الفرع المثبّتة على الكوميت المدفوع.
+ * تُميّز PENDING/PASSED/FAILED/UNKNOWN — فلا إعادة إصلاح على بناء قديم أو لم يبدأ،
+ * وعند الفشل فقط تحمل `feedback` سجلًا منقّحًا جاهزًا لبرومبت الفريق.
+ */
+suspend fun fetchTeamBuildFeedback(context: Context): BuildVerificationEngine.BuildGateResult {
+    val repo = RepoVaultManager.getActiveRepo(context)
+        ?: return BuildVerificationEngine.BuildGateResult(BuildVerificationEngine.BuildGateState.UNKNOWN)
+    if (repo.token.isBlank()) {
+        return BuildVerificationEngine.BuildGateResult(BuildVerificationEngine.BuildGateState.UNKNOWN)
+    }
+    return BuildVerificationEngine.evaluateBuildGate(
+        repo.owner, repo.repo, repo.token, repo.defaultBranch
     )
 }
