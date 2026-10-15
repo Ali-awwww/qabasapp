@@ -33,7 +33,7 @@ import java.util.Locale
  */
 object QabasCrashGuard {
     private const val TAG = "QabasCrashGuard"
-    private const val MAX_LOG_FILES = 20
+    private const val MAX_LOG_FILES = 100
     private const val RECOVERY_WINDOW_MS = 15_000L
     private const val RELAUNCH_LOOP_GUARD_MS = 6_000L
     private const val DUPLICATE_MERGE_WINDOW_MS = 100L

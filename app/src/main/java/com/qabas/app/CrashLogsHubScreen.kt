@@ -461,122 +461,183 @@ fun CrashLogsHubScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 14.dp)
             ) {
-                // 1. Live Spatial Oscilloscope & Pulse Waveform Card
-                SpatialLiveOscilloscopeCard(
-                    stabilityRate = healthStabilityRate,
-                    stabilityColor = stabilityColor,
-                    totalCrashes = crashesList.size,
-                    uniqueFamilies = groupedCrashes.size,
-                    lastCrashTimestamp = lastCrashTimestamp,
-                    telemetry = liveTelemetry,
-                    onTriggerHeal = { showSelfHealingDialog = true }
-                )
-
-                // 2. Control & Search HUD Strip
-                SpatialSearchAndControlsBar(
-                    searchQuery = searchQuery,
-                    onSearchChange = { searchQuery = it },
-                    viewMode = viewMode,
-                    onViewModeChange = {
-                        AppSoundManager.playTab()
-                        viewMode = it
-                    },
-                    onClearAll = {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            runCatching {
-                                File(context.filesDir, "crash_logs").listFiles()?.forEach { it.delete() }
-                            }
-                            withContext(Dispatchers.Main) {
-                                crashesList = emptyList()
-                                AppSoundManager.playClick()
-                                Toast.makeText(context, "تم مسح كافة سجلات الانهيارات المحلية 🧹", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                )
-
-                // 3. Category Filter Chips (Horizontal HUD Pill Strip)
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(CrashFilterCategory.values()) { category ->
-                        val isSelected = selectedCategory == category
-                        Surface(
-                            color = if (isSelected) HudCyan.copy(alpha = 0.2f) else HudCardSurface.copy(alpha = 0.7f),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(
-                                if (isSelected) 1.2.dp else 1.dp,
-                                if (isSelected) HudCyan else Color.White.copy(alpha = 0.08f)
-                            ),
-                            modifier = Modifier.clickable {
-                                AppSoundManager.playClick()
-                                selectedCategory = category
-                            }
+                when (viewMode) {
+                    // Timeline & Healing are self-contained full-height consoles.
+                    SpatialCrashViewMode.TIMELINE -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(top = 10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = category.icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) HudCyan else Color(0xFF94A3B8),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = category.label,
-                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 4. Main Dynamic Stream / Groups / Timeline / Healing View
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    if (isRefreshing && crashesList.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = HudCyan, strokeWidth = 2.5.dp, modifier = Modifier.size(36.dp))
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text("جاري فحص وجلب سجلات الانهيارات...", color = Color.White.copy(alpha = 0.8f), fontFamily = CairoFont, fontSize = 13.sp)
-                            }
-                        }
-                    } else if (crashesList.isEmpty() && viewMode != SpatialCrashViewMode.HEALING && viewMode != SpatialCrashViewMode.TIMELINE) {
-                        EmptyCrashesState(
-                            onSimulateSafeMock = { recordSafeMockCrash() },
-                            onRefresh = { reloadCrashes() },
-                            onTriggerSelfHeal = { showSelfHealingDialog = true }
-                        )
-                    } else if (filteredCrashes.isEmpty() && viewMode != SpatialCrashViewMode.HEALING && viewMode != SpatialCrashViewMode.TIMELINE) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                "لا توجد نتائج تطابق استعلام البحث أو الفلتر المحدد 🔍",
-                                color = Color(0xFF94A3B8),
-                                fontFamily = CairoFont,
-                                fontSize = 13.sp
+                            SpatialBreadcrumbsTimelineCard(
+                                breadcrumbs = activeBreadcrumbs,
+                                crashes = filteredCrashes,
+                                onSelectCrash = {
+                                    AppSoundManager.playClick()
+                                    selectedCrashDialog = it
+                                }
                             )
                         }
-                    } else {
-                        when (viewMode) {
-                            SpatialCrashViewMode.STREAM -> {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(bottom = 20.dp)
+                    }
+
+                    SpatialCrashViewMode.HEALING -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(top = 10.dp)
+                        ) {
+                            SpatialSelfHealingConsoleCard(
+                                healingLogs = healingResultLog,
+                                isInProgress = isHealingInProgress,
+                                onExecuteHeal = { executeAutonomousSelfHeal() }
+                            )
+                        }
+                    }
+
+                    // Stream & Grouped share ONE vertical scroll: the HUD header scrolls
+                    // away with the list so nothing is clipped and the bottom is reachable.
+                    SpatialCrashViewMode.STREAM,
+                    SpatialCrashViewMode.GROUPED -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(top = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 28.dp)
+                        ) {
+                            // 1. Live Spatial Oscilloscope & Pulse Waveform Card
+                            item {
+                                SpatialLiveOscilloscopeCard(
+                                    stabilityRate = healthStabilityRate,
+                                    stabilityColor = stabilityColor,
+                                    totalCrashes = crashesList.size,
+                                    uniqueFamilies = groupedCrashes.size,
+                                    lastCrashTimestamp = lastCrashTimestamp,
+                                    telemetry = liveTelemetry,
+                                    onTriggerHeal = { showSelfHealingDialog = true }
+                                )
+                            }
+
+                            // 2. Control & Search HUD Strip
+                            item {
+                                SpatialSearchAndControlsBar(
+                                    searchQuery = searchQuery,
+                                    onSearchChange = { searchQuery = it },
+                                    viewMode = viewMode,
+                                    onViewModeChange = {
+                                        AppSoundManager.playTab()
+                                        viewMode = it
+                                    },
+                                    onClearAll = {
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            runCatching {
+                                                File(context.filesDir, "crash_logs").listFiles()?.forEach { it.delete() }
+                                            }
+                                            withContext(Dispatchers.Main) {
+                                                crashesList = emptyList()
+                                                AppSoundManager.playClick()
+                                                Toast.makeText(context, "تم مسح كافة سجلات الانهيارات المحلية 🧹", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+
+                            // 3. Category Filter Chips (Horizontal HUD Pill Strip)
+                            item {
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    items(CrashFilterCategory.values()) { category ->
+                                        val isSelected = selectedCategory == category
+                                        Surface(
+                                            color = if (isSelected) HudCyan.copy(alpha = 0.2f) else HudCardSurface.copy(alpha = 0.7f),
+                                            shape = RoundedCornerShape(16.dp),
+                                            border = BorderStroke(
+                                                if (isSelected) 1.2.dp else 1.dp,
+                                                if (isSelected) HudCyan else Color.White.copy(alpha = 0.08f)
+                                            ),
+                                            modifier = Modifier.clickable {
+                                                AppSoundManager.playClick()
+                                                selectedCategory = category
+                                            }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = category.icon,
+                                                    contentDescription = null,
+                                                    tint = if (isSelected) HudCyan else Color(0xFF94A3B8),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Text(
+                                                    text = category.label,
+                                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 4. Dynamic content
+                            when {
+                                isRefreshing && crashesList.isEmpty() -> {
+                                    item {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                CircularProgressIndicator(color = HudCyan, strokeWidth = 2.5.dp, modifier = Modifier.size(36.dp))
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                Text("جاري فحص وجلب سجلات الانهيارات...", color = Color.White.copy(alpha = 0.8f), fontFamily = CairoFont, fontSize = 13.sp)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                crashesList.isEmpty() -> {
+                                    item {
+                                        Box(modifier = Modifier.fillMaxWidth().height(380.dp)) {
+                                            EmptyCrashesState(
+                                                onSimulateSafeMock = { recordSafeMockCrash() },
+                                                onRefresh = { reloadCrashes() },
+                                                onTriggerSelfHeal = { showSelfHealingDialog = true }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                filteredCrashes.isEmpty() -> {
+                                    item {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().height(180.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                "لا توجد نتائج تطابق استعلام البحث أو الفلتر المحدد 🔍",
+                                                color = Color(0xFF94A3B8),
+                                                fontFamily = CairoFont,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                viewMode == SpatialCrashViewMode.STREAM -> {
                                     items(filteredCrashes, key = { it.fileName }) { crash ->
                                         SpatialCrashStreamCard(
                                             crash = crash,
@@ -587,13 +648,8 @@ fun CrashLogsHubScreen(
                                         )
                                     }
                                 }
-                            }
-                            SpatialCrashViewMode.GROUPED -> {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(bottom = 20.dp)
-                                ) {
+
+                                else -> {
                                     items(groupedCrashes, key = { it.type }) { group ->
                                         SpatialCrashGroupCard(
                                             group = group,
@@ -604,23 +660,6 @@ fun CrashLogsHubScreen(
                                         )
                                     }
                                 }
-                            }
-                            SpatialCrashViewMode.TIMELINE -> {
-                                SpatialBreadcrumbsTimelineCard(
-                                    breadcrumbs = activeBreadcrumbs,
-                                    crashes = filteredCrashes,
-                                    onSelectCrash = {
-                                        AppSoundManager.playClick()
-                                        selectedCrashDialog = it
-                                    }
-                                )
-                            }
-                            SpatialCrashViewMode.HEALING -> {
-                                SpatialSelfHealingConsoleCard(
-                                    healingLogs = healingResultLog,
-                                    isInProgress = isHealingInProgress,
-                                    onExecuteHeal = { executeAutonomousSelfHeal() }
-                                )
                             }
                         }
                     }
@@ -792,14 +831,17 @@ private fun CrashHubTopBar(
                 ) {
                     Icon(Icons.Default.BugReport, contentDescription = null, tint = HudPink, modifier = Modifier.size(20.dp))
                 }
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "سجل وملتقط الانهيارات",
                             color = Color.White,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.5.sp
+                            fontSize = 16.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
@@ -820,7 +862,9 @@ private fun CrashHubTopBar(
                         "مراقبة حية، تشخيص الأسباب الجذرية، وإنعاش الأنظمة الذاتي",
                         color = Color(0xFF94A3B8),
                         fontFamily = NotoSansFont,
-                        fontSize = 10.5.sp
+                        fontSize = 10.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -904,7 +948,11 @@ private fun SpatialLiveOscilloscopeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Box(
                         modifier = Modifier
                             .size(10.dp)
@@ -916,7 +964,9 @@ private fun SpatialLiveOscilloscopeCard(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
+                        fontSize = 13.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -992,10 +1042,12 @@ private fun SpatialLiveOscilloscopeCard(
                 }
             }
 
-            // Telemetry Metric Row
+            // Telemetry Metric Row (scrollable so pills never overlap on narrow screens)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TelemetryMetricPill(title = "الأعطال", value = "$totalCrashes", accent = if (totalCrashes > 0) HudPink else HudGreen)
@@ -1042,10 +1094,9 @@ private fun SpatialSearchAndControlsBar(
     onViewModeChange: (SpatialCrashViewMode) -> Unit,
     onClearAll: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
             value = searchQuery,
@@ -1069,9 +1120,14 @@ private fun SpatialSearchAndControlsBar(
                 unfocusedTextColor = Color.White
             ),
             shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxWidth()
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         // Switch View Modes
         Surface(
             color = Color(0xFF0E1526),
@@ -1106,6 +1162,8 @@ private fun SpatialSearchAndControlsBar(
             }
         }
 
+        Spacer(modifier = Modifier.weight(1f))
+
         // Clean Action
         IconButton(
             onClick = onClearAll,
@@ -1115,6 +1173,7 @@ private fun SpatialSearchAndControlsBar(
                 .border(1.dp, HudPink.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
         ) {
             Icon(Icons.Default.DeleteSweep, contentDescription = "مسح الكل", tint = HudPink, modifier = Modifier.size(18.dp))
+        }
         }
     }
 }
