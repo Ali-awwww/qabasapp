@@ -24,7 +24,9 @@ if(LLAMA_REAL)
 
   add_library(llama_jni SHARED llama_jni.cpp)
   target_compile_definitions(llama_jni PRIVATE LLAMA_REAL_BACKEND=1)
-  target_link_libraries(llama_jni llama common ${log-lib})
+  # Only the llama C API is used; the `common` helper lib is not built when
+  # examples/server are disabled, so don't link it.
+  target_link_libraries(llama_jni llama ${log-lib})
 else()
   # Honest stub: init returns 0 so Kotlin reports engine-unavailable instead of faking text.
   add_library(llama_jni SHARED llama_jni.cpp)
