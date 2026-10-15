@@ -5,8 +5,6 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStream
 
 /**
  * LlamaCppService — LLM محلي (Gemma3 1B / Qwen3 0.5B / SmolLM2 135M) عبر llama.cpp JNI.
@@ -16,10 +14,10 @@ import java.io.InputStream
  */
 object LlamaCppService {
     private const val TAG = "LlamaCppService"
-    private const val MODEL_DIR = "models/llama/"
-    private const val DEFAULT_MODEL = "gemma-3-1b-it-q4_k_m.gguf"
+    // توحيد المسار مع OnDeviceModelManager: filesDir/models/local
+    private const val MODEL_SUBDIR = "models/local"
 
-    // JNI declarations — تتوفر عند إضافة مكتبة llama-android
+    // JNI declarations — تتوفر عند بناء مكتبة llama_jni (app/src/main/cpp)
     external fun llamaInit(modelPath: String, nCtx: Int, nThreads: Int): Long
     external fun llamaGenerate(ctxPtr: Long, prompt: String, nPredict: Int, temp: Float, topP: Float, stopSequences: Array<String>): String
     external fun llamaFree(ctxPtr: Long)
@@ -30,37 +28,65 @@ object LlamaCppService {
     private var isInitialized = false
     @Volatile
     private var currentModelPath: String? = null
+    @Volatile
+    private var jniAvailable: Boolean? = null
+    @Volatile
+    private var jniLoadError: String? = null
+    @Volatile
+    var lastError: String? = null
+        private set
 
-    init {
-        try {
+    private fun fail(reason: String): String? {
+        lastError = reason
+        Log.e(TAG, reason)
+        return null
+    }
+
+    /** هل مكتبة JNI موجودة فعلاً على الجهاز؟ */
+    fun isEngineAvailable(): Boolean {
+        if (jniAvailable != null) return jniAvailable!!
+        return try {
             System.loadLibrary("llama_jni")
-            Log.i(TAG, "llama_jni library loaded")
+            jniAvailable = true
+            true
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "llama_jni not available (expected if not built): ${e.message}")
+            jniLoadError = e.message ?: "مكتبة llama_jni غير موجودة في APK"
+            val reason = "تعذر تحميل مكتبة llama_jni: $jniLoadError (تأكد أن البناء مع NDK تم و LLAMA_REAL=ON)"
+            lastError = reason
+            Log.w(TAG, reason)
+            jniAvailable = false
+            false
         }
     }
 
-    /** ينسخ الموديل من assets إلى filesDir لأول مرة */
+    init {
+        isEngineAvailable()
+    }
+
+    /** يحدد ملف النموذج من مدير النماذج المحلية مباشرة (لا assets) */
     private suspend fun ensureModelFile(context: Context, modelName: String): File? = withContext(Dispatchers.IO) {
-        val filesDir = context.filesDir
-        val modelDir = File(filesDir, MODEL_DIR)
-        if (!modelDir.exists()) modelDir.mkdirs()
-        val modelFile = File(modelDir, modelName)
-        if (modelFile.exists() && modelFile.length() > 1000000) return@withContext modelFile
-        try {
-            val assets = context.assets
-            val input = assets.open(MODEL_DIR + modelName)
-            FileOutputStream(modelFile).use { out -> input.copyTo(out) }
-            Log.i(TAG, "Copied model to ${modelFile.absolutePath} (${modelFile.length()} bytes)")
-            modelFile
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy model from assets: ${e.message}")
-            null
+        // modelName قد يكون fileName مثل qwen2.5-coder-0.5b-instruct-q4_k_m.gguf
+        val match = OnDeviceModelManager.availableModels.find { it.fileName == modelName }
+        val target: File = if (match != null) {
+            OnDeviceModelManager.getModelFile(context, match)
+        } else {
+            File(File(context.filesDir, MODEL_SUBDIR), modelName)
         }
+        if (target.exists() && target.length() >= 100_000_000L) return@withContext target
+        val detail = when {
+            !target.exists() -> "الملف غير موجود في ${target.absolutePath} — أعد التنزيل من مركز النماذج"
+            else -> "الملف ناقص: الموجود ${target.length() / 1_048_576}MB في ${target.absolutePath} — أعد التنزيل أو الاستيراد"
+        }
+        fail(detail)
+        null
     }
 
     /** تهيئة llama.cpp مع الموديل المحدد */
-    suspend fun initialize(context: Context, modelName: String = DEFAULT_MODEL): Boolean = withContext(Dispatchers.IO) {
+    suspend fun initialize(context: Context, modelName: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isEngineAvailable()) {
+            lastError = lastError ?: "المحرك غير متاح: $jniLoadError"
+            return@withContext false
+        }
         if (isInitialized && ctxPtr != 0L && currentModelPath == modelName) return@withContext true
         val modelFile = ensureModelFile(context, modelName) ?: return@withContext false
         try {
@@ -73,15 +99,25 @@ object LlamaCppService {
             val nThreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 1)
             ctxPtr = llamaInit(modelFile.absolutePath, nCtx, nThreads)
             if (ctxPtr == 0L) {
-                Log.e(TAG, "llamaInit returned 0")
+                fail("فشل llamaInit (أعاد 0) للملف ${modelFile.name} (${modelFile.length() / 1_048_576}MB) — غالباً ذاكرة غير كافية أو ملف GGUF تالف. المسار: ${modelFile.absolutePath}")
                 return@withContext false
             }
             currentModelPath = modelName
             isInitialized = true
+            lastError = null
             Log.i(TAG, "llama.cpp initialized with $modelName (ctx=$nCtx, threads=$nThreads)")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize llama.cpp: ${e.message}")
+            fail("استثناء أثناء التهيئة: ${e.javaClass.simpleName}: ${e.message}")
+            // تفريغ السياق الجزئي حتى لا يبقى مؤشر ميت
+            ctxPtr = 0L
+            isInitialized = false
+            false
+        } catch (e: UnsatisfiedLinkError) {
+            fail("دالة JNI غير مربوطة (وقع ABI): ${e.message} — أعد بناء APK مع NDK")
+            jniAvailable = false
+            ctxPtr = 0L
+            isInitialized = false
             false
         }
     }
@@ -94,19 +130,50 @@ object LlamaCppService {
         topP: Float = 0.9f,
         stopSequences: Array<String> = arrayOf("</s>", "<|endoftext|>")
     ): String? = withContext(Dispatchers.IO) {
-        if (!isInitialized || ctxPtr == 0L) return@withContext null
-        if (prompt.isBlank()) return@withContext null
+        if (!isInitialized || ctxPtr == 0L) {
+            fail("التوليد مستحيل: السياق غير مهيأ (ctx=0) — سبب التهيئة: ${lastError ?: "غير معروف"}")
+            return@withContext null
+        }
+        if (prompt.isBlank()) {
+            fail("التوليد مستحيل: البرومبت فارغ")
+            return@withContext null
+        }
         try {
             val result = llamaGenerate(ctxPtr, prompt, maxTokens, temperature, topP, stopSequences)
             if (result.isNotBlank()) {
+                lastError = null
                 Log.d(TAG, "Generated ${result.length} chars")
                 return@withContext result.trim()
             }
+            fail("النموذج أعاد نصاً فارغاً (نافذة السياق 2048 قد تكون ممتلئة أو توقف مبكر) — جرّب رسالة أقصر أو maxTokens أكبر")
+            null
+        } catch (e: UnsatisfiedLinkError) {
+            fail("انقطع ربط JNI أثناء التوليد: ${e.message}")
             null
         } catch (e: Exception) {
-            Log.e(TAG, "llamaGenerate failed: ${e.message}")
+            fail("فشل llamaGenerate: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
+    }
+
+    /** بناء برومبت محادثة عامة — يسمح بمحادثة طبيعية مثل أي نموذج */
+    fun buildChatPrompt(userMessage: String, modelName: String): String {
+        return """
+            <|im_start|>system
+            You are $modelName running on-device inside Android. Answer naturally and concisely.
+            Detect language: reply in the user's language (Arabic if user writes Arabic).
+            <|im_end|>
+            <|im_start|>user
+            $userMessage
+            <|im_end|>
+            <|im_start|>assistant
+        """.trimIndent()
+    }
+
+    /** محادثة طبيعية عبر النموذج المحلي — null تعني المحرك غير جاهز */
+    suspend fun chatLocal(context: Context, modelFileName: String, userMessage: String, maxTokens: Int = 512): String? {
+        if (!initialize(context, modelFileName)) return null
+        return generate(buildChatPrompt(userMessage, modelFileName), maxTokens = maxTokens, temperature = 0.7f)
     }
 
     /** بناء برومبت مخصص للسكربت/المشاهد بالعربية */

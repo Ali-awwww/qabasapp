@@ -133,6 +133,28 @@ private suspend fun executeAgentMissionInner(
             return
         }
 
+        // بوابة الصدق: لا محرك أصلي = لا مهمة وهمية. نفشل مبكراً بالسبب الحقيقي.
+        if (!LlamaCppService.isEngineAvailable()) {
+            val reason = LlamaCppService.lastError ?: "محرك llama_jni غير متاح."
+            val stepFailed = AgentExecutionStep(
+                title = "فحص محرك الاستدلال المحلي",
+                description = "التحقق من جاهزية الجسر الأصلي قبل أي تنفيذ...",
+                isRunning = false,
+                isSuccess = false,
+                outputSnippet = "❌ تعذر البدء: $reason"
+            )
+            initialSteps.add(stepFailed)
+            mission = mission.copy(
+                steps = initialSteps.toList(),
+                status = AgentTaskStatus.FAILED,
+                finalReport = "توقفت المهمة بصدق: $reason لا يوجد أي مخرج مولّد — لم يُستخدم أي قالب محاكاة."
+            )
+            onUpdate(mission)
+            coroutineContext.ensureActive()
+            onFinished(mission)
+            return
+        }
+
         // الخطوة 1: التحليل والتخطيط المعماري المحلي
         val step1 = AgentExecutionStep(
             title = "التحليل والتخطيط المعماري المحلي (${readyModel.name}) 🧠",
@@ -146,13 +168,36 @@ private suspend fun executeAgentMissionInner(
     coroutineContext.ensureActive()
 
         val startTime1 = System.currentTimeMillis()
-        val planText = "تم تحليل الأمر «$prompt» بنجاح محلياً عبر ${readyModel.name}. النمط المستهدف: ${spec.title}. تم تحديد المكونات البرمجية وهيكل Compose المستهدف."
+        // تخطيط حقيقي من النموذج — لا نص جاهز مسبقاً.
+        val planText = LlamaCppService.chatLocal(
+            context, readyModel.fileName,
+            "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt (التخصص: ${spec.title})",
+            maxTokens = 400
+        )
         val latencyMs1 = System.currentTimeMillis() - startTime1
+
+        if (planText.isNullOrBlank()) {
+            val reason = LlamaCppService.lastError ?: "فشل التخطيط لسبب غير معروف."
+            initialSteps[0] = step1.copy(
+                isRunning = false,
+                isSuccess = false,
+                outputSnippet = "❌ $reason"
+            )
+            mission = mission.copy(
+                steps = initialSteps.toList(),
+                status = AgentTaskStatus.FAILED,
+                finalReport = "فشلت خطوة التخطيط: $reason"
+            )
+            onUpdate(mission)
+            coroutineContext.ensureActive()
+            onFinished(mission)
+            return
+        }
 
         initialSteps[0] = step1.copy(
             isRunning = false,
             isSuccess = true,
-            outputSnippet = planText + " [معالجة محلية 100% • ${readyModel.name}]"
+            outputSnippet = planText + " [رد حقيقي من ${readyModel.name} • ${latencyMs1}ms • JNI]"
         )
         mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.INSPECTING)
         onUpdate(mission)
@@ -170,7 +215,9 @@ private suspend fun executeAgentMissionInner(
         onUpdate(mission)
     coroutineContext.ensureActive()
 
-        val localInspection = "الملفات المستهدفة بالمعالجة المحلية:\n• com.qabas.app.generated (${readyModel.name})\n• حزم واجهات Jetpack Compose التكيفية\n• فحص الذاكرة: ${readyModel.ramRequirement}"
+        val modelFileSizeMb = OnDeviceModelManager.getModelFile(context, readyModel).length() / 1_048_576
+        val localInspection = "النموذج الفعلي: ${readyModel.name} — الملف ${readyModel.fileName} (${modelFileSizeMb}MB على القرص).\n" +
+            "الخطة المستلمة من النموذج (مقتطف): ${planText.take(300)}"
         initialSteps[1] = step2.copy(
             isRunning = false,
             isSuccess = true,

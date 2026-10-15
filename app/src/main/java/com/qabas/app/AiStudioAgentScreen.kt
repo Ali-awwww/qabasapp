@@ -1116,7 +1116,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                             onValueChange = { promptInput = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 90.dp)
+                                .heightIn(min = 90.dp, max = 160.dp)
                                 .testTag("agent_studio_prompt_input"),
                             placeholder = {
                                 Text(
@@ -1133,7 +1133,8 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 cursorColor = Color(0xFF00E5FF)
                             ),
                             shape = RoundedCornerShape(10.dp),
-                            enabled = !isExecuting
+                            enabled = !isExecuting,
+                            maxLines = 8
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -1148,61 +1149,71 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
                                 else -> listOf("gemini-3.5-flash")
                             }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedButton(
-                                    onClick = { showModelPicker = true },
-                                    modifier = Modifier.wrapContentWidth().height(36.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f),
-                                        contentColor = Color(0xFF00E5FF)
-                                    )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("النموذج: $selectedModel", fontSize = 11.sp, fontFamily = CairoFont)
-                                }
-                                // 🔑 زر فتح تكوين فريق النماذج المتعددة
-                                OutlinedButton(
-                                    onClick = onOpenTeamConfig,
-                                    modifier = Modifier.wrapContentWidth().height(36.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f),
-                                        contentColor = Color(0xFFD4AF37)
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("👥 فريق النماذج", fontSize = 11.sp, fontFamily = CairoFont)
-                                }
-                                // 🔑 Toggle تشغيل وضع الفريق (Multi-Model)
-                                FilterChip(
-                                    selected = isTeamMode,
-                                    onClick = { isTeamMode = !isTeamMode },
-                                    label = {
-                                        Text(
-                                            if (isTeamMode) "👑 وضع الفريق مُفعّل" else "فردي",
-                                            fontSize = 11.sp, fontFamily = CairoFont
+                                    item {
+                                        OutlinedButton(
+                                            onClick = { showModelPicker = true },
+                                            modifier = Modifier.wrapContentWidth().height(36.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f),
+                                                contentColor = Color(0xFF00E5FF)
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("النموذج: $selectedModel", fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                    // 🔑 زر فتح تكوين فريق النماذج المتعددة
+                                    item {
+                                        OutlinedButton(
+                                            onClick = onOpenTeamConfig,
+                                            modifier = Modifier.wrapContentWidth().height(36.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f),
+                                                contentColor = Color(0xFFD4AF37)
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("👥 فريق النماذج", fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                    // 🔑 Toggle تشغيل وضع الفريق (Multi-Model)
+                                    item {
+                                        FilterChip(
+                                            selected = isTeamMode,
+                                            onClick = { isTeamMode = !isTeamMode },
+                                            label = {
+                                                Text(
+                                                    if (isTeamMode) "👑 وضع الفريق مُفعّل" else "فردي",
+                                                    fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.25f),
+                                                selectedLabelColor = Color(0xFFD4AF37)
+                                            )
                                         )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.25f),
-                                        selectedLabelColor = Color(0xFFD4AF37)
-                                    )
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "ميزانية التوكن: ~4000 توكن/طلب • تكلفة تقريبية: \$0.01–0.05",
                                     fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF64748B)
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1627,6 +1638,8 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 item {
                     LiveMissionExecutionCard(
                         mission = mission,
+                        teamProgress = teamProgressText,
+                        isTeamMode = isTeamMode,
                         onTriggerBuild = {
                             coroutineScope.launch {
                                 triggerBuildDirectly(context, activeRepo) { step ->

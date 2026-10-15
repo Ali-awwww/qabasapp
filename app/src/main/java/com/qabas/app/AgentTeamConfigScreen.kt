@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -247,8 +248,9 @@ private fun TeamMemberCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "${member.displayName} • ${member.modelId.takeLast(25)}",
+                    member.displayName,
                     color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
@@ -311,14 +313,24 @@ private fun TeamMemberCard(
 
             Spacer(Modifier.height(6.dp))
 
-            // المزود + النموذج
+            // المزود + النموذج + حالة المفتاح (سطر الحالة فقط — الاسم يبقى نظيفاً)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "النموذج: ${member.modelId.takeLast(30)}",
+                    color = Color(0xFF94A3B8), fontSize = 11.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     if (hasValidKey) "مفتاح مهيأ ✅" else "لا مفتاح ❌",
                     color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
-                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, softWrap = false
                 )
             }
         }
@@ -358,7 +370,8 @@ private fun AddMemberDialog(
                 OutlinedTextField(
                     value = customName,
                     onValueChange = { customName = it },
-                    label = { Text("اسم عرض (اختياري)") },
+                    label = { Text("اسم عرض (اختياري — اسم فقط)") },
+                    supportingText = { Text("الاسم للعرض فقط، بدون تعليمات اتصال أو تنزيل", fontSize = 10.sp) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -419,13 +432,16 @@ private fun AddMemberDialog(
         },
         confirmButton = {
             Button(onClick = {
-                val name = customName.ifBlank {
-                    when (selectedRole) {
-                        AgentTeamRole.LEADER -> "القائد"
-                        AgentTeamRole.EXECUTOR -> "مساعد ${System.currentTimeMillis() % 100}"
-                        AgentTeamRole.REVIEWER -> "مراجع"
-                    }
-                }
+                val name = MultiModelAgentOrchestrator.cleanDisplayName(
+                    customName.ifBlank {
+                        when (selectedRole) {
+                            AgentTeamRole.LEADER -> "القائد"
+                            AgentTeamRole.EXECUTOR -> "مساعد ${System.currentTimeMillis() % 100}"
+                            AgentTeamRole.REVIEWER -> "مراجع"
+                        }
+                    },
+                    selectedRole
+                )
                 onAdd(
                     AgentTeamMember(
                         id = "m_${System.currentTimeMillis()}",

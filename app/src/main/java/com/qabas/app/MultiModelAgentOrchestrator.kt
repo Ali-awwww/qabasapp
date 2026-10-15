@@ -91,6 +91,29 @@ object MultiModelAgentOrchestrator {
      * يستخدم SharedPreferences للتخزين الدائم بين الجلسات
      * @param onlyEnabled إذا true يعيد الأعضاء المفعّلين فقط (للتنفيذ)، وإلا يعيد الكل (للتعديل)
      */
+    /**
+     * تنظيف اسم العرض: الاسم للعرض فقط — تُحذف أي قوانين اتصال/تنزيل
+     * علقت به (مثل "• ..."، "يلزم ..."، "نزّل ..."، "مفتاح ...") ويُستخدم
+     * بديل نظيف حسب الدور عند الفراغ.
+     */
+    fun cleanDisplayName(raw: String, role: AgentTeamRole): String {
+        var name = raw.substringBefore("•").trim()
+        val ruleMarkers = listOf("يلزم", "نزّل", "نزل", "حمّل", "حمل", "مفتاح", "اتصال", "تنزيل", "تحميل", "API", "http", "🔑", "📥", "🔌")
+        val cut = ruleMarkers.mapNotNull { m ->
+            val idx = name.indexOf(m)
+            if (idx >= 0) idx else null
+        }.minOrNull()
+        if (cut != null) name = name.substring(0, cut).trim(" —:-•".toCharArray())
+        if (name.isBlank()) {
+            name = when (role) {
+                AgentTeamRole.LEADER -> "القائد"
+                AgentTeamRole.EXECUTOR -> "مساعد"
+                AgentTeamRole.REVIEWER -> "مراجع"
+            }
+        }
+        return name.take(40)
+    }
+
     fun loadTeam(context: Context, onlyEnabled: Boolean = false): List<AgentTeamMember> {
         val prefs = context.getSharedPreferences("qabas_agent_team", Context.MODE_PRIVATE)
         val teamJson = prefs.getString("team_config_json", null) ?: return defaultTeam()
@@ -98,12 +121,13 @@ object MultiModelAgentOrchestrator {
             val arr = org.json.JSONArray(teamJson)
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val role = AgentTeamRole.entries.firstOrNull { it.name == o.optString("role") } ?: AgentTeamRole.EXECUTOR
                 AgentTeamMember(
                     id = o.optString("id"),
-                    displayName = o.optString("name"),
+                    displayName = cleanDisplayName(o.optString("name"), role),
                     provider = DetectedProvider.entries.firstOrNull { it.name == o.optString("provider") } ?: DetectedProvider.NONE,
                     modelId = o.optString("model"),
-                    role = AgentTeamRole.entries.firstOrNull { it.name == o.optString("role") } ?: AgentTeamRole.EXECUTOR,
+                    role = role,
                     rank = o.optInt("rank", 99),
                     enabled = o.optBoolean("enabled", true)
                 )
@@ -121,7 +145,7 @@ object MultiModelAgentOrchestrator {
         team.forEach { m ->
             arr.put(org.json.JSONObject().apply {
                 put("id", m.id)
-                put("name", m.displayName)
+                put("name", cleanDisplayName(m.displayName, m.role))
                 put("provider", m.provider.name)
                 put("model", m.modelId)
                 put("role", m.role.name)
@@ -209,7 +233,7 @@ object MultiModelAgentOrchestrator {
         val leaderSystemPrompt = """
             أنت قائد فريق مهندسين ذكاء اصطناعي (Leader AI Model).
             لديك ${assistants.size} مساعد${if (assistants.size == 1) "" else "ين"}:
-            ${assistants.joinToString("\n") { "- معرف المساعد: `${it.id}` — الاسم: ${it.displayName} — الدور: ${it.role.label} — الرتبة: #${it.rank} — المزود: ${it.provider.displayName} — النموذج: ${it.modelId}" }}.
+            ${assistants.joinToString("\n") { "- المعرف: `${it.id}` — الاسم: ${it.displayName} — الدور: ${it.role.label}" }}.
             مهمتك: توزيع المهمة التالية على المساعدين بناءً على قدراتهم.
 
             المهمة من المستخدم: "$prompt"

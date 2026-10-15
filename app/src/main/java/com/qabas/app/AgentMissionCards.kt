@@ -71,8 +71,31 @@ fun LiveMissionExecutionCard(
     onTriggerBuild: () -> Unit,
     onApplyDiff: (FileDiff) -> Unit = {},
     onDiscardDiff: (FileDiff) -> Unit = {},
-    applyingPath: String? = null
+    applyingPath: String? = null,
+    teamProgress: String = "",
+    isTeamMode: Boolean = false
 ) {
+    val hasRunning = mission.steps.any { it.isRunning }
+    // عدّاد حي — يتحدث كل ثانية فقط أثناء التنفيذ الفعلي
+    var tickNow by remember(hasRunning) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(hasRunning, mission.steps.size) {
+        while (hasRunning) {
+            delay(1000)
+            tickNow = System.currentTimeMillis()
+        }
+    }
+    // نبضة حية للنقطة أثناء العمل
+    val pulse = rememberInfiniteTransition(label = "live-pulse").animateFloat(
+        initialValue = 0.35f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse-alpha"
+    )
+    val doneSteps = mission.steps.count { !it.isRunning && it.isSuccess }
+    val totalSteps = mission.steps.size.coerceAtLeast(1)
+
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         backgroundColor = Color(0xFF0F172A).copy(alpha = 0.9f),
@@ -136,6 +159,66 @@ fun LiveMissionExecutionCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // مؤشر التقدم الحي — يظهر فقط أثناء التنفيذ الفعلي
+            if (hasRunning) {
+                val elapsedSec = ((tickNow - mission.timestamp) / 1000).coerceAtLeast(0)
+                val dots = ".".repeat(((tickNow / 500) % 4).toInt().coerceIn(0, 3))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF00E5FF).copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00E5FF).copy(alpha = pulse.value))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${mission.status.label}$dots",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF),
+                                modifier = Modifier.weight(1f, fill = false),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "⏱ ${elapsedSec}ث • خطوة ${doneSteps + 1} من $totalSteps",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                        if (isTeamMode && teamProgress.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = teamProgress,
+                                fontSize = 11.sp,
+                                color = Color(0xFFD4AF37),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { (doneSteps.toFloat() / totalSteps).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+                            color = Color(0xFF00E5FF),
+                            trackColor = Color(0xFF1E293B),
+                            strokeCap = StrokeCap.Round
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // Step List (Agent Activities)
             Text(
                 text = "سجل خطوات الوكيل المنفذة (Agent Activity Stream):",
@@ -186,6 +269,18 @@ fun LiveMissionExecutionCard(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                if (step.isRunning) {
+                                    val stepSec = ((tickNow - step.timestamp) / 1000).coerceAtLeast(0)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "⏱ ${stepSec}ث",
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFF00E5FF),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                                 if (step.toolName.isNotBlank()) {
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),

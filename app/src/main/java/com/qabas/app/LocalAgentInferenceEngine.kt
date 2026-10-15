@@ -24,6 +24,46 @@ object LocalAgentInferenceEngine {
     private const val TAG = "LocalAgentEngine"
 
     /**
+     * محادثة طبيعية عبر النموذج المحلي — تعيد failure صادقاً إذا كان المحرك غير جاهز،
+     * بدل الرد بقالب وهمي. بهذا "مرحباً" ترد من Qwen فعلاً أو برسالة حالة واضحة.
+     */
+    suspend fun executeLocalChat(
+        context: Context,
+        userMessage: String,
+        maxTokens: Int = 512
+    ): Result<LocalInferenceResult> = withContext(Dispatchers.IO) {
+        val readyModel = OnDeviceModelManager.getActiveReadyModel(context)
+            ?: return@withContext Result.failure(
+                IllegalStateException("لا يوجد نموذج محلي مثبت. نزّل Qwen 2.5 أولاً من مركز التنزيل.")
+            )
+        if (!LlamaCppService.isEngineAvailable()) {
+            return@withContext Result.failure(
+                IllegalStateException(LlamaCppService.lastError ?: "محرك llama_jni غير متاح لسبب غير معروف.")
+            )
+        }
+        val startTime = System.currentTimeMillis()
+        val reply = LlamaCppService.chatLocal(context, readyModel.fileName, userMessage, maxTokens)
+            ?: return@withContext Result.failure(
+                IllegalStateException(LlamaCppService.lastError ?: "تعذر التوليد لسبب غير معروف.")
+            )
+        if (reply.isBlank()) {
+            return@withContext Result.failure(
+                IllegalStateException(LlamaCppService.lastError ?: "النموذج أعاد رداً فارغاً لسبب غير معروف.")
+            )
+        }
+        val latencyMs = System.currentTimeMillis() - startTime
+        Result.success(
+            LocalInferenceResult(
+                outputText = reply,
+                modelName = readyModel.name,
+                tokensGenerated = (reply.length / 3.8).toInt().coerceAtLeast(1),
+                executionLatencyMs = latencyMs,
+                isNativeJni = true
+            )
+        )
+    }
+
+    /**
      * تنفيذ توليد الكود المحلي عبر النموذج المثبت
      */
     suspend fun executeLocalCodeSynthesis(
@@ -45,9 +85,9 @@ object LocalAgentInferenceEngine {
             )
         }
 
-        // محاولة الاستدعاء عبر LlamaCppService إن كانت مكتبة JNI محملة
+        // لا يوجد أي توليد وهمي: إن فشل الاستدلال الأصلي نعيد failure صادقاً مع السبب الحقيقي.
+        // (حُذف مسار synthesizeLocalCode القالبي نهائياً — أي رد ناجح هو من النموذج عبر JNI حصراً)
         var nativeOutput: String? = null
-        var isNative = false
 
         try {
             val initSuccess = LlamaCppService.initialize(context, readyModel.fileName)
@@ -58,20 +98,21 @@ object LocalAgentInferenceEngine {
                     maxTokens = 600,
                     temperature = 0.4f
                 )
-                if (!nativeOutput.isNullOrBlank()) {
-                    isNative = true
-                }
             }
         } catch (e: Throwable) {
-            Log.w(TAG, "LlamaCpp JNI execution not available or failed: ${e.message}")
+            Log.w(TAG, "LlamaCpp JNI execution failed: ${e.message}")
         }
 
-        // في حال عدم توفر مكتبة JNI على المعالج، نقوم بالتوليد المحلي المعماري الصادق مع النموذج المنزّل
-        val finalCode = if (isNative && !nativeOutput.isNullOrBlank()) {
-            nativeOutput
-        } else {
-            synthesizeLocalCode(userPrompt, specialization, readyModel)
+        if (nativeOutput.isNullOrBlank()) {
+            return@withContext Result.failure(
+                IllegalStateException(
+                    LlamaCppService.lastError
+                        ?: "فشل الاستدلال المحلي لسبب غير معروف — لم يتم توليد أي قالب بديل."
+                )
+            )
         }
+        val finalCode = nativeOutput
+        val isNative = true
 
         val latencyMs = System.currentTimeMillis() - startTime
         val estimatedTokens = (finalCode.length / 3.8).toInt().coerceAtLeast(45)
@@ -87,109 +128,8 @@ object LocalAgentInferenceEngine {
         )
     }
 
-    /**
-     * صياغة كود معماري محلي دقيق ومباشر بناءً على الأمر المدخل والتخصص
-     */
-    private fun synthesizeLocalCode(
-        prompt: String,
-        specialization: AgentSpecialization,
-        model: OnDeviceModelInfo
-    ): String {
-        val sanitized = prompt.trim()
-        val cleanFunctionName = sanitized
-            .replace(Regex("[^a-zA-Z0-9]"), " ")
-            .split(" ")
-            .filter { it.isNotBlank() }
-            .take(3)
-            .joinToString("") { it.replaceFirstChar { c -> c.uppercase() } }
-            .ifBlank { "AgentOfflineFeature" }
-
-        return when (specialization) {
-            AgentSpecialization.TURBO -> """
-                // ⚡ كود مُولّد محلياً بواسطة ${model.name} (On-Device Engine)
-                // الأمر: $sanitized
-                package com.qabas.app.generated
-
-                import androidx.compose.foundation.layout.*
-                import androidx.compose.foundation.shape.RoundedCornerShape
-                import androidx.compose.material3.*
-                import androidx.compose.runtime.*
-                import androidx.compose.ui.Alignment
-                import androidx.compose.ui.Modifier
-                import androidx.compose.ui.graphics.Color
-                import androidx.compose.ui.unit.dp
-                import androidx.compose.ui.unit.sp
-
-                @Composable
-                fun ${cleanFunctionName}View(
-                    modifier: Modifier = Modifier
-                ) {
-                    Surface(
-                        modifier = modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF0F172A),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "مكون محلي: $sanitized",
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "تمت المعالجة محلياً بالكامل عبر ${model.name}",
-                                fontSize = 11.sp,
-                                color = Color(0xFF94A3B8)
-                            )
-                        }
-                    }
-                }
-            """.trimIndent()
-
-            AgentSpecialization.ARCHITECT -> """
-                // 🏛️ هيكل معماري محلي بواسطة ${model.name} (On-Device Architect)
-                // المتطلب: $sanitized
-                package com.qabas.app.domain
-
-                data class ${cleanFunctionName}State(
-                    val isReady: Boolean = true,
-                    val label: String = "$sanitized",
-                    val timestamp: Long = System.currentTimeMillis()
-                )
-
-                interface ${cleanFunctionName}Repository {
-                    suspend fun execute(): Result<${cleanFunctionName}State>
-                }
-
-                class Local${cleanFunctionName}RepositoryImpl : ${cleanFunctionName}Repository {
-                    override suspend fun execute(): Result<${cleanFunctionName}State> {
-                        return Result.success(${cleanFunctionName}State())
-                    }
-                }
-            """.trimIndent()
-
-            AgentSpecialization.BUG_HUNTER -> """
-                // 🔍 تقرير فحص وتصحيح محلي بواسطة ${model.name}
-                // المشكلة المفحوصة: $sanitized
-                // 1. تم فحص مسارات التنفيذ وتتبع شروط الاستدعاء.
-                // 2. التحقق من أمان المتغيرات ومنع انهيارات NullPointerException.
-                // 3. التوصية: تطبيق معايير Safe Call (.let / ?.) وتفعيل CoroutineExceptionHandler.
-                // النتيجة: الكود متوافق وجاهز للبناء المحلي.
-            """.trimIndent()
-
-            AgentSpecialization.CODE_REVIEWER -> """
-                // 🛡️ تحسين وتدقيق الكود محلياً (${model.name})
-                // الهدف: $sanitized
-                // - إزالة التكرار وفصل واجهة العرض عن منطق البيانات.
-                // - اعتماد StateFlow و remember لمنع إعادة التركيب غير الضرورية.
-                // - دعم الشاشات المتعددة واستخدام قياسات dp و sp التكيفية.
-            """.trimIndent()
-        }
-    }
+    // ملاحظة: حُذفت دالة synthesizeLocalCode القالبية نهائياً بقرار صريح
+    // لضمان أن أي رد ناجح صادر من النموذج المحلي عبر JNI حصراً — لا محاكاة.
 
     private fun buildSystemPrompt(userPrompt: String, spec: AgentSpecialization, modelName: String): String {
         return """
