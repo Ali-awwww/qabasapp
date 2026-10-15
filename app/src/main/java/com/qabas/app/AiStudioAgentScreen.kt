@@ -13,6 +13,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.item
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -1216,6 +1217,59 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
+                            // قوالب العمل الموصى بها — توصية لا إجبار، مع فحص توافر النماذج قبل التطبيق
+                            if (isTeamMode) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "قوالب موصى بها للبدء:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFD4AF37)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    MultiModelAgentOrchestrator.teamTemplates().forEach { (name, members) ->
+                                        item {
+                                            val missing = MultiModelAgentOrchestrator.templateMissingProviders(members)
+                                            val ready = missing.isEmpty()
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (ready) Color(0xFFD4AF37).copy(alpha = 0.12f) else Color(0xFF1E293B),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (ready) Color(0xFFD4AF37).copy(alpha = 0.6f) else Color(0xFF475569)
+                                                ),
+                                                modifier = Modifier.clickable {
+                                                    if (!ready) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "⛔ قالب $name ينقصه: ${missing.joinToString("، ")} — أدخل مفاتيحها أولاً",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                        keyDialogInitialTab = 0
+                                                        showKeyDialog = true
+                                                    } else {
+                                                        MultiModelAgentOrchestrator.saveTeam(context, members.map { it.copy() })
+                                                        Toast.makeText(context, "تم تجهيز $name ✅ — اكتب أمرك وابدأ", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }.wrapContentWidth()
+                                            ) {
+                                                Text(
+                                                    text = (if (ready) "✅ " else "⚠️ ") + name,
+                                                    fontSize = 10.sp,
+                                                    color = if (ready) Color(0xFFD4AF37) else Color(0xFF94A3B8),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         // Quick Chips
@@ -1462,6 +1516,12 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                             // 🔑 منع تعارض وضع الفريق مع وضع النموذج المحلي
                                             if (isTeamMode && isOfflineMode) {
                                                 Toast.makeText(context, "وضع الفريق يتطلب اتصالاً سحابياً — عطّل وضع النموذج المحلي أولاً", Toast.LENGTH_LONG).show()
+                                                return@Button
+                                            }
+                                            // 🔗 بوابة المستودع: الفريق يعمل على مستودع حقيقي يراه — لا عمل بلا ربط
+                                            if (isTeamMode && RepoVaultManager.getActiveRepo(context) == null) {
+                                                showRepoDialog = true
+                                                Toast.makeText(context, "اربط مستودع GitHub أولاً — القائد يحتاج رؤية الشجرة ووجهة الدفع 🔗", Toast.LENGTH_LONG).show()
                                                 return@Button
                                             }
                                             val prompt = promptInput.trim()

@@ -54,6 +54,7 @@ enum class DetectedProvider(
     OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981)),
     ANTHROPIC("anthropic", "Anthropic Claude", "sk-ant-", "claude-3-5-sonnet-20241022", Color(0xFFA855F7)),
     HUGGINGFACE("huggingface", "HuggingFace Hub", "hf_", "Qwen/Qwen2.5-Coder-32B", Color(0xFFFCD34D)),
+    OPENCODE("opencode", "OpenCode Zen (125 نموذجاً)", "oc-", "big-pickle", Color(0xFF7C3AED)),
     NONE("none", "لا يوجد مفتاح نشط", "", "local_sandbox", Color(0xFF94A3B8))
 }
 

@@ -25,6 +25,7 @@ object UniversalKeyBrain {
             k.startsWith("gsk_", ignoreCase = true) -> DetectedProvider.GROQ
             k.startsWith("sk-", ignoreCase = true) -> DetectedProvider.OPENAI
             k.startsWith("hf_", ignoreCase = true) -> DetectedProvider.HUGGINGFACE
+            k.startsWith("oc-", ignoreCase = true) -> DetectedProvider.OPENCODE
             k.startsWith("xai-", ignoreCase = true) -> DetectedProvider.GROQ
             else -> DetectedProvider.NONE
         }
@@ -49,19 +50,53 @@ object UniversalKeyBrain {
         return Pair(DetectedProvider.NONE, "")
     }
 
-    fun saveKey(context: Context, rawKey: String): DetectedProvider {
+    /**
+     * حفظ مفتاح (يُستدعى فقط بعد نجاح الفحص الحي عبر saveKeyIfLive):
+     * يُلحقه بمسبح المزود كاحتياطي ويرقّيه نشطاً — لا يمسح المفاتيح السابقة أبداً.
+     * @return Triple(المزود، عدد مفاتيح المسبح بعد الإضافة، هل كان مكرراً)
+     */
+    fun saveKey(context: Context, rawKey: String, forcedProvider: DetectedProvider? = null): Triple<DetectedProvider, Int, Boolean> {
         val k = normalizePastedKey(rawKey)
-        val provider = detect(k)
-        when (provider) {
-            DetectedProvider.OPENROUTER -> KeyPoolManager.setSingleKey("openrouter_key", k)
-            DetectedProvider.GEMINI -> KeyPoolManager.setSingleKey("gemini_key", k)
-            DetectedProvider.GROQ -> KeyPoolManager.setSingleKey("groq_key", k)
-            DetectedProvider.OPENAI -> KeyPoolManager.setSingleKey("openai_key", k)
-            DetectedProvider.HUGGINGFACE -> KeyPoolManager.setSingleKey("huggingface_key", k)
-            else -> KeyPoolManager.setSingleKey("openrouter_key", k)
-        }
+        val provider = forcedProvider?.takeIf { it != DetectedProvider.NONE } ?: detect(k)
+        val prefsKey = prefsKeyFor(provider).ifBlank { "openrouter_key" }
+        val before = KeyPoolManager.getKeys(prefsKey)
+        val added = KeyPoolManager.addKey(prefsKey, k)
+        if (added) KeyPoolManager.promoteKey(prefsKey, k)
         notifyKeyChanged()
-        return provider
+        return Triple(provider, KeyPoolManager.getKeys(prefsKey).size, !added && before.any { it == k })
+    }
+
+    /** نتيجة الحفظ الذكي: يُحفظ المفتاح فقط بعد نجاح الاتصال الحي */
+    sealed interface SmartSaveResult {
+        data class Saved(
+            val provider: DetectedProvider,
+            val latencyMs: Long,
+            val modelName: String,
+            val poolSize: Int,
+            val wasDuplicate: Boolean
+        ) : SmartSaveResult
+        data class Unsupported(val reason: String) : SmartSaveResult
+        data class Failed(val provider: DetectedProvider, val reason: String) : SmartSaveResult
+    }
+
+    /**
+     * حفظ ذكي: يتعرّف على المزود من صيغة المفتاح، يفحص الاتصال الحي بسيرفره،
+     * ولا يحفظ إلا إذا كان صحيحاً ومتصلاً فعلاً — المفتاح الخاطئ يُرفض بسبب حقيقي.
+     */
+    suspend fun saveKeyIfLive(context: Context, rawKey: String, forcedProvider: DetectedProvider? = null): SmartSaveResult {
+        val k = normalizePastedKey(rawKey)
+        if (k.isBlank()) return SmartSaveResult.Unsupported("المفتاح فارغ — الصق مفتاحاً أولاً.")
+        val provider = forcedProvider?.takeIf { it != DetectedProvider.NONE } ?: detect(k)
+        if (provider == DetectedProvider.NONE) {
+            return SmartSaveResult.Unsupported("تعذّر التعرّف على المفتاح — الصيغ المدعومة: AIza (Gemini)، gsk_ (Groq)، sk-or- (OpenRouter)، sk- (OpenAI)، sk-ant- (Anthropic)، hf_ (HuggingFace)، oc- (OpenCode Zen) — أو اختر المزود يدوياً.")
+        }
+        val health = AgentConnectivityEngine.pingProviderLive(provider, k, KeySource.USER_INPUT)
+        if (!health.isConnected) {
+            return SmartSaveResult.Failed(provider, health.statusDetail.ifBlank { "فشل الاتصال الحي (${health.latencyMs}ms)" })
+        }
+        val (_, poolSize, wasDuplicate) = saveKey(context, k, provider)
+        return SmartSaveResult.Saved(provider, health.latencyMs, health.modelName, poolSize, wasDuplicate)
+    }
     }
 
     fun prefsKeyFor(provider: DetectedProvider): String = when (provider) {
@@ -69,6 +104,9 @@ object UniversalKeyBrain {
         DetectedProvider.GROQ -> "groq_key"
         DetectedProvider.OPENAI -> "openai_key"
         DetectedProvider.OPENROUTER -> "openrouter_key"
+        DetectedProvider.ANTHROPIC -> "anthropic_key"
+        DetectedProvider.HUGGINGFACE -> "huggingface_key"
+        DetectedProvider.OPENCODE -> "opencode_key"
         else -> ""
     }
 
@@ -232,6 +270,38 @@ object UniversalKeyBrain {
                     val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
                     val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
                     Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(120), promptTokens, completionTokens))
+                }
+                DetectedProvider.OPENCODE -> {
+                    // OpenCode Zen — بوابة OpenAI-compatible: النموذج من عضو الفريق (بدون بادئة opencode/)
+                    val zenModel = model?.takeIf { it.isNotBlank() }?.removePrefix("opencode/") ?: "big-pickle"
+                    val url = "https://opencode.ai/inference/v1/chat/completions"
+                    val jsonBody = org.json.JSONObject().apply {
+                        put("model", zenModel)
+                        put("messages", org.json.JSONArray().apply {
+                            put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
+                            put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
+                        })
+                    }
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("Authorization", "Bearer $apiKey")
+                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                        .build()
+                    val response = client.newCall(request).execute()
+                    val bodyString = response.body?.string() ?: ""
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(Exception("خطأ من سيرفر OpenCode (HTTP ${response.code}): $bodyString"))
+                    }
+                    val json = org.json.JSONObject(bodyString)
+                    val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
+                    if (text.isNullOrBlank()) {
+                        return@withContext Result.failure(Exception("استجابة فارغة من سيرفر OpenCode"))
+                    }
+                    val usageObj = json.optJSONObject("usage")
+                    val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
+                    val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
+                    val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
+                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(100), promptTokens, completionTokens))
                 }
                 DetectedProvider.GROQ -> {
                     val url = "https://api.groq.com/openai/v1/chat/completions"

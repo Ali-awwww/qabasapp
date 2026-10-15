@@ -895,7 +895,7 @@ private fun AgentLiveConsoleTab(
                                         activeEngineInfo = UniversalKeyBrain.getActiveEngine()
                                         isKeyBoxExpanded = false
                                         customKeyInput = ""
-                                        Toast.makeText(context, "تم حفظ وتفعيل محرك ${p.displayName} بنجاح! 🚀", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تم حفظ وتفعيل محرك ${p.first.displayName} بنجاح! 🚀", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = detectedNewProvider.color),
                                     shape = RoundedCornerShape(8.dp),

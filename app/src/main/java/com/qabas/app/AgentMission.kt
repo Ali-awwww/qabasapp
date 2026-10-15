@@ -706,6 +706,28 @@ suspend fun executeAgentMissionMultiModel(
     if (!report.overallSuccess) {
         currentStatus = AgentTaskStatus.FAILED
         onStatusChange(currentStatus)
+        // نموذج المطلوبات أولاً: إن تعثر البدء يُعرض ما ينقص بدل خطأ مبهم
+        if (!report.preflight.ready && (report.preflight.missing.isNotEmpty() || report.preflight.questions.isNotEmpty())) {
+            val formStep = AgentExecutionStep(
+                title = "📋 نموذج مطلوبات البدء (المصدر: ${report.preflight.source})",
+                description = "القائد طلب استيفاء هذه المستلزمات قبل بدء العمل — لن يبدأ شيء ناقصاً.",
+                toolName = "team_preflight",
+                isSuccess = false,
+                outputSnippet = (report.preflight.missing.map { "⬜ $it" } +
+                    report.preflight.questions.map { "❓ $it" }).joinToString("\n")
+            )
+            onUpdate(formStep)
+            return AgentMissionSession(
+                userPrompt = userPrompt,
+                specialization = specialization,
+                status = AgentTaskStatus.FAILED,
+                steps = listOf(formStep),
+                finalReport = "📋 تعذّر بدء العمل — المطلوبات:\n" +
+                    report.preflight.missing.joinToString("\n") { "• $it" } +
+                    report.preflight.questions.joinToString("\n") { "• $it" } +
+                    "\n\nاستوفِ ما أعلاه ثم أعد التنفيذ."
+            )
+        }
         val errorText = report.memberResults.firstOrNull { !it.isSuccess && it.errorMessage != null }?.errorMessage ?: "فشل غير معروف"
         return AgentMissionSession(
             userPrompt = userPrompt,
@@ -751,6 +773,18 @@ suspend fun executeAgentMissionMultiModel(
     currentStatus = AgentTaskStatus.COMPLETED
     onStatusChange(currentStatus)
 
+    // الدفع حكر على القائد وبإذنك: مقترحاته فقط تظهر للاعتماد، ومخرجات
+    // المساعدين نتائج تُسلَّم للقائد ولا تُدفع — لا دفع صامت أبداً.
+    val pushNote = when {
+        report.pushRequested && report.leaderDiffs.isNotEmpty() ->
+            "\n\n👑 القائد يطلب إذنك بالدفع لـ ${report.leaderDiffs.size} ملفات: " +
+                report.leaderDiffs.joinToString("، ") { it.filePath.substringAfterLast("/") } +
+                " — راجع المقترحات أدناه واعتمد أو تجاهل."
+        report.pushRequested ->
+            "\n\n👑 القائد طلب الدفع لكن لم تُستخرج ملفات صالحة من خلاصته — لا يوجد ما يُدفع."
+        else -> ""
+    }
+
     return AgentMissionSession(
         userPrompt = userPrompt,
         specialization = specialization,
@@ -759,8 +793,9 @@ suspend fun executeAgentMissionMultiModel(
         finalReport = report.leaderSynthesis.ifBlank {
             "تم إكمال المهمة عبر ${report.memberResults.size} مشارك بنجاح.\n\nمخرجات الفريق:\n" +
                     report.memberResults.joinToString("\n\n") { "[${it.role.label}] ${it.outputText.take(300)}" }
-        },
-        modifiedFiles = emptyList(),
+        } + pushNote,
+        modifiedFiles = report.leaderDiffs.map { it.filePath },
+        proposedDiffs = report.leaderDiffs,
         buildTriggered = false
     )
 }

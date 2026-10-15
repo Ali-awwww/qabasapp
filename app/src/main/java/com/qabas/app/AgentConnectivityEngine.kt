@@ -126,6 +126,12 @@ object AgentConnectivityEngine {
                 keySource = keySource,
                 url = "https://api.openai.com/v1/models"
             )
+            DetectedProvider.OPENCODE -> pingGenericBearerLive(
+                provider = provider,
+                apiKey = clean,
+                keySource = keySource,
+                url = "https://opencode.ai/inference/v1/models"
+            )
             else -> LiveHealthStatus(
                 serviceName = provider.displayName,
                 isConnected = false,

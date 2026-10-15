@@ -80,8 +80,12 @@ fun ApiKeySetupDialog(
     val prefs: SharedPreferences = contextLocal.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<LiveHealthStatus?>(null) }
+    var smartSave by remember { mutableStateOf<UniversalKeyBrain.SmartSaveResult?>(null) }
     val currentEngine = remember { UniversalKeyBrain.getActiveEngine() }
-    val detectedProvider = remember(rawKey) { UniversalKeyBrain.detect(rawKey) }
+    val autoDetected = remember(rawKey) { UniversalKeyBrain.detect(rawKey) }
+    // تجاوز يدوي: مفاتيح OpenCode Zen بصيغة sk- تُكتشف كـ OpenAI — اختر المزود يدوياً عند الحاجة
+    var forcedProvider by remember { mutableStateOf<DetectedProvider?>(null) }
+    val detectedProvider = forcedProvider ?: autoDetected
 
     Dialog(onDismissRequest = onDismiss) {
         GlassmorphicSurface(
@@ -181,6 +185,7 @@ fun ApiKeySetupDialog(
                             onValueChange = {
                                 rawKey = it
                                 testResult = null
+                                smartSave = null
                             },
                             placeholder = { Text("الصق مفتاحك (AIza... لـ Gemini أو gsk_... لـ Groq)", fontSize = 11.sp) },
                             modifier = Modifier.fillMaxWidth(),
@@ -201,6 +206,34 @@ fun ApiKeySetupDialog(
                                 color = detectedProvider.color,
                                 fontWeight = FontWeight.Bold
                             )
+                            // مفتاح Zen بصيغة sk-؟ أجبر المزود على OpenCode
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("تصحيح المزود:", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                                FilterChip(
+                                    selected = forcedProvider == null,
+                                    onClick = { forcedProvider = null; smartSave = null },
+                                    label = { Text("تلقائي", fontSize = 10.sp) }
+                                )
+                                FilterChip(
+                                    selected = forcedProvider == DetectedProvider.OPENCODE,
+                                    onClick = { forcedProvider = DetectedProvider.OPENCODE; smartSave = null },
+                                    label = { Text("OpenCode Zen", fontSize = 10.sp) }
+                                )
+                            }
+                            val existingPool = remember(rawKey, detectedProvider) {
+                                val pk = UniversalKeyBrain.prefsKeyFor(detectedProvider)
+                                if (pk.isNotBlank()) KeyPoolManager.getKeys(pk).size else 0
+                            }
+                            if (existingPool > 0) {
+                                Text(
+                                    text = "لديك $existingPool مفتاح محفوظ لهذا المزود — الجديد سيُضاف احتياطياً ويُفعّل 🔑",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFE5B842)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -286,6 +319,43 @@ fun ApiKeySetupDialog(
                             }
                         }
 
+                        // Smart-save rejection card — السبب الحقيقي لرفض الحفظ
+                        smartSave?.let { res ->
+                            val reason = when (res) {
+                                is UniversalKeyBrain.SmartSaveResult.Failed -> "${res.provider.displayName}: ${res.reason}"
+                                is UniversalKeyBrain.SmartSaveResult.Unsupported -> res.reason
+                                else -> ""
+                            }
+                            if (reason.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Block,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "لم يُحفظ المفتاح ⛔ — $reason",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Bottom Actions
@@ -317,16 +387,50 @@ fun ApiKeySetupDialog(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
-                                        if (rawKey.isNotBlank()) {
-                                            val detected = UniversalKeyBrain.saveKey(context, rawKey)
-                                            Toast.makeText(context, "تم حفظ وتفعيل ${detected.displayName} بنجاح ✅", Toast.LENGTH_SHORT).show()
-                                            onKeySaved()
-                                            onDismiss()
+                                        if (rawKey.isBlank()) {
+                                            Toast.makeText(context, "الصق المفتاح أولاً", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        isTesting = true
+                                        smartSave = null
+                                        coroutineScope.launch {
+                                            // فحص ذكي ثم حفظ: التعرّف ← الاتصال الحي ← الحفظ عند النجاح فقط
+                                            when (val res = UniversalKeyBrain.saveKeyIfLive(context, rawKey, forcedProvider)) {
+                                                is UniversalKeyBrain.SmartSaveResult.Saved -> {
+                                                    isTesting = false
+                                                    val extra = if (res.modelName.isNotBlank()) " • ${res.modelName}" else ""
+                                                    val poolNote = if (res.wasDuplicate) " (موجود مسبقاً — رُقّي نشطاً)" else " • المسبح: ${res.poolSize} مفاتيح"
+                                                    Toast.makeText(
+                                                        context,
+                                                        "تم التعرّف على ${res.provider.displayName} والاتصال به (${res.latencyMs}ms)$extra — حُفظ وفُعّل ✅$poolNote",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                    onKeySaved()
+                                                    onDismiss()
+                                                }
+                                                is UniversalKeyBrain.SmartSaveResult.Failed -> {
+                                                    isTesting = false
+                                                    smartSave = res
+                                                }
+                                                is UniversalKeyBrain.SmartSaveResult.Unsupported -> {
+                                                    isTesting = false
+                                                    smartSave = res
+                                                }
+                                            }
                                         }
                                     },
+                                    enabled = !isTesting && rawKey.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color(0xFF070B14))
                                 ) {
-                                    Text("حفظ وتفعيل", fontWeight = FontWeight.Bold)
+                                    if (isTesting) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color(0xFF070B14), strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        if (isTesting) "يفحص ويحفظ..." else "فحص وحفظ تلقائي ⚡",
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
                                 }
                             }
                         }
