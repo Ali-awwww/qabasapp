@@ -84,6 +84,14 @@ data class MultiModelRunReport(
     val preflight: TeamPreflight = TeamPreflight(ready = true, source = "تخطي")
 )
 
+/** نموذج مطلوبات البدء: ما يلزم قبل أن يعمل الفريق */
+data class TeamPreflight(
+    val ready: Boolean,
+    val missing: List<String> = emptyList(),
+    val questions: List<String> = emptyList(),
+    val source: String = ""
+)
+
 object MultiModelAgentOrchestrator {
 
     /** الحد الأقصى لعدد أعضاء الفريق */
@@ -109,7 +117,7 @@ object MultiModelAgentOrchestrator {
             val idx = name.indexOf(m)
             if (idx >= 0) idx else null
         }.minOrNull()
-        if (cut != null) name = name.substring(0, cut).trim(" —:-•".toCharArray())
+        if (cut != null) name = name.substring(0, cut).trim(*" —:-•".toCharArray())
         if (name.isBlank()) {
             name = when (role) {
                 AgentTeamRole.LEADER -> "القائد"
@@ -152,14 +160,6 @@ object MultiModelAgentOrchestrator {
             "مراجع أداء واستهلاك الذاكرة"
         )
     }
-
-    /** نموذج مطلوبات البدء: ما يلزم قبل أن يعمل الفريق */
-    data class TeamPreflight(
-        val ready: Boolean,
-        val missing: List<String> = emptyList(),
-        val questions: List<String> = emptyList(),
-        val source: String = ""
-    )
 
     /** نتيجة فحص دستور الفريق: أخطاء مانعة + تحذيرات توصية */
     data class TeamValidation(

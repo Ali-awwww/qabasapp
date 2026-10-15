@@ -11,7 +11,6 @@
 
 #ifdef LLAMA_REAL_BACKEND
 #include "llama.h"
-#include "common.h"
 
 struct Ctx {
     llama_model *model = nullptr;

@@ -99,15 +99,13 @@ object KeySyncService {
                     val decrypted = cipher.doFinal(ciphertext)
                     return String(decrypted, Charsets.UTF_8)
                 } catch (_: Exception) {
-                    // Fall through to legacy format
+                    // Not a valid AES/GCM payload — fall through to the pre-GCM base64 format.
                 }
             }
 
-            // Legacy fallback: existing data encrypted with ECB
-            val legacyCipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
-            legacyCipher.init(Cipher.DECRYPT_MODE, secretKey)
-            val decrypted = legacyCipher.doFinal(decoded)
-            String(decrypted, Charsets.UTF_8)
+            // Legacy AES/ECB fallback removed: ECB is a weak cipher mode and carries
+            // no integrity protection (CodeQL: java/weak-cryptographic-algorithm).
+            throw IllegalStateException("Unsupported ciphertext format")
         } catch (e: Exception) {
             Log.w(TAG, "Decrypt failed, trying plain base64", e)
             try {

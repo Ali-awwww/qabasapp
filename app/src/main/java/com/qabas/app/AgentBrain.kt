@@ -97,7 +97,6 @@ object UniversalKeyBrain {
         val (_, poolSize, wasDuplicate) = saveKey(context, k, provider)
         return SmartSaveResult.Saved(provider, health.latencyMs, health.modelName, poolSize, wasDuplicate)
     }
-    }
 
     fun prefsKeyFor(provider: DetectedProvider): String = when (provider) {
         DetectedProvider.GEMINI -> "gemini_key"

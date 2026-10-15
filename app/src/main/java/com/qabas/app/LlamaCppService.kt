@@ -218,7 +218,9 @@ object LlamaCppService {
         contentType: String,
         contentTone: String
     ): List<Scene>? = withContext(Dispatchers.IO) {
-        if (!initialize(AppServices.appContext)) return@withContext null
+        val ctx = AppServices.appContext
+        val modelName = OnDeviceModelManager.getActiveReadyModel(ctx)?.fileName ?: return@withContext null
+        if (!initialize(ctx, modelName)) return@withContext null
         val prompt = buildScriptPrompt(idea, styleDescription, contentType, contentTone)
         val response = generate(prompt, maxTokens = 1024, temperature = 0.6f)
         if (response.isNullOrBlank()) return@withContext null
