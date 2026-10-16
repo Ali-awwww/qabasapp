@@ -305,11 +305,7 @@ fun ReelsScreen(
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0), // Full bleed without empty top gap
             bottomBar = {
-                AnimatedVisibility(
-                    visible = chromeVisible,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(280)),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(220))
-                ) {
+                if (chromeVisible) {
                     bottomBar()
                 }
             },
@@ -319,7 +315,6 @@ fun ReelsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .padding(bottom = paddingValues.calculateBottomPadding())
             ) {
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -995,9 +990,9 @@ fun ReelsScreen(
         )
     }
 
-    // Publish Reel Dialog
+    // Publish Reel Screen
     if (showPublishDialog) {
-        ReelPublishDialog(
+        ReelPublishScreen(
             currentUserId = currentUserId,
             currentUserName = currentUserName,
             currentUserEmail = currentUserEmail,
@@ -1124,7 +1119,7 @@ fun ReelSpatialHUDOverlays(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 14.dp, end = 74.dp, bottom = 64.dp)
+                .padding(start = 14.dp, end = 170.dp, bottom = 80.dp)
                 .fillMaxWidth()
         ) {
             // Micro Spiritual Reactions Bar (Horizontal Scroll, strictly non-overlapping)
@@ -1294,68 +1289,58 @@ fun ReelSpatialHUDOverlays(
             }
         }
 
-        // Right Action Bar (Sleek, 5 items + Vinyl Disc)
-        Column(
+        // Right Action Bar — Geometric Arc: interactions orbit the audio disc
+        BoxWithConstraints(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 12.dp, bottom = 64.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(220.dp)
         ) {
-            // Like Button
-            ReelActionPill(
-                icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                label = formatCount(likesCount),
-                tint = if (isLiked) Color(0xFFEF4444) else Color.White,
-                onClick = onLike
+            val hubX = maxWidth * 0.5f
+            val hubY = maxHeight * 0.40f
+            val radius = 105.dp
+
+            val arcItems = listOf(
+                Triple(Icons.Default.Comment, formatCount(reel.commentsCount) to Color.White, onComment),
+                Triple(if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, (if (isSaved) "محفوظ" else "حفظ") to if (isSaved) GoldPrimary else Color.White, onSave),
+                Triple(if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder, formatCount(likesCount) to if (isLiked) Color(0xFFEF4444) else Color.White, onLike),
+                Triple(Icons.Default.Share, formatCount(reel.sharesCount) to Color.White, onShare),
+                Triple(Icons.Default.MoreHoriz, "المزيد" to Color.White.copy(alpha = 0.85f), onMoreOptions)
             )
 
-            // Comment Button
-            ReelActionPill(
-                icon = Icons.Default.Comment,
-                label = formatCount(reel.commentsCount),
-                tint = Color.White,
-                onClick = onComment
-            )
+            arcItems.forEachIndexed { index, (icon, labelTint, action) ->
+                val angle = Math.toRadians((index * 30.0) - 60.0)
+                val px = hubX + radius * kotlin.math.cos(angle)
+                val py = hubY + radius * kotlin.math.sin(angle)
 
-            // Bookmark / Save Button
-            ReelActionPill(
-                icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                label = if (isSaved) "محفوظ" else "حفظ",
-                tint = if (isSaved) GoldPrimary else Color.White,
-                onClick = onSave
-            )
+                Box(
+                    modifier = Modifier
+                        .offset(x = px - 24.dp, y = py - 24.dp)
+                ) {
+                    ReelActionPill(
+                        icon = icon,
+                        label = labelTint.first,
+                        tint = labelTint.second,
+                        onClick = action
+                    )
+                }
+            }
 
-            // Share Button
-            ReelActionPill(
-                icon = Icons.Default.Share,
-                label = formatCount(reel.sharesCount),
-                tint = Color.White,
-                onClick = onShare
-            )
-
-            // More Options (...)
-            ReelActionPill(
-                icon = Icons.Default.MoreHoriz,
-                label = "المزيد",
-                tint = Color.White.copy(alpha = 0.85f),
-                onClick = onMoreOptions
-            )
-
-            // Spinning Vinyl Disc
+            // Vinyl disc — the hub the interactions orbit
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .offset(x = hubX - 21.dp, y = hubY - 21.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF0F172A))
-                    .border(1.5.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                    .background(Color(0xFF0F172A).copy(alpha = 0.85f))
+                    .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
                     .rotate(rotation)
                     .clickable { onAudioClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(14.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
                         .background(GoldPrimary)
                 )

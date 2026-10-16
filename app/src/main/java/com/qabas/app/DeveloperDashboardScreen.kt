@@ -4859,7 +4859,11 @@ fun groupCrashesByType(crashes: List<CrashLogFile>): List<CrashGroup> {
         // أول كلمة/معرّف Java بين كلمات مفصولة بـ : أو قبلها
         val regex = Regex("(java|kotlin|androidx|android|com)\\.[\\w.$]+(?:Exception|Error)")
         val m = regex.find(s)
-        if (m != null) return m.value.substringAfterLast('.').substringBeforeLast('$')
+        if (m != null) {
+            val simple = m.value.substringAfterLast('.')
+            // Inner-class exceptions: java.net.Foo$BarException -> BarException
+            return if (simple.contains('$')) simple.substringAfterLast('$') else simple
+        }
         // fallback: اقطع قبل أول ":" أو "("
         val cutAt = listOf(':', '(').firstOrNull { s.contains(it) } ?: return s
         return s.substringBefore(cutAt).trim().take(40)

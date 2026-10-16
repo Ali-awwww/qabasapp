@@ -15,6 +15,7 @@ object CrashBreadcrumbs {
     data class Crumb(val timeMs: Long, val category: String, val message: String)
 
     private val crumbs = ArrayDeque<Crumb>(MAX)
+    private val processStartMs = System.currentTimeMillis()
 
     @Synchronized
     fun leave(category: String, message: String) {
@@ -27,11 +28,27 @@ object CrashBreadcrumbs {
     fun api(name: String, ms: Long, ok: Boolean) = leave("api", "$name ${ms}ms ${if (ok) "ok" else "FAIL"}")
     fun action(name: String) = leave("action", name)
 
+    /** حدث حر / سياقي (مثال: تغيّر الشبكة، استئناف، تفاعل). */
+    fun note(category: String, message: String) = leave(category, message)
+
+    /** آخر مسار/عنصر معروض (شاشة فرعية أو عنصر داخل قائمة). */
+    fun route(name: String, id: String?) = leave("route", if (id.isNullOrBlank()) name else "$name=$id")
+
+    /** آخر حالة شبكة معروفة (wifi/cellular/offline...). */
+    fun network(state: String) = leave("network", state)
+
+    /** آخر إيماءة/تفاعل مستخدم ثقيل (سحب، تشغيل، نشر). */
+    fun gesture(name: String) = leave("gesture", name)
+
+    /** مدة تشغيل العملية بالثواني (لقياس الانهيارات المبكرة بعد الإقلاع). */
+    fun processUptimeSec(): Long = (System.currentTimeMillis() - processStartMs) / 1000
+
     @Synchronized
     fun dump(): String {
         if (crumbs.isEmpty()) return "(لا فتات مسجّل)"
         val fmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-        return crumbs.joinToString("\n") { c ->
+        val header = "· uptime ${processUptimeSec()}s · ${crumbs.size} حدث ·"
+        return header + "\n" + crumbs.joinToString("\n") { c ->
             "${fmt.format(java.util.Date(c.timeMs))} [${c.category}] ${c.message}"
         }
     }

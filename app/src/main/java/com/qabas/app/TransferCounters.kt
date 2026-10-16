@@ -31,7 +31,7 @@ import com.qabas.app.ui.theme.CairoFont
 
 /**
  * عدّاد نقل موحّد (رفع/تنزيل) — يُستخدم في:
- * - عدّاد رفع الريلز (ReelPublishDialog)
+ * - عدّاد رفع الريلز (ReelPublishScreen)
  * - عدّاد رفع الأذان (DevAzanUploadDialog)
  * - عدّاد تنزيل الريلز (DownloadsHubScreen)
  * - عدّاد تنزيل الأذان (AzanVoicesDialog)

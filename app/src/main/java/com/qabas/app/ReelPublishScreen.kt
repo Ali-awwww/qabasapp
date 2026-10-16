@@ -33,12 +33,13 @@ import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.RobotoMonoFont
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ReelPublishDialog(
+fun ReelPublishScreen(
     currentUserId: String,
     currentUserName: String,
     currentUserEmail: String?,
@@ -59,10 +60,9 @@ fun ReelPublishDialog(
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("تلاوة قرآنية") }
+    var selectedCategory by remember { mutableStateOf("قرآن كريم") }
     var isFeaturedByDev by remember { mutableStateOf(false) }
 
-    // Video Selection State
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoThumbnailFile by remember { mutableStateOf<File?>(null) }
     var selectedVideoThumbnailBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -70,22 +70,20 @@ fun ReelPublishDialog(
     var directVideoUrl by remember { mutableStateOf("") }
     var showDirectUrlInput by remember { mutableStateOf(false) }
 
-    // Spiritual Pledge & Safety Check
     var hasAcceptedPledge by remember { mutableStateOf(false) }
     var spiritualViolationMessage by remember { mutableStateOf<String?>(null) }
     var spiritualViolationAyah by remember { mutableStateOf<String?>(null) }
 
-    // Publishing Progress
     var isPublishing by remember { mutableStateOf(false) }
     var publishProgressText by remember { mutableStateOf("جاري النشر...") }
     var generalErrorMessage by remember { mutableStateOf<String?>(null) }
-    // عدّاد الرفع الرقمي (بايتات مرسلة/كلية) — يُصفَّر مع كل عملية نشر
     var uploadSentBytes by remember { mutableStateOf(0L) }
     var uploadTotalBytes by remember { mutableStateOf(0L) }
+    var uploadSpeedBps by remember { mutableStateOf(0L) }
+    var uploadEtaSeconds by remember { mutableStateOf(0L) }
 
-    val categories = listOf("تلاوة قرآنية", "حديث نبوي", "قصص وعبر", "خواطر إيمانية", "أدعية وأذكار", "فوائد فقهية")
+    val categories = listOf("قرآن كريم", "أحاديث نبوية", "وعظة إيمانية")
 
-    // Photo/Video Picker Launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -102,7 +100,6 @@ fun ReelPublishDialog(
         }
     }
 
-    // Real-time Spiritual Check
     LaunchedEffect(title, description, selectedCategory) {
         if (title.isNotBlank() || !description.isNullOrBlank()) {
             val audit = SpiritualSafetyGuard.performSpiritualAudit(
@@ -127,69 +124,82 @@ fun ReelPublishDialog(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        contentColor = Color.White,
-        dragHandle = {
-            BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f))
+    LaunchedEffect(isPublishing, uploadSentBytes, uploadTotalBytes) {
+        if (!isPublishing || uploadTotalBytes <= 0) return@LaunchedEffect
+        val prevBytes = uploadSentBytes
+        val prevTime = System.currentTimeMillis()
+        delay(1000L)
+        val deltaBytes = uploadSentBytes - prevBytes
+        val deltaTime = System.currentTimeMillis() - prevTime
+        if (deltaTime > 0 && deltaBytes > 0) {
+            uploadSpeedBps = deltaBytes * 1000 / deltaTime
+            val remaining = uploadTotalBytes - uploadSentBytes
+            uploadEtaSeconds = if (uploadSpeedBps > 0) remaining / uploadSpeedBps else 0L
         }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
-                .verticalScroll(scrollState)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+    }
+
+    Scaffold(
+        containerColor = Color(0xFF0F172A),
+        topBar = {
+            Surface(
+                color = Color(0xFF0F172A),
+                shadowElevation = 2.dp
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = GoldPrimary.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isDeveloper) Icons.Default.VerifiedUser else Icons.Default.VideoCall,
-                                contentDescription = null,
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(24.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = GoldPrimary.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isDeveloper) Icons.Default.VerifiedUser else Icons.Default.VideoCall,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (isDeveloper) "نشر ريلز إيماني (صلاحيات المطور)" else "نشر ريلز إيماني مبارك",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "مشاركة تلاوة أو موعظة أو ذكر لتكون صدقة جارية",
+                                fontFamily = CairoFont,
+                                fontSize = 11.5.sp,
+                                color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = if (isDeveloper) "نشر ريلز إيماني (صلاحيات المطور) 👑" else "نشر ريلز إيماني مبارك 🎬",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "مشاركة تلاوة أو موعظة أو ذكر لتكون صدقة جارية",
-                            fontFamily = CairoFont,
-                            fontSize = 11.5.sp,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.7f))
                     }
                 }
-
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.7f))
-                }
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Developer / Quota Banner
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(scrollState)
+                .padding(bottom = 32.dp)
+        ) {
             if (isDeveloper) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -294,9 +304,8 @@ fun ReelPublishDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 1. Video Selection Section (Zero Manual Database URL!)
             Text(
-                text = "1. اختيار مقطع الفيديو 🎬",
+                text = "1. اختيار مقطع الفيديو",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.5.sp,
@@ -305,7 +314,6 @@ fun ReelPublishDialog(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (selectedVideoUri != null) {
-                // Video Picked Preview Card
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = Color(0xFF1E293B),
@@ -334,9 +342,7 @@ fun ReelPublishDialog(
                                 Icon(Icons.Default.PlayCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
                             }
                         }
-
                         Spacer(modifier = Modifier.width(12.dp))
-
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
@@ -351,10 +357,8 @@ fun ReelPublishDialog(
                             }
                             if (selectedVideoDurationMs > 0) {
                                 val sec = (selectedVideoDurationMs / 1000).toInt()
-                                val min = sec / 60
-                                val remSec = sec % 60
                                 Text(
-                                    text = "المدة: %02d:%02d".format(min, remSec),
+                                    text = "المدة: ${sec / 60}:${"%02d".format(sec % 60)}",
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 11.5.sp,
                                     color = Color.White.copy(alpha = 0.7f)
@@ -367,7 +371,6 @@ fun ReelPublishDialog(
                                 color = Color.White.copy(alpha = 0.5f)
                             )
                         }
-
                         IconButton(
                             onClick = {
                                 videoPickerLauncher.launch(
@@ -380,7 +383,6 @@ fun ReelPublishDialog(
                     }
                 }
             } else {
-                // Large Primary Gallery Video Picker Button
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = Color.White.copy(alpha = 0.06f),
@@ -409,7 +411,7 @@ fun ReelPublishDialog(
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "اختر مقطع فيديو من هاتفك 📱",
+                            text = "اختر مقطع فيديو من هاتفك",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.5.sp,
@@ -426,74 +428,6 @@ fun ReelPublishDialog(
                     }
                 }
 
-                // Confirmation banner when a video is picked (so user knows it registered)
-                selectedVideoUri?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF10B981),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "تم اختيار المقطع ✅",
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = Color.White,
-                                        maxLines = 1
-                                    )
-                                    if (selectedVideoDurationMs > 0) {
-                                        val totalSec = (selectedVideoDurationMs / 1000).toInt()
-                                        Text(
-                                            text = "المدة: ${totalSec / 60}:${"%02d".format(totalSec % 60)}",
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.5.sp,
-                                            color = Color.White.copy(alpha = 0.65f),
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    selectedVideoUri = null
-                                    selectedVideoThumbnailFile = null
-                                    selectedVideoThumbnailBytes = null
-                                    selectedVideoDurationMs = 0L
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "إزالة المقطع",
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Collapsible Optional Direct Link for advanced users
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
@@ -511,7 +445,7 @@ fun ReelPublishDialog(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (showDirectUrlInput) "إخفاء خيار الرابط المباشر" else "أو إدخال رابط فيديو مباشر 🔗",
+                        text = if (showDirectUrlInput) "إخفاء خيار الرابط المباشر" else "أو إدخال رابط فيديو مباشر",
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp,
                         color = Color.White.copy(alpha = 0.6f)
@@ -545,9 +479,8 @@ fun ReelPublishDialog(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 2. Category Selection
             Text(
-                text = "2. التصنيف الإيماني 🕌",
+                text = "2. التصنيف",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.5.sp,
@@ -583,9 +516,8 @@ fun ReelPublishDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Metadata Fields
             Text(
-                text = "3. تفاصيل المقطع ✍️",
+                text = "3. تفاصيل المقطع",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.5.sp,
@@ -593,7 +525,6 @@ fun ReelPublishDialog(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Title + Description grouped in one card (visual consistency with other sections)
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color.White.copy(alpha = 0.04f),
@@ -601,7 +532,6 @@ fun ReelPublishDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    // Title
                     OutlinedTextField(
                         value = title,
                         onValueChange = {
@@ -620,10 +550,7 @@ fun ReelPublishDialog(
                             unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
                         )
                     )
-
                     Spacer(modifier = Modifier.height(10.dp))
-
-                    // Description
                     OutlinedTextField(
                         value = description,
                         onValueChange = {
@@ -646,7 +573,6 @@ fun ReelPublishDialog(
                 }
             }
 
-            // Developer Pinning Feature
             if (isDeveloper) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
@@ -696,7 +622,6 @@ fun ReelPublishDialog(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 4. Spiritual Safety Guard & Mandatory Pledge (الرقابة الشرعية القصوى ضد الذنوب والآثام)
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = if (spiritualViolationMessage != null) Color(0xFFEF4444).copy(alpha = 0.12f) else Color(0xFF10B981).copy(alpha = 0.08f),
@@ -716,14 +641,13 @@ fun ReelPublishDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (spiritualViolationMessage != null) "⛔ رصد مخالفة شرعية - يمنع النشر" else "🛡️ الرقابة والضوابط الشرعية الصارمة",
+                            text = if (spiritualViolationMessage != null) "رصد مخالفة - يمنع النشر" else "الرقابة والضوابط الشرعية",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = if (spiritualViolationMessage != null) Color(0xFFEF4444) else Color(0xFF10B981)
                         )
                     }
-
                     if (spiritualViolationMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -746,17 +670,14 @@ fun ReelPublishDialog(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "منصة قبس منصة إيمانية نقية؛ يُحظر تماماً نشر الموسيقى والمعازف، التبرج، أو أي محتوى يحمل وزراً أو إثماً جارياً.",
+                            text = "يُحظر نشر الموسيقى والمعازف فقط. المحتوى القرآني والإيماني النقي مرحّب به.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.75f),
                             lineHeight = 16.sp
                         )
                     }
-
                     Spacer(modifier = Modifier.height(10.dp))
-
-                    // Mandatory Pledge Checkbox
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -774,7 +695,7 @@ fun ReelPublishDialog(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "أتعهد أمام الله بأن المقطع خالص لوجهه الكريم وخالٍ تماماً من المعازف والموسيقى وأي ذنب جارٍ.",
+                            text = "أتعهد أمام الله بأن المقطع خالٍ من الموسيقى والمعازف.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -785,7 +706,6 @@ fun ReelPublishDialog(
                 }
             }
 
-            // General error banner
             if (generalErrorMessage != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
@@ -806,7 +726,6 @@ fun ReelPublishDialog(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Action Buttons
             val canPublish = !isPublishing &&
                 spiritualViolationMessage == null &&
                 hasAcceptedPledge &&
@@ -824,7 +743,6 @@ fun ReelPublishDialog(
                         hasAcceptedPledge = hasAcceptedPledge,
                         isDeveloper = isDeveloper
                     )
-
                     when (validation) {
                         is ReelPublishManager.ValidationResult.Invalid -> {
                             generalErrorMessage = validation.reason
@@ -834,6 +752,8 @@ fun ReelPublishDialog(
                             generalErrorMessage = null
                             uploadSentBytes = 0L
                             uploadTotalBytes = 0L
+                            uploadSpeedBps = 0L
+                            uploadEtaSeconds = 0L
                             scope.launch {
                                 val result = ReelPublishManager.publishReelWithUpload(
                                     context = context,
@@ -855,16 +775,14 @@ fun ReelPublishDialog(
                                         uploadTotalBytes = total
                                     }
                                 )
-
                                 isPublishing = false
                                 when (result) {
                                     is ReelPublishManager.PublishResult.Success -> {
-                                        Toast.makeText(context, "تم نشر المقطع الإيماني بنجاح! جزاك الله خيراً 🌿", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "تم نشر المقطع بنجاح! جزاك الله خيراً", Toast.LENGTH_LONG).show()
                                         onPublishedSuccess()
                                         onDismiss()
                                     }
                                     is ReelPublishManager.PublishResult.Failed -> {
-                                        // فصل أمني: المستخدم يرى رسالة عامة، والمطور يرى المرحلة والسبب
                                         generalErrorMessage = if (AdminGuard.isDashboardAccessAllowed(context)) {
                                             "فشل النشر [${result.stage}]: ${result.devMessage}"
                                         } else {
@@ -900,7 +818,7 @@ fun ReelPublishDialog(
                     Icon(Icons.Default.CloudUpload, contentDescription = null, tint = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isDeveloper) "نشر فوري برتبة المطور 👑" else "نشر المقطع الإيماني المبارك 🚀",
+                        text = if (isDeveloper) "نشر فوري برتبة المطور" else "نشر المقطع",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         color = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f),
@@ -909,16 +827,76 @@ fun ReelPublishDialog(
                 }
             }
 
-            // عدّاد رفع الريلز — موحّد مع عدّادات الأذان والتنزيلات
             if (isPublishing && uploadTotalBytes > 0) {
-                Spacer(modifier = Modifier.height(10.dp))
-                TransferCounterBar(
-                    label = publishProgressText.ifBlank { "رفع الريل 🚀" },
-                    sentBytes = uploadSentBytes,
-                    totalBytes = uploadTotalBytes,
-                    isUpload = true
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF1E293B),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = publishProgressText.ifBlank { "جاري الرفع..." },
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "${(uploadSentBytes.toFloat() / uploadTotalBytes * 100).toInt()}%",
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = GoldPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { uploadSentBytes.toFloat() / uploadTotalBytes },
+                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                            color = GoldPrimary,
+                            trackColor = Color.White.copy(alpha = 0.12f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${StorageMetrics.formatBytes(uploadSentBytes)} / ${StorageMetrics.formatBytes(uploadTotalBytes)}",
+                                fontFamily = RobotoMonoFont,
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            if (uploadSpeedBps > 0) {
+                                Text(
+                                    text = "${StorageMetrics.formatBytes(uploadSpeedBps)}/s",
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF10B981)
+                                )
+                            }
+                        }
+                        if (uploadEtaSeconds > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "الوقت المتبقي: ${uploadEtaSeconds / 60}:${"%02d".format(uploadEtaSeconds % 60)}",
+                                fontFamily = RobotoMonoFont,
+                                fontSize = 11.sp,
+                                color = Color(0xFFF59E0B)
+                            )
+                        }
+                    }
+                }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
