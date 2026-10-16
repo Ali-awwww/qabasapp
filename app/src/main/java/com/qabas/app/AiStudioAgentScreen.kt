@@ -1,20 +1,16 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,48 +19,28 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
-
-/**
- * 🛸 مركز الوكيل الذكي الموحّد (Unified Autonomous Agent Center)
- * شريط HUD نييوني هندسي واحد يجمع خمس وحدات مترابطة:
- * 01 استوديو المهام · 02 التشغيل المباشر · 03 فحص الجاهزية · 04 ترسانة الأدوات · 05 سجل العمليات
- * كل القيم المعروضة حقيقية ومقاسة لحظياً — لا بيانات وهمية أو محاكاة.
- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +53,7 @@ fun AiStudioAgentScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val clipboardManager = LocalClipboardManager.current
+    val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab) }
@@ -90,15 +66,14 @@ fun AiStudioAgentScreen(
         showExitConfirmation = true
     }
 
-    // State
     var promptInput by remember { mutableStateOf("") }
     var selectedSpec by remember { mutableStateOf(AgentSpecialization.TURBO) }
     var isExecuting by remember { mutableStateOf(false) }
     var currentMission by remember { mutableStateOf<AgentMissionSession?>(null) }
     var missionHistory by remember { mutableStateOf<List<AgentMissionSession>>(emptyList()) }
-    var isTeamMode by remember { mutableStateOf(false) }   // 🔑 وضع الفريق (Multi-Model)
-    var teamProgressText by remember { mutableStateOf("") } // نص تقدم الفريق الحي
-    var verifyingBuild by remember { mutableStateOf(false) } // 🔗 فحص البناء الفعلي عبر الفريق
+    var isTeamMode by remember { mutableStateOf(false) }
+    var teamProgressText by remember { mutableStateOf("") }
+    var verifyingBuild by remember { mutableStateOf(false) }
     var showKeyDialog by remember { mutableStateOf(false) }
     var keyDialogInitialTab by remember { mutableStateOf(0) }
     var showRepoDialog by remember { mutableStateOf(false) }
@@ -106,20 +81,18 @@ fun AiStudioAgentScreen(
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
     var executionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var lastExecutedPrompt by remember { mutableStateOf<String>("") }
+    var lastExecutedPrompt by remember { mutableStateOf("") }
     var showModelPicker by remember { mutableStateOf(false) }
-    var selectedModel by remember { mutableStateOf<String>("gemini-3.5-flash") }
+    var selectedModel by remember { mutableStateOf("gemini-3.5-flash") }
     var applyingDiffPath by remember { mutableStateOf<String?>(null) }
-    val TAG = "AiStudioAgentScreen"
-    val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
-    // Mission State Management
+    val TAG = "AiStudioAgentScreen"
+
     var missionAutoSwitched by remember { mutableStateOf(false) }
 
-    // Save current mission state to SharedPreferences
     fun saveMissionState() {
         currentMission?.let { mission ->
-            val json = JSONObject().apply {
+            val json = org.json.JSONObject().apply {
                 put("missionId", mission.id)
                 put("userPrompt", mission.userPrompt)
                 put("specialization", mission.specialization.name)
@@ -137,25 +110,22 @@ fun AiStudioAgentScreen(
         }
     }
 
-    // Restore mission state from SharedPreferences
     fun restoreMissionState(): AgentMissionSession? {
         val json = prefs.getString("active_mission_json", null)
         if (json.isNullOrBlank()) return null
-
-        try {
-            val obj = JSONObject(json)
+        return try {
+            val obj = org.json.JSONObject(json)
             val stepsList = obj.getJSONArray("steps")
             val steps = (0 until stepsList.length()).map { idx ->
                 AgentExecutionStep(
                     id = stepsList.getString(idx),
-                    title = "", // would need to store titles too
+                    title = "",
                     description = "",
                     toolName = "",
                     outputSnippet = ""
                 )
             }
-
-            return AgentMissionSession(
+            AgentMissionSession(
                 id = obj.getString("missionId"),
                 userPrompt = obj.getString("userPrompt"),
                 specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
@@ -172,14 +142,13 @@ fun AiStudioAgentScreen(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to restore mission state: ${e.message}")
             prefs.edit().remove("active_mission_json").apply()
-            return null
+            null
         }
     }
 
-    // Export mission as JSON string for backup/sharing
     fun exportMissionJson(): String {
         return currentMission?.let { mission ->
-            JSONObject().apply {
+            org.json.JSONObject().apply {
                 put("missionId", mission.id)
                 put("userPrompt", mission.userPrompt)
                 put("specialization", mission.specialization.name)
@@ -196,10 +165,9 @@ fun AiStudioAgentScreen(
         } ?: ""
     }
 
-    // Import mission from JSON string
     fun importMissionFromJson(jsonString: String): Boolean {
-        try {
-            val obj = JSONObject(jsonString)
+        return try {
+            val obj = org.json.JSONObject(jsonString)
             val stepsList = obj.getJSONArray("steps")
             val steps = (0 until stepsList.length()).map { idx ->
                 AgentExecutionStep(
@@ -210,7 +178,6 @@ fun AiStudioAgentScreen(
                     outputSnippet = ""
                 )
             }
-
             currentMission = AgentMissionSession(
                 id = obj.optString("missionId", obj.optString("id", "")),
                 userPrompt = obj.getString("userPrompt"),
@@ -225,15 +192,14 @@ fun AiStudioAgentScreen(
                 apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
                 timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
             )
-
             missionHistory = missionHistory + listOf(currentMission!!)
-            return true
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import mission: ${e.message}")
-            return false
+            false
         }
     }
-    // Key Resolution & Real Live Diagnostics
+
     var keyResolution by remember { mutableStateOf(AgentConnectivityEngine.resolveKeyWithSource(context)) }
     var isPinging by remember { mutableStateOf(false) }
     var geminiHealth by remember {
@@ -265,9 +231,7 @@ fun AiStudioAgentScreen(
     var liveUsedMemoryMb by remember {
         mutableStateOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024))
     }
-    val liveMaxMemoryMb = remember {
-        runtime.maxMemory() / (1024 * 1024)
-    }
+    val liveMaxMemoryMb = remember { runtime.maxMemory() / (1024 * 1024) }
 
     val refreshDiagnostics: () -> Unit = {
         coroutineScope.launch {
@@ -278,61 +242,45 @@ fun AiStudioAgentScreen(
             val activeRepoItem = RepoVaultManager.getActiveRepo(context)
             val ghToken = activeRepoItem?.token ?: ""
             val ghRepo = activeRepoItem?.fullName ?: ""
-
             geminiHealth = AgentConnectivityEngine.pingGeminiLive(resolved.second, resolved.third)
             githubHealth = AgentConnectivityEngine.pingGitHubLive(ghToken, ghRepo)
             isPinging = false
         }
     }
 
-    LaunchedEffect(Unit) {
-        refreshDiagnostics()
-    }
+    LaunchedEffect(Unit) { refreshDiagnostics() }
 
-    // Mission State Auto-Save & Restore + Auto-Switch Logic
-LaunchedEffect(currentMission, isOfflineMode) {
-        // Save mission state whenever it changes
+    LaunchedEffect(currentMission, isOfflineMode) {
         saveMissionState()
-
-        // If offline mode is active but no local model is available, auto-switch to cloud
         if (isOfflineMode && currentMission != null && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
             if (!missionAutoSwitched) {
                 missionAutoSwitched = true
-                // Save current mission before switching
                 saveMissionState()
-                // Switch to cloud mode - show key dialog or use default key
                 showKeyDialog = true
-                keyDialogInitialTab = 1  // Switch to API keys tab
+                keyDialogInitialTab = 1
             }
         } else if (missionAutoSwitched && OnDeviceModelManager.hasAnyInstalledModel(context)) {
-            // User returned to local mode with a model installed
             missionAutoSwitched = false
-            // Could restore mission state here - currently manual
         }
     }
 
-    // Periodic auto-save every 30 seconds
     LaunchedEffect(Unit) {
         while (true) {
-            delay(30000) // 30 seconds
+            delay(30000)
             saveMissionState()
         }
     }
 
-    // Active Engine & Repo
     val activeEnginePair = remember { derivedStateOf { UniversalKeyBrain.getActiveEngine() } }
     val activeRepo = remember(context) { RepoVaultManager.getActiveRepo(context) }
 
-    val listState = rememberLazyListState()
-
-    // Quick Prompts
     val quickPrompts = remember {
         listOf(
-            "✨ أضف شاشة جديدة لمواقيت الصلاة وبوصلة القبلة",
-            "🩺 افحص أخطاء البناء والـ CI وصلح ملفات سير العمل",
-            "⚡ حسن أداء مشغل الصوت واستهلاك الذاكرة في الخلفية",
-            "🚀 ابدأ تشغيل بناء حزمة APK جديدة على GitHub Actions",
-            "🛡️ تدقيق معماري شامل لملفات التطبيق وحذف الأكواد المهملة"
+            "أضف شاشة جديدة لمواقيت الصلاة وبوصلة القبلة",
+            "افحص أخطاء البناء والـ CI وصلح ملفات سير العمل",
+            "حسن أداء مشغل الصوت واستهلاك الذاكرة في الخلفية",
+            "ابدأ تشغيل بناء حزمة APK جديدة على GitHub Actions",
+            "تدقيق معماري شامل لملفات التطبيق وحذف الأكواد المهملة"
         )
     }
 
@@ -341,157 +289,71 @@ LaunchedEffect(currentMission, isOfflineMode) {
         containerColor = Color(0xFF070B14),
         topBar = {
             GlassmorphicSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding(),
                 backgroundColor = Color(0xFF0B132B).copy(alpha = 0.85f),
                 borderColor = Color(0xFF00E5FF).copy(alpha = 0.25f)
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = onBack,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF1E293B))
-                                .testTag("agent_studio_back_btn")
+                            modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF1E293B))
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "رجوع",
-                                tint = Color(0xFFE5B842)
-                            )
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFFE5B842))
                         }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f, fill = true)) {
-                            Text(
-                                text = "مركز الوكيل الذكي",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .padding(top = 2.dp)
-                                    .clickable {
-                                        if (isOfflineMode) showOnDeviceDialog = true else { keyDialogInitialTab = 0; showKeyDialog = true }
-                                    }
-                            ) {
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("مركز الوكيل الذكي", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                                 val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
                                 val dotColor = if (isOfflineMode) {
                                     if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B)
                                 } else {
                                     if (geminiHealth.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)
                                 }
-                                val statusText = if (isOfflineMode) {
-                                    if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name} ✅" else "ON-DEVICE • يلزم تنزيل النموذج 📥"
-                                } else {
-                                    if (geminiHealth.isConnected) "LIVE CONNECTED (${geminiHealth.latencyMs}ms) • SPATIAL HUD" else "OFFLINE • يلزم مفتاح API"
-                                }
-                                val textColor = if (isOfflineMode) {
-                                    if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B)
-                                } else {
-                                    if (geminiHealth.isConnected) Color(0xFF00E5FF) else Color(0xFFEF4444)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(dotColor)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
+                                Spacer(Modifier.width(5.dp))
                                 Text(
-                                    text = statusText,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = textColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    text = if (isOfflineMode) {
+                                        if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
+                                    } else {
+                                        if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
+                                    },
+                                    fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                                    color = if (geminiHealth.isConnected || (isOfflineMode && isLocalInstalled)) Color(0xFF10B981) else Color(0xFFE5B842)
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Repo Badge
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0xFF1E293B).copy(alpha = 0.8f),
                             border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .clickable { showRepoDialog = true }
-                                .wrapContentWidth()
+                            modifier = Modifier.clickable { showRepoDialog = true }
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Source,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE5B842),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                            Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Source, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = activeRepo?.repo ?: "بدون مستودع",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1
                                 )
                             }
                         }
                     }
-
-                    // Engine Info Strip
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (isOfflineMode) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = Color(0xFFE5B842).copy(alpha = 0.15f),
                                     border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .clickable { showOnDeviceDialog = true }
-                                        .wrapContentWidth()
+                                    modifier = Modifier.clickable { showOnDeviceDialog = true }
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Memory,
-                                            contentDescription = null,
-                                            tint = Color(0xFFE5B842),
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "محلي: ${activeLocalModel.name}",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE5B842),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                    Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Memory, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(11.dp))
+                                        Spacer(Modifier.width(3.dp))
+                                        Text("محلي: ${activeLocalModel.name}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5B842))
                                     }
                                 }
                             } else {
@@ -499,86 +361,41 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     shape = RoundedCornerShape(6.dp),
                                     color = activeEnginePair.value.first.color.copy(alpha = 0.15f),
                                     border = BorderStroke(1.dp, activeEnginePair.value.first.color.copy(alpha = 0.4f)),
-                                    modifier = Modifier
-                                        .clickable {
-                                            keyDialogInitialTab = 0
-                                            showKeyDialog = true
-                                        }
-                                        .wrapContentWidth()
+                                    modifier = Modifier.clickable { keyDialogInitialTab = 0; showKeyDialog = true }
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Bolt,
-                                            contentDescription = null,
-                                            tint = activeEnginePair.value.first.color,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = activeEnginePair.value.first.displayName,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = activeEnginePair.value.first.color,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                    Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = activeEnginePair.value.first.color, modifier = Modifier.size(11.dp))
+                                        Spacer(Modifier.width(3.dp))
+                                        Text(activeEnginePair.value.first.displayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = activeEnginePair.value.first.color)
                                     }
                                 }
                             }
-
-                            // (أُزيل اختصار النماذج المكرر — بطاقة الرادار أدناه تفتح نفس الحوار)
                         }
-
                         Text(
                             text = when {
                                 isExecuting && isTeamMode && teamProgressText.isNotBlank() -> teamProgressText
-                                isExecuting -> "⚡ الوكيل يعمل ذاتياً..."
-                                else -> "جاهز لتلقي الأمر 🎯"
+                                isExecuting -> "الوكيل يعمل ذاتياً..."
+                                else -> "جاهز لتلقي الأمر"
                             },
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             color = if (isExecuting) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier
-                                .weight(1f, fill = false)
-                                .padding(start = 8.dp)
+                            fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.End,
+                            modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp)
                         )
                     }
-
-                    // HUD neon baseline (خيط نيون سفلي يفصل الرأس عن لوحة القيادة)
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        Color(0xFF00E5FF).copy(alpha = 0.7f),
-                                        Color(0xFFE5B842).copy(alpha = 0.7f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
+                        Modifier.fillMaxWidth().height(1.dp).background(
+                            Brush.horizontalGradient(listOf(Color.Transparent, Color(0xFF00E5FF).copy(alpha = 0.7f), Color(0xFFE5B842).copy(alpha = 0.7f), Color.Transparent))
+                        )
                     )
                 }
             }
         }
     ) { innerPadding ->
-        // مركز الوكيل الموحّد: شريط HUD واحد يدمج الاستوديو ووحدات غرفة الوكيل
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color(0xFF05070D))
+            Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070D))
         ) {
-            // 🛰️ شريط التيليميتري النيوني اللحظي الموحّد
             LiveTelemetryHudStrip(
                 latencyMs = geminiHealth.latencyMs,
                 isConnected = geminiHealth.isConnected,
@@ -587,28 +404,23 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 isOfflineMode = isOfflineMode,
                 usedMemoryMb = liveUsedMemoryMb,
                 maxMemoryMb = liveMaxMemoryMb,
-                onRefresh = {
-                    refreshDiagnostics()
-                },
-                onModelClick = {
-                    if (isOfflineMode) showOnDeviceDialog = true else showModelPicker = true
-                },
+                onRefresh = { refreshDiagnostics() },
+                onModelClick = { if (isOfflineMode) showOnDeviceDialog = true else showModelPicker = true },
                 onMemoryClick = {
                     System.gc()
                     liveUsedMemoryMb = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)
-                    Toast.makeText(context, "تم تحسين الذاكرة الحية 🧹", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تم تحسين الذاكرة الحية", Toast.LENGTH_SHORT).show()
                 },
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
 
-            // 🎛️ منصة التحكم الهندسية الموحدة (4 موديولات رئيسية سريعة التبديل)
             AgentGeometricControlDeck(
                 selectedIndex = topTab,
                 onSelect = { topTab = it },
                 modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
             )
 
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (topTab) {
                     1 -> AgentLiveConsoleTab(
                         context = context,
@@ -623,1053 +435,236 @@ LaunchedEffect(currentMission, isOfflineMode) {
                     )
                     3 -> TaskHistoryLogTab(context)
                     else -> LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .cyberGridBackground()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        Modifier.fillMaxSize().cyberGridBackground().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+                        item { Spacer(Modifier.height(4.dp)) }
 
-            // 0. Operation & Engine Deck (لوحة توجيه المحرك والتشغيل)
-            item {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF0D1527).copy(alpha = 0.92f),
-                    border = BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFF00E5FF).copy(alpha = 0.5f),
-                                Color(0xFF10B981).copy(alpha = 0.5f)
-                            )
-                        )
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Sensors,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "توجيه المحرك والتشغيل 🛰️",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            // Team Mode Switch Quick Action
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF1E293B),
-                                border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF334155)),
-                                modifier = Modifier
-                                    .clickable { isTeamMode = !isTeamMode }
-                                    .testTag("agent_toggle_team_mode")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Groups,
-                                        contentDescription = null,
-                                        tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8),
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = if (isTeamMode) "فريق متعدد 👥" else "وضع فردي 👤",
-                                        fontSize = 10.sp,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Direct Mode Switcher (مفتاح التحويل المباشر بين السحابي والنموذج المحلي)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF070B14), RoundedCornerShape(8.dp))
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (!isOfflineMode) Color(0xFF00E5FF).copy(alpha = 0.25f) else Color.Transparent,
-                                border = if (!isOfflineMode) BorderStroke(1.dp, Color(0xFF00E5FF)) else null,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        isOfflineMode = false
-                                        OnDeviceModelManager.setOfflineModeActive(context, false)
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Cloud,
-                                        contentDescription = null,
-                                        tint = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "الوضع السحابي (Cloud API)",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isOfflineMode) Color(0xFFE5B842).copy(alpha = 0.25f) else Color.Transparent,
-                                border = if (isOfflineMode) BorderStroke(1.dp, Color(0xFFE5B842)) else null,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        isOfflineMode = true
-                                        OnDeviceModelManager.setOfflineModeActive(context, true)
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Memory,
-                                        contentDescription = null,
-                                        tint = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8),
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "الوضع المحلي (On-Device)",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8),
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        if (isOfflineMode) {
-                            // On-Device Model Telemetry Card
-                            val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFF59E0B).copy(alpha = 0.5f)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showOnDeviceDialog = true }
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B))
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "النموذج المحلي: ${activeLocalModel.name}",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
-                                        ) {
-                                            Text(
-                                                text = if (isLocalInstalled) "جاهز ومثبت (${activeLocalModel.sizeFormatted}) ✅" else "يلزم التنزيل (${activeLocalModel.sizeFormatted}) 📥",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "المتطلبات: ${activeLocalModel.ramRequirement} • خصوصية تامة بدون إنترنت",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFFCBD5E1)
-                                        )
-
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = Color(0xFF00E5FF).copy(alpha = 0.2f),
-                                            border = BorderStroke(0.6.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
-                                        ) {
-                                            Text(
-                                                text = "فتح مركز التنزيل 📥",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF00E5FF),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            // Dual Health Pills (Gemini & GitHub)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Gemini Status Pill
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (geminiHealth.isConnected) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (geminiHealth.isConnected) Color(0xFF10B981).copy(alpha = 0.45f) else Color(0xFFEF4444).copy(alpha = 0.45f)
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable {
-                                            keyDialogInitialTab = 0
-                                            showKeyDialog = true
-                                        }
-                                ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(8.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (geminiHealth.isConnected) Color(0xFF10B981) else Color(0xFFEF4444))
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "Google Gemini",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                            if (geminiHealth.isConnected) {
-                                                Text(
-                                                    text = "${geminiHealth.latencyMs}ms",
-                                                    fontSize = 10.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF10B981)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = geminiHealth.statusDetail,
-                                            fontSize = 10.sp,
-                                            color = if (geminiHealth.isConnected) Color(0xFFCBD5E1) else Color(0xFFFCA5A5),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-
-                                // GitHub Status Pill
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (githubHealth.isConnected) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (githubHealth.isConnected) Color(0xFF10B981).copy(alpha = 0.45f) else Color(0xFFF59E0B).copy(alpha = 0.45f)
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { showRepoDialog = true }
-                                ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(8.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (githubHealth.isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "GitHub API",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                            if (githubHealth.latencyMs > 0) {
-                                                Text(
-                                                    text = "${githubHealth.latencyMs}ms",
-                                                    fontSize = 10.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (githubHealth.isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = githubHealth.statusDetail,
-                                            fontSize = 10.sp,
-                                            color = Color(0xFFCBD5E1),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Key Source Resolution Badge Line
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        keyDialogInitialTab = if (keyResolution.third == KeySource.NONE) 1 else 0
-                                        showKeyDialog = true
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                ) {
-                                    Text(
-                                        text = "مصدر الاعتماد:",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                        // Container 1: Mode & Team
+                        AgentContainer(title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = Color(0xFF00E5FF)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = keyResolution.third.color.copy(alpha = 0.2f),
-                                        border = BorderStroke(0.6.dp, keyResolution.third.color.copy(alpha = 0.5f))
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF1E293B),
+                                        border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF334155)),
+                                        modifier = Modifier.clickable { isTeamMode = !isTeamMode }.testTag("agent_toggle_team_mode")
                                     ) {
-                                        Text(
-                                            text = keyResolution.third.label,
-                                            fontSize = 9.sp,
-                                            color = keyResolution.third.color,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = "الموديل: $selectedModel",
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF00E5FF)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 1. Mission Mode Selection
-            item {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "اختر تخصص الوكيل للعملية (Agent Specialization):",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE5B842),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(AgentSpecialization.entries.toTypedArray()) { spec ->
-                            val isSelected = selectedSpec == spec
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) spec.color.copy(alpha = 0.2f) else Color(0xFF0F172A),
-                                border = BorderStroke(
-                                    width = if (isSelected) 1.5.dp else 1.dp,
-                                    color = if (isSelected) spec.color else Color(0xFF334155)
-                                ),
-                                modifier = Modifier
-                                    .heightIn(min = 44.dp)
-                                    .clickable { selectedSpec = spec }
-                                    .wrapContentWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = spec.icon,
-                                        contentDescription = null,
-                                        tint = spec.color,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = spec.title,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 1.5 Live Engineering Telemetry — قياس حي بقيم حقيقية فقط (بدون أي أرقام ثابتة أو وهمية)
-            item {
-                val provider = activeEnginePair.value.first
-                val repoBound = activeRepo != null && activeRepo.token.isNotBlank()
-                val cloudOnline = !isOfflineMode && keyResolution.third != KeySource.NONE && geminiHealth.isConnected
-                val localReady = isOfflineMode && OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                val linkOk = if (isOfflineMode) localReady else cloudOnline
-                val accent = if (linkOk) Color(0xFF10B981) else Color(0xFFF59E0B)
-
-                HudPanel(
-                    title = "لوحة القياس الهندسي الحي",
-                    icon = Icons.Default.Sensors,
-                    accent = accent
-                ) {
-                    HudMetric(
-                        label = "المحرك النشط",
-                        value = if (isOfflineMode) "ON-DEVICE" else provider.displayName,
-                        accent = if (isOfflineMode) Color(0xFFE5B842) else provider.color
-                    )
-                    HudMetric(
-                        label = "النموذج",
-                        value = if (isOfflineMode) activeLocalModel.name else selectedModel,
-                        accent = Color(0xFF00E5FF)
-                    )
-                    HudMetric(
-                        label = "مصدر الاعتماد",
-                        value = if (isOfflineMode) "محلي — بدون مفتاح" else keyResolution.third.label,
-                        accent = if (isOfflineMode) Color(0xFFE5B842) else keyResolution.third.color
-                    )
-                    HudMetric(
-                        label = "رابط Gemini",
-                        value = if (isOfflineMode) {
-                            "معطّل (وضع محلي)"
-                        } else if (geminiHealth.isConnected) {
-                            "متصل • ${geminiHealth.latencyMs}ms"
-                        } else {
-                            geminiHealth.statusDetail
-                        },
-                        accent = if (!isOfflineMode && geminiHealth.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)
-                    )
-                    HudMetric(
-                        label = "رابط GitHub",
-                        value = if (githubHealth.isConnected) "متصل • ${githubHealth.latencyMs}ms" else githubHealth.statusDetail,
-                        accent = if (githubHealth.isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)
-                    )
-                    HudMetric(
-                        label = "المستودع",
-                        value = activeRepo?.fullName ?: "غير مرتبط",
-                        accent = if (repoBound) Color(0xFF10B981) else Color(0xFF94A3B8)
-                    )
-                    HudMetric(
-                        label = "تخصص الوكيل",
-                        value = selectedSpec.title,
-                        accent = selectedSpec.color
-                    )
-                    HudMetric(
-                        label = "وضع التنفيذ",
-                        value = if (isTeamMode) "فريق النماذج المتعددة" else "فردي",
-                        accent = if (isTeamMode) Color(0xFFD4AF37) else Color(0xFF94A3B8)
-                    )
-
-                    if (isPinging) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "… executing live network probe",
-                            fontSize = 10.sp,
-                            fontFamily = RobotoMonoFont,
-                            color = Color(0xFF00E5FF),
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-
-            // 2. Command Prompt Cockpit — HUD console with laser corner brackets
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF0A101E).copy(alpha = 0.92f))
-                        .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                ) {
-                    HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFF00E5FF).copy(alpha = 0.75f))
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "أعطِ أمرك للوكيل البرمجي:",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF1E293B),
-                                modifier = Modifier.wrapContentWidth()
-                            ) {
-                                Text(
-                                    text = "⚡ PROMPT",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = promptInput,
-                            onValueChange = { promptInput = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 90.dp, max = 160.dp)
-                                .testTag("agent_studio_prompt_input"),
-                            placeholder = {
-                                Text(
-                                    text = "اكتب باللغة العربية ما تريده، مثل:\n«أضف شاشة جديدة...» أو «أصلح مشكلة تعليق المشغل...»",
-                                    color = Color(0xFF64748B),
-                                    fontSize = 12.sp
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF00E5FF),
-                                unfocusedBorderColor = Color(0xFF334155),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                cursorColor = Color(0xFF00E5FF)
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            enabled = !isExecuting,
-                            maxLines = 8
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Model Selector + Token Budget
-                        if (!isOfflineMode) {
-                            val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
-                            val models = when (provider) {
-                                DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro", "gemini-2.0-flash")
-                                DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
-                                DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
-                                DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
-                                else -> listOf("gemini-3.5-flash")
-                            }
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    item {
-                                        OutlinedButton(
-                                            onClick = { showModelPicker = true },
-                                            modifier = Modifier.wrapContentWidth().height(36.dp),
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f),
-                                                contentColor = Color(0xFF00E5FF)
+                                        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = if (isTeamMode) "فريق متعدد" else "وضع فردي",
+                                                fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
+                                                color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8)
                                             )
-                                        ) {
-                                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("النموذج: $selectedModel", fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false)
-                                        }
-                                    }
-                                    // 🔑 زر فتح تكوين فريق النماذج المتعددة
-                                    item {
-                                        OutlinedButton(
-                                            onClick = onOpenTeamConfig,
-                                            modifier = Modifier.wrapContentWidth().height(36.dp),
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f),
-                                                contentColor = Color(0xFFD4AF37)
-                                            )
-                                        ) {
-                                            Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("👥 فريق النماذج", fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false)
-                                        }
-                                    }
-                                    // 🔑 Toggle تشغيل وضع الفريق (Multi-Model)
-                                    item {
-                                        FilterChip(
-                                            selected = isTeamMode,
-                                            onClick = { isTeamMode = !isTeamMode },
-                                            label = {
-                                                Text(
-                                                    if (isTeamMode) "👑 وضع الفريق مُفعّل" else "فردي",
-                                                    fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1, softWrap = false
-                                                )
-                                            },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.25f),
-                                                selectedLabelColor = Color(0xFFD4AF37)
-                                            )
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                val promptChars = promptInput.length
-                                val promptTokens = if (promptChars == 0) 0 else promptChars / 4 + 1
-                                Text(
-                                    text = "طول الأمر الحالي: $promptChars حرف • ~$promptTokens توكن تقديري",
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF64748B),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            // قوالب العمل الموصى بها — توصية لا إجبار، مع فحص توافر النماذج قبل التطبيق
-                            if (isTeamMode) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "قوالب موصى بها للبدء:",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFD4AF37)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    MultiModelAgentOrchestrator.teamTemplates().forEach { (name, members) ->
-                                        item {
-                                            val missing = MultiModelAgentOrchestrator.templateMissingProviders(members)
-                                            val ready = missing.isEmpty()
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = if (ready) Color(0xFFD4AF37).copy(alpha = 0.12f) else Color(0xFF1E293B),
-                                                border = BorderStroke(
-                                                    1.dp,
-                                                    if (ready) Color(0xFFD4AF37).copy(alpha = 0.6f) else Color(0xFF475569)
-                                                ),
-                                                modifier = Modifier.clickable {
-                                                    if (!ready) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "⛔ قالب $name ينقصه: ${missing.joinToString("، ")} — أدخل مفاتيحها أولاً",
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
-                                                        keyDialogInitialTab = 0
-                                                        showKeyDialog = true
-                                                    } else {
-                                                        MultiModelAgentOrchestrator.saveTeam(context, members.map { it.copy() })
-                                                        Toast.makeText(context, "تم تجهيز $name ✅ — اكتب أمرك وابدأ", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }.wrapContentWidth()
-                                            ) {
-                                                Text(
-                                                    text = (if (ready) "✅ " else "⚠️ ") + name,
-                                                    fontSize = 10.sp,
-                                                    color = if (ready) Color(0xFFD4AF37) else Color(0xFF94A3B8),
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                            }
                                         }
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        // Quick Chips
-                        Text(
-                            text = "أوامر سريعة مقترحة:",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF94A3B8)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(quickPrompts) { qp ->
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth().background(Color(0xFF070B14), RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (!isOfflineMode) Color(0xFF00E5FF).copy(alpha = 0.25f) else Color.Transparent,
+                                    border = if (!isOfflineMode) BorderStroke(1.dp, Color(0xFF00E5FF)) else null,
+                                    modifier = Modifier.weight(1f).clickable { isOfflineMode = false; OnDeviceModelManager.setOfflineModeActive(context, false) }
+                                ) {
+                                    Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("سحابي", fontSize = 11.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8))
+                                    }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isOfflineMode) Color(0xFFE5B842).copy(alpha = 0.25f) else Color.Transparent,
+                                    border = if (isOfflineMode) BorderStroke(1.dp, Color(0xFFE5B842)) else null,
+                                    modifier = Modifier.weight(1f).clickable { isOfflineMode = true; OnDeviceModelManager.setOfflineModeActive(context, true) }
+                                ) {
+                                    Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("محلي", fontSize = 11.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8))
+                                    }
+                                }
+                            }
+                            if (isOfflineMode) {
+                                Spacer(Modifier.height(8.dp))
+                                val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF1E293B),
-                                    border = BorderStroke(1.dp, Color(0xFF475569)),
-                                    modifier = Modifier
-                                        .clickable(enabled = !isExecuting) { promptInput = qp }
-                                        .wrapContentWidth()
+                                    color = if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth().clickable { showOnDeviceDialog = true }
                                 ) {
-                                    Text(
-                                        text = qp,
-                                        fontSize = 10.sp,
-                                        color = Color(0xFFCBD5E1),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-                            }
-                        }
-
-                        // Missing Key / Offline Model Warning Banners
-                        if (isOfflineMode) {
-                            val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                            Spacer(modifier = Modifier.height(10.dp))
-                            if (isLocalInstalled) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showOnDeviceDialog = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = Color(0xFF10B981),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
+                                    Column(Modifier.padding(10.dp)) {
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                             Text(
-                                                text = "الوكيل المحلي جاهز (On-Device): ${activeLocalModel.name} ✅",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                            Text(
-                                                text = "يعمل 100% بدون إنترنت وبدون مفاتيح API عبر معالج الهاتف مباشرة.",
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF6EE7B7)
+                                                text = if (isLocalInstalled) "جاهز" else "يلزم التنزيل",
+                                                fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                                color = if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(
+                                                    if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f),
+                                                    RoundedCornerShape(4.dp)
+                                                )
                                             )
                                         }
                                     }
                                 }
                             } else {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showOnDeviceDialog = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CloudDownload,
-                                            contentDescription = null,
-                                            tint = Color(0xFFF59E0B),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "يلزم تنزيل النموذج المحلي (${activeLocalModel.sizeFormatted})",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                            Text(
-                                                text = "اضغط هنا لفتح مركز التنزيل وتحميل ${activeLocalModel.name} للعمل بدون إنترنت.",
-                                                fontSize = 10.sp,
-                                                color = Color(0xFFFDE68A)
-                                            )
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = Color(0xFFE5B842).copy(alpha = 0.2f),
-                                                border = BorderStroke(0.8.dp, Color(0xFFE5B842).copy(alpha = 0.6f)),
-                                                modifier = Modifier.wrapContentWidth()
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(13.dp))
-                                                    Spacer(modifier = Modifier.width(5.dp))
-                                                    Text(text = "فتح مركز التنزيل الآن 📥", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5B842))
-                                                }
-                                            }
-                                        }
-                                    }
+                                Spacer(Modifier.height(8.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    HealthPill(
+                                        name = "Gemini",
+                                        isConnected = geminiHealth.isConnected,
+                                        latencyMs = geminiHealth.latencyMs,
+                                        detail = geminiHealth.statusDetail,
+                                        onClick = { keyDialogInitialTab = 0; showKeyDialog = true },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    HealthPill(
+                                        name = "GitHub",
+                                        isConnected = githubHealth.isConnected,
+                                        latencyMs = githubHealth.latencyMs,
+                                        detail = githubHealth.statusDetail,
+                                        onClick = { showRepoDialog = true },
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
                             }
-                        } else if (keyResolution.third == KeySource.NONE) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFEF4444).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        keyDialogInitialTab = 0
-                                        showKeyDialog = true
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.KeyOff,
-                                        contentDescription = null,
-                                        tint = Color(0xFFEF4444),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "الوكيل غير متصل - يلزم إدخال مفتاح API",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "يلتزم الوكيل بدستور الصدق التام ولا ينفذ أوامر وهمية. اضغط هنا لإدخال مفتاحك وفحصه حياً.",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFFFCA5A5)
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = Color(0xFF00E5FF).copy(alpha = 0.2f),
-                                            border = BorderStroke(0.8.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
-                                            modifier = Modifier
-                                                .clickable {
-                                                    keyDialogInitialTab = 1
-                                                    showKeyDialog = true
-                                                }
-                                                .wrapContentWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CardGiftcard,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFF00E5FF),
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(5.dp))
-                                                Text(
-                                                    text = "تصفح المنصات المجانية للحصول على مفتاح برمجة 🎁",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF00E5FF)
-                                                )
-                                            }
+                        }
+
+                        // Container 2: Specialization
+                        AgentContainer(title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = Color(0xFFD4AF37)) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                items(AgentSpecialization.entries.toTypedArray()) { spec ->
+                                    val isSelected = selectedSpec == spec
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else Color(0xFF0F172A),
+                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else Color(0xFF334155)),
+                                        modifier = Modifier.heightIn(min = 40.dp).clickable { selectedSpec = spec }.wrapContentWidth()
+                                    ) {
+                                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(15.dp))
+                                            Spacer(Modifier.width(5.dp))
+                                            Text(
+                                                text = spec.title, fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) Color.White else Color(0xFF94A3B8), maxLines = 1
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Action Buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        // Container 3: Prompt & Execute
+                        AgentContainer(title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = Color(0xFF10B981)) {
+                            OutlinedTextField(
+                                value = promptInput,
+                                onValueChange = { promptInput = it },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 140.dp).testTag("agent_studio_prompt_input"),
+                                placeholder = { Text("اكتب أمرك هنا...", color = Color(0xFF64748B), fontSize = 12.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF00E5FF), unfocusedBorderColor = Color(0xFF334155),
+                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Color(0xFF00E5FF)
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = !isExecuting,
+                                maxLines = 6
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            if (!isOfflineMode) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                    item {
+                                        OutlinedButton(
+                                            onClick = { showModelPicker = true },
+                                            modifier = Modifier.height(34.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f), contentColor = Color(0xFF00E5FF))
+                                        ) {
+                                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(selectedModel.take(20), fontSize = 10.sp, fontFamily = CairoFont, maxLines = 1)
+                                        }
+                                    }
+                                    item {
+                                        OutlinedButton(
+                                            onClick = onOpenTeamConfig,
+                                            modifier = Modifier.height(34.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f), contentColor = Color(0xFFD4AF37))
+                                        ) {
+                                            Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("فريق النماذج", fontSize = 10.sp, fontFamily = CairoFont, maxLines = 1)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                            }
+                            Text(
+                                text = "أوامر سريعة:",
+                                fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                items(quickPrompts) { qp ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF1E293B),
+                                        border = BorderStroke(1.dp, Color(0xFF475569)),
+                                        modifier = Modifier.clickable(enabled = !isExecuting) { promptInput = qp }.wrapContentWidth()
+                                    ) {
+                                        Text(qp.take(30) + "...", fontSize = 9.sp, color = Color(0xFFCBD5E1), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1)
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
                             val isLocalReady = isOfflineMode && OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
                             val isCloudReady = !isOfflineMode && keyResolution.third != KeySource.NONE
                             val canExecute = if (isOfflineMode) isLocalReady else isCloudReady
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (isExecuting) {
                                     Button(
-                                        onClick = {
-                                            executionJob?.cancel()
-                                            executionJob = null
-                                            isExecuting = false
-                                            Toast.makeText(context, "تم إلغاء المهمة ⏹️", Toast.LENGTH_SHORT).show()
-                                        },
-                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        onClick = { executionJob?.cancel(); executionJob = null; isExecuting = false; Toast.makeText(context, "تم إلغاء المهمة", Toast.LENGTH_SHORT).show() },
+                                        modifier = Modifier.weight(1f).height(46.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("إيقاف المهمة ⏹️", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("إيقاف", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 } else {
                                     Button(
                                         onClick = {
-                                            if (isOfflineMode && !isLocalReady) {
-                                                showOnDeviceDialog = true
-                                                Toast.makeText(context, "الرجاء تنزيل النموذج المحلي أولاً للعمل بدون إنترنت", Toast.LENGTH_SHORT).show()
-                                                return@Button
-                                            }
-                                            if (!isOfflineMode && !isCloudReady) {
-                                                showKeyDialog = true
-                                                Toast.makeText(context, "يلزم إدخال مفتاح API وفحصه حياً أولاً", Toast.LENGTH_SHORT).show()
-                                                return@Button
-                                            }
-                                            // 🔑 منع تعارض وضع الفريق مع وضع النموذج المحلي
-                                            if (isTeamMode && isOfflineMode) {
-                                                Toast.makeText(context, "وضع الفريق يتطلب اتصالاً سحابياً — عطّل وضع النموذج المحلي أولاً", Toast.LENGTH_LONG).show()
-                                                return@Button
-                                            }
-                                            // 🔗 بوابة المستودع: الفريق يعمل على مستودع حقيقي يراه — لا عمل بلا ربط
-                                            if (isTeamMode && RepoVaultManager.getActiveRepo(context) == null) {
-                                                showRepoDialog = true
-                                                Toast.makeText(context, "اربط مستودع GitHub أولاً — القائد يحتاج رؤية الشجرة ووجهة الدفع 🔗", Toast.LENGTH_LONG).show()
-                                                return@Button
-                                            }
+                                            if (isOfflineMode && !isLocalReady) { showOnDeviceDialog = true; return@Button }
+                                            if (!isOfflineMode && !isCloudReady) { showKeyDialog = true; return@Button }
+                                            if (isTeamMode && isOfflineMode) { Toast.makeText(context, "وضع الفريق يتطلب اتصالاً سحابياً", Toast.LENGTH_LONG).show(); return@Button }
+                                            if (isTeamMode && RepoVaultManager.getActiveRepo(context) == null) { showRepoDialog = true; Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show(); return@Button }
                                             val prompt = promptInput.trim()
-                                            if (prompt.isBlank()) {
-                                                Toast.makeText(context, "يرجى كتابة أمر للوكيل أولاً", Toast.LENGTH_SHORT).show()
-                                                return@Button
-                                            }
-
+                                            if (prompt.isBlank()) { Toast.makeText(context, "اكتب أمراً أولاً", Toast.LENGTH_SHORT).show(); return@Button }
                                             lastExecutedPrompt = prompt
                                             isExecuting = true
                                             val job = coroutineScope.launch {
                                                 try {
                                                     if (isTeamMode) {
-                                                        // 🔑 وضع الفريق متعدد النماذج
-                                                        val mission = executeAgentMissionMultiModel(
-                                                            context = context,
-                                                            userPrompt = prompt,
-                                                            specialization = selectedSpec,
-                                                            onUpdate = { liveMission -> currentMission = liveMission },
-                                                            onTeamProgress = { progressText ->
-                                                                teamProgressText = progressText
-                                                            }
-                                                        )
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, { currentMission = it }, { teamProgressText = it })
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
                                                     } else {
-                                                        executeAgentMission(
-                                                        context = context,
-                                                        prompt = prompt,
-                                                        spec = selectedSpec,
-                                                        repo = activeRepo,
-                                                        selectedModel = selectedModel,
-                                                        onUpdate = { mission ->
-                                                            currentMission = mission
-                                                        },
-                                                        onFinished = { finalMission ->
+                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, { currentMission = it }, { finalMission ->
                                                             currentMission = finalMission
                                                             missionHistory = listOf(finalMission) + missionHistory
-                                                        }
-                                                    )
+                                                        })
                                                     }
-                                                } catch (e: kotlinx.coroutines.CancellationException) {
-                                                    // do nothing — finally resets state
+                                                } catch (_: kotlinx.coroutines.CancellationException) {
                                                 } finally {
                                                     isExecuting = false
                                                     executionJob = null
@@ -1679,299 +674,168 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                             }
                                             executionJob = job
                                         },
-                                        enabled = !isExecuting && (promptInput.isNotBlank() || !canExecute),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp)
-                                            .testTag("agent_studio_execute_btn"),
+                                        enabled = !isExecuting,
+                                        modifier = Modifier.weight(1f).height(46.dp).testTag("agent_studio_execute_btn"),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF00E5FF),
                                             contentColor = if (!canExecute) Color.White else Color(0xFF070B14)
                                         ),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        if (!canExecute) {
-                                            Icon(
-                                                imageVector = if (isOfflineMode) Icons.Default.Download else Icons.Default.Key,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = if (isOfflineMode) "تنزيل النموذج المحلي 📥" else "إدخال وتفعيل المفتاح 🔑",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = if (isOfflineMode) Icons.Default.Memory else Icons.AutoMirrored.Filled.Send,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = if (isOfflineMode) "تنفيذ الأمر محلياً 📴" else "تنفيذ المهمة عبر الوكيل 🚀",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-                                    }
-
-                                    if (lastExecutedPrompt.isNotBlank()) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                val prompt = lastExecutedPrompt
-                                                promptInput = prompt
-                                                isExecuting = true
-                                                val job = coroutineScope.launch {
-                                                    try {
-                                                        if (isTeamMode) {
-                                                            // 🔑 نحفظ وضع الفريق عند إعادة المحاولة
-                                                            val mission = executeAgentMissionMultiModel(
-                                                                context = context,
-                                                                userPrompt = prompt,
-                                                                specialization = selectedSpec,
-                                                                onUpdate = { liveMission -> currentMission = liveMission },
-                                                                onTeamProgress = { progressText ->
-                                                                    teamProgressText = progressText
-                                                                }
-                                                            )
-                                                            currentMission = mission
-                                                            missionHistory = listOf(mission) + missionHistory
-                                                        } else {
-                                                        executeAgentMission(
-                                                            context = context,
-                                                            prompt = prompt,
-                                                            spec = selectedSpec,
-                                                            repo = activeRepo,
-                                                            selectedModel = selectedModel,
-                                                            onUpdate = { mission -> currentMission = mission },
-                                                            onFinished = { finalMission ->
-                                                                currentMission = finalMission
-                                                                missionHistory = listOf(finalMission) + missionHistory
-                                                            }
-                                                        )
-                                                        }
-                                                    } catch (e: kotlinx.coroutines.CancellationException) {
-                                                        // do nothing — finally will reset
-                                                    } finally {
-                                                        isExecuting = false
-                                                        executionJob = null
-                                                        teamProgressText = ""
-                                                    }
-                                                }
-                                                executionJob = job
-                                            },
-                                            modifier = Modifier.wrapContentWidth().height(48.dp),
-                                            shape = RoundedCornerShape(10.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                                        ) {
-                                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("إعادة المحاولة 🔁", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        }
+                                        Icon(
+                                            imageVector = if (!canExecute) Icons.Default.Key else if (isOfflineMode) Icons.Default.Memory else Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = null, modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = if (!canExecute) "يلزم مفتاح" else if (isOfflineMode) "تنفيذ محلي" else "تنفيذ المهمة",
+                                            fontWeight = FontWeight.Bold, fontSize = 12.sp
+                                        )
                                     }
                                 }
-
-                                if (promptInput.isNotBlank() && !isExecuting) {
+                                if (lastExecutedPrompt.isNotBlank() && !isExecuting) {
                                     OutlinedButton(
-                                        onClick = { promptInput = "" },
-                                        modifier = Modifier.height(48.dp),
+                                        onClick = {
+                                            val prompt = lastExecutedPrompt
+                                            promptInput = prompt
+                                            isExecuting = true
+                                            val job = coroutineScope.launch {
+                                                try {
+                                                    if (isTeamMode) {
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, { currentMission = it }, { teamProgressText = it })
+                                                        currentMission = mission
+                                                        missionHistory = listOf(mission) + missionHistory
+                                                    } else {
+                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, { currentMission = it }, { finalMission ->
+                                                            currentMission = finalMission
+                                                            missionHistory = listOf(finalMission) + missionHistory
+                                                        })
+                                                    }
+                                                } catch (_: kotlinx.coroutines.CancellationException) {
+                                                } finally {
+                                                    isExecuting = false
+                                                    executionJob = null
+                                                    teamProgressText = ""
+                                                }
+                                            }
+                                            executionJob = job
+                                        },
+                                        modifier = Modifier.height(46.dp),
                                         shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF64748B))
+                                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
                                     ) {
-                                        Text("مسح", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(13.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("إعادة", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     }
-                                }
-                            }
-
-                            if (promptInput.isNotBlank() && !isExecuting) {
-                                OutlinedButton(
-                                    onClick = { promptInput = "" },
-                                    modifier = Modifier.height(48.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF64748B))
-                                ) {
-                                    Text("مسح", color = Color(0xFF94A3B8), fontSize = 12.sp)
                                 }
                             }
                         }
-                    }
-                }
-            }
 
-            // 3. Current Live Mission Activity Stream
-            currentMission?.let { mission ->
-                item {
-                    LiveMissionExecutionCard(
-                        mission = mission,
-                        teamProgress = teamProgressText,
-                        isTeamMode = isTeamMode,
-                        verifyingBuild = verifyingBuild,
-                        onVerifyBuild = {
-                            if (activeRepo == null || activeRepo.token.isBlank()) {
-                                Toast.makeText(context, "اربط مستودع GitHub برمز صالح أولاً 🔗", Toast.LENGTH_LONG).show()
-                            } else if (!verifyingBuild) {
-                                verifyingBuild = true
-                                coroutineScope.launch {
-                                    try {
-                                        val gate = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                            fetchTeamBuildFeedback(context)
-                                        }
-                                        when (gate.state) {
-                                            BuildVerificationEngine.BuildGateState.PASSED -> {
-                                                currentMission = mission.copy(
-                                                    buildTriggered = true,
-                                                    status = AgentTaskStatus.COMPLETED,
-                                                    steps = mission.steps + AgentExecutionStep(
-                                                        title = "✅ بوابة البناء",
-                                                        description = "نجح البناء الفعلي لكوميت ${gate.commitSha.take(8)}.",
-                                                        toolName = "ci_gate",
-                                                        isSuccess = true,
-                                                        outputSnippet = "CI: success — ${gate.runUrl}"
-                                                    )
-                                                )
-                                                Toast.makeText(context, "البناء ناجح ✅ — القبول مضمون بالبناء الفعلي", Toast.LENGTH_LONG).show()
+                        // Container 4: Active Mission
+                        currentMission?.let { mission ->
+                            item {
+                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = Color(0xFFD4AF37)) {
+                                    LiveMissionExecutionCard(
+                                        mission = mission,
+                                        teamProgress = teamProgressText,
+                                        isTeamMode = isTeamMode,
+                                        verifyingBuild = verifyingBuild,
+                                        onVerifyBuild = {
+                                            if (activeRepo == null || activeRepo.token.isBlank()) {
+                                                Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
+                                            } else if (!verifyingBuild) {
+                                                verifyingBuild = true
+                                                coroutineScope.launch {
+                                                    try {
+                                                        val gate = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { fetchTeamBuildFeedback(context) }
+                                                        when (gate.state) {
+                                                            BuildVerificationEngine.BuildGateState.PASSED -> {
+                                                                currentMission = mission.copy(buildTriggered = true, status = AgentTaskStatus.COMPLETED)
+                                                                Toast.makeText(context, "البناء ناجح", Toast.LENGTH_LONG).show()
+                                                            }
+                                                            BuildVerificationEngine.BuildGateState.PENDING -> Toast.makeText(context, "البناء قيد التشغيل — انتظر", Toast.LENGTH_LONG).show()
+                                                            BuildVerificationEngine.BuildGateState.FAILED -> Toast.makeText(context, "فشل البناء — يعيد الفريق الإصلاح", Toast.LENGTH_LONG).show()
+                                                            else -> Toast.makeText(context, "تعذر تحديد حالة البناء", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    } catch (_: kotlinx.coroutines.CancellationException) {
+                                                    } finally { verifyingBuild = false }
+                                                }
                                             }
-                                            BuildVerificationEngine.BuildGateState.PENDING -> {
-                                                Toast.makeText(context, "البناء قيد التشغيل ⏳ — انتظر دقيقة ثم أعد الفحص", Toast.LENGTH_LONG).show()
+                                        },
+                                        onTriggerBuild = {
+                                            val base = currentMission ?: mission
+                                            coroutineScope.launch { runBuildVerification(context, base) { currentMission = it } }
+                                        },
+                                        onApplyDiff = { diff ->
+                                            if (activeRepo == null || activeRepo.token.isBlank()) {
+                                                Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                applyingDiffPath = diff.filePath
+                                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                                    val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
+                                                    val ok = client.updateFile(diff.filePath, activeRepo.defaultBranch.ifBlank { "main" }, "feat(agent): update", diff.diffText)
+                                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                        applyingDiffPath = null
+                                                        if (ok) {
+                                                            val pushed = (currentMission ?: mission).copy(appliedPaths = (currentMission ?: mission).appliedPaths + diff.filePath)
+                                                            currentMission = pushed
+                                                            Toast.makeText(context, "تم الدفع", Toast.LENGTH_LONG).show()
+                                                            runBuildVerification(context, pushed) { currentMission = it }
+                                                        } else {
+                                                            Toast.makeText(context, "تعذر الدفع", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            BuildVerificationEngine.BuildGateState.FAILED -> {
-                                                teamProgressText = "🛠️ فشل البناء — الفريق يعيد الإصلاح على أخطاء CI..."
-                                                val updated = executeAgentMissionMultiModel(
-                                                    context = context,
-                                                    userPrompt = mission.userPrompt,
-                                                    specialization = mission.specialization,
-                                                    onUpdate = { liveMission -> currentMission = liveMission },
-                                                    onTeamProgress = { progressText -> teamProgressText = progressText },
-                                                    buildFeedback = gate.feedback
-                                                )
-                                                currentMission = updated
-                                                missionHistory = listOf(updated) + missionHistory
-                                            }
-                                            else -> {
-                                                Toast.makeText(context, "تعذّر تحديد حالة البناء — تحقق من الربط والصلاحيات", Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                    } catch (e: kotlinx.coroutines.CancellationException) {
-                                        // ignore
-                                    } finally {
-                                        verifyingBuild = false
-                                    }
-                                }
-                            }
-                        },
-                        onTriggerBuild = {
-                            val base = currentMission ?: mission
-                            coroutineScope.launch {
-                                runBuildVerification(context, base) { updated ->
-                                    currentMission = updated
-                                }
-                            }
-                        },
-                        onApplyDiff = { diff ->
-                            if (activeRepo == null || activeRepo.token.isBlank()) {
-                                Toast.makeText(context, "اربط مستودع GitHub برمز صالح أولاً 🔗", Toast.LENGTH_LONG).show()
-                            } else {
-                                applyingDiffPath = diff.filePath
-                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
-                                    val ok = client.updateFile(
-                                        diff.filePath,
-                                        activeRepo.defaultBranch.ifBlank { "main" },
-                                        "feat(agent): update ${diff.filePath.substringAfterLast("/")}",
-                                        diff.diffText
+                                        },
+                                        onDiscardDiff = { diff ->
+                                            currentMission = mission.copy(proposedDiffs = mission.proposedDiffs.filterNot { it.filePath == diff.filePath })
+                                            Toast.makeText(context, "تم التجاهل", Toast.LENGTH_SHORT).show()
+                                        },
+                                        applyingPath = applyingDiffPath
                                     )
-                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        applyingDiffPath = null
-                                        if (ok) {
-                                            val pushed = (currentMission ?: mission).copy(
-                                                appliedPaths = (currentMission ?: mission).appliedPaths + diff.filePath
-                                            )
-                                            currentMission = pushed
-                                            Toast.makeText(context, "تم الاعتماد والدفع ✅ — بدأ التحقق الفعلي من البناء", Toast.LENGTH_LONG).show()
-                                            // 🔬 بعد الدفع: أطلق بناءً حقيقياً وراقبه حتى الاكتمال
-                                            runBuildVerification(context, pushed) { verified ->
-                                                currentMission = verified
-                                            }
-                                        } else {
-                                            Toast.makeText(context, "تعذر الدفع — تحقق من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
-                                        }
+                                }
+                            }
+                        }
+
+                        // Container 5: History
+                        if (missionHistory.isNotEmpty()) {
+                            item {
+                                AgentContainer(title = "سجل العمليات", icon = Icons.Default.History, accent = Color(0xFF94A3B8)) {
+                                    missionHistory.take(5).forEach { itemMission ->
+                                        HistoricalMissionCard(itemMission)
+                                        Spacer(Modifier.height(6.dp))
                                     }
                                 }
                             }
-                        },
-                        onDiscardDiff = { diff ->
-                            currentMission = mission.copy(
-                                proposedDiffs = mission.proposedDiffs.filterNot { it.filePath == diff.filePath }
-                            )
-                            Toast.makeText(context, "تم تجاهل المقترح (تراجع) 🗑️", Toast.LENGTH_SHORT).show()
-                        },
-                        applyingPath = applyingDiffPath
-                    )
-                }
-            }
+                        }
 
-            // 4. Mission History
-            if (missionHistory.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "سجل العمليات المنجزة حديثاً:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE5B842),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                items(missionHistory) { itemMission ->
-                    HistoricalMissionCard(itemMission)
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
+                        item { Spacer(Modifier.height(24.dp)) }
                     }
                 }
             }
         }
     }
 
-    // Dialogs
     if (showKeyDialog) {
         ApiKeySetupDialog(
-            context = context,
-            initialTab = keyDialogInitialTab,
+            context = context, initialTab = keyDialogInitialTab,
             onKeySaved = { refreshDiagnostics() },
             onOpenOnDeviceModels = { showOnDeviceDialog = true },
             onExportMission = { exportMissionJson() },
-            onImportMission = {
-                val json = prefs.getString("active_mission_json", "") ?: ""
-                if (json.isNotBlank()) importMissionFromJson(json)
-            },
+            onImportMission = { val json = prefs.getString("active_mission_json", "") ?: ""; if (json.isNotBlank()) importMissionFromJson(json) },
             onDismiss = { showKeyDialog = false }
         )
     }
-
-    if (showRepoDialog) {
-        RepoSetupDialog(
-            context = context,
-            activeRepo = activeRepo,
-            onDismiss = { showRepoDialog = false }
-        )
-    }
-
+    if (showRepoDialog) { RepoSetupDialog(context = context, activeRepo = activeRepo, onDismiss = { showRepoDialog = false }) }
     if (showOnDeviceDialog) {
         OnDeviceModelDownloadDialog(
             context = context,
-            onModelActivated = {
-                isOfflineMode = OnDeviceModelManager.isOfflineModeActive(context)
-                activeLocalModel = OnDeviceModelManager.getSelectedModel(context)
-            },
+            onModelActivated = { isOfflineMode = OnDeviceModelManager.isOfflineModeActive(context); activeLocalModel = OnDeviceModelManager.getSelectedModel(context) },
             onDismiss = { showOnDeviceDialog = false }
         )
     }
-
-    // Model Picker Dialog
     if (showModelPicker) {
         val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
         val models = when (provider) {
@@ -1981,18 +845,13 @@ LaunchedEffect(currentMission, isOfflineMode) {
             DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
             else -> listOf("gemini-3.5-flash")
         }
-
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showModelPicker = false },
             title = { Text("اختر النموذج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) {
                     models.forEach { m ->
-                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .clickable { selectedModel = m; showModelPicker = false }
-                            .background(if (selectedModel == m) Color(0xFF00E5FF).copy(alpha = 0.15f) else Color.Transparent))
+                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier.fillMaxWidth().padding(14.dp).clickable { selectedModel = m; showModelPicker = false }.background(if (selectedModel == m) Color(0xFF00E5FF).copy(alpha = 0.15f) else Color.Transparent))
                     }
                 }
             },
@@ -2001,148 +860,72 @@ LaunchedEffect(currentMission, isOfflineMode) {
             containerColor = Color(0xFF0B132B)
         )
     }
-
     if (showExitConfirmation) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showExitConfirmation = false },
             title = { Text("تأكيد الخروج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = { Text("هل تريد حقاً الخروج من التطبيق؟", color = Color(0xFFE2E8F0), fontFamily = NotoSansFont) },
             confirmButton = {
-                TextButton(onClick = {
-                    showExitConfirmation = false
-                    onBack()
-                }) {
-                    Text("نعم، خروج", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
+                TextButton(onClick = { showExitConfirmation = false; onBack() }) { Text("نعم، خروج", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showExitConfirmation = false }) {
-                    Text("إلغاء", color = Color(0xFF94A3B8), fontFamily = CairoFont)
-                }
+                TextButton(onClick = { showExitConfirmation = false }) { Text("إلغاء", color = Color(0xFF94A3B8), fontFamily = CairoFont) }
             },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         )
     }
 }
 
-/**
- * 🛡️ موديول الأدوات والجاهزية الموحّد (Unified Tools & Readiness Matrix Deck)
- * يدمج فحص شروط الجاهزية مع ترسانة الأدوات البرمجية وإعدادات الوكيل في منصة هندسية واحدة.
- */
 @Composable
-private fun UnifiedToolsAndReadinessSection(
-    context: Context,
-    scope: CoroutineScope,
-    onJumpKeys: () -> Unit,
+private fun AgentContainer(
+    title: String,
+    icon: ImageVector,
+    accent: Color,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF0D1527).copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+            }
+            Spacer(Modifier.height(8.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun HealthPill(
+    name: String,
+    isConnected: Boolean,
+    latencyMs: Long,
+    detail: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var subTab by remember { mutableStateOf(0) }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF05070D))
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isConnected) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, if (isConnected) Color(0xFF10B981).copy(alpha = 0.45f) else Color(0xFFF59E0B).copy(alpha = 0.45f)),
+        modifier = modifier.clickable(onClick = onClick)
     ) {
-        // Holographic Sub-Deck Switcher
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF0A101E))
-                .border(
-                    BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFF00E5FF).copy(alpha = 0.4f),
-                                Color(0xFF10B981).copy(alpha = 0.4f)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(10.dp)
-                )
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 0) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.Transparent,
-                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)) else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { subTab = 0 }
-                    .testTag("sub_tab_readiness")
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = if (subTab == 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "فحص الجاهزية والربط",
-                        fontSize = 12.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 0) Color.White else Color(0xFF94A3B8),
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
+        Column(Modifier.padding(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)))
+                Spacer(Modifier.width(5.dp))
+                Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.weight(1f))
+                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
             }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 1) Color(0xFF10B981).copy(alpha = 0.22f) else Color.Transparent,
-                border = if (subTab == 1) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { subTab = 1 }
-                    .testTag("sub_tab_tools")
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Handyman,
-                        contentDescription = null,
-                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF94A3B8),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "ترسانة الأدوات والـ Git",
-                        fontSize = 12.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 1) Color.White else Color(0xFF94A3B8),
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-        }
-
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (subTab == 0) {
-                RequirementsTab(
-                    context = context,
-                    scope = scope,
-                    onJumpBuildCenter = {},
-                    onJumpKeys = onJumpKeys
-                )
-            } else {
-                ToolsTab(context = context)
-            }
+            Spacer(Modifier.height(3.dp))
+            Text(detail.take(50), fontSize = 9.sp, color = Color(0xFFCBD5E1), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
