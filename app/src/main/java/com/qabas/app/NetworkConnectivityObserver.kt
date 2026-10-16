@@ -52,15 +52,23 @@ class NetworkConnectivityObserver(private val context: Context) : ConnectivityOb
                 }
             }
 
-            connectivityManager.registerNetworkCallback(
-                NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .build(),
-                callback
-            )
+            val registered = runCatching {
+                connectivityManager.registerNetworkCallback(
+                    NetworkRequest.Builder()
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        .build(),
+                    callback
+                )
+            }.isSuccess
 
-            awaitClose {
-                connectivityManager.unregisterNetworkCallback(callback)
+            if (registered) {
+                awaitClose {
+                    runCatching { connectivityManager.unregisterNetworkCallback(callback) }
+                }
+            } else {
+                // Platform refused another callback (e.g. Android 14+ TooManyRequestsException).
+                // Keep the last known status instead of crashing.
+                awaitClose { }
             }
         }.distinctUntilChanged()
     }

@@ -108,6 +108,7 @@ object UserPreferencesManager {
     val networkStatus: StateFlow<ConnectivityObserver.Status> = _networkStatus.asStateFlow()
 
     private var hasPendingChanges = false
+    private var networkObserverStarted = false
 
     fun init(context: Context) {
         _networkStatus.value = if (NetworkUtils.isNetworkAvailable(context)) {
@@ -115,12 +116,19 @@ object UserPreferencesManager {
         } else {
             ConnectivityObserver.Status.Unavailable
         }
-        val observer = NetworkConnectivityObserver(context)
-        CoroutineScope(Dispatchers.Main).launch {
-            observer.observe().collect { status ->
-                _networkStatus.value = status
-                if (status == ConnectivityObserver.Status.Available && hasPendingChanges) {
-                    syncToSupabase(context)
+        // Register the connectivity observer exactly once per process. Starting a new
+        // collector on every Activity recreation leaked network callbacks and caused
+        // TooManyRequestsException crashes on Android 14+.
+        if (!networkObserverStarted) {
+            networkObserverStarted = true
+            val appContext = context.applicationContext
+            val observer = NetworkConnectivityObserver(appContext)
+            CoroutineScope(Dispatchers.Main).launch {
+                observer.observe().collect { status ->
+                    _networkStatus.value = status
+                    if (status == ConnectivityObserver.Status.Available && hasPendingChanges) {
+                        syncToSupabase(appContext)
+                    }
                 }
             }
         }

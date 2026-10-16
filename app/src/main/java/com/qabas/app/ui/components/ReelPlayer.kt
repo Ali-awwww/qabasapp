@@ -6,9 +6,11 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -42,10 +45,13 @@ fun ReelPlayer(
     videoUrl: String,
     isPlaying: Boolean,
     playbackSpeed: Float = 1.0f,
-    initialMuted: Boolean = false,
-    isMuted: Boolean = initialMuted,
+    volume: Float = 1f,
+    brightness: Float = 0.5f,
+    onBrightnessChange: (Float) -> Unit = {},
+    onVolumeChange: (Float) -> Unit = {},
     onVideoEnded: (() -> Unit)? = null,
     onDoubleTapLike: (() -> Unit)? = null,
+    onSingleTap: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -53,6 +59,11 @@ fun ReelPlayer(
     var isBuffering by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
     var showHeartAnimation by remember { mutableStateOf(false) }
+
+    // Vertical gesture HUD (left half = brightness, right half = volume)
+    var gestureKind by remember { mutableStateOf(GestureKind.NONE) }
+    var gestureValue by remember { mutableFloatStateOf(0f) }
+    var showGestureHud by remember { mutableStateOf(false) }
 
     // Guardrail: Safe ExoPlayer allocation with custom User-Agent and fallback
     val exoPlayer = remember(context) {
@@ -151,10 +162,10 @@ fun ReelPlayer(
         }
     }
 
-    LaunchedEffect(isMuted, exoPlayer) {
+    LaunchedEffect(volume, exoPlayer) {
         exoPlayer?.let { player ->
             runCatching {
-                player.volume = if (isMuted) 0f else 1f
+                player.volume = volume.coerceIn(0f, 1f)
             }
         }
     }
@@ -175,12 +186,42 @@ fun ReelPlayer(
             .background(Color.Black)
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onLongPress = { /* reserved so long-press never falls through to a tap */ },
                     onDoubleTap = {
                         showHeartAnimation = true
                         onDoubleTapLike?.invoke()
                     },
                     onTap = {
-                        isUserPaused = !isUserPaused
+                        if (onSingleTap != null) {
+                            onSingleTap.invoke()
+                        } else {
+                            isUserPaused = !isUserPaused
+                        }
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        val isLeftHalf = offset.x < size.width / 2f
+                        gestureKind = if (isLeftHalf) GestureKind.BRIGHTNESS else GestureKind.VOLUME
+                        gestureValue = if (isLeftHalf) brightness else volume
+                        showGestureHud = true
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        val delta = -dragAmount.y / size.height.toFloat()
+                        gestureValue = (gestureValue + delta).coerceIn(0f, 1f)
+                        when (gestureKind) {
+                            GestureKind.BRIGHTNESS -> onBrightnessChange(gestureValue)
+                            GestureKind.VOLUME -> onVolumeChange(gestureValue)
+                            GestureKind.NONE -> Unit
+                        }
+                    },
+                    onDragEnd = { showGestureHud = false },
+                    onDragCancel = {
+                        showGestureHud = false
+                        gestureKind = GestureKind.NONE
                     }
                 )
             }
@@ -324,5 +365,60 @@ fun ReelPlayer(
                     .scale(heartScale)
             )
         }
+
+        // Geometric gesture HUD (brightness / volume)
+        AnimatedVisibility(
+            visible = showGestureHud,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(
+                shape = CutCornerShape(16.dp),
+                color = Color.Black.copy(alpha = 0.72f),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                modifier = Modifier.size(width = 92.dp, height = 150.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (gestureKind == GestureKind.BRIGHTNESS) Icons.Default.BrightnessHigh else Icons.Default.VolumeUp,
+                        contentDescription = null,
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(10.dp)
+                            .height(64.dp)
+                            .clip(CutCornerShape(5.dp))
+                            .background(Color.White.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(gestureValue.coerceIn(0f, 1f))
+                                .clip(CutCornerShape(5.dp))
+                                .background(GoldPrimary)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "${(gestureValue.coerceIn(0f, 1f) * 100).toInt()}%",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
     }
 }
+
+private enum class GestureKind { NONE, BRIGHTNESS, VOLUME }

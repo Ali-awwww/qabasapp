@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.qabas.app.SupabaseServices
 import com.qabas.app.ui.components.ReelPlayer
+import com.qabas.app.ui.components.GeometricToolsDock
+import com.qabas.app.ui.components.DockTool
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
@@ -49,6 +52,7 @@ import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -73,7 +77,8 @@ fun ReelsScreen(
 
     // Collect Reel Settings
     val startMuted by ReelPreferencesManager.startMuted.collectAsState()
-    var isAudioMuted by remember(startMuted) { mutableStateOf(startMuted) }
+    var audioVolume by remember { mutableFloatStateOf(if (startMuted) 0f else 1f) }
+    val isAudioMuted = audioVolume <= 0.01f
     val autoplayWifiOnly by ReelPreferencesManager.autoplayWifiOnly.collectAsState()
     val autoScrollOnFinish by ReelPreferencesManager.autoScrollOnFinish.collectAsState()
     val playbackSpeed by ReelPreferencesManager.playbackSpeed.collectAsState()
@@ -109,8 +114,46 @@ fun ReelsScreen(
     var isKhushuMode by remember { mutableStateOf(false) }
     var showSoundscapeBar by remember { mutableStateOf(false) }
     var showTadabburCard by remember { mutableStateOf(false) }
-    var repeatLoopCount by remember { mutableIntStateOf(1) }
     var particles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
+
+    // Immersive chrome (bottom bar) visibility: hidden on entry with a smooth slide,
+    // auto-hides after 10s of inactivity, revealed by tapping the video or the handle.
+    var chromeVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(350)
+        chromeVisible = false
+    }
+    LaunchedEffect(chromeVisible) {
+        if (chromeVisible) {
+            delay(10_000)
+            chromeVisible = false
+        }
+    }
+
+    // Geometric tools dock (all screen tools consolidated in one collapsible drawer)
+    var dockExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(dockExpanded) {
+        if (dockExpanded) {
+            delay(12_000)
+            dockExpanded = false
+        }
+    }
+
+    // Loop the current reel (working) instead of auto-advancing
+    var loopCurrentReel by remember { mutableStateOf(false) }
+
+    // Screen brightness, adjusted by vertical swipe on the left half of the video
+    var screenBrightness by remember {
+        val activity = context as? Activity
+        val current = activity?.window?.attributes?.screenBrightness ?: -1f
+        mutableFloatStateOf(if (current in 0f..1f) current else 0.5f)
+    }
+    LaunchedEffect(screenBrightness) {
+        val activity = context as? Activity ?: return@LaunchedEffect
+        val attrs = activity.window.attributes
+        attrs.screenBrightness = screenBrightness
+        activity.window.attributes = attrs
+    }
 
     // Clean up soundscape on screen exit
     DisposableEffect(Unit) {
@@ -149,6 +192,9 @@ fun ReelsScreen(
     val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
     val currentUserId = SupabaseServices.Auth.getCurrentUserId() ?: currentUserEmail
+    val isDeveloper = remember(currentUserEmail) {
+        ReelPublishManager.isDeveloperUser(context, currentUserEmail)
+    }
 
     val loadReels = {
         scope.launch {
@@ -258,7 +304,15 @@ fun ReelsScreen(
     ReelCrashBoundary(onSafeExit = onBack) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0), // Full bleed without empty top gap
-            bottomBar = bottomBar,
+            bottomBar = {
+                AnimatedVisibility(
+                    visible = chromeVisible,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(280)),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(220))
+                ) {
+                    bottomBar()
+                }
+            },
             containerColor = Color.Black
         ) { paddingValues ->
             Box(
@@ -463,9 +517,11 @@ fun ReelsScreen(
                                 videoUrl = reel.videoUrl,
                                 isPlaying = isPageVisible && isNetworkPermitted,
                                 playbackSpeed = playbackSpeed,
-                                initialMuted = startMuted,
-                                isMuted = isAudioMuted,
-                                onVideoEnded = if (autoScrollOnFinish && page < displayReels.size - 1) {
+                                volume = audioVolume,
+                                brightness = screenBrightness,
+                                onBrightnessChange = { screenBrightness = it },
+                                onVolumeChange = { audioVolume = it },
+                                onVideoEnded = if (!loopCurrentReel && autoScrollOnFinish && page < displayReels.size - 1) {
                                     {
                                         scope.launch {
                                             pagerState.animateScrollToPage(page + 1)
@@ -478,6 +534,7 @@ fun ReelsScreen(
                                         else -> if (!isLiked) handleToggleLike()
                                     }
                                 },
+                                onSingleTap = { chromeVisible = !chromeVisible },
                                 modifier = Modifier.fillMaxSize()
                             )
 
@@ -568,6 +625,89 @@ fun ReelsScreen(
                         particles = particles.filterNot { it.id == pId }
                     }
                 )
+
+                // «مرصد قبس الهندسي» — collapsible geometric dock with all screen tools
+                if (!isKhushuMode) {
+                    GeometricToolsDock(
+                        expanded = dockExpanded,
+                        onToggle = {
+                            dockExpanded = !dockExpanded
+                            ReelPreferencesManager.triggerHaptic(context)
+                        },
+                        tools = listOf(
+                            DockTool(
+                                id = "publish",
+                                icon = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
+                                label = if (isDeveloper) "نشر 👑" else "نشر",
+                                onClick = {
+                                    showPublishDialog = true
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                }
+                            ),
+                            DockTool(
+                                id = "search",
+                                icon = Icons.Default.Search,
+                                label = "بحث",
+                                onClick = {
+                                    isSearchActive = !isSearchActive
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                },
+                                active = isSearchActive
+                            ),
+                            DockTool(
+                                id = "sound",
+                                icon = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                label = "الصوت",
+                                onClick = {
+                                    audioVolume = if (audioVolume <= 0.01f) 1f else 0f
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                },
+                                active = isAudioMuted,
+                                accent = Color(0xFFEF4444)
+                            ),
+                            DockTool(
+                                id = "loop",
+                                icon = Icons.Default.Repeat,
+                                label = "تكرار",
+                                onClick = {
+                                    loopCurrentReel = !loopCurrentReel
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                },
+                                active = loopCurrentReel
+                            ),
+                            DockTool(
+                                id = "settings",
+                                icon = Icons.Default.Tune,
+                                label = "الإعدادات",
+                                onClick = {
+                                    showSettingsSheet = true
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                }
+                            ),
+                            DockTool(
+                                id = "history",
+                                icon = Icons.Default.History,
+                                label = "السجل",
+                                onClick = {
+                                    showHistorySheet = true
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                }
+                            ),
+                            DockTool(
+                                id = "refresh",
+                                icon = Icons.Default.Refresh,
+                                label = "تحديث",
+                                onClick = {
+                                    loadReels()
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                }
+                            )
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 16.dp)
+                    )
+                }
 
                 // Top Spatial HUD Header (Clean, minimal, no empty space)
                 if (!isKhushuMode) {
@@ -672,121 +812,8 @@ fun ReelsScreen(
                                 }
                             }
 
-                            // Left Spatial Actions Capsule (Mute + Publish + Search + Settings)
-                            Surface(
-                                shape = RoundedCornerShape(22.dp),
-                                color = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                modifier = Modifier.height(38.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                ) {
-                                    val isDeveloper = remember(currentUserEmail) {
-                                        ReelPublishManager.isDeveloperUser(context, currentUserEmail)
-                                    }
-
-                                    // Sound Mute Toggle
-                                    IconButton(
-                                        onClick = {
-                                            isAudioMuted = !isAudioMuted
-                                            ReelPreferencesManager.triggerHaptic(context)
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                                            contentDescription = if (isAudioMuted) "تشغيل الصوت" else "كتم الصوت",
-                                            tint = if (isAudioMuted) Color(0xFFEF4444) else Color.White.copy(alpha = 0.9f),
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                    }
-
-                                    // Publish button
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(if (isDeveloper) GoldPrimary else GoldPrimary.copy(alpha = 0.18f))
-                                            .border(BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
-                                            .clickable {
-                                                showPublishDialog = true
-                                                ReelPreferencesManager.triggerHaptic(context)
-                                            }
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
-                                                contentDescription = "نشر",
-                                                tint = if (isDeveloper) DeepSlate else GoldPrimary,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = if (isDeveloper) "نشر 👑" else "نشر",
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                softWrap = false,
-                                                maxLines = 1,
-                                                color = if (isDeveloper) DeepSlate else GoldPrimary
-                                            )
-                                        }
-                                    }
-
-                                    // Search Icon
-                                    IconButton(
-                                        onClick = {
-                                            isSearchActive = !isSearchActive
-                                            ReelPreferencesManager.triggerHaptic(context)
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Search,
-                                            contentDescription = "بحث",
-                                            tint = if (isSearchActive) GoldPrimary else Color.White.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                    }
-
-                                    // Settings / History Icon
-                                    IconButton(
-                                        onClick = {
-                                            showSettingsSheet = true
-                                            ReelPreferencesManager.triggerHaptic(context)
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        BadgedBox(
-                                            badge = {
-                                                if (savedReels.isNotEmpty()) {
-                                                    Badge(
-                                                        containerColor = GoldPrimary,
-                                                        contentColor = DeepSlate
-                                                    ) {
-                                                        Text(
-                                                            text = "${savedReels.size}",
-                                                            fontSize = 8.sp,
-                                                            fontFamily = RobotoMonoFont
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Tune,
-                                                contentDescription = "إعدادات",
-                                                tint = Color.White.copy(alpha = 0.85f),
-                                                modifier = Modifier.size(17.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            // Spacer mirroring the back button so the tabs stay perfectly centered
+                            Spacer(modifier = Modifier.size(38.dp))
                         }
 
                         // Expandable Minimalist Search & Categories
