@@ -34,7 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
 
@@ -96,6 +98,14 @@ fun ProfileScreen(
     
     val projectService = remember { ProjectService(context) }
     var projectsCount by remember { mutableIntStateOf(0) }
+    var profileViewer by remember { mutableStateOf<CreatorFollowManager.ViewerIdentity?>(null) }
+    var followedCreators by remember { mutableStateOf<List<CreatorFollowManager.FollowedCreator>>(emptyList()) }
+    var ownFollowers by remember {
+        mutableStateOf(CreatorFollowManager.FollowerCount(0, isExact = false))
+    }
+    var isLoadingFollowCommunity by remember { mutableStateOf(true) }
+    var followActionId by remember { mutableStateOf<String?>(null) }
+    var showFollowList by remember { mutableStateOf(false) }
 
     // Social Accounts & Analytics State
     var socialAccounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
@@ -171,6 +181,31 @@ fun ProfileScreen(
             prefs.edit().putString("user_avatar_uri", uri.toString()).putInt("user_avatar_preset", -1).apply()
             Toast.makeText(context, "تم تحديث الصورة الشخصية بنجاح 📸", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    suspend fun refreshFollowCommunity() {
+        val viewer = withContext(Dispatchers.IO) {
+            CreatorFollowManager.currentViewer(context.applicationContext)
+        }
+        profileViewer = viewer
+        followedCreators = CreatorFollowManager.followedCreators(context.applicationContext)
+        val cloudCount = withContext(Dispatchers.IO) {
+            CreatorFollowManager.cloudFollowerCount(viewer.id)
+        }
+        ownFollowers = if (cloudCount != null) {
+            CreatorFollowManager.FollowerCount(cloudCount, isExact = true)
+        } else {
+            CreatorFollowManager.FollowerCount(
+                CreatorFollowManager.estimatedBaselineFollowers(viewer.id),
+                isExact = false
+            )
+        }
+    }
+
+    LaunchedEffect(displayName, userEmail) {
+        isLoadingFollowCommunity = true
+        refreshFollowCommunity()
+        isLoadingFollowCommunity = false
     }
 
     val totalPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
@@ -1084,6 +1119,252 @@ fun ProfileScreen(
                                 Icon(Icons.Default.History, null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("السجل والمحفوظات", fontFamily = CairoFont, fontSize = 11.sp, color = GoldPrimary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ─── Creator Follow Community Card ───
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.5f, glowElevation = 6.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = GoldPrimary.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Group,
+                                        contentDescription = null,
+                                        tint = GoldPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    "مجتمع المتابعة 🤝",
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    "ملفك متصل مباشرة بملفات صناع المحتوى",
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isLoadingFollowCommunity = true
+                                    refreshFollowCommunity()
+                                    isLoadingFollowCommunity = false
+                                }
+                            },
+                            enabled = !isLoadingFollowCommunity
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "تحديث المتابعة",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.05f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("أتابع", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text(
+                                    "${followedCreators.size}",
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GoldPrimary
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.05f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("يتابعني", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text(
+                                    if (isLoadingFollowCommunity) "…" else "${ownFollowers.value}",
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                if (!ownFollowers.isExact && !isLoadingFollowCommunity) {
+                                    Text(
+                                        "تقدير أولي",
+                                        fontFamily = CairoFont,
+                                        fontSize = 8.5.sp,
+                                        color = Color.White.copy(alpha = 0.45f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showFollowList = !showFollowList },
+                        modifier = Modifier.fillMaxWidth().height(38.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.18f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f))
+                    ) {
+                        Icon(
+                            if (showFollowList) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            if (showFollowList) "إخفاء قائمة المتابَعين" else "عرض قائمة المتابَعين (${followedCreators.size})",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            color = GoldPrimary
+                        )
+                    }
+
+                    if (showFollowList) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        if (followedCreators.isEmpty()) {
+                            Text(
+                                "لم تتابع أي صانع محتوى بعد. افتح أي ملف منشئ من الريلز وابدأ المتابعة.",
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.65f)
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                followedCreators.sortedByDescending { it.followedAt }.forEach { creator ->
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White.copy(alpha = 0.04f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = creator.avatarUrl ?: "https://ui-avatars.com/api/?name=${creator.displayName}&background=D4AF37&color=0B0F19",
+                                                contentDescription = null,
+                                                modifier = Modifier.size(34.dp).clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    creator.displayName,
+                                                    fontFamily = CairoFont,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = Color.White,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    creator.id,
+                                                    fontFamily = RobotoMonoFont,
+                                                    fontSize = 9.sp,
+                                                    color = Color.White.copy(alpha = 0.55f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            TextButton(
+                                                onClick = {
+                                                    val activeViewer = profileViewer ?: return@TextButton
+                                                    if (followActionId != null) return@TextButton
+                                                    followActionId = creator.id
+                                                    coroutineScope.launch {
+                                                        val applied = withContext(Dispatchers.IO) {
+                                                            CreatorFollowManager.setFollowed(
+                                                                context.applicationContext,
+                                                                activeViewer,
+                                                                creator.id,
+                                                                creator.displayName,
+                                                                creator.avatarUrl,
+                                                                false
+                                                            )
+                                                        }
+                                                        if (applied != null) {
+                                                            followedCreators = CreatorFollowManager.followedCreators(
+                                                                context.applicationContext
+                                                            )
+                                                            AppNotificationService.sendNotification(
+                                                                context,
+                                                                "ألغيت متابعة ${creator.displayName}",
+                                                                "أُزيل من تبويب المتابَعين وقائمتك الشخصية."
+                                                            )
+                                                            Toast.makeText(context, "تم إلغاء المتابعة", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        followActionId = null
+                                                    }
+                                                },
+                                                enabled = followActionId == null
+                                            ) {
+                                                Text(
+                                                    if (followActionId == creator.id) "جارٍ..." else "إلغاء المتابعة",
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFF87171)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

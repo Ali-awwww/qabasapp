@@ -559,7 +559,8 @@ fun AppNavigation(
         AppState.REELS -> {
             ReelsScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                bottomBar = bottomNav
+                bottomBar = bottomNav,
+                onOpenProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } }
             )
         }
         AppState.DOWNLOAD_MANAGER -> {

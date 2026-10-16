@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,29 +49,91 @@ fun ReelCreatorProfileSheet(
     creatorAvatar: String?,
     allReels: List<SupabaseServices.ReelRow>,
     onSelectReel: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewer: CreatorFollowManager.ViewerIdentity? = null,
+    onOpenMyProfile: () -> Unit = {},
+    onFollowChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences("qabas_creator_follows", Context.MODE_PRIVATE) }
-    var isFollowing by remember { mutableStateOf(prefs.getBoolean("follow_$creatorId", false)) }
-    var followersCount by remember { mutableIntStateOf(if (isFollowing) 129 else 128) }
+    val scope = rememberCoroutineScope()
+    val resolvedViewer = remember(viewer) { viewer ?: CreatorFollowManager.currentViewer(context) }
+    var community by remember { mutableStateOf<CreatorFollowManager.CreatorCommunity?>(null) }
+    var isLoadingCommunity by remember { mutableStateOf(true) }
+    var communityRefresh by remember { mutableIntStateOf(0) }
+    var isUpdatingFollow by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showDuaaDialog by remember { mutableStateOf(false) }
 
-    val creatorReels = remember(allReels, creatorId, creatorName) {
-        allReels.filter { it.userId == creatorId || it.userName == creatorName }
+    LaunchedEffect(creatorId, creatorName, creatorAvatar, communityRefresh) {
+        isLoadingCommunity = true
+        community = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            CreatorFollowManager.loadCreatorCommunity(
+                context.applicationContext,
+                creatorId,
+                creatorName,
+                creatorAvatar
+            )
+        }
+        isLoadingCommunity = false
+    }
+
+    val resolvedCommunity = community
+    val displayName = resolvedCommunity?.displayName ?: creatorName.ifBlank { creatorId }
+    val displayAvatar = resolvedCommunity?.avatarUrl ?: creatorAvatar
+    val isOwnProfile = resolvedCommunity?.isOwnProfile
+        ?: CreatorFollowManager.identitiesMatch(
+            creatorId,
+            creatorName,
+            resolvedViewer.id,
+            resolvedViewer.displayName,
+            resolvedViewer.email
+        )
+    val isFollowing = resolvedCommunity?.isFollowing
+        ?: CreatorFollowManager.isFollowing(context, creatorId)
+    val followers = resolvedCommunity?.followers
+        ?: CreatorFollowManager.FollowerCount(
+            CreatorFollowManager.estimatedBaselineFollowers(creatorId.ifBlank { creatorName }) +
+                if (CreatorFollowManager.isFollowing(context, creatorId) && !isOwnProfile) 1 else 0,
+            isExact = false
+        )
+    val appPrefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val ownHandle = remember(resolvedViewer.email) {
+        resolvedViewer.email?.let { UserIdentifierManager.getAccountNumber(context, it) }.orEmpty()
+    }
+    val ownBio = remember {
+        appPrefs.getString("user_bio", "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
+            ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+    }
+    val profileHandle = if (isOwnProfile) {
+        ownHandle.ifBlank { "@${resolvedViewer.id.take(14)}" }
+    } else {
+        "@${creatorId.take(14)}"
+    }
+
+    val creatorReels = remember(allReels, creatorId, displayName, isOwnProfile, resolvedViewer) {
+        allReels.filter { reel ->
+            reel.userId == creatorId ||
+                CreatorFollowManager.identitiesMatch(reel.userId, reel.userName, creatorId, displayName, null) ||
+                (isOwnProfile && CreatorFollowManager.identitiesMatch(
+                    reel.userId,
+                    reel.userName,
+                    resolvedViewer.id,
+                    resolvedViewer.displayName,
+                    resolvedViewer.email
+                ))
+        }
     }
 
     val totalLikes = remember(creatorReels) {
-        creatorReels.sumOf { it.likesCount }.coerceAtLeast(creatorReels.size * 14)
+        creatorReels.sumOf { it.likesCount }
     }
 
-    val totalViews = remember(creatorReels, totalLikes) {
-        (totalLikes * 4.5).toInt().coerceAtLeast(120)
+    val totalViews = remember(creatorReels) {
+        creatorReels.sumOf { it.viewsCount }
     }
 
-    val isDevCreator = remember(creatorId, creatorName) {
-        creatorId.contains("dev") || creatorId.contains("admin") || creatorName.contains("قبس")
+    val isDevCreator = remember(creatorId, displayName) {
+        creatorId.contains("dev") || creatorId.contains("admin") || displayName.contains("قبس")
     }
 
     ModalBottomSheet(
@@ -96,7 +160,10 @@ fun ReelCreatorProfileSheet(
                 IconButton(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Qabas Creator", "حساب $creatorName على استوديو قبس الإيماني: https://qabas.studio/u/$creatorId")
+                        val clip = ClipData.newPlainText(
+                            "Qabas Creator",
+                            "حساب $displayName على استوديو قبس الإيماني: https://qabas.studio/u/$creatorId"
+                        )
                         clipboard.setPrimaryClip(clip)
                         ReelPreferencesManager.triggerHaptic(context)
                         Toast.makeText(context, "تم نسخ رابط ملف المنشئ 📋", Toast.LENGTH_SHORT).show()
@@ -106,7 +173,7 @@ fun ReelCreatorProfileSheet(
                 }
 
                 Text(
-                    text = "الملف الإيماني للمنشئ ✦",
+                    text = if (isOwnProfile) "ملفي الإيماني ✦" else "الملف الإيماني للمنشئ ✦",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -128,7 +195,7 @@ fun ReelCreatorProfileSheet(
                 // Avatar with luxury ring
                 Box(contentAlignment = Alignment.BottomEnd) {
                     AsyncImage(
-                        model = creatorAvatar ?: "https://ui-avatars.com/api/?name=$creatorName&background=D4AF37&color=0B0F19",
+                        model = displayAvatar ?: "https://ui-avatars.com/api/?name=$displayName&background=D4AF37&color=0B0F19",
                         contentDescription = null,
                         modifier = Modifier
                             .size(72.dp)
@@ -160,8 +227,18 @@ fun ReelCreatorProfileSheet(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CreatorStatItem(count = "${creatorReels.size.coerceAtLeast(1)}", label = "المقاطع")
-                    CreatorStatItem(count = "$followersCount", label = "المتابعون")
+                    CreatorStatItem(count = "${creatorReels.size}", label = "المقاطع")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CreatorStatItem(count = "${followers.value}", label = "المتابعون")
+                        if (!followers.isExact) {
+                            Text(
+                                text = "تقدير أولي",
+                                fontFamily = CairoFont,
+                                fontSize = 8.5.sp,
+                                color = Color.White.copy(alpha = 0.45f)
+                            )
+                        }
+                    }
                     CreatorStatItem(count = "$totalLikes", label = "الإعجابات")
                     CreatorStatItem(count = "$totalViews", label = "المشاهدات")
                 }
@@ -172,7 +249,7 @@ fun ReelCreatorProfileSheet(
             // Creator Name and Bio
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = creatorName,
+                    text = displayName,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.5.sp,
@@ -195,10 +272,31 @@ fun ReelCreatorProfileSheet(
                         )
                     }
                 }
+                if (isOwnProfile) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "هذا ملفك الشخصي",
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
 
             Text(
-                text = "@${creatorId.take(14)} • منشئ محتوى إيماني معتمد في منصة قبس 🌿",
+                text = if (isOwnProfile) {
+                    "$profileHandle • $ownBio"
+                } else {
+                    "$profileHandle • منشئ محتوى إيماني في منصة قبس 🌿"
+                },
                 fontFamily = CairoFont,
                 fontSize = 11.5.sp,
                 color = Color.White.copy(alpha = 0.65f)
@@ -206,43 +304,123 @@ fun ReelCreatorProfileSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Follow & Duaa Action Buttons
+            // Profile, Follow & Duaa Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Button(
-                    onClick = {
-                        val next = !isFollowing
-                        isFollowing = next
-                        followersCount = if (next) followersCount + 1 else (followersCount - 1).coerceAtLeast(0)
-                        prefs.edit().putBoolean("follow_$creatorId", next).apply()
-                        ReelPreferencesManager.triggerHaptic(context)
-                        Toast.makeText(
-                            context,
-                            if (next) "تمت متابعة $creatorName بنجاح 🔔" else "تم إلغاء المتابعة",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFollowing) Color.White.copy(alpha = 0.15f) else GoldPrimary,
-                        contentColor = if (isFollowing) Color.White else DeepSlate
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isFollowing) "تتم المتابعة 🔔" else "متابعة المنشئ",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp
-                    )
+                if (isOwnProfile) {
+                    Button(
+                        onClick = {
+                            ReelPreferencesManager.triggerHaptic(context)
+                            onDismiss()
+                            onOpenMyProfile()
+                        },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GoldPrimary,
+                            contentColor = DeepSlate
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "فتح ملفي الشخصي",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (isUpdatingFollow) return@Button
+                            val next = !isFollowing
+                            isUpdatingFollow = true
+                            scope.launch {
+                                val applied = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    CreatorFollowManager.setFollowed(
+                                        context.applicationContext,
+                                        resolvedViewer,
+                                        creatorId,
+                                        displayName,
+                                        displayAvatar,
+                                        next
+                                    )
+                                }
+                                if (applied == null) {
+                                    Toast.makeText(context, "لا يمكنك متابعة نفسك", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val snapshot = community
+                                    if (snapshot != null) {
+                                        val currentFollowers = snapshot.followers
+                                        val nextFollowers = if (currentFollowers.isExact) {
+                                            currentFollowers.copy(
+                                                value = (currentFollowers.value + if (applied) 1 else -1).coerceAtLeast(0)
+                                            )
+                                        } else {
+                                            CreatorFollowManager.FollowerCount(
+                                                CreatorFollowManager.estimatedBaselineFollowers(
+                                                    creatorId.ifBlank { displayName }
+                                                ) + if (applied) 1 else 0,
+                                                isExact = false
+                                            )
+                                        }
+                                        community = snapshot.copy(isFollowing = applied, followers = nextFollowers)
+                                    }
+                                    communityRefresh++
+                                    ReelPreferencesManager.triggerHaptic(context)
+                                    AppNotificationService.sendNotification(
+                                        context,
+                                        if (applied) "بدأت متابعة $displayName 🔔" else "ألغيت متابعة $displayName",
+                                        if (applied) {
+                                            "ستظهر مقاطعه في تبويب المتابَعين، ويمكنك إدارة المتابعة من ملفك الشخصي."
+                                        } else {
+                                            "أُزيل من تبويب المتابَعين، ويمكنك متابعته مجدداً في أي وقت."
+                                        }
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (applied) "تمت متابعة $displayName بنجاح 🔔" else "تم إلغاء المتابعة",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onFollowChanged(applied)
+                                }
+                                isUpdatingFollow = false
+                            }
+                        },
+                        enabled = !isUpdatingFollow,
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isFollowing) Color.White.copy(alpha = 0.15f) else GoldPrimary,
+                            contentColor = if (isFollowing) Color.White else DeepSlate
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isUpdatingFollow) {
+                                "جارٍ التحديث..."
+                            } else if (isFollowing) {
+                                "تتم المتابعة 🔔"
+                            } else {
+                                "متابعة المنشئ"
+                            },
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        )
+                    }
                 }
 
                 // Duaa button

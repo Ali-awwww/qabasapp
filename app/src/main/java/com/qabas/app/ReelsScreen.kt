@@ -60,7 +60,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 fun ReelsScreen(
     onBack: () -> Unit,
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
+    onOpenProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -101,6 +102,8 @@ fun ReelsScreen(
     var activeMoreOptionsReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeCreatorProfile by remember { mutableStateOf<Triple<String, String, String?>?>(null) }
     var activeAudioReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
+    var followVersion by remember { mutableIntStateOf(0) }
+    val viewer = remember(context, followVersion) { CreatorFollowManager.currentViewer(context) }
 
     // Interactive & Spatial Experience State
     var isKhushuMode by remember { mutableStateOf(false) }
@@ -198,7 +201,7 @@ fun ReelsScreen(
     }
 
     // Filter reels based on Tab, Category, Search Query and Hidden status
-    val displayReels = remember(allReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery) {
+    val displayReels = remember(allReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion) {
         allReels.filterNot { hiddenReelIds.contains(it.id) }
             .filter { reel ->
                 when (selectedCategory) {
@@ -220,8 +223,15 @@ fun ReelsScreen(
             .filter { reel ->
                 if (selectedTab == 1) {
                     // Following tab: show reels by followed creators or own published reels
-                    val followedIds = prefs.getStringSet("followed_creators", emptySet()) ?: emptySet()
-                    followedIds.contains(reel.userId) || reel.userId == currentUserId
+                    val followedIds = CreatorFollowManager.followedIds(context)
+                    followedIds.any { it.equals(reel.userId, ignoreCase = true) } ||
+                        CreatorFollowManager.identitiesMatch(
+                            reel.userId,
+                            reel.userName,
+                            viewer.id,
+                            viewer.displayName,
+                            viewer.email
+                        )
                 } else true
             }
     }
@@ -1016,7 +1026,13 @@ fun ReelsScreen(
                     scope.launch { pagerState.scrollToPage(idx) }
                 }
             },
-            onDismiss = { activeCreatorProfile = null }
+            onDismiss = { activeCreatorProfile = null },
+            viewer = viewer,
+            onOpenMyProfile = {
+                activeCreatorProfile = null
+                onOpenProfile()
+            },
+            onFollowChanged = { followVersion++ }
         )
     }
 

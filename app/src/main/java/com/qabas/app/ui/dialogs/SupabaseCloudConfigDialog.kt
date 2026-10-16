@@ -139,6 +139,16 @@ CREATE TABLE IF NOT EXISTS public.reel_comments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+-- 6A. علاقات متابعة صناع المحتوى
+CREATE TABLE IF NOT EXISTS public.creator_follows (
+    follower_id TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (follower_id, creator_id)
+);
+CREATE INDEX IF NOT EXISTS creator_follows_creator_idx ON public.creator_follows (creator_id);
+CREATE INDEX IF NOT EXISTS creator_follows_follower_idx ON public.creator_follows (follower_id);
+
 -- 7. فتح الصلاحيات (RLS Policies) لتطبيق قبس
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
@@ -147,6 +157,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.creator_follows ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
     CREATE POLICY "Allow public access for app anon users" ON public.users FOR ALL USING (true) WITH CHECK (true);
@@ -156,6 +167,7 @@ DO $$ BEGIN
     CREATE POLICY "Allow public access for app anon settings" ON public.user_settings FOR ALL USING (true) WITH CHECK (true);
     CREATE POLICY "Allow public access for app anon likes" ON public.reel_likes FOR ALL USING (true) WITH CHECK (true);
     CREATE POLICY "Allow public access for app anon comments" ON public.reel_comments FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Allow public access for app anon creator follows" ON public.creator_follows FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
     """.trimIndent()
