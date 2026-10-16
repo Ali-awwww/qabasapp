@@ -261,9 +261,18 @@ fun AiStudioAgentScreen(
         )
     }
 
+    val runtime = remember { Runtime.getRuntime() }
+    var liveUsedMemoryMb by remember {
+        mutableStateOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024))
+    }
+    val liveMaxMemoryMb = remember {
+        runtime.maxMemory() / (1024 * 1024)
+    }
+
     val refreshDiagnostics: () -> Unit = {
         coroutineScope.launch {
             isPinging = true
+            liveUsedMemoryMb = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)
             val resolved = AgentConnectivityEngine.resolveKeyWithSource(context)
             keyResolution = resolved
             val activeRepoItem = RepoVaultManager.getActiveRepo(context)
@@ -569,16 +578,34 @@ LaunchedEffect(currentMission, isOfflineMode) {
                 .padding(innerPadding)
                 .background(Color(0xFF05070D))
         ) {
-            AgentHudTabRail(
-                tabs = listOf(
-                    AgentTab("01", "استوديو المهام", Icons.Default.RocketLaunch, Color(0xFF00E5FF)),
-                    AgentTab("02", "التشغيل المباشر", Icons.Default.Terminal, Color(0xFF10B981)),
-                    AgentTab("03", "فحص الجاهزية", Icons.Default.Shield, Color(0xFF38BDF8)),
-                    AgentTab("04", "ترسانة الأدوات", Icons.Default.Build, Color(0xFFF59E0B)),
-                    AgentTab("05", "سجل العمليات", Icons.Default.History, Color(0xFFA855F7))
-                ),
+            // 🛰️ شريط التيليميتري النيوني اللحظي الموحّد
+            LiveTelemetryHudStrip(
+                latencyMs = geminiHealth.latencyMs,
+                isConnected = geminiHealth.isConnected,
+                isPinging = isPinging,
+                activeModelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                isOfflineMode = isOfflineMode,
+                usedMemoryMb = liveUsedMemoryMb,
+                maxMemoryMb = liveMaxMemoryMb,
+                onRefresh = {
+                    refreshDiagnostics()
+                },
+                onModelClick = {
+                    if (isOfflineMode) showOnDeviceDialog = true else showModelPicker = true
+                },
+                onMemoryClick = {
+                    System.gc()
+                    liveUsedMemoryMb = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)
+                    Toast.makeText(context, "تم تحسين الذاكرة الحية 🧹", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            )
+
+            // 🎛️ منصة التحكم الهندسية الموحدة (4 موديولات رئيسية سريعة التبديل)
+            AgentGeometricControlDeck(
                 selectedIndex = topTab,
-                onSelect = { topTab = it }
+                onSelect = { topTab = it },
+                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
             )
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -589,14 +616,12 @@ LaunchedEffect(currentMission, isOfflineMode) {
                         onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
                         onJumpBuildCenter = {}
                     )
-                    2 -> RequirementsTab(
+                    2 -> UnifiedToolsAndReadinessSection(
                         context = context,
                         scope = coroutineScope,
-                        onJumpBuildCenter = {},
                         onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true }
                     )
-                    3 -> ToolsTab(context)
-                    4 -> TaskHistoryLogTab(context)
+                    3 -> TaskHistoryLogTab(context)
                     else -> LazyColumn(
                         state = listState,
                         modifier = Modifier
@@ -607,12 +632,20 @@ LaunchedEffect(currentMission, isOfflineMode) {
                     ) {
             item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            // 0. Live Network Telemetry & Diagnostics Radar (رادار الفحص الحي والاستجابة)
+            // 0. Operation & Engine Deck (لوحة توجيه المحرك والتشغيل)
             item {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF0D1527).copy(alpha = 0.9f),
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f)),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF0D1527).copy(alpha = 0.92f),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF00E5FF).copy(alpha = 0.5f),
+                                Color(0xFF10B981).copy(alpha = 0.5f)
+                            )
+                        )
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -633,7 +666,7 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "رادار الفحص الحي 📡",
+                                    text = "توجيه المحرك والتشغيل 🛰️",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -642,28 +675,32 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                 )
                             }
 
-                            // Re-ping button
-                            IconButton(
-                                onClick = { refreshDiagnostics() },
-                                enabled = !isPinging,
+                            // Team Mode Switch Quick Action
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF1E293B),
+                                border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF334155)),
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF1E293B))
-                                    .testTag("agent_refresh_ping_btn")
+                                    .clickable { isTeamMode = !isTeamMode }
+                                    .testTag("agent_toggle_team_mode")
                             ) {
-                                if (isPinging) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color(0xFF00E5FF),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "إعادة الفحص الحي",
-                                        tint = Color(0xFF00E5FF),
-                                        modifier = Modifier.size(18.dp)
+                                        imageVector = Icons.Default.Groups,
+                                        contentDescription = null,
+                                        tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isTeamMode) "فريق متعدد 👥" else "وضع فردي 👤",
+                                        fontSize = 10.sp,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8)
                                     )
                                 }
                             }
@@ -1984,5 +2021,127 @@ LaunchedEffect(currentMission, isOfflineMode) {
             },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         )
+    }
+}
+
+/**
+ * 🛡️ موديول الأدوات والجاهزية الموحّد (Unified Tools & Readiness Matrix Deck)
+ * يدمج فحص شروط الجاهزية مع ترسانة الأدوات البرمجية وإعدادات الوكيل في منصة هندسية واحدة.
+ */
+@Composable
+private fun UnifiedToolsAndReadinessSection(
+    context: Context,
+    scope: CoroutineScope,
+    onJumpKeys: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var subTab by remember { mutableStateOf(0) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF05070D))
+    ) {
+        // Holographic Sub-Deck Switcher
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF0A101E))
+                .border(
+                    BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                Color(0xFF10B981).copy(alpha = 0.4f)
+                            )
+                        )
+                    ),
+                    RoundedCornerShape(10.dp)
+                )
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (subTab == 0) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.Transparent,
+                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)) else null,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { subTab = 0 }
+                    .testTag("sub_tab_readiness")
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = if (subTab == 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "فحص الجاهزية والربط",
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
+                        color = if (subTab == 0) Color.White else Color(0xFF94A3B8),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (subTab == 1) Color(0xFF10B981).copy(alpha = 0.22f) else Color.Transparent,
+                border = if (subTab == 1) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { subTab = 1 }
+                    .testTag("sub_tab_tools")
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Handyman,
+                        contentDescription = null,
+                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "ترسانة الأدوات والـ Git",
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
+                        color = if (subTab == 1) Color.White else Color(0xFF94A3B8),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (subTab == 0) {
+                RequirementsTab(
+                    context = context,
+                    scope = scope,
+                    onJumpBuildCenter = {},
+                    onJumpKeys = onJumpKeys
+                )
+            } else {
+                ToolsTab(context = context)
+            }
+        }
     }
 }
