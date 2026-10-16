@@ -49,6 +49,68 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
+private data class PrayerSectionEntry(
+    val title: String,
+    val desc: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
+/**
+ * بوابة أقسام المحراب: بطاقة دخول لكل قسم تفتح شاشة كاملة بدل النافذة المطوية.
+ */
+@Composable
+private fun PrayerSectionsHub(
+    entries: List<PrayerSectionEntry>,
+    onOpen: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "أقسام المحراب",
+            color = Color.White,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp
+        )
+        entries.forEachIndexed { index, entry ->
+            Surface(
+                onClick = { onOpen(index) },
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF131B2E),
+                border = BorderStroke(1.dp, entry.color.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(entry.color.copy(alpha = 0.15f))
+                            .border(1.dp, entry.color.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(entry.icon, contentDescription = null, tint = entry.color, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(entry.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(entry.desc, color = Color.White.copy(alpha = 0.55f), fontFamily = CairoFont, fontSize = 11.sp)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "دخول", tint = entry.color.copy(alpha = 0.8f))
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrayerTimesScreen(
@@ -74,12 +136,21 @@ fun PrayerTimesScreen(
 
     // Tabs
     var selectedTab by remember { mutableIntStateOf(0) }
+    // -1 = بوابة الأقسام (بطاقات دخول)، وإلا قسم مفتوح بشاشة كاملة
+    var openedSection by remember { mutableIntStateOf(-1) }
     val tabs = listOf(
         "⏱️ المواقيت",
         "📿 السجل والسنن",
         "⚠️ مرآة النذير",
         "🌟 رياض الجنة",
         "🧭 القبلة والخشوع"
+    )
+    val sectionEntries = listOf(
+        PrayerSectionEntry("⏱️ المواقيت", "جدول الصلوات اليومي والتنبيهات", Icons.Default.Schedule, Color(0xFF0EA5E9)),
+        PrayerSectionEntry("📿 السجل والسنن", "سجل المحافظة والسنن الرواتب", Icons.Default.MenuBook, Color(0xFF10B981)),
+        PrayerSectionEntry("⚠️ مرآة النذير", "عقوبات التهاون والتأخير", Icons.Default.Warning, Color(0xFFEF4444)),
+        PrayerSectionEntry("🌟 رياض الجنة", "ثواب المحافظة وحسن المقام", Icons.Default.Star, Color(0xFFF59E0B)),
+        PrayerSectionEntry("🧭 القبلة والخشوع", "اتجاه القبلة وفقه الخشوع", Icons.Default.Explore, Color(0xFF8B5CF6))
     )
 
     // Live clock ticker
@@ -195,43 +266,82 @@ fun PrayerTimesScreen(
             )
 
             // Tabs Header
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color(0xFF131B2E),
-                contentColor = GoldPrimary,
-                edgePadding = 12.dp,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+            if (openedSection == -1) {
+                PrayerSectionsHub(
+                    entries = sectionEntries,
+                    onOpen = { openedSection = it }
+                )
+            } else {
+                // شريط العودة لبوابة الأقسام + عنوان القسم المفتوح
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openedSection = -1 }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "عودة للأقسام",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "كل الأقسام",
                         color = GoldPrimary,
-                        height = 3.dp
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        sectionEntries[openedSection].title,
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
                     )
                 }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                text = title,
-                                fontFamily = CairoFont,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 13.sp,
-                                color = if (selectedTab == index) GoldPrimary else Color.White.copy(alpha = 0.6f)
-                            )
-                        }
-                    )
+                ScrollableTabRow(
+                    selectedTabIndex = openedSection,
+                    containerColor = Color(0xFF131B2E),
+                    contentColor = GoldPrimary,
+                    edgePadding = 12.dp,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[openedSection]),
+                            color = GoldPrimary,
+                            height = 3.dp
+                        )
+                    }
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = openedSection == index,
+                            onClick = { openedSection = index },
+                            text = {
+                                Text(
+                                    text = title,
+                                    fontFamily = CairoFont,
+                                    fontWeight = if (openedSection == index) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    color = if (openedSection == index) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
-            // Tab Content
+            // Tab Content — القسم المفتوح فقط بشاشة كاملة
+            if (openedSection != -1) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
             ) {
-                when (selectedTab) {
+                when (openedSection) {
                     0 -> TimetableAndControlsTab(
                         prayerTimes = prayerTimes,
                         prefs = prefs,
@@ -314,6 +424,7 @@ fun PrayerTimesScreen(
                     )
                 }
             }
+            } // end if (openedSection != -1)
         }
     }
 

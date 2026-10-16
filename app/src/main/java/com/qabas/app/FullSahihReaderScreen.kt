@@ -169,6 +169,9 @@ fun FullSahihReaderScreen(
     val darkBg = Color(0xFF0B141A)
     val cardBg = Color(0xFF16242D)
 
+    // 🎓 حالة اختبار الفهم والحفظ
+    var showQuiz by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -176,6 +179,19 @@ fun FullSahihReaderScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "رجوع")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                // نضمن تحميل الكتاب قبل توليد الأسئلة
+                                FullSahihHadithRepository.loadBook(context, bookType)
+                                showQuiz = true
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Quiz, "اختبر فهمك وحفظك 🎓", tint = goldColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -277,7 +293,25 @@ fun FullSahihReaderScreen(
                     // 📚 عرض الفصول (كتب الكتاب)
                     if (chapters.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("لا توجد فصول متاحة", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("تعذّر تحميل الكتاب من ملفات التطبيق", color = Color(0xFFFCA5A5), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(6.dp))
+                                Text("تأكد من اكتمال التثبيت ثم أعد المحاولة", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            isLoading = true
+                                            FullSahihHadithRepository.clearCache()
+                                            chapters = FullSahihHadithRepository.getChapters(context, bookType)
+                                            isLoading = false
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = goldColor)
+                                ) {
+                                    Text("إعادة المحاولة 🔄", fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     } else {
                         LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
@@ -338,6 +372,14 @@ fun FullSahihReaderScreen(
             confirmButton = {
                 TextButton(onClick = { showDetailsDialog = false }) { Text("إغلاق", color = goldColor) }
             }
+        )
+    }
+
+    // 🎓 حوار اختبار الفهم والحفظ (100 سؤال من الكتاب الكامل + نقاط)
+    if (showQuiz) {
+        SahihQuizDialog(
+            bookType = bookType,
+            onDismiss = { showQuiz = false }
         )
     }
 }

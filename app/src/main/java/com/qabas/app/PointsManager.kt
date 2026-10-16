@@ -15,18 +15,26 @@ enum class PointAction(val points: Int, val description: String) {
     SEARCH_DALEEL(5, "البحث عن دليل شرعي بالمساعد الدعوي"),
     SHARE_APP(20, "مشاركة الفيديو والتطبيق"),
     DAILY_LOGIN(5, "دخول يومي"),
-    WEEKLY_CHALLENGE(100, "تنفيذ مهمة الأسبوع الطارئة")
+    WEEKLY_CHALLENGE(100, "تنفيذ مهمة الأسبوع الطارئة"),
+    SAHIH_QUIZ_CORRECT(2, "إجابة صحيحة في اختبار الصحيحين"),
+    SAHIH_QUIZ_PERFECT(50, "علامة كاملة في اختبار الصحيحين (100/100)")
 }
 
 object PointsManager {
     private const val TAG = "PointsManager"
 
     fun awardPoints(context: Context, action: PointAction) {
+        awardCustomPoints(context, action.points, action.name)
+    }
+
+    /** منح نقاط بمقدار مخصص (لنتائج الاختبارات) مع مزامنة الصدارة */
+    fun awardCustomPoints(context: Context, points: Int, reason: String) {
+        if (points <= 0) return
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val currentLocal = prefs.getInt("local_user_points", 0)
-        val newTotal = currentLocal + action.points
+        val newTotal = currentLocal + points
         prefs.edit().putInt("local_user_points", newTotal).apply()
-        Log.d(TAG, "Awarded ${action.points} points for ${action.name}. New local total: $newTotal")
+        Log.d(TAG, "Awarded $points custom points for $reason. New local total: $newTotal")
 
         CoroutineScope(Dispatchers.IO).launch {
             try {

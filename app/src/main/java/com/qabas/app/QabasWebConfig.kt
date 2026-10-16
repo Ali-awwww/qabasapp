@@ -11,8 +11,8 @@ import android.widget.Toast
 object QabasWebConfig {
 
     /** الرابط الأساسي للموقع الرسمي */
-    const val OFFICIAL_WEBSITE_URL = "https://ais-pre-4m7ngsd7prdvbhwsiegpif-753796887195.europe-west2.run.app"
-    const val OFFICIAL_WEB_HOST = "ais-pre-4m7ngsd7prdvbhwsiegpif-753796887195.europe-west2.run.app"
+    const val OFFICIAL_WEBSITE_URL = "https://alippappa7-maker.github.io/Website-/"
+    const val OFFICIAL_WEB_HOST = "alippappa7-maker.github.io"
 
     /** روابط الأقسام المباشرة على الموقع */
     const val URL_DOWNLOAD = "$OFFICIAL_WEBSITE_URL/download"
@@ -22,7 +22,7 @@ object QabasWebConfig {
     const val URL_ADMIN_PORTAL = "$OFFICIAL_WEBSITE_URL/admin"
 
     /** رابط مجموعة ومجتمع قبس الرسمي (WhatsApp / Telegram) */
-    const val DEFAULT_COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2"
+    const val DEFAULT_COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=sh&p=a&mlu=4&ilr=4&iam=2"
 
     private const val PREFS_NAME = "qabas_prefs"
     private const val KEY_CUSTOM_GROUP_URL = "official_community_group_url"

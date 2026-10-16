@@ -522,15 +522,28 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        // إشعار عند وجود مشكلة حرجة
+        // إشعار عند وجود مشكلة حرجة — مع خنق ذكي: لا إزعاج متكرر لنفس المشاكل
         if (reports.any { it.severity == "حرج" }) {
             val criticalCount = reports.count { it.severity == "حرج" }
+            val signature = criticalCount.toString() + "|" +
+                reports.filter { it.severity == "حرج" }.map { it.title }.sorted().joinToString(";").hashCode()
             try {
-                NotificationHelper.showNotification(
-                    context = context,
-                    title = "طبيب التطبيق 🩺",
-                    message = "تم اكتشاف $criticalCount مشكلة حرجة تحتاج انتباهك. راجع لوحة المطور."
-                )
+                val prefs = context.getSharedPreferences("doctor_notify_prefs", Context.MODE_PRIVATE)
+                val lastSig = prefs.getString("last_critical_sig", null)
+                val lastTime = prefs.getLong("last_critical_time", 0L)
+                val now = System.currentTimeMillis()
+                // نُشعر فقط إذا تغيّرت المشاكل الحرجة أو مرّت 24 ساعة على آخر إشعار
+                if (signature != lastSig || now - lastTime > 24 * 60 * 60 * 1000L) {
+                    NotificationHelper.showNotification(
+                        context = context,
+                        title = "طبيب التطبيق 🩺",
+                        message = "تم اكتشاف $criticalCount مشكلة حرجة تحتاج انتباهك. راجع لوحة المطور."
+                    )
+                    prefs.edit()
+                        .putString("last_critical_sig", signature)
+                        .putLong("last_critical_time", now)
+                        .apply()
+                }
             } catch (_: Exception) {
             }
         }

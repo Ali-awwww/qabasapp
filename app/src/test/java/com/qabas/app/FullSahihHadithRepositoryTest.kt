@@ -258,4 +258,52 @@ class FullSahihHadithRepositoryTest {
         assertEquals("كتاب الإيمان", book.chapters.first().arabic)
         assertEquals("The Book of Faith", book.chapters.first().english)
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // 5) اختبارات صارمة لكل باب (97 بابًا للبخاري + 57 لمسلم)
+    // ═══════════════════════════════════════════════════════════
+    private fun assertEveryChapterStrict(fileName: String, bookLabel: String, expectedBookId: Int) {
+        val book = loadBook(fileName)
+        val byChapter = book.hadiths.groupBy { it.chapterId }
+
+        // 1) كل باب له عنوان غير فارغ ومعرّف فريد
+        val chapterIds = book.chapters.map { it.id }
+        assertEquals("$bookLabel: معرّفات الأبواب يجب أن تكون فريدة", chapterIds.size, chapterIds.toSet().size)
+        val blankTitles = book.chapters.filter { it.arabic.isBlank() }
+        assertTrue("$bookLabel: أبواب بلا عنوان: ${blankTitles.map { it.id }}", blankTitles.isEmpty())
+
+        // 2) كل باب يحتوي على حديث واحد على الأقل
+        val emptyChapters = book.chapters.filter { (byChapter[it.id]?.size ?: 0) == 0 }
+        assertTrue(
+            "$bookLabel: أبواب فارغة بلا أحاديث: ${emptyChapters.map { "${it.id}(${it.arabic})" }}",
+            emptyChapters.isEmpty()
+        )
+
+        // 3) كل حديث في الباب: نص غير فارغ + bookId صحيح + idInBook ضمن النطاق
+        val badHadiths = book.hadiths.filter {
+            it.arabic.isBlank() || it.bookId != expectedBookId || it.idInBook < 1 || it.idInBook > book.hadiths.size
+        }
+        assertTrue("$bookLabel: أحاديث مخالفة (نص فارغ/bookId/idInBook): ${badHadiths.size}", badHadiths.isEmpty())
+
+        // 4) تسلسل idInBook متصل 1..N بلا فجوات ولا تكرار
+        val sorted = book.hadiths.map { it.idInBook }.sorted()
+        assertEquals("$bookLabel: تسلسل idInBook يجب أن يكون 1..${book.hadiths.size} بلا فجوات", (1..book.hadiths.size).toList(), sorted)
+
+        // 5) كل باب: أصغر idInBook < أكبر idInBook أو باب بحديث واحد (ترتيب منطقي)
+        val disordered = book.chapters.filter { ch ->
+            val ids = (byChapter[ch.id] ?: emptyList()).map { it.idInBook }
+            ids.isNotEmpty() && ids.min() > ids.max()
+        }
+        assertTrue("$bookLabel: أبواب بترتيب غير منطقي: ${disordered.map { it.id }}", disordered.isEmpty())
+    }
+
+    @Test
+    fun `bukhari every one of 97 chapters is strict-valid`() {
+        assertEveryChapterStrict("sahih_bukhari.json.gz", "البخاري", 1)
+    }
+
+    @Test
+    fun `muslim every one of 57 chapters is strict-valid`() {
+        assertEveryChapterStrict("sahih_muslim.json.gz", "مسلم", 2)
+    }
 }

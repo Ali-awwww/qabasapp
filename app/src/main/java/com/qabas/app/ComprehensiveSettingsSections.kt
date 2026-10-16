@@ -602,16 +602,19 @@ fun StorageAndBackupSection(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = true)
+                    ) {
                         Icon(Icons.Default.CloudSync, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("مزامنة الإعدادات بالسحابة (Supabase)", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("مزامنة الإعدادات بالسحابة (Supabase)", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
                         Surface(
                             color = if (isSupabaseAvailable) Color(0xFF065F46) else Color(0xFF374151),
                             shape = RoundedCornerShape(12.dp)
@@ -632,7 +635,9 @@ fun StorageAndBackupSection(
                                     color = Color.White,
                                     fontFamily = NotoSansFont,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -658,7 +663,9 @@ fun StorageAndBackupSection(
                                     color = Color.White,
                                     fontFamily = NotoSansFont,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }

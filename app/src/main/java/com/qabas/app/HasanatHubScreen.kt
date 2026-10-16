@@ -83,6 +83,42 @@ fun HasanatHubScreen(
     // TTS for Pearl
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
+    // وضع الاستماع: عند تفعيله لمسُ أي نص ينطقه صوتياً لمن لا يحسن القراءة
+    var listenMode by remember { mutableStateOf(false) }
+    var showVoicePicker by remember { mutableStateOf(false) }
+    val voicePrefs = remember { context.getSharedPreferences("mishkat_voice_prefs", android.content.Context.MODE_PRIVATE) }
+
+    fun applySavedVoice() {
+        val engine = tts ?: return
+        try {
+            engine.language = Locale("ar")
+            engine.setSpeechRate(voicePrefs.getFloat("rate", 0.9f))
+            engine.setPitch(voicePrefs.getFloat("pitch", 1.0f))
+            val savedName = voicePrefs.getString("voice_name", null)
+            if (!savedName.isNullOrBlank()) {
+                engine.voices?.firstOrNull { it.name == savedName }?.let { engine.voice = it }
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun speakText(text: String, utteranceId: String = "mishkat_listen") {
+        if (text.isBlank()) return
+        applySavedVoice()
+        if (!isTtsReady || tts == null) {
+            try {
+                context.startActivity(
+                    Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                Toast.makeText(context, "ثبّت الصوت العربي من النافذة ثم عُد والمس النص مجدداً 🔊", Toast.LENGTH_LONG).show()
+            } catch (_: Exception) {
+                Toast.makeText(context, "محرك الصوت غير متوفر في جهازك", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        Unit
+    }
 
     DisposableEffect(context) {
         var speech: TextToSpeech? = null
@@ -97,6 +133,11 @@ fun HasanatHubScreen(
             speech?.stop()
             speech?.shutdown()
         }
+    }
+
+    // تطبيق الصوت المحفوظ فور جهوزية المحرك
+    LaunchedEffect(isTtsReady) {
+        if (isTtsReady) applySavedVoice()
     }
 
     var isSearchExpanded by remember { mutableStateOf(false) }
@@ -348,7 +389,13 @@ fun HasanatHubScreen(
                                 border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onNavigate(AppState.PRAYER_TIMES) }
+                                    .clickable {
+                                        if (listenMode) speakText(
+                                            "الصلاة القادمة: صلاة ${prayerTimeInfo.nextName} في ${prayerTimeInfo.nextTime}. متبقي على النداء: ${prayerTimeInfo.countdown}.",
+                                            "prayer_info"
+                                        )
+                                        else onNavigate(AppState.PRAYER_TIMES)
+                                    }
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -415,6 +462,160 @@ fun HasanatHubScreen(
                                 Box(Modifier.weight(1f)) {
                                     QuickMishkatMetric(Icons.Default.TouchApp, Translator.tr("الأذكار"), azkarStats, Color(0xFFF59E0B))
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // زر وضع الاستماع — لمن لا يحسنون القراءة: فعّله ثم المس أي نص لسماعه 👆🔊
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        listenMode = !listenMode
+                                        if (!listenMode) tts?.stop()
+                                        else Toast.makeText(context, "وضع الاستماع مفعّل 👆 المس أي نص في المشكاة لسماعه صوتياً", Toast.LENGTH_LONG).show()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (listenMode) Color(0xFF10B981) else Color(0xFF0EA5E9)
+                                    ),
+                                    shape = CutCornerShape(10.dp)
+                                ) {
+                                    Icon(
+                                        if (listenMode) Icons.Default.Hearing else Icons.Default.TouchApp,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        if (listenMode) Translator.tr("وضع الاستماع مفعّل — المس أي نص 👆") else Translator.tr("تفعيل وضع الاستماع 🔊"),
+                                        color = Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        // قراءة الشاشة كاملة دفعة واحدة
+                                        val screenText = buildString {
+                                            append("السلام عليكم. أنت في مشكاة الهدى. ")
+                                            append("اليوم ${dateInfo.hijriStr}. ")
+                                            append("الصلاة القادمة: صلاة ${prayerTimeInfo.nextName} في ${prayerTimeInfo.nextTime}، متبقي ${prayerTimeInfo.countdown}. ")
+                                            currentAyah?.let {
+                                                append("آية اليوم من سورة ${it.surahName}: ${it.text}. ")
+                                            }
+                                        }
+                                        speakText(screenText, "mishkat_screen_reader")
+                                    },
+                                    border = BorderStroke(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.5f)),
+                                    shape = CutCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = Translator.tr("قراءة الشاشة كاملة"), tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                }
+                                OutlinedButton(
+                                    onClick = { showVoicePicker = true },
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                    shape = CutCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = Translator.tr("تغيير الصوت"), tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            // نافذة اختيار الصوت العربي 🎙️
+                            if (showVoicePicker) {
+                                val arabicVoices = remember(tts, isTtsReady) {
+                                    runCatching {
+                                        tts?.voices?.filter { it.locale.language == "ar" }
+                                            ?.sortedBy { it.name }.orEmpty()
+                                    }.getOrDefault(emptyList())
+                                }
+                                var rate by remember { mutableFloatStateOf(voicePrefs.getFloat("rate", 0.9f)) }
+                                var pitch by remember { mutableFloatStateOf(voicePrefs.getFloat("pitch", 1.0f)) }
+                                AlertDialog(
+                                    onDismissRequest = { showVoicePicker = false },
+                                    confirmButton = {
+                                        TextButton(onClick = { showVoicePicker = false }) { Text(Translator.tr("تم"), fontFamily = CairoFont) }
+                                    },
+                                    title = { Text(Translator.tr("اختر صوت القراءة 🎙️"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                                    text = {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            if (arabicVoices.isEmpty()) {
+                                                Text(
+                                                    Translator.tr("لا توجد أصوات عربية مثبتة — ثبّت حزمة الصوت العربي من إعدادات تحويل النص إلى كلام في جهازك ثم عُد."),
+                                                    color = qabasTextSecondary(),
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 12.sp
+                                                )
+                                            } else {
+                                                LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
+                                                    items(arabicVoices) { voice ->
+                                                        val selected = voicePrefs.getString("voice_name", null) == voice.name
+                                                        Surface(
+                                                            onClick = {
+                                                                voicePrefs.edit().putString("voice_name", voice.name).apply()
+                                                                applySavedVoice()
+                                                                tts?.speak("السلام عليكم، هذا صوتي الجديد للقراءة", TextToSpeech.QUEUE_FLUSH, null, "voice_preview")
+                                                            },
+                                                            shape = RoundedCornerShape(10.dp),
+                                                            color = if (selected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF1E293B),
+                                                            border = BorderStroke(1.dp, if (selected) GoldPrimary else Color.Transparent),
+                                                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                                        ) {
+                                                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(
+                                                                    if (selected) Icons.Default.CheckCircle else Icons.Default.RecordVoiceOver,
+                                                                    null,
+                                                                    tint = if (selected) GoldPrimary else qabasTextSecondary(),
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text(
+                                                                    voice.name.take(40),
+                                                                    color = Color.White,
+                                                                    fontFamily = NotoSansFont,
+                                                                    fontSize = 11.sp,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Text(Translator.tr("سرعة النطق: ") + String.format("%.1f", rate), color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                            Slider(
+                                                value = rate,
+                                                onValueChange = {
+                                                    rate = it
+                                                    voicePrefs.edit().putFloat("rate", it).apply()
+                                                    applySavedVoice()
+                                                },
+                                                valueRange = 0.5f..1.5f,
+                                                onValueChangeFinished = {
+                                                    tts?.speak("هذه سرعة النطق الجديدة", TextToSpeech.QUEUE_FLUSH, null, "rate_preview")
+                                                }
+                                            )
+                                            Text(Translator.tr("طبقة الصوت: ") + String.format("%.1f", pitch), color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                            Slider(
+                                                value = pitch,
+                                                onValueChange = {
+                                                    pitch = it
+                                                    voicePrefs.edit().putFloat("pitch", it).apply()
+                                                    applySavedVoice()
+                                                },
+                                                valueRange = 0.5f..1.5f,
+                                                onValueChangeFinished = {
+                                                    tts?.speak("هذه طبقة الصوت الجديدة", TextToSpeech.QUEUE_FLUSH, null, "pitch_preview")
+                                                }
+                                            )
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -545,12 +746,15 @@ fun HasanatHubScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // نص الآية الكريمة بخط عثماني/أميري واضح وفاخر
+                        // نص الآية الكريمة — اللمس في وضع الاستماع يتلوها صوتياً
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color(0xFF090D18).copy(alpha = 0.65f), CutCornerShape(10.dp))
                                 .border(1.dp, GoldPrimary.copy(alpha = 0.2f), CutCornerShape(10.dp))
+                                .clickable(enabled = listenMode) {
+                                    speakText("قال الله تعالى من سورة ${currentAyah.surahName}: ${currentAyah.text}", "ayah_tts")
+                                }
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Text(
@@ -567,12 +771,15 @@ fun HasanatHubScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // قسم التفسير الميسر المكتمل دون أي بتر
+                        // قسم التفسير الميسر — اللمس في وضع الاستماع يقرؤه صوتياً
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color(0xFF0D1424).copy(alpha = 0.75f), CutCornerShape(10.dp))
                                 .border(0.8.dp, Color(0xFF1E2D4A), CutCornerShape(10.dp))
+                                .clickable(enabled = listenMode) {
+                                    speakText("التفسير الميسر: ${currentAyah.tafsir}", "tafsir_tts")
+                                }
                                 .padding(12.dp)
                         ) {
                             Row(
@@ -812,7 +1019,10 @@ fun HasanatHubScreen(
                             filteredSections.chunked(2).forEach { rowItems ->
                                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                     rowItems.forEach { item ->
-                                        HasanatGridItem(item, modifier = Modifier.weight(1f)) { onNavigate(item.route) }
+                                        HasanatGridItem(item, modifier = Modifier.weight(1f)) {
+                                            if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
+                                            else onNavigate(item.route)
+                                        }
                                     }
                                     if (rowItems.size == 1) {
                                         Spacer(modifier = Modifier.weight(1f))
@@ -823,7 +1033,10 @@ fun HasanatHubScreen(
                     }
                 } else {
                     items(filteredSections) { item ->
-                        HasanatListItem(item) { onNavigate(item.route) }
+                        HasanatListItem(item) {
+                            if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
+                            else onNavigate(item.route)
+                        }
                     }
                 }
             }

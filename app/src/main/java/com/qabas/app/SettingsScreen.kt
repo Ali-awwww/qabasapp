@@ -2048,18 +2048,18 @@ fun CommunityAndLinksSection() {
         CommunityLinkItem(
             title = "ملتقى المبدعين ✦ واتساب",
             subtitle = "مجتمع صُنّاع المحتوى القرآني والحديثي والمصممين لتبادل الخبرات",
-            url = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
+            url = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=sh&p=a&mlu=4&ilr=4&iam=2",
             icon = Icons.Default.Forum,
             color = Color(0xFF25D366),
             badge = "مجتمع تفاعلي"
         ),
         CommunityLinkItem(
-            title = "فريق الدعم والمساعدة ✦ تيليجرام",
-            subtitle = "تواصل مباشر وفوري مع مشرفي المنصة للاستفسارات والمقترحات",
-            url = "https://t.me/qabas_support",
-            icon = Icons.Default.SupportAgent,
-            color = Color(0xFF0088CC),
-            badge = "دعم تيليجرام"
+            title = "الموقع الرسمي ✦ قبس",
+            subtitle = "بوابة قبس الرسمية للتحميل والأخبار والمحاضرات",
+            url = "https://alippappa7-maker.github.io/Website-/",
+            icon = Icons.Default.Language,
+            color = Color(0xFF0EA5E9),
+            badge = "الموقع الرسمي"
         )
     )
 
@@ -2093,28 +2093,30 @@ fun CommunityAndLinksSection() {
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            Translator.tr(item.title),
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            color = item.color.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.6.dp, item.color.copy(alpha = 0.3f))
+                        ) {
                             Text(
-                                Translator.tr(item.title),
-                                color = Color.White,
+                                item.badge,
+                                color = item.color,
+                                fontSize = 8.5.sp,
                                 fontFamily = CairoFont,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = item.color.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(4.dp),
-                                border = BorderStroke(0.6.dp, item.color.copy(alpha = 0.3f))
-                            ) {
-                                Text(
-                                    item.badge,
-                                    color = item.color,
-                                    fontSize = 8.5.sp,
-                                    fontFamily = CairoFont,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
                         }
                         Text(
                             Translator.tr(item.subtitle),
