@@ -650,13 +650,15 @@ private fun SpatialHudTopBar(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        maxLines = 1
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
                         color = primaryColor.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.45f))
+                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.45f)),
+                        modifier = Modifier.wrapContentWidth()
                     ) {
                         Text(
                             text = "HUD ✦",
@@ -664,7 +666,9 @@ private fun SpatialHudTopBar(
                             fontFamily = RobotoMonoFont,
                             fontSize = 8.5.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
 
@@ -2097,31 +2101,43 @@ private fun SpatialHudStatsHeader(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
                     ) {
                         Text(
                             text = greeting,
                             color = Color.White,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = 13.5.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "• $savedDisplayName",
-                            color = GoldPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldGreen)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = savedDisplayName,
+                                color = GoldPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     // زر المدينة
@@ -2133,16 +2149,18 @@ private fun SpatialHudStatsHeader(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = primaryColor, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = primaryColor, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "${selectedCity.nameAr} ▾",
                                 color = primaryColor,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

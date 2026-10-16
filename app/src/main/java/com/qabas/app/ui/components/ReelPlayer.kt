@@ -43,13 +43,13 @@ fun ReelPlayer(
     isPlaying: Boolean,
     playbackSpeed: Float = 1.0f,
     initialMuted: Boolean = false,
+    isMuted: Boolean = initialMuted,
     onVideoEnded: (() -> Unit)? = null,
     onDoubleTapLike: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var isUserPaused by remember { mutableStateOf(false) }
-    var isMuted by remember { mutableStateOf(initialMuted) }
     var isBuffering by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
     var showHeartAnimation by remember { mutableStateOf(false) }
@@ -322,24 +322,6 @@ fun ReelPlayer(
                     .align(Alignment.Center)
                     .size(110.dp)
                     .scale(heartScale)
-            )
-        }
-
-        // Mute / Unmute Floating Pill
-        IconButton(
-            onClick = { isMuted = !isMuted },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                .padding(top = 16.dp, end = 56.dp)
-                .size(36.dp)
-                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-        ) {
-            Icon(
-                imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                contentDescription = if (isMuted) "كتم الصوت" else "تشغيل الصوت",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
             )
         }
     }

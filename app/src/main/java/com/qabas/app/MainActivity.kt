@@ -1079,10 +1079,10 @@ fun QabasBottomNavigation(
     val navItems = remember {
         listOf(
             Triple(AppState.HOME, Icons.Default.Home, "الرئيسية"),
-            Triple(AppState.AI_STUDIO_AGENT, Icons.Default.SmartToy, "استوديو الوكيل"),
+            Triple(AppState.AI_STUDIO_AGENT, Icons.Default.SmartToy, "الوكيل"),
             Triple(AppState.REELS, Icons.Default.SlowMotionVideo, "ريلز"),
             Triple(AppState.STUDIO_GATEWAY, Icons.Default.AutoAwesome, "الاستوديو"),
-            Triple(AppState.HASANAT_HUB, Icons.Default.Mosque, "مِشكاة الهُدى"),
+            Triple(AppState.HASANAT_HUB, Icons.Default.Mosque, "المِشكاة"),
             Triple(AppState.SETTINGS, Icons.Default.SettingsSuggest, "الإعدادات")
         )
     }
@@ -1148,10 +1148,10 @@ fun QabasBottomNavigation(
                             text = label,
                             fontFamily = CairoFont,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             maxLines = 1,
                             softWrap = false,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Clip
                         )
                     },
                     selected = isSelected,

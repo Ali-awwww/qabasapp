@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -325,26 +327,27 @@ fun QabasSmartTipsBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
+            LazyRow(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                // زر "الكل"
-                TipFilterChip(
-                    title = "الكل ✦",
-                    icon = Icons.Default.AllInclusive,
-                    accentColor = GoldPrimary,
-                    isSelected = selectedCategoryFilter == null,
-                    onClick = {
-                        AppSoundManager.playClick()
-                        selectedCategoryFilter = null
-                        currentTipIndex = 0
-                    }
-                )
+                item {
+                    // زر "الكل"
+                    TipFilterChip(
+                        title = "الكل ✦",
+                        icon = Icons.Default.AllInclusive,
+                        accentColor = GoldPrimary,
+                        isSelected = selectedCategoryFilter == null,
+                        onClick = {
+                            AppSoundManager.playClick()
+                            selectedCategoryFilter = null
+                            currentTipIndex = 0
+                        }
+                    )
+                }
 
-                // أزرار الأقسام (قرآن، سنة، وللمطور فقط: مطور)
-                availableCategories.forEach { category ->
+                items(availableCategories) { category ->
                     TipFilterChip(
                         title = "${category.iconEmoji} ${category.title}",
                         icon = category.icon,
@@ -359,8 +362,10 @@ fun QabasSmartTipsBar(
                 }
             }
 
-            // زر التدوير التلقائي السريع
-            IconButton(
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // كبسولة التدوير التلقائي الفضائية الأنيقة (تستغل المساحة الفارغة بفعالية)
+            Surface(
                 onClick = {
                     AppSoundManager.playToggle()
                     isAutoRotating = !isAutoRotating
@@ -370,14 +375,31 @@ fun QabasSmartTipsBar(
                         Toast.LENGTH_SHORT
                     ).show()
                 },
-                modifier = Modifier.size(26.dp)
+                shape = CutCornerShape(5.dp),
+                color = if (isAutoRotating) primaryColor.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f),
+                border = BorderStroke(0.8.dp, if (isAutoRotating) primaryColor.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.1f))
             ) {
-                Icon(
-                    imageVector = if (isAutoRotating) Icons.Default.Autorenew else Icons.Default.PauseCircle,
-                    contentDescription = "تبديل التدوير التلقائي",
-                    tint = if (isAutoRotating) primaryColor else Color.Gray,
-                    modifier = Modifier.size(16.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isAutoRotating) Icons.Default.Autorenew else Icons.Default.PauseCircle,
+                        contentDescription = "تبديل التدوير التلقائي",
+                        tint = if (isAutoRotating) primaryColor else Color.Gray,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isAutoRotating) "تدوير حي" else "موقوف",
+                        color = if (isAutoRotating) primaryColor else Color.Gray,
+                        fontFamily = CairoFont,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                }
             }
         }
 
@@ -678,6 +700,8 @@ private fun TipFilterChip(
             fontFamily = CairoFont,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             fontSize = 9.sp,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }

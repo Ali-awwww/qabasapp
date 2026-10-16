@@ -72,6 +72,7 @@ fun ReelsScreen(
 
     // Collect Reel Settings
     val startMuted by ReelPreferencesManager.startMuted.collectAsState()
+    var isAudioMuted by remember(startMuted) { mutableStateOf(startMuted) }
     val autoplayWifiOnly by ReelPreferencesManager.autoplayWifiOnly.collectAsState()
     val autoScrollOnFinish by ReelPreferencesManager.autoScrollOnFinish.collectAsState()
     val playbackSpeed by ReelPreferencesManager.playbackSpeed.collectAsState()
@@ -453,6 +454,7 @@ fun ReelsScreen(
                                 isPlaying = isPageVisible && isNetworkPermitted,
                                 playbackSpeed = playbackSpeed,
                                 initialMuted = startMuted,
+                                isMuted = isAudioMuted,
                                 onVideoEnded = if (autoScrollOnFinish && page < displayReels.size - 1) {
                                     {
                                         scope.launch {
@@ -568,124 +570,141 @@ fun ReelsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Back Button in circular frosted glass pill
                             IconButton(
                                 onClick = onBack,
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.65f))
+                                    .background(Color(0xFF0F172A).copy(alpha = 0.75f))
                                     .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), CircleShape)
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "رجوع",
                                     tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
 
-                            // Center Cybernetic Tabs Capsule (متابعون | لك) — weighted for symmetric geometry
+                            // Center Cybernetic Tabs Capsule (متابعون | لك ✦) — neatly fitted without truncation
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
-                                color = Color(0xFF0F172A).copy(alpha = 0.65f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .height(40.dp)
-                                    .padding(horizontal = 4.dp)
+                                color = Color(0xFF0F172A).copy(alpha = 0.75f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                modifier = Modifier.height(38.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center,
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 4.dp)
+                                        .padding(horizontal = 4.dp, vertical = 3.dp)
                                 ) {
                                     // For You Tab
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(18.dp))
-                                            .background(if (selectedTab == 0) GoldPrimary.copy(alpha = 0.2f) else Color.Transparent)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (selectedTab == 0) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
                                             .border(
-                                                BorderStroke(1.dp, if (selectedTab == 0) GoldPrimary.copy(alpha = 0.5f) else Color.Transparent),
-                                                RoundedCornerShape(18.dp)
+                                                BorderStroke(1.dp, if (selectedTab == 0) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
+                                                RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
                                                 selectedTab = 0
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                                            .padding(horizontal = 12.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "لك (For You)",
+                                            text = "لك ✦",
                                             fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Normal,
-                                            fontSize = 12.5.sp,
-                                            color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                                            fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 12.sp,
+                                            softWrap = false,
+                                            maxLines = 1,
+                                            color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = 0.7f)
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
 
                                     // Following Tab
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(18.dp))
-                                            .background(if (selectedTab == 1) GoldPrimary.copy(alpha = 0.2f) else Color.Transparent)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (selectedTab == 1) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
                                             .border(
-                                                BorderStroke(1.dp, if (selectedTab == 1) GoldPrimary.copy(alpha = 0.5f) else Color.Transparent),
-                                                RoundedCornerShape(18.dp)
+                                                BorderStroke(1.dp, if (selectedTab == 1) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
+                                                RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
                                                 selectedTab = 1
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                                            .padding(horizontal = 12.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "متابعون",
                                             fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 1) FontWeight.ExtraBold else FontWeight.Normal,
-                                            fontSize = 12.5.sp,
-                                            color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                                            fontWeight = if (selectedTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 12.sp,
+                                            softWrap = false,
+                                            maxLines = 1,
+                                            color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = 0.7f)
                                         )
                                     }
                                 }
                             }
 
-                            // Right Spatial Actions Pill (Publish + Search + Settings) — same 40dp rhythm
+                            // Left Spatial Actions Capsule (Mute + Publish + Search + Settings)
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
-                                color = Color(0xFF0F172A).copy(alpha = 0.65f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                modifier = Modifier.height(40.dp)
+                                color = Color(0xFF0F172A).copy(alpha = 0.75f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                modifier = Modifier.height(38.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    modifier = Modifier.padding(horizontal = 5.dp)
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                 ) {
                                     val isDeveloper = remember(currentUserEmail) {
                                         ReelPublishManager.isDeveloperUser(context, currentUserEmail)
                                     }
 
+                                    // Sound Mute Toggle
+                                    IconButton(
+                                        onClick = {
+                                            isAudioMuted = !isAudioMuted
+                                            ReelPreferencesManager.triggerHaptic(context)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                            contentDescription = if (isAudioMuted) "تشغيل الصوت" else "كتم الصوت",
+                                            tint = if (isAudioMuted) Color(0xFFEF4444) else Color.White.copy(alpha = 0.9f),
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+
                                     // Publish button
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(if (isDeveloper) GoldPrimary else GoldPrimary.copy(alpha = 0.15f))
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(if (isDeveloper) GoldPrimary else GoldPrimary.copy(alpha = 0.18f))
+                                            .border(BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
                                             .clickable {
                                                 showPublishDialog = true
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -693,7 +712,7 @@ fun ReelsScreen(
                                                 imageVector = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
                                                 contentDescription = "نشر",
                                                 tint = if (isDeveloper) DeepSlate else GoldPrimary,
-                                                modifier = Modifier.size(14.dp)
+                                                modifier = Modifier.size(13.dp)
                                             )
                                             Spacer(modifier = Modifier.width(3.dp))
                                             Text(
@@ -701,6 +720,8 @@ fun ReelsScreen(
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
                                                 color = if (isDeveloper) DeepSlate else GoldPrimary
                                             )
                                         }
@@ -712,13 +733,13 @@ fun ReelsScreen(
                                             isSearchActive = !isSearchActive
                                             ReelPreferencesManager.triggerHaptic(context)
                                         },
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Search,
                                             contentDescription = "بحث",
                                             tint = if (isSearchActive) GoldPrimary else Color.White.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(17.dp)
                                         )
                                     }
 
@@ -728,7 +749,7 @@ fun ReelsScreen(
                                             showSettingsSheet = true
                                             ReelPreferencesManager.triggerHaptic(context)
                                         },
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         BadgedBox(
                                             badge = {
@@ -739,7 +760,7 @@ fun ReelsScreen(
                                                     ) {
                                                         Text(
                                                             text = "${savedReels.size}",
-                                                            fontSize = 8.5.sp,
+                                                            fontSize = 8.sp,
                                                             fontFamily = RobotoMonoFont
                                                         )
                                                     }
@@ -750,7 +771,7 @@ fun ReelsScreen(
                                                 imageVector = Icons.Default.Tune,
                                                 contentDescription = "إعدادات",
                                                 tint = Color.White.copy(alpha = 0.85f),
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(17.dp)
                                             )
                                         }
                                     }
@@ -1063,8 +1084,8 @@ fun ReelSpatialHUDOverlays(
                 .padding(start = 14.dp, end = 74.dp, bottom = 64.dp)
                 .fillMaxWidth()
         ) {
-            // Micro Spiritual Reactions Bar (Compact, non-overlapping)
-            Row(
+            // Micro Spiritual Reactions Bar (Horizontal Scroll, strictly non-overlapping)
+            LazyRow(
                 modifier = Modifier.padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -1075,11 +1096,11 @@ fun ReelSpatialHUDOverlays(
                     SpiritualReaction("mashallah", "ما شاء الله", "🌟"),
                     SpiritualReaction("jazakallah", "أجر 🤍", "")
                 )
-                microReactions.forEach { rx ->
+                items(microReactions) { rx ->
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = Color.Black.copy(alpha = 0.45f),
-                        border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.3f)),
+                        color = Color.Black.copy(alpha = 0.55f),
+                        border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.35f)),
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .clickable { onReactionTriggered(rx) }
@@ -1089,14 +1110,16 @@ fun ReelSpatialHUDOverlays(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.5.sp,
+                            maxLines = 1,
+                            softWrap = false,
                             color = Color.White.copy(alpha = 0.95f),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            // Creator Tag (Clickable)
+            // Creator Tag (Clickable with adaptive weight distribution)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -1108,8 +1131,8 @@ fun ReelSpatialHUDOverlays(
                             reel.userAvatar
                         )
                     }
-                    .background(Color.Black.copy(alpha = 0.25f))
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(horizontal = 7.dp, vertical = 4.dp)
             ) {
                 AsyncImage(
                     model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
@@ -1121,15 +1144,22 @@ fun ReelSpatialHUDOverlays(
                     contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
                         text = reel.userName ?: "صانع محتوى قبس",
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
+                        fontSize = 13.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Surface(
                         color = GoldPrimary,
                         shape = CircleShape,
@@ -1154,7 +1184,9 @@ fun ReelSpatialHUDOverlays(
                             fontSize = 9.sp,
                             color = Color(0xFF10B981),
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                         )
                     }
                 }
