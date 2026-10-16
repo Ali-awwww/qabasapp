@@ -4923,10 +4923,11 @@ fun exportCrashesZip(context: Context): File? {
 }
 
 /**
- * يحاكي انهياراً اختبارياً للتحقق أن الحارس يلتقط فعلاً.
- * يستدعي QabasCrashGuard.simulateCrash() ليُسجَّل بنفس مسار الإنتاج.
+ * يحاكي انهياراً اختبارياً بأمان عبر نفس مسار الإنتاج (بلا قتل العملية).
  */
-fun simulateCrashForTesting(): Nothing = QabasCrashGuard.simulateCrash()
+fun simulateCrashForTesting(context: android.content.Context) {
+    QabasCrashGuard.simulateCrash(context)
+}
 
 class CrashDiagnosis(
     val why: String,

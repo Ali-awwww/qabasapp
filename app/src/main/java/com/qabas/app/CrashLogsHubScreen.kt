@@ -780,11 +780,10 @@ fun CrashLogsHubScreen(
                     Button(
                         onClick = {
                             showTestingMenu = false
-                            Toast.makeText(context, "سيتم إطلاق استثناء لاختبار حارس إعادة التشغيل...", Toast.LENGTH_SHORT).show()
-                            coroutineScope.launch {
-                                delay(600)
-                                QabasCrashGuard.simulateCrash()
-                            }
+                            QabasCrashGuard.simulateCrash(context)
+                            AppSoundManager.playSuccess()
+                            Toast.makeText(context, "تم التقاط الانهيار التجريبي وتسجيله بنفس مسار الإنتاج — التطبيق مستقر ✅", Toast.LENGTH_LONG).show()
+                            reloadCrashes()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = HudPink.copy(alpha = 0.2f)),
                         border = BorderStroke(1.dp, HudPink),
@@ -792,7 +791,7 @@ fun CrashLogsHubScreen(
                     ) {
                         Icon(Icons.Default.BugReport, contentDescription = null, tint = HudPink, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("محاكاة انهيار كامل (اختبار دورة الإنعاش) ⚡", color = HudPink, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("محاكاة انهيار (تسجيل كامل بنفس مسار الإنتاج) 🧪", color = HudPink, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             },

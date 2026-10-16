@@ -257,11 +257,14 @@ object QabasCrashGuard {
     }
 
     /**
-     * يحاكي انهياراً اختبارياً. يُستدعى من زر "محاكاة" في لوحة المطور
-     * للتحقق أن الحارس يلتقط ويعيد تشغيل التطبيق بشكل سليم.
+     * يحاكي انهياراً اختبارياً بأمان: يمرّ عبر نفس مسار الإنتاج [record] ليُسجَّل
+     * بنفس الترويسة والـbreadcrumbs، لكنه **لا يرمي استثناءً غير ملتقط** ولا يقتل
+     * العملية — فلا يظهر حوار «توقف التطبيق» ولا يتعطّل التطبيق. يُستدعى من لوحة المطور.
      */
-    fun simulateCrash(): Nothing {
-        throw IllegalStateException("🧪 [Dev] simulated crash for QabasCrashGuard self-test")
+    fun simulateCrash(context: Context) {
+        val ctx = context.applicationContext
+        val throwable = IllegalStateException("🧪 [Dev] simulated crash for QabasCrashGuard self-test")
+        record(ctx, "main", throwable, "self-test")
     }
 
     /**
