@@ -548,6 +548,90 @@ suspend fun triggerBuildDirectly(
     )
 }
 
+/**
+ * 🔬 حلقة التنفيذ الفعلي: تُطلق بناءً حقيقياً على GitHub Actions وتراقبه حتى الاكتمال،
+ * ثم تُلحق خطوة تحقق حقيقية بالمهمة (نجاح/فشل + السجل عند الفشل) — لا زر فقط بلا متابعة.
+ * تُحدّث الواجهة حياً عبر onUpdate عند كل استطلاع.
+ */
+suspend fun runBuildVerification(
+    context: Context,
+    baseMission: AgentMissionSession,
+    pollIntervalMs: Long = 15_000L,
+    timeoutMs: Long = 480_000L,
+    onUpdate: (AgentMissionSession) -> Unit
+): AgentMissionSession {
+    val repo = RepoVaultManager.getActiveRepo(context)
+    val stepId = "ci_exec_verify"
+
+    fun emitStep(
+        running: Boolean,
+        success: Boolean,
+        snippet: String
+    ): AgentMissionSession {
+        val step = AgentExecutionStep(
+            id = stepId,
+            title = "🔬 التحقق من البناء الفعلي على GitHub Actions",
+            description = "إطلاق سير android-ci.yml ومتابعته حتى الاكتمال...",
+            toolName = "ci_execution_loop",
+            outputSnippet = snippet,
+            isRunning = running,
+            isSuccess = success
+        )
+        val steps = baseMission.steps.filterNot { it.id == stepId } + step
+        return baseMission.copy(steps = steps, status = if (running) AgentTaskStatus.BUILDING else baseMission.status)
+    }
+
+    if (repo == null || repo.token.isBlank()) {
+        val failed = emitStep(false, false, "🔗 لا يوجد مستودع مربوط برمز صالح — اربطه أولاً من مركز البناء.")
+        onUpdate(failed)
+        return failed
+    }
+
+    var mission = emitStep(true, true, "⏳ جاري إطلاق البناء على ${repo.fullName}...")
+    onUpdate(mission)
+
+    val result = AgentBuildVerifier.triggerAndAwait(
+        owner = repo.owner,
+        repo = repo.repo,
+        token = repo.token,
+        branch = repo.defaultBranch.ifBlank { "main" },
+        pollIntervalMs = pollIntervalMs,
+        timeoutMs = timeoutMs,
+        onTick = { run ->
+            val snippet = buildString {
+                append(AgentBuildVerifier.describe(run))
+                run?.htmlUrl?.takeIf { it.isNotBlank() }?.let { append("\n🔗 $it") }
+            }
+            mission = emitStep(true, true, snippet)
+            onUpdate(mission)
+        }
+    )
+
+    val finalSnippet = buildString {
+        append(result.message)
+        if (result.commitSha.isNotBlank()) append("\n• الكوميت: ${result.commitSha.take(8)}")
+        result.run?.htmlUrl?.takeIf { it.isNotBlank() }?.let { append("\n🔗 $it") }
+        if (result.failedLogs.isNotBlank()) append("\n\n— مقتطف من سجل الفشل —\n${result.failedLogs}")
+    }
+
+    val completed = emitStep(false, result.isSuccess, finalSnippet).copy(
+        buildTriggered = result.isSuccess || result.run != null,
+        apkUrl = result.run?.htmlUrl ?: baseMission.apkUrl,
+        status = when {
+            result.isSuccess -> AgentTaskStatus.COMPLETED
+            result.timedOut -> baseMission.status
+            else -> AgentTaskStatus.FAILED
+        },
+        finalReport = baseMission.finalReport + "\n\n" + if (result.isSuccess) {
+            "✅ تحقق فعلي: نجح بناء الكود على GitHub Actions — الكوميت ${result.commitSha.take(8)}."
+        } else {
+            "🔬 تحقق فعلي: ${result.message}"
+        }
+    )
+    onUpdate(completed)
+    return completed
+}
+
 @Composable
 fun exportMissionJson(currentMission: AgentMissionSession?): String {
     return currentMission?.let { mission ->

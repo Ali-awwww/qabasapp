@@ -1862,14 +1862,10 @@ LaunchedEffect(currentMission, isOfflineMode) {
                             }
                         },
                         onTriggerBuild = {
+                            val base = currentMission ?: mission
                             coroutineScope.launch {
-                                triggerBuildDirectly(context, activeRepo) { step ->
-                                    val updatedSteps = mission.steps + step
-                                    currentMission = mission.copy(
-                                        steps = updatedSteps,
-                                        status = if (step.isSuccess) AgentTaskStatus.COMPLETED else AgentTaskStatus.FAILED,
-                                        buildTriggered = step.isSuccess
-                                    )
+                                runBuildVerification(context, base) { updated ->
+                                    currentMission = updated
                                 }
                             }
                         },
@@ -1889,10 +1885,15 @@ LaunchedEffect(currentMission, isOfflineMode) {
                                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                                         applyingDiffPath = null
                                         if (ok) {
-                                            currentMission = mission.copy(
-                                                appliedPaths = mission.appliedPaths + diff.filePath
+                                            val pushed = (currentMission ?: mission).copy(
+                                                appliedPaths = (currentMission ?: mission).appliedPaths + diff.filePath
                                             )
-                                            Toast.makeText(context, "تم الاعتماد والدفع ✅", Toast.LENGTH_LONG).show()
+                                            currentMission = pushed
+                                            Toast.makeText(context, "تم الاعتماد والدفع ✅ — بدأ التحقق الفعلي من البناء", Toast.LENGTH_LONG).show()
+                                            // 🔬 بعد الدفع: أطلق بناءً حقيقياً وراقبه حتى الاكتمال
+                                            runBuildVerification(context, pushed) { verified ->
+                                                currentMission = verified
+                                            }
                                         } else {
                                             Toast.makeText(context, "تعذر الدفع — تحقق من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
                                         }
