@@ -1385,6 +1385,9 @@ private fun WeeklyMissionTab(
                                     PointAction.SHARE_APP -> Icons.Default.Share
                                     PointAction.DAILY_LOGIN -> Icons.Default.Today
                                     PointAction.WEEKLY_CHALLENGE -> Icons.Default.EmojiEvents
+                                    PointAction.SAHIH_QUIZ_CORRECT -> Icons.Default.School
+                                    PointAction.SAHIH_QUIZ_PERFECT -> Icons.Default.EmojiEvents
+                                    else -> Icons.Default.Star
                                 },
                                 contentDescription = null,
                                 tint = GoldPrimary,
