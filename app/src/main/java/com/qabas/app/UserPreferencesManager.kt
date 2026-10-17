@@ -3,6 +3,7 @@ package com.qabas.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
@@ -32,6 +33,39 @@ import java.util.*
 object UserPreferencesManager {
 
     private const val PREFS_NAME = "qabas_user_preferences"
+
+    // ملف التفضيلات الرئيسي للتطبيق (الهوية، الموقع، الصورة، التفضيلات المتنوعة)
+    private const val QABAS_PREFS_NAME = "qabas_prefs"
+
+    // المفاتيح في qabas_prefs التي تُزامَن سحابياً مع بقية التفضيلات.
+    // استُثنيت عمداً: التوكينات/المفاتيح، أعلام الصلاحية، إزاحات المواضع، والمسودات والمؤقتات.
+    private val CLOUD_SYNCED_QABAS_KEYS = setOf(
+        "selected_prayer_city_name",
+        "selected_city_index",
+        "user_avatar_uri",
+        "user_avatar_preset",
+        "user_bio",
+        "selected_reciter",
+        "selected_riwaya",
+        "last_read_surah",
+        "sakina_mode",
+        "offline_ai_mode",
+        "selected_local_model_id",
+        "pref_hud_grid",
+        "pref_hud_corners",
+        "pref_oled_contrast",
+        "spatial_cam_docked_mode",
+        "spatial_cam_compact_mode",
+        "mishkat_tasbeeh_count",
+        "custom_styles"
+    )
+
+    // مرجع قوي لمستمع تغييرات qabas_prefs (WeakReference داخل Android)
+    private var qabasPrefsListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    // يمنع إعادة المزامنة عند تطبيق تغييرات قادمة من السحابة (تجنّب الحلقة اللانهائية)
+    @Volatile
+    private var isApplyingRemoteChanges = false
 
     // ── 1. Reading & Islamic Text Preferences ──
     private val _quranFontSize = MutableStateFlow(20f)
@@ -163,6 +197,19 @@ object UserPreferencesManager {
         _cloudSyncEnabled.value = prefs.getBoolean("cloud_sync_enabled", true)
         _lastSyncTime.value = prefs.getLong("last_sync_timestamp", 0L)
 
+        // أي تغيير على مفتاح مُزامَن في qabas_prefs (الموقع/الصورة/القراءة/المظهر...) يطلق مزامنة تلقائية
+        if (qabasPrefsListener == null) {
+            val appContext = context.applicationContext
+            val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key != null && key in CLOUD_SYNCED_QABAS_KEYS && !isApplyingRemoteChanges) {
+                    triggerAutoSync(appContext)
+                }
+            }
+            appContext.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(listener)
+            qabasPrefsListener = listener
+        }
+
         // Best-effort cloud sync fetch on startup if enabled and Supabase is available
         if (_cloudSyncEnabled.value && SupabaseServices.isSupabaseAvailable) {
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
@@ -198,21 +245,31 @@ object UserPreferencesManager {
             return@withContext false
         }
         _isSyncing.value = true
+        val userId = getEffectiveUserId(context)
+
+        // ارفع الصورة الشخصية المحلية أولاً حتى يتضمّن الملف المصدَّر رابطها السحابي
+        val avatarUrl = uploadLocalAvatarIfNeeded(context, userId)
+
         val jsonPayload = exportBackupJson(context) ?: run {
             _isSyncing.value = false
             return@withContext false
         }
-        val userId = getEffectiveUserId(context)
         val success = SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
 
-        // Sync with 'profiles' table as well
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedName = prefs.getString("user_name", null) ?: prefs.getString("saved_user_name", null)
-        val savedEmail = prefs.getString("user_email", null) ?: prefs.getString("saved_login_email", null)
+        // Sync with 'profiles' table as well — اقرأ الهوية من الملف الصحيح (qabas_prefs)
+        val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedName = identityPrefs.getString("user_name", null)
+            ?: legacyPrefs.getString("user_name", null)
+            ?: legacyPrefs.getString("saved_user_name", null)
+        val savedEmail = identityPrefs.getString("user_email", null)
+            ?: legacyPrefs.getString("user_email", null)
+            ?: legacyPrefs.getString("saved_login_email", null)
         SupabaseRepository.getInstance().syncUserProfile(
             userId = userId,
             displayName = savedName,
             email = savedEmail,
+            avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
             preferencesJson = jsonPayload
         )
 
@@ -234,19 +291,86 @@ object UserPreferencesManager {
         _isSyncing.value = true
         val userId = getEffectiveUserId(context)
         val row = SupabaseServices.UserSettings.getUserSettings(userId)
-        _isSyncing.value = false
+        var applied = false
         if (row != null && row.preferencesJson.isNotBlank()) {
             val ok = importBackupJson(context, row.preferencesJson)
             if (ok) {
                 _lastSyncTime.value = row.updatedAtMillis
                 context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     .edit().putLong("last_sync_timestamp", row.updatedAtMillis).apply()
+                applied = true
             }
-            ok
-        } else {
-            false
         }
+
+        // استرجاع الاسم/البريد/الصورة من جدول profiles عند غيابها محلياً (مهم على جهاز جديد)
+        runCatching {
+            val profile = SupabaseServices.Profiles.getUserProfile(userId) ?: return@runCatching
+            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            val editor = identityPrefs.edit()
+            var changed = false
+            val localAvatar = identityPrefs.getString("user_avatar_uri", null)
+            if ((localAvatar.isNullOrBlank() || localAvatar.startsWith("content")) && !profile.avatarUrl.isNullOrBlank()) {
+                editor.putString("user_avatar_uri", profile.avatarUrl); changed = true
+            }
+            if (identityPrefs.getString("user_name", null).isNullOrBlank() && !profile.fullName.isNullOrBlank()) {
+                editor.putString("user_name", profile.fullName); changed = true
+            }
+            if (identityPrefs.getString("user_email", null).isNullOrBlank() && !profile.email.isNullOrBlank()) {
+                editor.putString("user_email", profile.email); changed = true
+            }
+            if (changed) {
+                isApplyingRemoteChanges = true
+                try { editor.commit() } finally { isApplyingRemoteChanges = false }
+                applied = true
+            }
+        }.onFailure { Log.e("UserPreferencesManager", "profile restore failed: ${it.message}") }
+        _isSyncing.value = false
+        applied
     }
+
+    /**
+     * إن كانت الصورة الشخصية محلياً (content:// أو ملف) ترفع إلى Supabase Storage
+     * وتُستبدل في التفضيلات بالرابط العام. تُعيد الرابط السحابي أو null.
+     */
+    private suspend fun uploadLocalAvatarIfNeeded(context: Context, userId: String): String? =
+        withContext(Dispatchers.IO) {
+            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            val uriStr = identityPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
+                ?: return@withContext null
+            if (uriStr.startsWith("http://") || uriStr.startsWith("https://")) return@withContext uriStr
+            runCatching {
+                val uri = Uri.parse(uriStr)
+                val bytes = if (uri.scheme == "content") {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                } else {
+                    val path = uri.path ?: uriStr
+                    val f = java.io.File(path)
+                    if (f.exists() && f.length() > 0) f.readBytes() else null
+                } ?: return@runCatching null
+                if (bytes.isEmpty()) return@runCatching null
+                val ext = when {
+                    uriStr.endsWith(".png", true) -> "png"
+                    uriStr.endsWith(".webp", true) -> "webp"
+                    else -> "jpg"
+                }
+                val url = SupabaseServices.Storage.uploadFile(
+                    bucketName = "media-assets",
+                    path = "avatars/$userId.$ext",
+                    data = bytes,
+                    upsert = true
+                )
+                if (!url.isNullOrBlank()) {
+                    isApplyingRemoteChanges = true
+                    try {
+                        identityPrefs.edit().putString("user_avatar_uri", url).commit()
+                    } finally {
+                        isApplyingRemoteChanges = false
+                    }
+                }
+                url
+            }.onFailure { Log.e("UserPreferencesManager", "uploadLocalAvatarIfNeeded failed: ${it.message}") }
+                .getOrNull()
+        }
 
     fun triggerAutoSync(context: Context) {
         if (_cloudSyncEnabled.value && SupabaseServices.isSupabaseAvailable) {
@@ -455,6 +579,17 @@ object UserPreferencesManager {
             }
             root.put("preferences", prefsObj)
 
+            // تفضيلات الهوية والموقع والقراءة والمظهر (من qabas_prefs) — المفاتيح المزامَنة فقط
+            val identityObj = JSONObject()
+            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            CLOUD_SYNCED_QABAS_KEYS.forEach { key ->
+                val v = identityPrefs.all[key] ?: return@forEach
+                when (v) {
+                    is Boolean, is Int, is Long, is Float, is String -> identityObj.put(key, v)
+                }
+            }
+            root.put("identity_preferences", identityObj)
+
             // Bookmarks & Hadiths
             val hadiths = hadithDao.getAllHadithCardsOnce()
             val hadithArr = JSONArray()
@@ -505,6 +640,31 @@ object UserPreferencesManager {
                 }
                 editor.apply()
                 init(context)
+            }
+            // استرجاع تفضيلات الهوية/الموقع/القراءة/المظهر إلى qabas_prefs
+            if (root.has("identity_preferences")) {
+                val identityObj = root.getJSONObject("identity_preferences")
+                val editor = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+                val keys = identityObj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    if (key !in CLOUD_SYNCED_QABAS_KEYS) continue
+                    when (val v = identityObj.get(key)) {
+                        is Boolean -> editor.putBoolean(key, v)
+                        is Int -> editor.putInt(key, v)
+                        is Long -> editor.putLong(key, v)
+                        is Double -> editor.putFloat(key, v.toFloat())
+                        is Float -> editor.putFloat(key, v)
+                        is String -> editor.putString(key, v)
+                    }
+                }
+                // commit متزامن مع تعطيل إطلاق المزامنة مؤقتاً (تجنّب الحلقة)
+                isApplyingRemoteChanges = true
+                try {
+                    editor.commit()
+                } finally {
+                    isApplyingRemoteChanges = false
+                }
             }
             true
         }.getOrDefault(false)
