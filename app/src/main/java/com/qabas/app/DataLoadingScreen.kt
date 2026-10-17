@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,11 +57,23 @@ fun DataLoadingScreen(
     onLoadProjects: suspend () -> Unit = {}
 ) {
     val appContext = LocalContext.current.applicationContext
-    var finished by remember { mutableStateOf(false) }
+    var isExiting by remember { mutableStateOf(false) }
+    val exitAlpha by animateFloatAsState(
+        targetValue = if (isExiting) 0f else 1f,
+        animationSpec = tween(360, easing = FastOutLinearInEasing),
+        label = "exitAlpha"
+    )
     fun finish() {
-        if (finished) return
-        finished = true
-        onFinished()
+        if (isExiting) return
+        isExiting = true
+    }
+
+    // تسليم سلس: نُظهر الشاشة الرئيسية بعد تلاشي شاشة البداية بالكامل
+    LaunchedEffect(isExiting) {
+        if (isExiting) {
+            delay(360)
+            onFinished()
+        }
     }
 
     val primaryColor = qabasPrimary()
@@ -188,7 +201,8 @@ fun DataLoadingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepSlate),
+            .background(DeepSlate)
+            .graphicsLayer { alpha = exitAlpha },
         contentAlignment = Alignment.Center
     ) {
         // 1. الخلفية السينمائية مع طبقة تشويش هندسية
@@ -397,12 +411,19 @@ fun DataLoadingScreen(
                         }
 
                         // مسار الليزر الهندسي
+                        var barWidthPx by remember { mutableIntStateOf(0) }
+                        val laserSweepBrush = remember {
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.4f), Color.Transparent)
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(Color.White.copy(alpha = 0.05f))
+                                .onSizeChanged { barWidthPx = it.width }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -420,12 +441,8 @@ fun DataLoadingScreen(
                                 modifier = Modifier
                                     .fillMaxHeight()
                                     .width(40.dp)
-                                    .offset(x = (laserGlowX * 300).dp)
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(Color.Transparent, Color.White.copy(alpha = 0.4f), Color.Transparent)
-                                        )
-                                    )
+                                    .graphicsLayer { translationX = laserGlowX * barWidthPx }
+                                    .background(laserSweepBrush)
                             )
                         }
                     }

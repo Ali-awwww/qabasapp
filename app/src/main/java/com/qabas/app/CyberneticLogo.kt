@@ -16,11 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -206,26 +206,30 @@ fun CyberneticAnimatedLogo(
     Box(
         modifier = modifier
             .size(totalCanvasSize)
-            .offset(y = levitationOffset.dp),
+            .graphicsLayer { translationY = levitationOffset * density },
         contentAlignment = Alignment.Center
     ) {
         // --- الطبقة 1: الهالة النورانية الكونية المتنفسة (Cosmic Glow Aura) ---
         if (showCosmicGlow) {
+            val glowBrush = remember {
+                Brush.radialGradient(
+                    colors = listOf(
+                        primaryColor.copy(alpha = 0.45f),
+                        accentColor.copy(alpha = 0.28f),
+                        if (isCyberHud) AiCyan.copy(alpha = 0.20f) else Color(0xFF6366F1).copy(alpha = 0.12f),
+                        Color.Transparent
+                    )
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(size * 1.45f)
-                    .scale(glowScale)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                primaryColor.copy(alpha = 0.45f * glowAlpha),
-                                accentColor.copy(alpha = 0.28f * glowAlpha),
-                                if (isCyberHud) AiCyan.copy(alpha = 0.20f * glowAlpha) else Color(0xFF6366F1).copy(alpha = 0.12f * glowAlpha),
-                                Color.Transparent
-                            )
-                        ),
-                        shape = CircleShape
-                    )
+                    .graphicsLayer {
+                        scaleX = glowScale
+                        scaleY = glowScale
+                        alpha = glowAlpha
+                    }
+                    .background(glowBrush, CircleShape)
             )
         }
 
