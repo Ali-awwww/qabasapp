@@ -1110,7 +1110,7 @@ fun InteractiveFlipMemoryCardItem(
         colors = CardDefaults.cardColors(
             containerColor = if (isFlipped) Color(0xFF1E1B4B) else CardSurface
         ),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(14.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, if (isFlipped) GoldPrimary else Color(0xFF1E293B)),
         modifier = Modifier
             .fillMaxWidth()
@@ -1123,9 +1123,8 @@ fun InteractiveFlipMemoryCardItem(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp)
+                .padding(14.dp)
                 .graphicsLayer {
-                    // Mirror back side text so it reads correctly when flipped
                     if (rotation > 90f) {
                         rotationY = 180f
                     }
@@ -1137,59 +1136,61 @@ fun InteractiveFlipMemoryCardItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(memoryCard.category, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Flip, contentDescription = "انقر للقلب", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isFlipped) "وجه البطاقة 🔄" else "اضغط لكشف السر 🔄", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Box(
+                        modifier = Modifier
+                            .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(memoryCard.category, color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
+                    Icon(Icons.Default.Flip, contentDescription = "انقر للقلب", tint = TextSecondary, modifier = Modifier.size(14.dp))
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 if (rotation <= 90f) {
-                    // FRONT SIDE
-                    Text(memoryCard.title, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(memoryCard.questionOrFrontText, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp, lineHeight = 20.sp)
-                } else {
-                    // BACK SIDE (EXPLANATION & REEL IDEA)
-                    Text("💡 المعنى والتفسير العلمي:", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(memoryCard.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(memoryCard.answerOrBackText, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, lineHeight = 20.sp)
+                    Text(memoryCard.questionOrFrontText, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
+                } else {
+                    Text("💡 المعنى والتفسير:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(memoryCard.answerOrBackText, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                            .padding(10.dp)
+                            .background(Color(0xFF0B0F19), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
                     ) {
-                        Text(memoryCard.viralReelScriptIdea, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text(memoryCard.viralReelScriptIdea, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedButton(
                             onClick = onOpenTeleprompter,
                             modifier = Modifier.weight(1f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                         ) {
-                            Text("المُلقن 🎙️", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text("المُلقن", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
 
                         Button(
                             onClick = onStartScript,
                             modifier = Modifier.weight(1.2f),
                             colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                         ) {
-                            Text("بدء المونتاج 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("مونتاج", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                     }
                 }

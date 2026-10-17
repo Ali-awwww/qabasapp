@@ -1978,8 +1978,8 @@ private fun SpatialHubCard(
             }
             
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1988,12 +1988,12 @@ private fun SpatialHubCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CutCornerShape(8.dp))
-                            .background(color.copy(alpha = 0.14f)),
+                            .size(44.dp)
+                            .clip(CutCornerShape(10.dp))
+                            .background(color.copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+                        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
                     }
 
                     Surface(
@@ -2006,8 +2006,8 @@ private fun SpatialHubCard(
                             color = color,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 8.5.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -2018,7 +2018,7 @@ private fun SpatialHubCard(
                         color = TextPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        fontSize = 14.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2026,7 +2026,8 @@ private fun SpatialHubCard(
                         text = subtitle,
                         color = TextSecondary,
                         fontFamily = NotoSansFont,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

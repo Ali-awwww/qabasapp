@@ -1451,90 +1451,79 @@ fun QabasNavigationDrawerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(140.dp)
         ) {
-            AsyncImage(
-                model = R.drawable.polished_qabas_drawer_hud_1790877423928,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                alpha = 0.6f
-            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, DeepSlate)
+                            listOf(
+                                Color(0xFF1E3A5F),
+                                DeepSlate
+                            )
                         )
                     )
             )
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(18.dp)
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CutCornerShape(10.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(GoldPrimary.copy(alpha = 0.3f), GoldPrimary.copy(alpha = 0.05f))
-                                    )
-                                )
-                                .border(1.2.dp, GoldPrimary.copy(alpha = 0.45f), CutCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(24.dp)
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CutCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(GoldPrimary.copy(alpha = 0.3f), GoldPrimary.copy(alpha = 0.05f))
                             )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "قَبَس",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp
-                            )
-                            Text(
-                                text = "CORE_INTERFACE // v2.6.5",
-                                color = GoldPrimary.copy(alpha = 0.6f),
-                                fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
-
-                    IconButton(
-                        onClick = onCloseDrawer,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.3f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "إغلاق",
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(18.dp)
                         )
-                    }
+                        .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CutCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "قَبَس",
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 24.sp
+                )
+                Text(
+                    text = "CORE_INTERFACE // v2.6.5",
+                    color = GoldPrimary.copy(alpha = 0.7f),
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.sp,
+                    letterSpacing = 0.5.sp
+                )
             }
+            IconButton(
+                onClick = onCloseDrawer,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.3f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "إغلاق",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -1879,7 +1868,7 @@ private fun QabasDrawerItem(
     GlassmorphicSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
             .clickable { onClick() },
         backgroundColor = Color(0xFF1E293B).copy(alpha = 0.1f),
         borderColor = Color(0xFF334155).copy(alpha = 0.2f),
@@ -1888,25 +1877,25 @@ private fun QabasDrawerItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(32.dp)
                     .clip(CutCornerShape(8.dp))
-                    .background(iconTint.copy(alpha = 0.08f))
-                    .border(0.6.dp, iconTint.copy(alpha = 0.3f), CutCornerShape(8.dp)),
+                    .background(iconTint.copy(alpha = 0.12f))
+                    .border(0.8.dp, iconTint.copy(alpha = 0.35f), CutCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1918,7 +1907,7 @@ private fun QabasDrawerItem(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1932,30 +1921,29 @@ private fun QabasDrawerItem(
                             Text(
                                 text = badgeText,
                                 color = badgeColor,
-                                fontSize = 7.5.sp,
+                                fontSize = 7.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = RobotoMonoFont,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    color = Color(0xFF64748B),
-                    fontFamily = RobotoMonoFont,
-                    fontSize = 8.5.sp,
+                    color = Color(0xFF94A3B8),
+                    fontFamily = NotoSansFont,
+                    fontSize = 9.5.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Default.ChevronLeft,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.15f),
-                modifier = Modifier.size(16.dp)
+                tint = Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.size(14.dp)
             )
         }
     }
