@@ -354,8 +354,8 @@ object UserPreferencesManager {
                     else -> "jpg"
                 }
                 val url = SupabaseServices.Storage.uploadFile(
-                    bucketName = "media-assets",
-                    path = "avatars/$userId.$ext",
+                    bucketName = "avatars",
+                    path = "$userId.$ext",
                     data = bytes,
                     upsert = true
                 )
