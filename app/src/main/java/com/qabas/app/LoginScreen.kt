@@ -105,22 +105,30 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // الشعار الهندسي الكوانتي
+            CyberneticAnimatedLogo(
+                modifier = Modifier.size(116.dp),
+                size = 116.dp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Header Badge (Geometric HUD)
             Surface(
                 color = primaryColor.copy(alpha = 0.08f),
                 shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
                 border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.4f)),
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = 14.dp)
             ) {
                 Text(
-                    text = "ACCESS PROTOCOL // SECURE AUTH HUD",
+                    text = "بروتوكول الوصول الآمن // SECURE AUTH HUD",
                     color = primaryColor,
                     fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,
-                    letterSpacing = 2.sp,
+                    letterSpacing = 1.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -141,10 +149,22 @@ fun LoginScreen(
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 6.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            // فاصل هندسي متدرّج
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(30.dp, 2.dp).background(primaryColor.copy(alpha = 0.6f)))
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(modifier = Modifier.size(6.dp).background(accentColor, CutCornerShape(1.dp)))
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(modifier = Modifier.size(30.dp, 2.dp).background(primaryColor.copy(alpha = 0.6f)))
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
 
             // Cloud Link Status Ribbon
             Surface(
@@ -561,12 +581,27 @@ fun LoginScreen(
                                 isLoading = false
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    listOf(primaryColor, AiCyan.copy(alpha = 0.85f))
+                                ),
+                                shape = CutCornerShape(topStart = 14.dp, bottomEnd = 14.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.horizontalGradient(
+                                    listOf(primaryColor.copy(alpha = 0.9f), AiCyan)
+                                ),
+                                shape = CutCornerShape(topStart = 14.dp, bottomEnd = 14.dp)
+                            ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = primaryColor,
+                            containerColor = Color.Transparent,
                             contentColor = DeepSlate
                         ),
-                        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+                        shape = CutCornerShape(topStart = 14.dp, bottomEnd = 14.dp)
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
