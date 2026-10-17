@@ -177,18 +177,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
             route = AppState.QURAN_HUB
         ),
         HasanatSectionItem(
-            id = "sahihain",
-            titleKey = "الصحيحان: البخاري ومسلم",
-            subtitleKey = "أصح كتابين بعد كتاب الله",
-            descKey = "الكتابان كاملان بلا إنترنت: افتح بطاقة البخاري أو مسلم ثم زر «الكتاب كامل».",
-            badgeKey = "7277 بخاري • 7459 مسلم",
-            categoryKey = "الوحيين الشريفين",
-            icon = Icons.Default.AutoStories,
-            accentColor = GoldPrimary,
-            secondaryAccent = GoldSecondary,
-            route = AppState.ISLAMIC_LIBRARY
-        ),
-        HasanatSectionItem(
             id = "prayer",
             titleKey = "محراب الصلاة والمواقيت",
             subtitleKey = "حساب فلكي دقيق وبوصلة القبلة",

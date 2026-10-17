@@ -143,7 +143,12 @@ object IslamicLibraryRepository {
         "العقيدة والتوحيد"
     )
 
-    val books: List<IslamicBook> = listOf(
+    // قسم المكتبة الجامعة مُفرَّغ مؤقتاً لإعادة ملئه لاحقاً.
+    // المحتوى السابق محفوظ في archivedBooks للرجوع إليه عند إعادة الملء.
+    val books: List<IslamicBook> = emptyList()
+
+    @Suppress("unused")
+    val archivedBooks: List<IslamicBook> = listOf(
         // ==========================================
         // 🌟 الصحيحان: درة كتب السنة النبوية المطهرة (مكتملان)
         // ==========================================
