@@ -40,6 +40,7 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -441,6 +442,7 @@ fun AiStudioAgentScreen(
                         item { Spacer(Modifier.height(4.dp)) }
 
                         // Container 1: Mode & Team
+                        item {
                         AgentContainer(title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = Color(0xFF00E5FF)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
@@ -535,8 +537,10 @@ fun AiStudioAgentScreen(
                                 }
                             }
                         }
+                        }
 
                         // Container 2: Specialization
+                        item {
                         AgentContainer(title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = Color(0xFFD4AF37)) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 items(AgentSpecialization.entries.toTypedArray()) { spec ->
@@ -560,8 +564,10 @@ fun AiStudioAgentScreen(
                                 }
                             }
                         }
+                        }
 
                         // Container 3: Prompt & Execute
+                        item {
                         AgentContainer(title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = Color(0xFF10B981)) {
                             OutlinedTextField(
                                 value = promptInput,
@@ -655,7 +661,7 @@ fun AiStudioAgentScreen(
                                             val job = coroutineScope.launch {
                                                 try {
                                                     if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, { currentMission = it }, { teamProgressText = it })
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
                                                     } else {
@@ -702,7 +708,7 @@ fun AiStudioAgentScreen(
                                             val job = coroutineScope.launch {
                                                 try {
                                                     if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, { currentMission = it }, { teamProgressText = it })
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
                                                     } else {
@@ -730,6 +736,7 @@ fun AiStudioAgentScreen(
                                     }
                                 }
                             }
+                        }
                         }
 
                         // Container 4: Active Mission
@@ -926,6 +933,123 @@ private fun HealthPill(
             }
             Spacer(Modifier.height(3.dp))
             Text(detail.take(50), fontSize = 9.sp, color = Color(0xFFCBD5E1), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun UnifiedToolsAndReadinessSection(
+    context: Context,
+    scope: CoroutineScope,
+    onJumpKeys: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var subTab by remember { mutableStateOf(0) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF05070D))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF0A101E))
+                .border(
+                    BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                Color(0xFF10B981).copy(alpha = 0.4f)
+                            )
+                        )
+                    ),
+                    RoundedCornerShape(10.dp)
+                )
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (subTab == 0) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.Transparent,
+                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)) else null,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { subTab = 0 }
+                    .testTag("sub_tab_readiness")
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = if (subTab == 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "فحص الجاهزية والربط",
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
+                        color = if (subTab == 0) Color.White else Color(0xFF94A3B8),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (subTab == 1) Color(0xFF10B981).copy(alpha = 0.22f) else Color.Transparent,
+                border = if (subTab == 1) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { subTab = 1 }
+                    .testTag("sub_tab_tools")
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Handyman,
+                        contentDescription = null,
+                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "ترسانة الأدوات والـ Git",
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
+                        color = if (subTab == 1) Color.White else Color(0xFF94A3B8),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (subTab == 0) {
+                RequirementsTab(
+                    context = context,
+                    scope = scope,
+                    onJumpBuildCenter = {},
+                    onJumpKeys = onJumpKeys
+                )
+            } else {
+                ToolsTab(context = context)
+            }
         }
     }
 }

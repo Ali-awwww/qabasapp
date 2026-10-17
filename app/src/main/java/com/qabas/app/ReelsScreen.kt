@@ -1310,8 +1310,8 @@ fun ReelSpatialHUDOverlays(
 
             arcItems.forEachIndexed { index, (icon, labelTint, action) ->
                 val angle = Math.toRadians((index * 30.0) - 60.0)
-                val px = hubX + radius * kotlin.math.cos(angle)
-                val py = hubY + radius * kotlin.math.sin(angle)
+                val px = hubX + radius * kotlin.math.cos(angle).toFloat()
+                val py = hubY + radius * kotlin.math.sin(angle).toFloat()
 
                 Box(
                     modifier = Modifier

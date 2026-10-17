@@ -160,12 +160,12 @@ object QabasCrashGuard {
             val severe = info.reason == ApplicationExitInfo.REASON_CRASH ||
                 info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
                 info.reason == ApplicationExitInfo.REASON_ANR ||
-                info.reason == ApplicationExitInfo.REASON_OOM
+                info.reason == ApplicationExitInfo.REASON_LOW_MEMORY
             if (!severe) continue
             val label = when (info.reason) {
                 ApplicationExitInfo.REASON_CRASH_NATIVE -> "💥 انهيار native في العملية السابقة"
                 ApplicationExitInfo.REASON_ANR -> "🧊 ANR في العملية السابقة"
-                ApplicationExitInfo.REASON_OOM -> "🧯 نفدت الذاكرة (OOM) في العملية السابقة"
+                ApplicationExitInfo.REASON_LOW_MEMORY -> "🧯 نفدت الذاكرة (OOM) في العملية السابقة"
                 else -> "💥 انهيار Java في العملية السابقة"
             }
             val desc = info.description?.take(200)?.let { " — $it" } ?: ""
