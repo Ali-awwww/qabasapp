@@ -925,13 +925,15 @@ fun SettingsScreen(
                             accentColor = Color(0xFFFF2A85),
                             onClick = { currentSubScreen = SettingsSubScreen.CRASH_LOGS }
                         )
-                        SettingsActionCard(
-                            title = "سجل بلاغاتي واقتراحاتي للتحسين",
-                            subtitle = "متابعة حالة الأعطال والاقتراحات المرسلة وردود فريق التطوير",
-                            icon = Icons.Default.ListAlt,
-                            accentColor = Color(0xFFF59E0B),
-                            onClick = { showUserReportsDialog = true }
-                        )
+                        if (!isGuest) {
+                            SettingsActionCard(
+                                title = "سجل بلاغاتي واقتراحاتي للتحسين",
+                                subtitle = "متابعة حالة الأعطال والاقتراحات المرسلة وردود فريق التطوير",
+                                icon = Icons.Default.ListAlt,
+                                accentColor = Color(0xFFF59E0B),
+                                onClick = { showUserReportsDialog = true }
+                            )
+                        }
                     }
                 }
             }
