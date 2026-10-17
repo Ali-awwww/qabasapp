@@ -233,6 +233,17 @@ fun DownloadsHubScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(vertical = 12.dp)
         ) {
+            // النماذج المرئية في المركز = المنزَّلة أو قيد التنزيل فقط (الكتالوج يُدار من شاشة الوكيل)
+            val visibleModels = OnDeviceModelManager.availableModels.filter { model ->
+                OnDeviceModelManager.isModelInstalled(context, model) ||
+                    when (val state = modelDownloadState) {
+                        is ModelDownloadState.Downloading -> state.modelId == model.id
+                        is ModelDownloadState.Interrupted -> state.modelId == model.id
+                        is ModelDownloadState.Success -> state.modelId == model.id
+                        else -> false
+                    }
+            }
+
             // 1. مؤشر ومقياس الذاكرة المحلي الفضائي (Spatial Storage HUD Indicator)
             item(key = "storage_hud_widget") {
                 SpatialStorageIndicatorWidget(
@@ -288,7 +299,7 @@ fun DownloadsHubScreen(
                 SpatialDownloadsTabsRow(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
-                    llmCount = OnDeviceModelManager.availableModels.size,
+                    llmCount = visibleModels.size,
                     updatesCount = if (appUpdateDownload != null) 1 else 0,
                     isUpdateActive = appUpdateDownload?.isDownloading == true || appUpdateDownload?.isCompleted == true,
                     reelsCount = downloadedReels.size,
@@ -299,43 +310,54 @@ fun DownloadsHubScreen(
             // محتويات التبويب المختار
             when (selectedTab) {
                 0 -> {
-                    // تبويب نماذج LLM الأوفلاين (GGUF)
-                    items(
-                        items = OnDeviceModelManager.availableModels,
-                        key = { "model_${it.id}" }
-                    ) { model ->
-                        val isInstalled = OnDeviceModelManager.isModelInstalled(context, model)
-                        val isSelected = selectedModel.id == model.id
-                        val installedSize = OnDeviceModelManager.getInstalledFileSize(context, model)
+                    // تبويب نماذج LLM الأوفلاين (GGUF) — يعرض المنزَّل أو قيد التنزيل فقط
+                    if (visibleModels.isEmpty()) {
+                        item(key = "empty_models") {
+                            EmptyDownloadsPlaceholder(
+                                title = "لا توجد نماذج منزّلة حالياً",
+                                subtitle = "نزّل نماذج GGUF من شاشة الوكيل الذكي، وستظهر هنا فوراً للتشغيل بدون إنترنت.",
+                                actionText = "فتح الوكيل الذكي 🤖",
+                                onAction = onOpenAiAssistant
+                            )
+                        }
+                    } else {
+                        items(
+                            items = visibleModels,
+                            key = { "model_${it.id}" }
+                        ) { model ->
+                            val isInstalled = OnDeviceModelManager.isModelInstalled(context, model)
+                            val isSelected = selectedModel.id == model.id
+                            val installedSize = OnDeviceModelManager.getInstalledFileSize(context, model)
 
-                        GgufModelCard(
-                            model = model,
-                            isInstalled = isInstalled,
-                            isSelected = isSelected,
-                            installedSizeBytes = installedSize,
-                            downloadState = modelDownloadState,
-                            onDownloadClick = {
-                                ModelDownloadService.start(context, model.id)
-                                Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
-                            },
-                            onCancelClick = {
-                                ModelDownloadService.cancel(context)
-                                OnDeviceModelManager.cancelDownload(context, model)
-                                DownloadsHubManager.refreshStorageMetrics(context)
-                                Toast.makeText(context, "تم إلغاء تنزيل ${model.name}", Toast.LENGTH_SHORT).show()
-                            },
-                            onSelectAsDefault = {
-                                selectedModel = model
-                                OnDeviceModelManager.setSelectedModel(context, model.id)
-                                Toast.makeText(context, "تم تعيين ${model.name} كنموذج افتراضي ✅", Toast.LENGTH_SHORT).show()
-                            },
-                            onDeleteClick = {
-                                modelToDelete = model
-                            },
-                            onTestPromptClick = {
-                                showTestInferenceDialog = model
-                            }
-                        )
+                            GgufModelCard(
+                                model = model,
+                                isInstalled = isInstalled,
+                                isSelected = isSelected,
+                                installedSizeBytes = installedSize,
+                                downloadState = modelDownloadState,
+                                onDownloadClick = {
+                                    ModelDownloadService.start(context, model.id)
+                                    Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
+                                },
+                                onCancelClick = {
+                                    ModelDownloadService.cancel(context)
+                                    OnDeviceModelManager.cancelDownload(context, model)
+                                    DownloadsHubManager.refreshStorageMetrics(context)
+                                    Toast.makeText(context, "تم إلغاء تنزيل ${model.name}", Toast.LENGTH_SHORT).show()
+                                },
+                                onSelectAsDefault = {
+                                    selectedModel = model
+                                    OnDeviceModelManager.setSelectedModel(context, model.id)
+                                    Toast.makeText(context, "تم تعيين ${model.name} كنموذج افتراضي ✅", Toast.LENGTH_SHORT).show()
+                                },
+                                onDeleteClick = {
+                                    modelToDelete = model
+                                },
+                                onTestPromptClick = {
+                                    showTestInferenceDialog = model
+                                }
+                            )
+                        }
                     }
                 }
                 1 -> {
