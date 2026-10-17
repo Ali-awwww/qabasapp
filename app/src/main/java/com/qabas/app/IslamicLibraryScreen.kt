@@ -170,28 +170,6 @@ fun IslamicLibraryScreen(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
-
-                    val categories = listOf("الكل", "العقيدة", "التفسير", "الحديث", "الفقه", "السيرة", "الرقائق")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(categories) { cat ->
-                            val isSelected = selectedCategory == cat
-                            Surface(
-                                modifier = Modifier.clickable { selectedCategory = cat },
-                                color = if (isSelected) GoldPrimary else Color(0xFF151B2B),
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text(
-                                    text = cat,
-                                    color = if (isSelected) DeepSlate else TextSecondary,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -545,28 +523,6 @@ fun IslamicLibraryScreen(
                                     Text("(${author.bookCount})", color = if (isSelected) DeepSlate.copy(alpha = 0.8f) else GoldPrimary, fontFamily = NotoSansFont, fontSize = 10.sp)
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            // Category Filter Chips
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(IslamicLibraryRepository.categories) { cat ->
-                        val isSelected = selectedCategory == cat
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A))
-                                .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B), RoundedCornerShape(10.dp))
-                                .clickable { selectedCategory = cat }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(cat, color = if (isSelected) GoldPrimary else TextSecondary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                         }
                     }
                 }
