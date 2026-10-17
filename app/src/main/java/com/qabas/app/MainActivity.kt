@@ -331,7 +331,7 @@ class MainActivity : ComponentActivity() {
 
             // 🛰️ زر الكاميرا الفضائي العائم لالتقاط لقطات الشاشة وإرسالها للمطور (مزروع في جميع الشاشات وقابل للتحريك لأي زاوية)
             val isDevScreen = BugReportManager.currentScreen.contains("DEVELOPER", ignoreCase = true)
-            if (!showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
+            if (isRegisteredUser && !showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
                 SpatialDraggableDevCameraButton(
                     onScreenshotCaptured = { bitmap, file ->
                         screenshotBitmap = bitmap
