@@ -74,9 +74,7 @@ fun ThemeDesignStudioScreen(
     var isHudCornersEnabled by remember {
         mutableStateOf(prefs.getBoolean("pref_hud_corners", true))
     }
-    var isSoundFxEnabled by remember {
-        mutableStateOf(AppSoundManager.clickEnabled.value)
-    }
+    val isSoundFxEnabled = remember { AppSoundManager.clickEnabled.value }
     var isOledHighContrast by remember {
         mutableStateOf(prefs.getBoolean("pref_oled_contrast", false))
     }
@@ -611,27 +609,7 @@ fun ThemeDesignStudioScreen(
 
                         HorizontalDivider(color = primaryColor.copy(alpha = 0.12f))
 
-                        // 3. المؤثرات الصوتية للتطبيق
-                        StudioSwitchRow(
-                            title = "التفاعلات الصوتية الحية (Spatial Sound FX)",
-                            subtitle = "تشغيل النغمات والمؤثرات الصوتية عند النقر والتبديل",
-                            checked = isSoundFxEnabled,
-                            onCheckedChange = {
-                                isSoundFxEnabled = it
-                                AppSoundManager.setMasterEnabled(context, it)
-                                AppSoundManager.setClickEnabled(context, it)
-                                if (it) AppSoundManager.playActivate()
-                            },
-                            icon = Icons.AutoMirrored.Filled.VolumeUp,
-                            primaryColor = primaryColor,
-                            accentColor = accentColor,
-                            cardColor = cardColor,
-                            isDark = previewPreset.isDark
-                        )
-
-                        HorizontalDivider(color = primaryColor.copy(alpha = 0.12f))
-
-                        // 4. تباين فائق لشاشات OLED
+                        // 3. تباين فائق لشاشات OLED
                         StudioSwitchRow(
                             title = "وضع السواد المطلق (OLED Pure Black)",
                             subtitle = "خلفية سوداء نقية 100% لتوفير الطاقة وزيادة حدة التباين",
