@@ -8,6 +8,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -69,6 +70,29 @@ fun AppNavigation(
             AppState.QASAS, AppState.CLIP_EXTRACTOR, AppState.STYLE_SELECTION, AppState.CREATE_STYLE_OBJECT,
             AppState.TASTE_PROFILE, AppState.TELEPROMPTER, AppState.HADITH_STUDIO, AppState.AI_ASSISTANT
         )
+    }
+
+    // معالجة موحّدة لزر الرجوع في النظام: ترجع للشاشة الأب بدل إغلاق التطبيق.
+    // الشاشات التي تعرّف BackHandler خاصاً بها تتقدّم تلقائياً لأنها تُسجّل لاحقاً.
+    val rootBackStates = remember {
+        setOf(
+            AppState.DATA_LOADING, AppState.ONBOARDING, AppState.LOGIN,
+            AppState.REGISTER, AppState.FORGOT_PASSWORD, AppState.HOME
+        )
+    }
+    val parentBackState = remember {
+        mapOf(
+            AppState.SCHOLAR_DETAIL to AppState.SCHOLAR_BIOGRAPHIES,
+            AppState.SCHOLAR_BIOGRAPHIES to AppState.HASANAT_HUB,
+            AppState.AZKAR to AppState.HASANAT_HUB,
+            AppState.PRAYER_TIMES to AppState.HASANAT_HUB,
+            AppState.ISLAMIC_LIBRARY to AppState.HASANAT_HUB,
+            AppState.REQUEST_DETAILS to AppState.REQUEST_CHAT
+        )
+    }
+    BackHandler(enabled = appState !in rootBackStates) {
+        val target = parentBackState[appState] ?: AppState.HOME
+        viewModel.updateState { copy(appState = target) }
     }
 
     if (!isDeveloperMode && appState in restrictedProductionStates) {

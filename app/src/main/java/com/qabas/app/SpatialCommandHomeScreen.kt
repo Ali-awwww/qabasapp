@@ -1,6 +1,8 @@
 package com.qabas.app
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -188,7 +190,14 @@ fun SpatialCommandHomeScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { (context as? android.app.Activity)?.finishAffinity() },
+                    onClick = {
+                        val activity = context.findHostActivity()
+                        if (activity != null) {
+                            activity.finishAffinity()
+                        } else {
+                            (context as? Activity)?.finish()
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                     shape = CutCornerShape(8.dp)
                 ) {
@@ -2210,4 +2219,14 @@ private fun formatRemainingTime(millis: Long): String {
     val m = (totalSec % 3600L) / 60L
     val s = totalSec % 60L
     return String.format("%02d:%02d:%02d", h, m, s)
+}
+
+/** يفتح سلسلة السياق للوصول إلى الـ Activity المضيفة لإغلاق التطبيق بشكل موثوق. */
+fun Context.findHostActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
 }
