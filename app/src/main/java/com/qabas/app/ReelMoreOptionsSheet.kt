@@ -9,7 +9,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -44,6 +46,7 @@ fun ReelMoreOptionsSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showConfirmDeleteDialog by remember { mutableStateOf(false) }
     var showTelemetryDialog by remember { mutableStateOf(false) }
@@ -64,6 +67,7 @@ fun ReelMoreOptionsSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = Color(0xFF0F172A),
         contentColor = Color.White,
         dragHandle = {
@@ -73,6 +77,7 @@ fun ReelMoreOptionsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp)
         ) {
@@ -100,7 +105,7 @@ fun ReelMoreOptionsSheet(
             // Download Reel to Download Hub
             OptionRow(
                 icon = Icons.Default.FileDownload,
-                title = "تنزيل الريل إلى مركز التنزيلات 📥",
+                title = "تنزيل الريل إلى مركز التنزيلات",
                 subtitle = "حفظ الفيديو في الهاتف لمشاهدته بجودة عالية بدون إنترنت",
                 tint = Color(0xFF00E5FF),
                 onClick = {
@@ -185,7 +190,7 @@ fun ReelMoreOptionsSheet(
             // 6. Report Offensive Content (Directly connected to developer chat)
             OptionRow(
                 icon = Icons.Default.ReportProblem,
-                title = "إبلاغ عن فيديو مسيء 🚨 (متصل بمحادثة المطور)",
+                title = "إبلاغ عن فيديو مسيء (متصل بمحادثة المطور)",
                 subtitle = "إرسال بلاغ فوري ومباشر إلى محادثة المطور لمراجعة المقطع وحذفه",
                 tint = Color(0xFFEF4444),
                 onClick = {
@@ -196,7 +201,7 @@ fun ReelMoreOptionsSheet(
             // 7. Open Direct Dev Chat
             OptionRow(
                 icon = Icons.Default.Chat,
-                title = "محادثة حية مع المطور مباشرة 🛰️",
+                title = "محادثة حية مع المطور مباشرة",
                 subtitle = "تواصل فوري مع فريق تطوير قبس للاقتراحات والملاحظات",
                 tint = GoldPrimary,
                 onClick = {
@@ -213,9 +218,9 @@ fun ReelMoreOptionsSheet(
                 )
 
                 val deleteTitle = when {
-                    isOwner && !isDeveloper -> "حذف مقطعي نهائياً 🗑️"
-                    isDeveloper && !isOwner -> "حذف المقطع من السحابة (صلاحية المطور) 👑"
-                    else -> "حذف المقطع نهائياً (المطور / صاحب الفيديو) 🗑️"
+                    isOwner && !isDeveloper -> "حذف مقطعي نهائياً"
+                    isDeveloper && !isOwner -> "حذف المقطع من السحابة (صلاحية المطور)"
+                    else -> "حذف المقطع نهائياً (المطور / صاحب الفيديو)"
                 }
                 val deleteSubtitle = when {
                     isOwner && !isDeveloper -> "إزالة هذا الفيديو الذي قمت بنشره نهائياً من منصة قبس"
@@ -557,29 +562,34 @@ private fun OptionRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() },
-        color = Color.Transparent
+        color = Color.White.copy(alpha = 0.03f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.14f))
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color.White.copy(alpha = 0.05f),
-                modifier = Modifier.size(36.dp)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(tint.copy(alpha = 0.10f))
+                    .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(20.dp)
+                )
             }
             Spacer(modifier = Modifier.width(14.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontFamily = CairoFont,
@@ -587,10 +597,12 @@ private fun OptionRow(
                     fontSize = 13.5.sp,
                     color = tint
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
+                    lineHeight = 15.sp,
                     color = Color.White.copy(alpha = 0.55f)
                 )
             }
