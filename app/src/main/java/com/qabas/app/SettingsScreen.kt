@@ -1870,8 +1870,8 @@ fun SettingsActionCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(Translator.tr(title), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(Translator.tr(subtitle), color = Color.Gray, fontFamily = NotoSansFont, fontSize = 10.5.sp)
+                    Text(Translator.tr(title), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(Translator.tr(subtitle), color = Color.Gray, fontFamily = NotoSansFont, fontSize = 10.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 if (onClick != null) {
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
@@ -2117,18 +2117,18 @@ fun CommunityAndLinksSection() {
                             Text(
                                 item.badge,
                                 color = item.color,
-                                fontSize = 8.5.sp,
+                                fontSize = 9.5.sp,
                                 fontFamily = CairoFont,
                                 maxLines = 1,
                                 softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
                         Text(
                             Translator.tr(item.subtitle),
                             color = Color.Gray,
                             fontFamily = CairoFont,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

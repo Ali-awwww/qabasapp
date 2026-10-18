@@ -135,10 +135,10 @@ fun CommunityReviewsCard(
                     Text(
                         "Supabase Live 🛰️",
                         color = GoldPrimary,
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = NotoSansFont,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     )
                 }
             }
