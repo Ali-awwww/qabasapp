@@ -68,6 +68,21 @@ object AgentConnectivityEngine {
             return Triple(DetectedProvider.OPENAI, openaiPrefs, KeySource.KEY_VAULT)
         }
 
+        val anthropicPrefs = clean(prefs.getString("anthropic_key", ""))
+        if (anthropicPrefs.isNotEmpty() && !anthropicPrefs.lowercase().startsWith("your_")) {
+            return Triple(DetectedProvider.ANTHROPIC, anthropicPrefs, KeySource.KEY_VAULT)
+        }
+
+        val huggingfacePrefs = clean(prefs.getString("huggingface_key", ""))
+        if (huggingfacePrefs.isNotEmpty() && !huggingfacePrefs.lowercase().startsWith("your_")) {
+            return Triple(DetectedProvider.HUGGINGFACE, huggingfacePrefs, KeySource.KEY_VAULT)
+        }
+
+        val opencodePrefs = clean(prefs.getString("opencode_key", ""))
+        if (opencodePrefs.isNotEmpty() && !opencodePrefs.lowercase().startsWith("your_")) {
+            return Triple(DetectedProvider.OPENCODE, opencodePrefs, KeySource.KEY_VAULT)
+        }
+
         // 2. فحص BuildConfig إذا لم يقم المستخدم بإدخال مفتاح في الواجهة
         val geminiBuild = runCatching {
             BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String

@@ -59,6 +59,8 @@ object KeyVault {
     val azureSpeechRegion: String get() = resolve("azure_speech_region", BuildConfig.AZURE_SPEECH_REGION)
     val elevenlabs: String get() = resolve("elevenlabs_key", BuildConfig.ELEVENLABS_API_KEY)
     val openrouter: String get() = resolve("openrouter_key", BuildConfig.OPENROUTER_API_KEY)
+    val anthropic: String get() = resolve("anthropic_key", null)
+    val opencode: String get() = resolve("opencode_key", null)
     val pexels: String get() = resolve("pexels_key", BuildConfig.PEXELS_API_KEY)
     val pixabay: String get() = resolve("pixabay_key", BuildConfig.PIXABAY_API_KEY)
     val coverr: String get() = (prefs().getString("coverr_key", "") ?: "").trim()

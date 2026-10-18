@@ -446,6 +446,7 @@ internal fun AgentLiveConsoleTab(
             }
 
             // 2. إرسال الطلب المباشر بالسيرفر الحقيقي
+            waitIfPaused()
             steps = steps + AgentStep(
                 id = 1,
                 turn = 1,
@@ -552,6 +553,7 @@ internal fun AgentLiveConsoleTab(
 
             val nextCmd = commandQueue.firstOrNull { it.status == CommandStatus.PENDING }
             if (nextCmd != null && cmd.status == CommandStatus.COMPLETED) {
+                waitIfPaused()
                 Toast.makeText(context, "اكتمل الأمر! جاري الانتقال للأمر التالي في الطابور ⏳", Toast.LENGTH_SHORT).show()
                 delay(800)
                 executeCommand(nextCmd)

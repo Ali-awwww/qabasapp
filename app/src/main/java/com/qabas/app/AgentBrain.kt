@@ -44,8 +44,14 @@ object UniversalKeyBrain {
         val oai = KeyVault.openai
         if (oai.isNotBlank()) return Pair(DetectedProvider.OPENAI, oai)
 
+        val anthropic = KeyVault.anthropic
+        if (anthropic.isNotBlank()) return Pair(DetectedProvider.ANTHROPIC, anthropic)
+
         val hf = KeyVault.huggingface
         if (hf.isNotBlank()) return Pair(DetectedProvider.HUGGINGFACE, hf)
+
+        val oc = KeyVault.opencode
+        if (oc.isNotBlank()) return Pair(DetectedProvider.OPENCODE, oc)
 
         return Pair(DetectedProvider.NONE, "")
     }

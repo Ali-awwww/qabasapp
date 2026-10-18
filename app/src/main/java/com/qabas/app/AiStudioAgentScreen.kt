@@ -43,6 +43,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+/** قائمة النماذج المتاحة لكل مزود — مصدر واحد يمنع إرسال نموذج مزودٍ إلى مزود آخر */
+private fun agentModelsFor(provider: DetectedProvider): List<String> = when (provider) {
+    DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro")
+    DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
+    DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
+    DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
+    DetectedProvider.ANTHROPIC -> listOf("claude-sonnet-4.5", "claude-3.5-sonnet", "claude-3.5-haiku")
+    DetectedProvider.HUGGINGFACE -> listOf("meta-llama/Llama-3.3-70B-Instruct")
+    DetectedProvider.OPENCODE -> listOf("opencode/grok-code")
+    else -> emptyList()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiStudioAgentScreen(
@@ -84,7 +96,7 @@ fun AiStudioAgentScreen(
     var executionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var lastExecutedPrompt by remember { mutableStateOf("") }
     var showModelPicker by remember { mutableStateOf(false) }
-    var selectedModel by remember { mutableStateOf("gemini-3.5-flash") }
+    var selectedModel by remember { mutableStateOf("") }
     var applyingDiffPath by remember { mutableStateOf<String?>(null) }
 
     val TAG = "AiStudioAgentScreen"
@@ -251,6 +263,14 @@ fun AiStudioAgentScreen(
 
     LaunchedEffect(Unit) { refreshDiagnostics() }
 
+    // 🔑 مزامنة النموذج المختار مع المزود النشط (يمنع إرسال نموذج Gemini لمزود OpenRouter مثلاً)
+    LaunchedEffect(keyResolution.first) {
+        val models = agentModelsFor(keyResolution.first)
+        if (selectedModel.isBlank() || selectedModel !in models) {
+            models.firstOrNull()?.let { selectedModel = it }
+        }
+    }
+
     LaunchedEffect(currentMission, isOfflineMode) {
         saveMissionState()
         if (isOfflineMode && currentMission != null && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
@@ -269,6 +289,17 @@ fun AiStudioAgentScreen(
         while (true) {
             delay(30000)
             saveMissionState()
+        }
+    }
+
+    // 🔑 استعادة المهمة النشطة عند فتح الشاشة (كانت تُحفظ ولا تُستعاد أبداً)
+    LaunchedEffect(Unit) {
+        if (currentMission == null) {
+            val restored = restoreMissionState()
+            if (restored != null) {
+                currentMission = restored
+                missionHistory = missionHistory + listOf(restored)
+            }
         }
     }
 
@@ -427,12 +458,13 @@ fun AiStudioAgentScreen(
                         context = context,
                         scope = coroutineScope,
                         onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = {}
+                        onJumpBuildCenter = { showRepoDialog = true }
                     )
                     2 -> UnifiedToolsAndReadinessSection(
                         context = context,
                         scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true }
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = { showRepoDialog = true }
                     )
                     3 -> TaskHistoryLogTab(context)
                     else -> LazyColumn(
@@ -845,13 +877,7 @@ fun AiStudioAgentScreen(
     }
     if (showModelPicker) {
         val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
-        val models = when (provider) {
-            DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro", "gemini-2.0-flash")
-            DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
-            DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
-            DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
-            else -> listOf("gemini-3.5-flash")
-        }
+        val models = agentModelsFor(provider)
         AlertDialog(
             onDismissRequest = { showModelPicker = false },
             title = { Text("اختر النموذج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
@@ -942,6 +968,7 @@ private fun UnifiedToolsAndReadinessSection(
     context: Context,
     scope: CoroutineScope,
     onJumpKeys: () -> Unit,
+    onJumpBuildCenter: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var subTab by remember { mutableStateOf(0) }
@@ -1044,7 +1071,7 @@ private fun UnifiedToolsAndReadinessSection(
                 RequirementsTab(
                     context = context,
                     scope = scope,
-                    onJumpBuildCenter = {},
+                    onJumpBuildCenter = onJumpBuildCenter,
                     onJumpKeys = onJumpKeys
                 )
             } else {
