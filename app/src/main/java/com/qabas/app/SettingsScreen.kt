@@ -764,7 +764,7 @@ fun SettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
                     bottomBar = bottomBar
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         // 1.1 الديزاين والثيمات
                         SettingsActionCard(
                             title = "نظام الألوان والديزاين (Global Theme)",
@@ -772,15 +772,6 @@ fun SettingsScreen(
                             icon = Icons.Default.Palette,
                             accentColor = Color(0xFF00E5FF),
                             onClick = { currentSubScreen = SettingsSubScreen.CYBER_HUD_PREVIEW }
-                        )
-
-                        // 1.2 استوديو المؤثرات الصوتية الشامل
-                        SettingsActionCard(
-                            title = "استوديو المؤثرات الصوتية (Sound Effects Studio)",
-                            subtitle = "تخصيص أنماط الأصوات، مستوى الصوت، وتفعيل أصوات السبحة والتحولات",
-                            icon = Icons.Default.GraphicEq,
-                            accentColor = Color(0xFF38BDF8),
-                            onClick = { currentSubScreen = SettingsSubScreen.SOUND_STUDIO }
                         )
 
                         // 1.2 لغة التطبيق
