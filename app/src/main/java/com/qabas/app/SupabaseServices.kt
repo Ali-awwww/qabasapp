@@ -975,6 +975,35 @@ object SupabaseServices {
     }
 
     // ==========================================
+    // Verified Creators Operations
+    // ==========================================
+    object VerifiedCreators {
+        suspend fun getVerifiedIds(): List<String> = runCatching {
+            val client = client ?: return emptyList()
+            client.postgrest.from("verified_creators").select()
+                .decodeList<VerifiedCreatorRow>()
+                .map { it.id }
+                .filter { it.isNotBlank() }
+        }.onFailure { Log.e(TAG, "getVerifiedIds failed: ${it.message}") }.getOrDefault(emptyList())
+
+        suspend fun addVerified(id: String): Boolean = runCatching {
+            val client = client ?: return false
+            client.postgrest.from("verified_creators").upsert(mapOf("id" to id))
+            true
+        }.onFailure { Log.e(TAG, "addVerified failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun removeVerified(id: String): Boolean = runCatching {
+            val client = client ?: return false
+            client.postgrest.from("verified_creators").delete {
+                filter {
+                    eq("id", id)
+                }
+            }
+            true
+        }.onFailure { Log.e(TAG, "removeVerified failed: ${it.message}") }.getOrDefault(false)
+    }
+
+    // ==========================================
     // AppReviews Operations
     // ==========================================
     object AppReviews {
@@ -1210,6 +1239,11 @@ object SupabaseServices {
         @SerialName("avatar_url") val avatarUrl: String? = null,
         val role: String = "user",
         @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
+    data class VerifiedCreatorRow(
+        val id: String = ""
     )
 
     @Serializable

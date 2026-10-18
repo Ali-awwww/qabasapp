@@ -1175,8 +1175,14 @@ private fun WeeklyMissionTab(
     onStartMission: (String, String) -> Unit
 ) {
     if (mission == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(Translator.tr("لا يوجد تحدي نشط حالياً"), color = TextSecondary, fontFamily = CairoFont)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 28.dp)
+        ) {
+            item { VerificationMissionCard() }
         }
         return
     }
@@ -1188,6 +1194,8 @@ private fun WeeklyMissionTab(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 28.dp)
     ) {
+        item { VerificationMissionCard() }
+
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1424,3 +1432,182 @@ private fun WeeklyMissionTab(
     }
 }
 
+/**
+ * 🛡️ بطاقة شارة التوثيق ومهام الريلز داخل قسم الدوري.
+ * تُظهر القواعد والمهام الصعبة والتقدم، ولوحة المطوّر لمنح/سحب الشارة.
+ */
+@Composable
+private fun VerificationMissionCard() {
+    val context = LocalContext.current
+    var refresh by remember { mutableIntStateOf(0) }
+    val tasks = VerificationManager.TASKS
+    val completed = remember(refresh) { VerificationManager.completedTasks(context) }
+    val isDev = remember(refresh) { VerificationManager.isDeveloper(context) }
+    val selfVerified = remember(refresh) { VerificationManager.isSelfVerified(context) }
+    var targetInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        runCatching { VerificationManager.refreshFromCloud(context) }
+        refresh++
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Column(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF111827))
+                    )
+                )
+                .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                .padding(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "شارة التوثيق ومهام الريلز",
+                        color = TextPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        "أكمل المهام الصعبة ثم يمنحها المطوّر",
+                        color = TextSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 11.sp
+                    )
+                }
+                Surface(
+                    color = if (selfVerified) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF0F172A),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, if (selfVerified) Color(0xFF10B981) else Color(0xFF334155))
+                ) {
+                    Text(
+                        if (selfVerified) "موثّق ✓" else "$completed/${tasks.size}",
+                        color = if (selfVerified) Color(0xFF10B981) else GoldPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text("قواعد التوثيق", color = GoldSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            VerificationManager.RULES.forEach { rule ->
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Text("•", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        rule,
+                        color = Color(0xFFE2E8F0),
+                        fontFamily = CairoFont,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text("المهام المطلوبة", color = GoldSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            tasks.forEach { task ->
+                val cur = remember(refresh, task.id) { VerificationManager.progressFor(context, task) }
+                val done = cur >= task.target
+                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (done) Color(0xFF10B981) else TextSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(task.title, color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(task.description, color = TextSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
+                        }
+                        Text(
+                            "${cur.coerceAtMost(task.target)}/${task.target}",
+                            color = if (done) Color(0xFF10B981) else GoldPrimary,
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(5.dp))
+                    LinearProgressIndicator(
+                        progress = { (cur.toFloat() / task.target).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = if (done) Color(0xFF10B981) else GoldPrimary,
+                        trackColor = Color(0xFF1E293B)
+                    )
+                }
+            }
+
+            if (isDev) {
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = Color(0xFF334155))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "لوحة المطوّر — منح/سحب التوثيق",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = targetInput,
+                    onValueChange = { targetInput = it },
+                    placeholder = { Text("معرّف المستخدم أو بريده", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        unfocusedBorderColor = Color(0xFF1E293B),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            if (VerificationManager.setVerified(context, targetInput, true)) {
+                                targetInput = ""
+                                refresh++
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate)
+                    ) {
+                        Text("توثيق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (VerificationManager.setVerified(context, targetInput, false)) {
+                                targetInput = ""
+                                refresh++
+                            }
+                        }
+                    ) {
+                        Text("سحب التوثيق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFEF4444))
+                    }
+                }
+            }
+        }
+    }
+}

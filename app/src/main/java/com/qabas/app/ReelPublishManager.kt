@@ -365,6 +365,9 @@ object ReelPublishManager {
         }
         val success = true
 
+        // احتساب النشر ضمن مهام التوثيق
+        runCatching { VerificationManager.recordReelPublished(context) }
+
         // حفظ المقطع أيضاً في السجل المحلي للمستخدم
         ReelPreferencesManager.recordWatch(
             context = context,

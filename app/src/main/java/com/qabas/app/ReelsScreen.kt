@@ -247,6 +247,11 @@ fun ReelsScreen(
         loadReels()
     }
 
+    // مزامنة قائمة الموثّقين عالمياً لعرض الشارة بشكل صحيح
+    LaunchedEffect(Unit) {
+        runCatching { VerificationManager.refreshFromCloud(context) }
+    }
+
     // Filter reels based on Tab, Category, Search Query and Hidden status
     val displayReels = remember(allReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion) {
         allReels.filterNot { hiddenReelIds.contains(it.id) }
@@ -1115,6 +1120,7 @@ fun ReelSpatialHUDOverlays(
     // معلومات الناشر: حالة المتابعة وما إذا كان المقطع للمستخدم نفسه
     val hudContext = LocalContext.current
     val hudViewer = remember { CreatorFollowManager.currentViewer(hudContext) }
+    val creatorVerified = remember(reel.userId) { VerificationManager.isVerified(hudContext, reel.userId) }
     var isFollowingCreator by remember(reel.userId) {
         mutableStateOf(CreatorFollowManager.isFollowing(hudContext, reel.userId))
     }
@@ -1213,17 +1219,19 @@ fun ReelSpatialHUDOverlays(
                                     }
                             )
                             Spacer(modifier = Modifier.width(5.dp))
-                            Surface(
-                                color = GoldPrimary,
-                                shape = CircleShape,
-                                modifier = Modifier.size(13.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = "موثق",
-                                    tint = DeepSlate,
-                                    modifier = Modifier.padding(1.5.dp)
-                                )
+                            if (creatorVerified) {
+                                Surface(
+                                    color = GoldPrimary,
+                                    shape = CircleShape,
+                                    modifier = Modifier.size(13.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = "موثق",
+                                        tint = DeepSlate,
+                                        modifier = Modifier.padding(1.5.dp)
+                                    )
+                                }
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
