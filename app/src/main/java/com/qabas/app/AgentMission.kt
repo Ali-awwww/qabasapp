@@ -76,8 +76,25 @@ suspend fun executeAgentMission(
     onUpdate: (AgentMissionSession) -> Unit,
     onFinished: (AgentMissionSession) -> Unit
 ) = withContext(Dispatchers.IO) {
+    // 📒 كل مهمة نهائية تُسجَّل في سجل العمليات — لا نجاح ولا فشل صامت
+    fun recordRun(session: AgentMissionSession) {
+        val ok = session.status == AgentTaskStatus.COMPLETED
+        val tools = session.steps.map { it.toolName }.filter { it.isNotBlank() }.distinct()
+            .ifEmpty { listOf("plan_only") }
+        AgentRunLog.record(
+            context = context,
+            title = session.userPrompt.ifBlank { "مهمة وكيل" },
+            tools = tools,
+            summary = session.finalReport.ifBlank { "انتهت المهمة بحالة: ${session.status.name}" },
+            ok = ok,
+            error = if (ok) "" else session.finalReport
+        )
+    }
     try {
-        executeAgentMissionInner(context, prompt, spec, repo, selectedModel, onUpdate, onFinished)
+        executeAgentMissionInner(context, prompt, spec, repo, selectedModel, onUpdate) { s ->
+            recordRun(s)
+            onFinished(s)
+        }
     } catch (e: kotlinx.coroutines.CancellationException) {
         val cancelled = AgentMissionSession(
             userPrompt = prompt,
@@ -85,6 +102,7 @@ suspend fun executeAgentMission(
             status = AgentTaskStatus.CANCELLED,
             finalReport = "أُلغيت المهمة بواسطتك ⏹️ — لم يُرسل أي طلب جديد بعد الإلغاء."
         )
+        recordRun(cancelled)
         onFinished(cancelled)
         throw e
     }
@@ -784,6 +802,21 @@ suspend fun executeAgentMissionMultiModel(
         onUpdate(session)
     }
 
+    // 📒 سجل العمليات: كل نهاية مسار (نجاح/فشل/فريق فارغ) تُسجَّل — لا فشل صامت
+    fun recordRun(s: AgentMissionSession) {
+        val ok = s.status == AgentTaskStatus.COMPLETED
+        val tools = s.steps.map { it.toolName }.filter { it.isNotBlank() }.distinct()
+            .ifEmpty { listOf("team_orchestrator") }
+        AgentRunLog.record(
+            context = context,
+            title = s.userPrompt.ifBlank { "مهمة فريق النماذج" },
+            tools = tools,
+            summary = s.finalReport.ifBlank { "انتهت مهمة الفريق بحالة: ${s.status.name}" },
+            ok = ok,
+            error = if (ok) "" else s.finalReport
+        )
+    }
+
     // 🔑 نتحقق فقط من مزود/مفتاح أعضاء الفريق الفعليين (لا المزود العالمي غير ذي الصلة)
     if (team.isEmpty()) {
         val failed = AgentMissionSession(
@@ -795,6 +828,7 @@ suspend fun executeAgentMissionMultiModel(
         )
         onStatusChange(AgentTaskStatus.FAILED)
         onUpdate(failed)
+        recordRun(failed)
         return failed
     }
 
@@ -844,6 +878,7 @@ suspend fun executeAgentMissionMultiModel(
                     "\n\nاستوفِ ما أعلاه ثم أعد التنفيذ."
             )
             onUpdate(failed)
+            recordRun(failed)
             return failed
         }
         val errorText = report.memberResults.firstOrNull { !it.isSuccess && it.errorMessage != null }?.errorMessage ?: "فشل غير معروف"
@@ -853,6 +888,7 @@ suspend fun executeAgentMissionMultiModel(
             finalReport = "❌ فشل فريق النماذج في إكمال المهمة.\n\nأول خطأ: $errorText\n\nتحذيرات: ${report.warnings.joinToString("، ")}"
         )
         onUpdate(failed)
+        recordRun(failed)
         return failed
     }
 
@@ -896,6 +932,7 @@ suspend fun executeAgentMissionMultiModel(
     )
     session = finalSession
     onUpdate(finalSession)
+    recordRun(finalSession)
     return finalSession
 }
 

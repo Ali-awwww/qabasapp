@@ -46,6 +46,15 @@ fun extractTargetFile(prompt: String, responseText: String): String {
 }
 
 object AgentPatchKit {
+    /**
+     * 🔑 مسار آمن لحفظ مقترح الوكيل دون استبدال ملفات الكود الحقيقية.
+     * المقترح الناتج مقتطف جزئي (ليس ملفاً كاملاً)، لذا يُكتب في مجلد منفصل للمراجعة اليدوية.
+     */
+    fun proposalPath(originalPath: String): String {
+        val name = originalPath.substringAfterLast('/').ifBlank { "proposal.kt" }
+        return "qabas-agent-proposals/${System.currentTimeMillis()}_$name"
+    }
+
     fun extractDiffs(prompt: String, codeText: String): List<FileDiff> {
         val blocks = Regex("```(\\w*)\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
             .findAll(codeText)

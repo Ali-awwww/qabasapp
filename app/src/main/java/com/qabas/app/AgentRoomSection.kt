@@ -2421,7 +2421,7 @@ internal fun AgentLiveConsoleTab(
                             }
                         }
 
-                        // زر تطبيق ودفع التعديل مباشرة إلى فرع العمل على GitHub
+                        // زر حفظ مقترح الوكيل إلى مجلد منفصل في فرع العمل (لا يستبدل ملفات الكود الأصلية)
                         Button(
                             onClick = {
                                 if (token.isBlank()) {
@@ -2437,21 +2437,23 @@ internal fun AgentLiveConsoleTab(
                                 scope.launch(Dispatchers.IO) {
                                     val client = GitHubRepoClient(owner.trim(), repo.trim(), token.trim())
                                     val branch = ghBranch.ifBlank { "main" }
-                                    val commitMessage = "feat(agent): update ${diff.filePath.substringAfterLast("/")}"
-                                    val success = client.updateFile(diff.filePath, branch, commitMessage, diff.diffText)
+                                    val commitMessage = "chore(agent): save proposal for ${diff.filePath.substringAfterLast("/")}"
+                                    // 🔑 نحفظ المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
+                                    val safePath = AgentPatchKit.proposalPath(diff.filePath)
+                                    val success = client.updateFile(safePath, branch, commitMessage, diff.diffText)
                                     withContext(Dispatchers.Main) {
                                         isPushingToGitHub = false
                                         if (success) {
-                                            Toast.makeText(context, "تم دفع التعديل بنجاح إلى فرع $branch على GitHub 🚀", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "تم حفظ المقترح في مجلد qabas-agent-proposals على فرع $branch 🔐", Toast.LENGTH_LONG).show()
                                             AgentRunLog.record(
                                                 context = context,
-                                                title = "دفع الكود: ${diff.filePath.substringAfterLast("/")}",
-                                                tools = listOf("github_push", "commit_file"),
-                                                summary = "تم تطبيق التعديلات ودفعها بنجاح إلى الفرع $branch في المستودع $owner/$repo.",
+                                                title = "حفظ مقترح: ${diff.filePath.substringAfterLast("/")}",
+                                                tools = listOf("github_push", "save_proposal"),
+                                                summary = "تم حفظ المقترح في مجلد qabas-agent-proposals على الفرع $branch في المستودع $owner/$repo دون المساس بملفات الكود الأصلية.",
                                                 ok = true
                                             )
                                         } else {
-                                            Toast.makeText(context, "تعذر دفع التعديل — تأكد من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "تعذر حفظ المقترح — تأكد من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 }
@@ -2465,11 +2467,11 @@ internal fun AgentLiveConsoleTab(
                             if (isPushingToGitHub) {
                                 CircularProgressIndicator(color = Color(0xFF10B981), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري دفع الكود للفرع...", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp)
+                                Text("جاري حفظ المقترح للفرع...", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp)
                             } else {
                                 Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("تطبيق ودفع التعديل إلى فرع GitHub 🚀", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("حفظ المقترح إلى فرع GitHub 🔐", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
 
@@ -2526,10 +2528,10 @@ internal fun AgentLiveConsoleTab(
                                         id = steps.size + 1,
                                         turn = currentTurn,
                                         phase = "ROLLBACK",
-                                        title = "تم التراجع عن المهمة واستعادة الحالة السابقة ↺",
-                                        detail = "قام المطور بإلغاء الترقيع البرمجي واستعادة النسخة النظيفة."
+                                        title = "تم تجاهل المقترح المُولّد ✕",
+                                        detail = "ألغى المطور مقترح الترقيع البرمجي دون أي تغيير على المستودع."
                                     )
-                                    Toast.makeText(context, "تم التراجع عن المهمة بنجاح ↺", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم تجاهل المقترح ✕", Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF261016)),
                                 border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
@@ -2539,7 +2541,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.Undo, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تراجع ↺", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("تجاهل ✕", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
                             }
                         }
                     }

@@ -813,23 +813,25 @@ fun AiStudioAgentScreen(
                                                 applyingDiffPath = diff.filePath
                                                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                                     val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
-                                                    val ok = client.updateFile(diff.filePath, activeRepo.defaultBranch.ifBlank { "main" }, "feat(agent): update", diff.diffText)
+                                                    // 🔑 نكتب المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
+                                                    val safePath = AgentPatchKit.proposalPath(diff.filePath)
+                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch.ifBlank { "main" }, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
                                                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                                                         applyingDiffPath = null
                                                         if (ok) {
-                                                            val pushed = (currentMission ?: mission).copy(appliedPaths = (currentMission ?: mission).appliedPaths + diff.filePath)
+                                                            val pushed = (currentMission ?: mission).copy(appliedPaths = (currentMission ?: mission).appliedPaths + safePath)
                                                             currentMission = pushed
-                                                            Toast.makeText(context, "تم الدفع", Toast.LENGTH_LONG).show()
-                                                            runBuildVerification(context, pushed) { currentMission = it }
+                                                            Toast.makeText(context, "تم حفظ المقترح في المستودع (مجلد qabas-agent-proposals)", Toast.LENGTH_LONG).show()
                                                         } else {
-                                                            Toast.makeText(context, "تعذر الدفع", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, "تعذر الحفظ — تأكد من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
                                                         }
                                                     }
                                                 }
                                             }
                                         },
                                         onDiscardDiff = { diff ->
-                                            currentMission = mission.copy(proposedDiffs = mission.proposedDiffs.filterNot { it.filePath == diff.filePath })
+                                            val base = currentMission ?: mission
+                                            currentMission = base.copy(proposedDiffs = base.proposedDiffs.filterNot { it.filePath == diff.filePath })
                                             Toast.makeText(context, "تم التجاهل", Toast.LENGTH_SHORT).show()
                                         },
                                         applyingPath = applyingDiffPath

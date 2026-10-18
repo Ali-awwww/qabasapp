@@ -147,6 +147,13 @@ object AgentConnectivityEngine {
                 keySource = keySource,
                 url = "https://opencode.ai/inference/v1/models"
             )
+            DetectedProvider.HUGGINGFACE -> pingGenericBearerLive(
+                provider = provider,
+                apiKey = clean,
+                keySource = keySource,
+                url = "https://huggingface.co/api/whoami-v2"
+            )
+            DetectedProvider.ANTHROPIC -> pingAnthropicLive(clean, keySource)
             else -> LiveHealthStatus(
                 serviceName = provider.displayName,
                 isConnected = false,
@@ -295,6 +302,58 @@ object AgentConnectivityEngine {
                 keySource = keySource,
                 httpCode = -1,
                 modelName = provider.defaultModel
+            )
+        }
+    }
+
+    /**
+     * فحص حي لمفاتيح Anthropic (ترويسة x-api-key بدل Bearer).
+     */
+    suspend fun pingAnthropicLive(apiKey: String, keySource: KeySource): LiveHealthStatus = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        try {
+            val request = Request.Builder()
+                .url("https://api.anthropic.com/v1/models")
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .header("User-Agent", "Qabas-Studio")
+                .get()
+                .build()
+            val response = SharedHttpClient.instance.newCall(request).execute()
+            val latency = System.currentTimeMillis() - startTime
+            val code = response.code
+            response.close()
+            if (response.isSuccessful) {
+                LiveHealthStatus(
+                    serviceName = DetectedProvider.ANTHROPIC.displayName,
+                    isConnected = true,
+                    latencyMs = latency,
+                    statusDetail = "متصل بنجاح (${latency}ms) • استجابة حية",
+                    keySource = keySource,
+                    httpCode = code,
+                    modelName = DetectedProvider.ANTHROPIC.defaultModel
+                )
+            } else {
+                LiveHealthStatus(
+                    serviceName = DetectedProvider.ANTHROPIC.displayName,
+                    isConnected = false,
+                    latencyMs = latency,
+                    statusDetail = "رفض الخادم (HTTP $code)",
+                    keySource = keySource,
+                    httpCode = code,
+                    modelName = DetectedProvider.ANTHROPIC.defaultModel
+                )
+            }
+        } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            LiveHealthStatus(
+                serviceName = DetectedProvider.ANTHROPIC.displayName,
+                isConnected = false,
+                latencyMs = latency,
+                statusDetail = "تعذر الاتصال بالشبكة: ${e.localizedMessage ?: e.message}",
+                keySource = keySource,
+                httpCode = -1,
+                modelName = DetectedProvider.ANTHROPIC.defaultModel
             )
         }
     }

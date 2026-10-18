@@ -487,7 +487,7 @@ fun LiveMissionExecutionCard(
                             ) {
                                 if (isApplied) {
                                     Text(
-                                        text = "تم الاعتماد والدفع ✅",
+                                        text = "تم حفظ المقترح ✅",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF10B981)
@@ -503,7 +503,7 @@ fun LiveMissionExecutionCard(
                                         if (isApplying) {
                                             CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
                                         } else {
-                                            Text("اعتماد ودفع 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("حفظ المقترح 🔐", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                     OutlinedButton(
