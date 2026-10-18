@@ -707,7 +707,7 @@ fun SettingsScreen(
 
                         // 4. النظام، البيانات والمجتمع (System & Community)
                         SettingsNavigationCard(
-                            title = Translator.tr("النظام، البيانات والمجتمع"),
+                            title = Translator.tr("النظام والبيانات والمجتمع"),
                             subtitle = Translator.tr("النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية"),
                             icon = Icons.Default.SettingsSuggest,
                             badge = "الاستدامة ⚙️",
@@ -715,15 +715,17 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
                         )
 
-                        // 4.1 اتصال GitHub المباشر وتحديثات xdelta الذكية
-                        SettingsNavigationCard(
-                            title = Translator.tr("تحديثات xdelta ومستودع GitHub المباشر"),
-                            subtitle = Translator.tr("اتصال مباشر بـ Ali-awwww/qabasapp، فحص إصدارات xdelta، وتثبيت تفاضلي فائق السرعة"),
-                            icon = Icons.Default.CloudSync,
-                            badge = "تحديث تفاضلي ⚡",
-                            accentColor = Color(0xFF00E5FF),
-                            onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
-                        )
+                        // 4.1 اتصال GitHub المباشر وتحديثات xdelta الذكية (أداة مطوّر)
+                        if (isAdmin || isDevMode) {
+                            SettingsNavigationCard(
+                                title = Translator.tr("تحديثات xdelta ومستودع GitHub المباشر"),
+                                subtitle = Translator.tr("اتصال مباشر بـ Ali-awwww/qabasapp، فحص إصدارات xdelta، وتثبيت تفاضلي فائق السرعة"),
+                                icon = Icons.Default.CloudSync,
+                                badge = "تحديث تفاضلي ⚡",
+                                accentColor = Color(0xFF00E5FF),
+                                onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -861,13 +863,16 @@ fun SettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
                     bottomBar = bottomBar
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+
+                        // ── البيانات والنسخ الاحتياطي ──
+                        SettingsGroupHeader(Translator.tr("البيانات والنسخ الاحتياطي ☁️"))
                         SettingsActionCard(
                             title = "النسخ السحابي وإدارة الذاكرة",
                             subtitle = "تصدير الإعدادات، استعادة البيانات، وتفريغ الكاش",
                             icon = Icons.Default.CloudSync,
                             accentColor = Color(0xFF6366F1),
-                            content = { 
+                            content = {
                                 StorageAndBackupSection(
                                     cacheSizeBytes = cacheSizeBytes,
                                     isDeveloper = isAdmin || isDevMode,
@@ -881,9 +886,12 @@ fun SettingsScreen(
                                             Toast.makeText(context, "تم تنظيف الملفات المؤقتة بنجاح 🧹", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                ) 
+                                )
                             }
                         )
+
+                        // ── المجتمع والتواصل ──
+                        SettingsGroupHeader(Translator.tr("المجتمع والتواصل ✦"))
                         SettingsActionCard(
                             title = "ملتقى قبس والمجتمعات الرسمية",
                             subtitle = "قنوات التواصل، مجتمع المبدعين، والدعم الفني المباشر",
@@ -891,13 +899,10 @@ fun SettingsScreen(
                             accentColor = GoldPrimary,
                             content = { CommunityAndLinksSection() }
                         )
-                        SettingsActionCard(
-                            title = "آراء وتقييمات المجتمع السحابية",
-                            subtitle = "تقييمات حقيقية موثقة سحابياً ومتوسط تجربة المستخدمين",
-                            icon = Icons.Default.RateReview,
-                            accentColor = GoldPrimary,
-                            content = { CommunityReviewsCard() }
-                        )
+                        CommunityReviewsCard()
+
+                        // ── المنظومة والسياسات ──
+                        SettingsGroupHeader(Translator.tr("المنظومة والسياسات 📜"))
                         SettingsActionCard(
                             title = "منظومة قبس والضوابط الشرعية",
                             subtitle = "الرؤية، الإصدار، سجل التحديثات، والاعتماد الشرعي",
@@ -906,26 +911,15 @@ fun SettingsScreen(
                             onClick = onNavigateToAboutUs
                         )
                         SettingsActionCard(
-                            title = "تحديثات xdelta ومستودع GitHub المباشر",
-                            subtitle = "اتصال مباشر بمستودع Ali-awwww/qabasapp وفحص وتثبيت الباتشات التفاضلية",
-                            icon = Icons.Default.Bolt,
-                            accentColor = Color(0xFF00E5FF),
-                            onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
-                        )
-                        SettingsActionCard(
                             title = "القواعد والسياسات الموحدة",
                             subtitle = "شروط الاستخدام، سياسة الخصوصية، وقواعد المجتمع",
                             icon = Icons.Default.Gavel,
                             accentColor = Color(0xFFF59E0B),
                             onClick = onNavigateToRules
                         )
-                        SettingsActionCard(
-                            title = "سجل وملتقط الانهيارات والأعطال (Crash Guard)",
-                            subtitle = "تشخيص الأعطال الحية، استخراج السباك، وتصدير تقارير الأمان",
-                            icon = Icons.Default.BugReport,
-                            accentColor = Color(0xFFFF2A85),
-                            onClick = { currentSubScreen = SettingsSubScreen.CRASH_LOGS }
-                        )
+
+                        // ── الدعم والتشخيص ──
+                        SettingsGroupHeader(Translator.tr("الدعم والتشخيص 🛠️"))
                         if (!isGuest) {
                             SettingsActionCard(
                                 title = "سجل بلاغاتي واقتراحاتي للتحسين",
@@ -933,6 +927,15 @@ fun SettingsScreen(
                                 icon = Icons.Default.ListAlt,
                                 accentColor = Color(0xFFF59E0B),
                                 onClick = { showUserReportsDialog = true }
+                            )
+                        }
+                        if (isAdmin || isDevMode) {
+                            SettingsActionCard(
+                                title = "سجل وملتقط الانهيارات والأعطال (Crash Guard)",
+                                subtitle = "تشخيص الأعطال الحية، استخراج السباك، وتصدير تقارير الأمان",
+                                icon = Icons.Default.BugReport,
+                                accentColor = Color(0xFFFF2A85),
+                                onClick = { currentSubScreen = SettingsSubScreen.CRASH_LOGS }
                             )
                         }
                     }
