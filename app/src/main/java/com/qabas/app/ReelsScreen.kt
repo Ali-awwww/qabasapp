@@ -1108,6 +1108,9 @@ fun ReelSpatialHUDOverlays(
         label = "rotation"
     )
 
+    // أدوات التفاعل مطوية افتراضياً، ويُكشف عنها بسهم/زر الحلوية
+    var actionsExpanded by remember { mutableStateOf(false) }
+
     if (isKhushuMode) return
 
     Box(
@@ -1119,7 +1122,7 @@ fun ReelSpatialHUDOverlays(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 14.dp, end = 170.dp, bottom = 80.dp)
+                .padding(start = 14.dp, end = 66.dp, bottom = 80.dp)
                 .fillMaxWidth()
         ) {
             // Micro Spiritual Reactions Bar (Horizontal Scroll, strictly non-overlapping)
@@ -1289,60 +1292,91 @@ fun ReelSpatialHUDOverlays(
             }
         }
 
-        // Right Action Bar — Geometric Arc: interactions orbit the audio disc
-        BoxWithConstraints(
+        // Bottom-left vertical geometric action rail (collapsible)
+        Column(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(220.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 10.dp, bottom = 84.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val hubX = maxWidth * 0.5f
-            val hubY = maxHeight * 0.40f
-            val radius = 105.dp
-
-            val arcItems = listOf(
-                Triple(Icons.Default.Comment, formatCount(reel.commentsCount) to Color.White, onComment),
-                Triple(if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, (if (isSaved) "محفوظ" else "حفظ") to if (isSaved) GoldPrimary else Color.White, onSave),
-                Triple(if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder, formatCount(likesCount) to if (isLiked) Color(0xFFEF4444) else Color.White, onLike),
-                Triple(Icons.Default.Share, formatCount(reel.sharesCount) to Color.White, onShare),
-                Triple(Icons.Default.MoreHoriz, "المزيد" to Color.White.copy(alpha = 0.85f), onMoreOptions)
-            )
-
-            arcItems.forEachIndexed { index, (icon, labelTint, action) ->
-                val angle = Math.toRadians((index * 30.0) - 60.0)
-                val px = hubX + radius * kotlin.math.cos(angle).toFloat()
-                val py = hubY + radius * kotlin.math.sin(angle).toFloat()
-
-                Box(
-                    modifier = Modifier
-                        .offset(x = px - 24.dp, y = py - 24.dp)
+            AnimatedVisibility(
+                visible = actionsExpanded,
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    ReelActionPill(
-                        icon = icon,
-                        label = labelTint.first,
-                        tint = labelTint.second,
-                        onClick = action
+                    // 🎵 Spinning audio disc (geometric hub)
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 2.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0F172A).copy(alpha = 0.85f))
+                            .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
+                            .rotate(rotation)
+                            .clickable { onAudioClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(GoldPrimary)
+                        )
+                    }
+
+                    ReelRailButton(
+                        icon = Icons.Default.Comment,
+                        label = formatCount(reel.commentsCount),
+                        tint = Color.White,
+                        onClick = onComment
+                    )
+                    ReelRailButton(
+                        icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        label = if (isSaved) "محفوظ" else "حفظ",
+                        tint = if (isSaved) GoldPrimary else Color.White,
+                        onClick = onSave
+                    )
+                    ReelRailButton(
+                        icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        label = formatCount(likesCount),
+                        tint = if (isLiked) Color(0xFFEF4444) else Color.White,
+                        onClick = onLike
+                    )
+                    ReelRailButton(
+                        icon = Icons.Default.Share,
+                        label = formatCount(reel.sharesCount),
+                        tint = Color.White,
+                        onClick = onShare
+                    )
+                    ReelRailButton(
+                        icon = Icons.Default.MoreHoriz,
+                        label = "المزيد",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        onClick = onMoreOptions
                     )
                 }
             }
 
-            // Vinyl disc — the hub the interactions orbit
+            // زر الحلوية/السهم: يكشف أو يخفي كل الخيارات
             Box(
                 modifier = Modifier
-                    .offset(x = hubX - 21.dp, y = hubY - 21.dp)
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF0F172A).copy(alpha = 0.85f))
-                    .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
-                    .rotate(rotation)
-                    .clickable { onAudioClick() },
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0F172A).copy(alpha = 0.75f))
+                    .border(1.4.dp, GoldPrimary.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                    .clickable { actionsExpanded = !actionsExpanded },
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(GoldPrimary)
+                Icon(
+                    imageVector = if (actionsExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                    contentDescription = if (actionsExpanded) "إخفاء الخيارات" else "إظهار الخيارات",
+                    tint = GoldPrimary,
+                    modifier = Modifier.size(26.dp)
                 )
             }
         }
@@ -1385,6 +1419,47 @@ fun ReelActionPill(
             fontSize = 9.5.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 1.dp)
+        )
+    }
+}
+
+/**
+ * زر تفاعل هندسي بحواف مربعة دائرية — يُستخدم في عمود التفاعل اليساري
+ */
+@Composable
+fun ReelRailButton(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(46.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.62f))
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), RoundedCornerShape(13.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(21.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = Color.White,
+            fontFamily = CairoFont,
+            fontSize = 9.5.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
