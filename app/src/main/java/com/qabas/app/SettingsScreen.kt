@@ -83,7 +83,7 @@ fun SettingsScreen(
     BackHandler(enabled = currentSubScreen != SettingsSubScreen.MAIN) {
         currentSubScreen = when (currentSubScreen) {
             SettingsSubScreen.CYBER_HUD_PREVIEW -> SettingsSubScreen.UX_DESIGN_STUDIO
-            SettingsSubScreen.SOUND_STUDIO -> SettingsSubScreen.UX_DESIGN_STUDIO
+            SettingsSubScreen.SOUND_STUDIO -> SettingsSubScreen.MAIN
             SettingsSubScreen.PERMISSIONS_HUB -> SettingsSubScreen.MAIN
             SettingsSubScreen.CRASH_LOGS -> SettingsSubScreen.COMMUNITY_SUPPORT
             SettingsSubScreen.NOTIFICATION_SETTINGS -> SettingsSubScreen.MAIN
@@ -796,7 +796,7 @@ fun SettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
                     bottomBar = bottomBar
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         SettingsActionCard(
                             title = "تخصيص القراءة والمصحف",
                             subtitle = "حجم الخط، نوع الرسم، وأنماط الورق",
@@ -825,7 +825,7 @@ fun SettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
                     bottomBar = bottomBar
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         SettingsActionCard(
                             title = "هوية الذكاء الاصطناعي",
                             subtitle = "تنسيق نبرة وأسلوب المخرج الذكي",
@@ -947,7 +947,7 @@ fun SettingsScreen(
             // ==========================================
             SettingsSubScreen.SOUND_STUDIO -> {
                 SoundEffectsSubScreen(
-                    onBack = { currentSubScreen = SettingsSubScreen.UX_DESIGN_STUDIO }
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN }
                 )
             }
 
