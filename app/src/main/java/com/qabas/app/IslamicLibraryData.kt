@@ -138,13 +138,16 @@ object IslamicLibraryRepository {
     // ⚠️ قاعدة إلزامية لأي شخص يعدّل قسم المكتبة الجامعة:
     // عند إضافة أي كتاب جديد إلى قائمة `books` أدناه، يجب حتماً تعبئة حقل
     // التصنيف `category` الخاص بالكتاب الذي تضيفه، واختياره من التصنيفات
-    // المعتمدة: "الحديث وشروحه" · "الرقائق والتزكية" · "الفقه وأصوله" · "العقيدة والتوحيد".
+    // المعتمدة: "الصحيحان (البخاري ومسلم)" · "الحديث وشروحه" · "الرقائق والتزكية" ·
+    // "الفقه وأصوله" · "العقيدة والتوحيد".
     // لا تُضف كتاباً بلا تصنيف؛ فالتصنيف جزء أساسي ومطلوب لكل كتاب.
     // ════════════════════════════════════════════════════════════════════════
 
-    // قسم المكتبة الجامعة مُفرَّغ مؤقتاً لإعادة ملئه لاحقاً.
-    // المحتوى السابق محفوظ في archivedBooks للرجوع إليه عند إعادة الملء.
-    val books: List<IslamicBook> = emptyList()
+    // المكتبة الإسلامية الجامعة — تُملأ بالكتب المعتمدة (كل كتاب بتصنيفه).
+    val books: List<IslamicBook> = listOf(
+        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.BUKHARI),
+        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.MUSLIM)
+    )
 
     @Suppress("unused")
     val archivedBooks: List<IslamicBook> = listOf(
