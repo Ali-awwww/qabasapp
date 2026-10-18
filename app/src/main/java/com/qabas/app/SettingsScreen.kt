@@ -870,6 +870,7 @@ fun SettingsScreen(
                             content = { 
                                 StorageAndBackupSection(
                                     cacheSizeBytes = cacheSizeBytes,
+                                    isDeveloper = isAdmin || isDevMode,
                                     onClearCache = {
                                         coroutineScope.launch {
                                             withContext(Dispatchers.IO) {

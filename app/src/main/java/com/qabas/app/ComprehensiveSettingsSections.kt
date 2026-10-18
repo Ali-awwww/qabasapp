@@ -562,7 +562,8 @@ fun StudioWatermarkPreferencesSection() {
 @Composable
 fun StorageAndBackupSection(
     cacheSizeBytes: Long?,
-    onClearCache: () -> Unit
+    onClearCache: () -> Unit,
+    isDeveloper: Boolean = false
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -580,7 +581,7 @@ fun StorageAndBackupSection(
     var showImportDialog by remember { mutableStateOf(false) }
     var showSupabaseConfigDialog by remember { mutableStateOf(false) }
 
-    if (showSupabaseConfigDialog) {
+    if (showSupabaseConfigDialog && isDeveloper) {
         com.qabas.app.ui.dialogs.SupabaseCloudConfigDialog(
             onDismiss = { showSupabaseConfigDialog = false }
         )
@@ -750,18 +751,20 @@ fun StorageAndBackupSection(
                     }
                 }
 
-                FilledTonalButton(
-                    onClick = { showSupabaseConfigDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = GoldPrimary.copy(alpha = 0.12f),
-                        contentColor = GoldPrimary
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("تهيئة وفحص اتصال Supabase وأكواد SQL ⚡", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                if (isDeveloper) {
+                    FilledTonalButton(
+                        onClick = { showSupabaseConfigDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = GoldPrimary.copy(alpha = 0.12f),
+                            contentColor = GoldPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("تهيئة وفحص اتصال Supabase وأكواد SQL ⚡", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                    }
                 }
             }
         }
