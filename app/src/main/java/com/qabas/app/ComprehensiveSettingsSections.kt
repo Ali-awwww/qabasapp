@@ -274,10 +274,6 @@ fun SpiritualPreferencesSection() {
     val context = LocalContext.current
     val calculationMethod by UserPreferencesManager.calculationMethod.collectAsState()
     val athanVoice by UserPreferencesManager.athanVoice.collectAsState()
-    val morningAthkar by UserPreferencesManager.morningAthkar.collectAsState()
-    val eveningAthkar by UserPreferencesManager.eveningAthkar.collectAsState()
-    val qiyamReminder by UserPreferencesManager.qiyamReminder.collectAsState()
-    val kahfFridayReminder by UserPreferencesManager.kahfFridayReminder.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -365,41 +361,6 @@ fun SpiritualPreferencesSection() {
         }
 
         HorizontalDivider(color = Color(0xFF1E293B))
-
-        // Athkar Reminders Switches
-        Text("تنبيهات الزاد والأذكار الدورية:", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-
-        // Morning Athkar
-        SettingToggleRow(
-            title = "تذكير أذكار الصباح",
-            subtitle = "تنبيه يومي مبارك بعد صلاة الفجر للاستفتاح بالأذكار",
-            checked = morningAthkar,
-            onCheckedChange = { UserPreferencesManager.setMorningAthkar(context, it) }
-        )
-
-        // Evening Athkar
-        SettingToggleRow(
-            title = "تذكير أذكار المساء",
-            subtitle = "تنبيه يومي بعد صلاة العصر لحفظ النفس والتحصين",
-            checked = eveningAthkar,
-            onCheckedChange = { UserPreferencesManager.setEveningAthkar(context, it) }
-        )
-
-        // Qiyam Reminder
-        SettingToggleRow(
-            title = "تذكير قيام الليل والوتر",
-            subtitle = "تنبيه في الثلث الأخير من الليل قبل الفجر",
-            checked = qiyamReminder,
-            onCheckedChange = { UserPreferencesManager.setQiyamReminder(context, it) }
-        )
-
-        // Kahf Friday Reminder
-        SettingToggleRow(
-            title = "تذكير سورة الكهف والصلاة على النبي ﷺ",
-            subtitle = "تنبيه أسبوعي صباح كل يوم جمعة",
-            checked = kahfFridayReminder,
-            onCheckedChange = { UserPreferencesManager.setKahfFridayReminder(context, it) }
-        )
     }
 }
 
