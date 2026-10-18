@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
@@ -105,46 +104,55 @@ object SpiritualNotificationManager {
         val intent = Intent(context, SpiritualNotificationReceiver::class.java).apply {
             putExtra("notification_type", type)
         }
-        
+
         val requestCode = if (type == "suhur") 1001 else 1002
         val pendingIntent = PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // 🔑 قراءة الوقت المحفوظ من إعدادات الإشعارات بدل الأوقات الثابتة
+        val notifPrefs = context.getSharedPreferences("qabas_notification_settings", Context.MODE_PRIVATE)
+        val hour: Int
+        val minute: Int
+        if (type == "suhur") {
+            hour = notifPrefs.getInt("notif_suhur_hour", 3)
+            minute = notifPrefs.getInt("notif_suhur_minute", 30)
+        } else {
+            hour = notifPrefs.getInt("notif_fajr_hour", 5)
+            minute = notifPrefs.getInt("notif_fajr_minute", 0)
+        }
+
         val calendar = Calendar.getInstance()
         val now = calendar.timeInMillis
-        
-        if (type == "suhur") {
-            calendar.set(Calendar.HOUR_OF_DAY, 3)
-            calendar.set(Calendar.MINUTE, 30)
-            calendar.set(Calendar.SECOND, 0)
-        } else {
-            calendar.set(Calendar.HOUR_OF_DAY, 5)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-        }
+        calendar.set(Calendar.HOUR_OF_DAY, hour)
+        calendar.set(Calendar.MINUTE, minute)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
 
         if (calendar.timeInMillis <= now) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    android.app.AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
-                    pendingIntent
-                )
-            } else {
-                alarmManager.setAndAllowWhileIdle(
-                    android.app.AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
-                    pendingIntent
-                )
-            }
-        } else {
-            alarmManager.setExactAndAllowWhileIdle(
+        // 🔑 منبه دقيق (setAlarmClock) لا يتأثر بـ Doze لضمان الوصول في وقته
+        val showIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("navigate_to", "prayer_times")
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode + 10000,
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            alarmManager.setAlarmClock(
+                android.app.AlarmManager.AlarmClockInfo(calendar.timeInMillis, showPendingIntent),
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            alarmManager.setAndAllowWhileIdle(
                 android.app.AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
                 pendingIntent

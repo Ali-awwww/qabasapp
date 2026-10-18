@@ -94,12 +94,22 @@ object AppNotificationService {
                 }
             }
 
-            alarmManager.setInexactRepeating(
-                AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
-                AlarmManager.INTERVAL_DAY,
-                pendingIntent
-            )
+            val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager.canScheduleExactAlarms()
+            } else true
+            if (canExact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -255,6 +265,8 @@ class DailyHadithReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (AppNotificationService.isDailyHadithEnabled(context)) {
             AppNotificationService.triggerDailyHadithNow(context)
+            // 🔑 إعادة جدولة تنبيه الغد (منبه لمرة واحدة بدل التكرار غير الدقيق)
+            AppNotificationService.scheduleDailyHadithAlarm(context)
         }
     }
 }

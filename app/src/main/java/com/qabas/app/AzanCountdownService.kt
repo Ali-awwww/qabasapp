@@ -20,8 +20,8 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
- * إشعار العدّاد التنازلي للأذان: يعرض الوقت المتبقي للصلاة القادمة ويُحدّث كل ثانية،
- * وعند الوصول يشغّل الأذان عبر AzanPlaybackService.
+ * إشعار العدّاد التنازلي للأذان: يعرض الوقت المتبقي للصلاة القادمة ويُحدّث كل ثانية.
+ * الأذان نفسه يتولّاه المنبه الدقيق (PrayerAzanReceiver) لتفادي الازدواج.
  * يعمل كـ ForegroundService ليصمد أمام Doze وإدارة البطارية.
  */
 class AzanCountdownService : Service() {
@@ -70,10 +70,8 @@ class AzanCountdownService : Service() {
                 }
                 val remaining = next.triggerMillis - System.currentTimeMillis()
                 if (remaining <= 0) {
-                    // فات الموعد بأقل من دقيقتين؟ شغّل الأذان فوراً (حماية من Doze)
-                    if (remaining > -120_000) {
-                        AzanPlaybackService.startAzan(applicationContext, next.voiceId, next.prayerName)
-                    }
+                    // 🔑 تجاوزنا الموعد: لا نشغّل الأذان هنا لتجنّب الازدواج مع المنبه الدقيق
+                    // (PrayerAlarmManager/PrayerAzanReceiver هو المسؤول الوحيد عن تشغيل الأذان)
                     PrayerAlarmManager.scheduleAllPrayers(applicationContext)
                     delay(5_000)
                     continue
