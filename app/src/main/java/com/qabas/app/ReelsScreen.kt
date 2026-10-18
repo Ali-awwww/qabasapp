@@ -48,6 +48,7 @@ import com.qabas.app.ui.components.DockTool
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
@@ -1111,6 +1112,19 @@ fun ReelSpatialHUDOverlays(
     // أدوات التفاعل مطوية افتراضياً، ويُكشف عنها بسهم/زر الحلوية
     var actionsExpanded by remember { mutableStateOf(false) }
 
+    // معلومات الناشر: حالة المتابعة وما إذا كان المقطع للمستخدم نفسه
+    val hudContext = LocalContext.current
+    val hudViewer = remember { CreatorFollowManager.currentViewer(hudContext) }
+    var isFollowingCreator by remember(reel.userId) {
+        mutableStateOf(CreatorFollowManager.isFollowing(hudContext, reel.userId))
+    }
+    val isOwnReel = remember(reel.userId) {
+        CreatorFollowManager.isSameAccount(
+            reel.userId, reel.userName,
+            hudViewer.id, hudViewer.displayName, hudViewer.email
+        )
+    }
+
     if (isKhushuMode) return
 
     Box(
@@ -1160,63 +1174,117 @@ fun ReelSpatialHUDOverlays(
                 }
             }
 
-            // Creator Tag (Clickable with adaptive weight distribution)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // شريط الناشر: صورة + اسم + موثق + زر متابعة، وسطر معلومات النشر
+            Column(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .clickable {
-                        onOpenCreatorProfile(
-                            reel.userId,
-                            reel.userName ?: "صانع محتوى قبس",
-                            reel.userAvatar
-                        )
-                    }
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                AsyncImage(
-                    model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .border(1.2.dp, GoldPrimary, CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .border(1.2.dp, GoldPrimary, CircleShape)
+                            .clickable {
+                                onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
+                            },
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = reel.userName ?: "صانع محتوى قبس",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clickable {
+                                        onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
+                                    }
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Surface(
+                                color = GoldPrimary,
+                                shape = CircleShape,
+                                modifier = Modifier.size(13.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "موثق",
+                                    tint = DeepSlate,
+                                    modifier = Modifier.padding(1.5.dp)
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
+                            Icon(
+                                Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = GoldPrimary.copy(alpha = 0.8f),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = formatRelativeTime(reel.createdAt),
+                                color = Color.White.copy(alpha = 0.62f),
+                                fontFamily = NotoSansFont,
+                                fontSize = 9.5.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    if (!isOwnReel && reel.userId.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isFollowingCreator) Color.White.copy(alpha = 0.12f) else GoldPrimary,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isFollowingCreator) Color.White.copy(alpha = 0.3f) else GoldPrimary
+                            ),
+                            modifier = Modifier.clickable {
+                                val next = CreatorFollowManager.setFollowed(
+                                    hudContext, hudViewer,
+                                    reel.userId, reel.userName ?: "",
+                                    reel.userAvatar, !isFollowingCreator
+                                )
+                                if (next != null) isFollowingCreator = next
+                            }
+                        ) {
+                            Text(
+                                text = if (isFollowingCreator) "متابَع ✓" else "متابعة +",
+                                color = if (isFollowingCreator) Color.White else DeepSlate,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                // سطر معلومات النشر: شارة الفحص الشرعي + التصنيف + الوسوم
+                val publishTags = reel.tags.filter { it.isNotBlank() }.take(3)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 6.dp)
                 ) {
-                    Text(
-                        text = reel.userName ?: "صانع محتوى قبس",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
                     Surface(
-                        color = GoldPrimary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(13.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "موثق",
-                            tint = DeepSlate,
-                            modifier = Modifier.padding(1.5.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
+                        shape = RoundedCornerShape(8.dp),
                         color = Color(0xFF10B981).copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(6.dp),
                         border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
                     ) {
                         Text(
@@ -1227,8 +1295,26 @@ fun ReelSpatialHUDOverlays(
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
+                    }
+                    publishTags.forEach { tag ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = GoldPrimary.copy(alpha = 0.14f),
+                            border = BorderStroke(0.6.dp, GoldPrimary.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = "#$tag",
+                                color = GoldPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1644,5 +1730,21 @@ private fun formatCount(count: Int): String {
         count >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", count / 1_000_000.0)
         count >= 1_000 -> String.format(java.util.Locale.US, "%.1fK", count / 1_000.0)
         else -> count.toString()
+    }
+}
+
+/** يحوّل تاريخ النشر (ISO) إلى نص نسبي مثل «منذ ٣ أيام». */
+private fun formatRelativeTime(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+    val instant = runCatching { java.time.Instant.parse(iso) }.getOrNull() ?: return ""
+    val minutes = java.time.Duration.between(instant, java.time.Instant.now()).toMinutes()
+    return when {
+        minutes < 1L -> "الآن"
+        minutes < 60L -> "منذ $minutes دقيقة"
+        minutes < 1440L -> "منذ ${minutes / 60} ساعة"
+        minutes < 10080L -> "منذ ${minutes / 1440} يوم"
+        minutes < 43200L -> "منذ ${minutes / 10080} أسبوع"
+        minutes < 525600L -> "منذ ${minutes / 43200} شهر"
+        else -> "منذ ${minutes / 525600} سنة"
     }
 }
