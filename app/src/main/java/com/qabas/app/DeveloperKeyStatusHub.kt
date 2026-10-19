@@ -273,7 +273,7 @@ fun DeveloperKeyStatusHub(
 
     // جلب القيمة الحقيقية للمفتاح من SharedPreferences أولاً ثم من متغيرات البيئة
     fun getKeyActualValue(spec: SecretKeySpec): String {
-        val sp = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val sp = AgentPrefs.instance(context)
         val fromSp = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
         if (fromSp.isNotBlank()) return fromSp
 
@@ -846,7 +846,7 @@ fun DeveloperKeyStatusHub(
 
                                     IconButton(
                                         onClick = {
-                                            context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                            AgentPrefs.instance(context)
                                                 .edit()
                                                 .remove(spec.preferenceKey)
                                                 .apply()
@@ -1068,7 +1068,7 @@ fun DeveloperKeyStatusHub(
                         if (isKeyConfigured(getKeyActualValue(spec))) {
                             TextButton(
                                 onClick = {
-                                    context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                    AgentPrefs.instance(context)
                                         .edit()
                                         .remove(spec.preferenceKey)
                                         .apply()
@@ -1090,7 +1090,7 @@ fun DeveloperKeyStatusHub(
                     onClick = {
                         val trimmed = inputVal.trim()
                         if (trimmed.isNotBlank()) {
-                            context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                            AgentPrefs.instance(context)
                                 .edit()
                                 .putString(spec.preferenceKey, trimmed)
                                 .apply()
@@ -1187,7 +1187,7 @@ fun DeveloperKeyStatusHub(
     if (showBackupDialog) {
         var importJsonInput by remember { mutableStateOf("") }
         val currentKeysJson = remember(reloadTrigger) {
-            val sp = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            val sp = AgentPrefs.instance(context)
             val json = org.json.JSONObject()
             secretSpecs.forEach { spec ->
                 val v = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
@@ -1262,7 +1262,7 @@ fun DeveloperKeyStatusHub(
                         if (trimmed.isNotBlank()) {
                             try {
                                 val obj = org.json.JSONObject(trimmed)
-                                val editor = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
+                                val editor = AgentPrefs.instance(context).edit()
                                 var importedCount = 0
                                 val keys = obj.keys()
                                 while (keys.hasNext()) {
@@ -1323,7 +1323,7 @@ fun DeveloperKeyStatusHub(
             confirmButton = {
                 Button(
                     onClick = {
-                        val editor = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
+                        val editor = AgentPrefs.instance(context).edit()
                         secretSpecs.forEach { spec ->
                             editor.remove(spec.preferenceKey)
                         }

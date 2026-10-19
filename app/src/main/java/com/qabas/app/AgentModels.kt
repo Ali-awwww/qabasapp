@@ -22,20 +22,28 @@ object AgentPrefs {
     fun toolKey(name: String) = "tool_enabled_$name"
 
     fun isToolEnabled(context: Context, name: String): Boolean =
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getBoolean(toolKey(name), true)
+        com.qabas.app.AgentPrefs.isToolEnabled(context, name)
 
     fun maxTurns(context: Context): Int =
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getInt(MAX_TURNS, 6).coerceIn(1, 10)
+        com.qabas.app.AgentPrefs.maxTurns(context)
 
     fun isAutoFix(context: Context): Boolean =
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getBoolean(AUTO_FIX, true)
+        com.qabas.app.AgentPrefs.isAutoFix(context)
 
     fun model(context: Context): String? =
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getString(MODEL, null)?.takeIf { it.isNotBlank() }
+        com.qabas.app.AgentPrefs.model(context)
+
+    fun putModel(context: Context, model: String?) {
+        com.qabas.app.AgentPrefs.putModel(context, model)
+    }
+
+    fun putMaxTurns(context: Context, turns: Int) {
+        com.qabas.app.AgentPrefs.putMaxTurns(context, turns)
+    }
+
+    fun putAutoFix(context: Context, enabled: Boolean) {
+        com.qabas.app.AgentPrefs.putAutoFix(context, enabled)
+    }
 }
 
 /**

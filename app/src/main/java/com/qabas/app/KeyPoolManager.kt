@@ -1,25 +1,28 @@
 package com.qabas.app
 
-import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 
 /**
  * مسبح مفاتيح كل خدمة: عدة مفاتيح احتياطية + تبديل يدوي + تجاوز تلقائي.
  *
- * - التخزين: "<prefsKey>_pool" (JSONArray) + "<prefsKey>_active_idx" في qabas_prefs.
+ * - التخزين: "<prefsKey>_pool" (JSONArray) + "<prefsKey>_active_idx" في qabas_agent_encrypted (مشفر).
  * - المفتاح المفرد القديم يُهاجَر تلقائياً كأول عنصر — بلا كسر لأي قارئ قديم.
  * - كل طفرة تعكس المفتاح النشط على المفتاح المفرد (write-through) لتوافق النسخ الاحتياطي.
  * - التوكنات هنا مفاتيح AI مدخلة من المستخدم نفسه — لا أسرار نظام.
  */
 object KeyPoolManager {
     private const val TAG = "KeyPoolManager"
-    private const val PREFS = "qabas_prefs"
     private const val POOL_SUFFIX = "_pool"
     private const val ACTIVE_SUFFIX = "_active_idx"
 
+    private fun prefsKey(prefsKey: String) = prefsKey
+
+    private fun poolKey(prefsKey: String) = "$prefsKey$POOL_SUFFIX"
+    private fun activeKey(prefsKey: String) = "$prefsKey$ACTIVE_SUFFIX"
+
     private fun prefs() =
-        AppServices.appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        AgentPrefs.instance(AppServices.appContext)
 
     private fun isReal(value: String?): Boolean {
         val t = value?.trim() ?: return false

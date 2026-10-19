@@ -169,11 +169,11 @@ fun AIAssistantScreen(
     var selectedSuggestionCategory by remember { mutableStateOf(suggestionCategories[0].id) }
     var selectedPresetIndex by remember { mutableIntStateOf(0) }
     val currentPreset = presets[selectedPresetIndex]
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+
 
     var selectedOrModel by remember { mutableStateOf<String?>(null) }
     val hasOrKey = remember {
-        val k = prefs.getString("openrouter_key", "") ?: ""
+        val k = AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY)
         k.isNotBlank()
     }
     var toolsMode by remember(hasOrKey) { mutableStateOf(hasOrKey) }
@@ -196,7 +196,7 @@ fun AIAssistantScreen(
     var lastFailedPrompt by remember { mutableStateOf<String?>(null) }
 
     var hasGeminiKey by remember {
-        val key = prefs.getString("gemini_key", "") ?: ""
+        val key = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY)
         mutableStateOf(key.isNotBlank() && key != "YOUR_GEMINI_API_KEY")
     }
 
@@ -272,7 +272,7 @@ fun AIAssistantScreen(
                 }
 
                 val contextHistory = messages.takeLast(10).map { Pair(it.first, it.second) }
-                val orKey = prefs.getString("openrouter_key", "") ?: ""
+                val orKey = AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY)
                 val response = if (toolsMode && orKey.isNotBlank()) {
                     val (text, used) = OpenRouterService.chatWithToolsPooled(
                         fullSystemInstruction, contextHistory,

@@ -203,7 +203,7 @@ jobs:
             --stacktrace \
             --no-daemon \
             --max-workers=2 \
-            --build-cache \
+            --no-build-cache \
             -PappVersionName="$VERSION_NAME" \
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx3072m -XX:+UseG1GC"

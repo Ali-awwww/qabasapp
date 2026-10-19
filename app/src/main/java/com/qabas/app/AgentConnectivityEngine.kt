@@ -44,41 +44,40 @@ object AgentConnectivityEngine {
      * تحديد مصدر المفتاح بشفافية تامة
      */
     fun resolveKeyWithSource(context: Context): Triple<DetectedProvider, String, KeySource> {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         fun clean(v: String?) = KeyPoolManager.sanitizeApiKey(v ?: "")
 
-        // 1. فحص التخزين المحلي للمستخدم أولاً (بتنظيف صارم للمحارف الخفية)
-        val geminiPrefs = clean(prefs.getString("gemini_key", ""))
+        // 1. فحص التخزين المحلي للمستخدم أولاً (بتنظيف صارم للمحارف الخفية) — من التشفير
+        val geminiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY, ""))
         if (geminiPrefs.isNotEmpty() && !geminiPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GEMINI, geminiPrefs, KeySource.KEY_VAULT)
         }
 
-        val openrouterPrefs = clean(prefs.getString("openrouter_key", ""))
+        val openrouterPrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY, ""))
         if (openrouterPrefs.isNotEmpty() && !openrouterPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENROUTER, openrouterPrefs, KeySource.KEY_VAULT)
         }
 
-        val groqPrefs = clean(prefs.getString("groq_key", ""))
+        val groqPrefs = clean(AgentPrefs.getString(context, AgentPrefs.GROQ_KEY, ""))
         if (groqPrefs.isNotEmpty() && !groqPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GROQ, groqPrefs, KeySource.KEY_VAULT)
         }
 
-        val openaiPrefs = clean(prefs.getString("openai_key", ""))
+        val openaiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENAI_KEY, ""))
         if (openaiPrefs.isNotEmpty() && !openaiPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENAI, openaiPrefs, KeySource.KEY_VAULT)
         }
 
-        val anthropicPrefs = clean(prefs.getString("anthropic_key", ""))
+        val anthropicPrefs = clean(AgentPrefs.getString(context, AgentPrefs.ANTHROPIC_KEY, ""))
         if (anthropicPrefs.isNotEmpty() && !anthropicPrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.ANTHROPIC, anthropicPrefs, KeySource.KEY_VAULT)
         }
 
-        val huggingfacePrefs = clean(prefs.getString("huggingface_key", ""))
+        val huggingfacePrefs = clean(AgentPrefs.getString(context, AgentPrefs.HUGGINGFACE_KEY, ""))
         if (huggingfacePrefs.isNotEmpty() && !huggingfacePrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.HUGGINGFACE, huggingfacePrefs, KeySource.KEY_VAULT)
         }
 
-        val opencodePrefs = clean(prefs.getString("opencode_key", ""))
+        val opencodePrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENCODE_KEY, ""))
         if (opencodePrefs.isNotEmpty() && !opencodePrefs.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENCODE, opencodePrefs, KeySource.KEY_VAULT)
         }

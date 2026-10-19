@@ -132,14 +132,14 @@ object KeySyncService {
 
         scope.launch {
             try {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val keyPrefs = AgentPrefs.instance(context)
                 val masterKey = getOrCreateMasterKey(context)
                 val userId = getUserId(context)
                 val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                     .format(java.util.Date())
 
                 val keysToSync = KEY_FIELDS.mapNotNull { field ->
-                    val value = prefs.getString(field, "") ?: ""
+                    val value = keyPrefs.getString(field, "") ?: ""
                     if (value.isNotBlank() && !value.startsWith("your_")) {
                         mapOf(
                             "user_id" to userId,
@@ -187,7 +187,7 @@ object KeySyncService {
 
         scope.launch {
             try {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val keyPrefs = AgentPrefs.instance(context)
                 val masterKey = getOrCreateMasterKey(context)
                 val userId = getUserId(context)
 
@@ -202,7 +202,7 @@ object KeySyncService {
                 }
 
                 var imported = 0
-                val editor = prefs.edit()
+                val editor = keyPrefs.edit()
                 result.forEach { synced ->
                     val decrypted = decrypt(synced.encrypted_value, masterKey)
                     if (decrypted.isNotBlank() && synced.service in KEY_FIELDS) {

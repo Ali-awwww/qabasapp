@@ -121,7 +121,12 @@ fun AgentRoomSection(
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { selectedTab = index },
+                            .clickable { selectedTab = index }
+                            .testTag(when (index) {
+                                1 -> "sub_tab_readiness"
+                                2 -> "sub_tab_tools"
+                                else -> "sub_tab_${index + 1}"
+                            }),
                         color = if (isSelected) tabAccent.copy(alpha = 0.16f) else Color(0xFF060B16),
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(
@@ -187,7 +192,6 @@ internal fun AgentLiveConsoleTab(
     onJumpKeys: () -> Unit,
     onJumpBuildCenter: () -> Unit
 ) {
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val clipboard = LocalClipboardManager.current
 
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
@@ -201,9 +205,10 @@ internal fun AgentLiveConsoleTab(
 
     val maxTurns = remember(context) { AgentPrefs.maxTurns(context) }
     var activeRepo by remember(vaultTrigger) { mutableStateOf(RepoVaultManager.getActiveRepo(context)) }
-    var owner by remember(activeRepo) { mutableStateOf(activeRepo?.owner ?: (prefs.getString("build_center_owner", "") ?: "")) }
-    var repo by remember(activeRepo) { mutableStateOf(activeRepo?.repo ?: (prefs.getString("build_center_repo", "") ?: "")) }
-    var token by remember(activeRepo) { mutableStateOf(activeRepo?.token?.takeIf { it.isNotBlank() } ?: (prefs.getString("build_center_token", "") ?: "")) }
+    val _ap = com.qabas.app.AgentPrefs
+    var owner by remember(activeRepo) { mutableStateOf(activeRepo?.owner ?: (_ap.getGitHubOwner(context))) }
+    var repo by remember(activeRepo) { mutableStateOf(activeRepo?.repo ?: (_ap.getGitHubRepo(context))) }
+    var token by remember(activeRepo) { mutableStateOf(activeRepo?.token?.takeIf { it.isNotBlank() } ?: (_ap.getGitHubPat(context))) }
 
     var ghState by remember { mutableStateOf(GitHubConnectionState.SYNCING) }
     var ghUser by remember { mutableStateOf<String?>(null) }
@@ -3051,7 +3056,8 @@ internal fun RequirementsTab(
     onJumpBuildCenter: () -> Unit,
     onJumpKeys: () -> Unit
 ) {
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = com.qabas.app.AgentPrefs.instance(context)
+    val _ap = com.qabas.app.AgentPrefs
     var isClientMode by remember { mutableStateOf(false) }
 
     fun getDefaultReqs(clientMode: Boolean): List<Requirement> {
@@ -3476,7 +3482,7 @@ internal fun RequirementsTab(
  */
 @Composable
 internal fun ToolsTab(context: Context) {
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = com.qabas.app.AgentPrefs.instance(context)
     val dummyCtx = remember { CodeTools.Ctx("-", "-", "-", "-") }
     val allTools = remember { CodeTools.definitions(dummyCtx) + AiTools.definitions(context) }
     var states by remember { mutableStateOf(allTools.associate { it.name to AgentPrefs.isToolEnabled(context, it.name) }) }

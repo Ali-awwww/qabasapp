@@ -237,6 +237,20 @@ object OnDeviceModelManager {
     }
 
     /**
+     * متطلبات ذاكرة النموذج بالبايت، مستخلصة من الحقل التوضيحي (مثال "2.5 GB RAM").
+     * تُستخدم للمقارنة مع ذاكرة الجهاز قبل البدء في الوضع المحلي.
+     */
+    fun ramRequirementBytes(modelInfo: OnDeviceModelInfo): Long {
+        val text = modelInfo.ramRequirement.uppercase()
+        val num = text.filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+        return when {
+            text.contains("GB") -> (num * 1024L * 1024 * 1024).toLong()
+            text.contains("MB") -> (num * 1024L * 1024).toLong()
+            else -> num.toLong()
+        }
+    }
+
+    /**
      * إلغاء التنزيل الجاري وحذف الملف الجزئي
      * يُستدعى من dialog أو viewmodel بتمرير modelInfo
      */

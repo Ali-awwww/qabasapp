@@ -452,10 +452,10 @@ object MultiModelAgentOrchestrator {
      * @param onlyEnabled إذا true يعيد الأعضاء المفعّلين فقط (للتنفيذ)، وإلا يعيد الكل (للتعديل)
      */
     fun loadTeam(context: Context, onlyEnabled: Boolean = false): List<AgentTeamMember> {
-        val prefs = context.getSharedPreferences("qabas_agent_team", Context.MODE_PRIVATE)
-        val teamJson = prefs.getString("team_config_json", null) ?: return defaultTeam()
+        val json = com.qabas.app.AgentPrefs.loadTeamConfig(context)
+        if (json.isBlank()) return defaultTeam()
         return try {
-            val arr = org.json.JSONArray(teamJson)
+            val arr = org.json.JSONArray(json)
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val role = AgentTeamRole.entries.firstOrNull { it.name == o.optString("role") } ?: AgentTeamRole.EXECUTOR
@@ -476,9 +476,8 @@ object MultiModelAgentOrchestrator {
         }
     }
 
-    /** حفظ فريق الوكيل */
+    /** حفظ فريق الوكيل بشكل مشفر. */
     fun saveTeam(context: Context, team: List<AgentTeamMember>) {
-        val prefs = context.getSharedPreferences("qabas_agent_team", Context.MODE_PRIVATE)
         val arr = org.json.JSONArray()
         team.forEach { m ->
             arr.put(org.json.JSONObject().apply {
@@ -492,7 +491,7 @@ object MultiModelAgentOrchestrator {
                 put("instruction", m.customInstruction)
             })
         }
-        prefs.edit().putString("team_config_json", arr.toString()).apply()
+        com.qabas.app.AgentPrefs.saveTeamConfig(context, arr.toString())
     }
 
     /** فريق افتراضي (يُعاد استخدامه إذا لم تكن هناك إعدادات محفوظة) */

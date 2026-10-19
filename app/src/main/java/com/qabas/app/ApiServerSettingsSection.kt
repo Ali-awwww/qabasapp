@@ -16,15 +16,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun ApiServerSettingsSection() {
     val context = LocalContext.current
-    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     val scope = rememberCoroutineScope()
     
     var isServerRunning by remember { mutableStateOf(false) }
-    var serverPort by remember { mutableIntStateOf(prefs.getInt("api_server_port", 8080)) }
-    var apiKey by remember { mutableStateOf(prefs.getString("api_server_key", generateApiKey()) ?: generateApiKey()) }
+    var serverPort by remember { mutableIntStateOf(AgentPrefs.getInt(context, "api_server_port", 8080)) }
+    var apiKey by remember { mutableStateOf(AgentPrefs.getString(context, "api_server_key", generateApiKey()).takeIf{it.isNotBlank()} ?: generateApiKey()) }
     var showInstructions by remember { mutableStateOf(false) }
     
-    val server = remember { LocalApiServer(context) { prefs.getString("api_server_key", "") ?: "" } }
+    val server = remember { LocalApiServer(context) { AgentPrefs.getString(context, "api_server_key") } }
     
     Card(
         colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -54,7 +53,7 @@ fun ApiServerSettingsSection() {
                 value = apiKey,
                 onValueChange = { 
                     apiKey = it
-                    prefs.edit().putString("api_server_key", it).apply()
+                    AgentPrefs.putString(context, "api_server_key", it)
                 },
                 label = { Text("مفتاح API") },
                 modifier = Modifier.fillMaxWidth()
@@ -68,7 +67,7 @@ fun ApiServerSettingsSection() {
                     it.toIntOrNull()?.let { port ->
                         if (port in 1024..65535) {
                             serverPort = port
-                            prefs.edit().putInt("api_server_port", port).apply()
+                            AgentPrefs.putInt(context, "api_server_port", port)
                         }
                     }
                 },

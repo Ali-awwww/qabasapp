@@ -151,6 +151,32 @@ private suspend fun executeAgentMissionInner(
             return
         }
 
+        // بوابة الذاكرة: قارن متطلبات RAM للنموذج بذاكرة الجهاز، ومنع التشغيل عند النقص برسالة صريحة.
+        val modelRamBytes = OnDeviceModelManager.ramRequirementBytes(readyModel)
+        val deviceMaxRamBytes = Runtime.getRuntime().maxMemory()
+        if (modelRamBytes > deviceMaxRamBytes) {
+            val modelRamMb = (modelRamBytes / 1024 / 1024)
+            val deviceRamMb = (deviceMaxRamBytes / 1024 / 1024)
+            val errSnippet = "❌ تعذر البدء: النموذج «${readyModel.name}» يحتاج ${modelRamMb}MB من ذاكرة RAM بينما الجهاز يوفر ${deviceRamMb}MB فقط. الذاكرة غير كافية — اختر نموذجاً أخف أو أضف ذاكرة."
+            val stepFailed = AgentExecutionStep(
+                title = "فحص متطلبات ذاكرة النموذج المحلي",
+                description = "مقارنة ذاكرة النموذج المطلوبة بذاكرة الجهاز المتاحة قبل أي تنفيذ...",
+                isRunning = false,
+                isSuccess = false,
+                outputSnippet = errSnippet
+            )
+            initialSteps.add(stepFailed)
+            mission = mission.copy(
+                steps = initialSteps.toList(),
+                status = AgentTaskStatus.FAILED,
+                finalReport = "توقفت المهمة لعدم كفاية ذاكرة RAM: ${readyModel.name} يحتاج ${modelRamMb}MB والجهاز يوفر ${deviceRamMb}MB."
+            )
+            onUpdate(mission)
+    coroutineContext.ensureActive()
+            onFinished(mission)
+            return
+        }
+
         // بوابة الصدق: لا محرك أصلي = لا مهمة وهمية. نفشل مبكراً بالسبب الحقيقي.
         if (!LlamaCppService.isEngineAvailable()) {
             val reason = LlamaCppService.lastError ?: "محرك llama_jni غير متاح."
@@ -703,7 +729,7 @@ fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, js
     }
 }
 
-fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
+fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, context: Context) {
     currentMission.value?.let { mission ->
         val json = JSONObject().apply {
             put("missionId", mission.id)
@@ -719,12 +745,12 @@ fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: 
             put("apkUrl", mission.apkUrl)
             put("timestamp", mission.timestamp)
         }
-        prefs.edit().putString("active_mission_json", json.toString()).apply()
+        AgentPrefs.putString(context, AgentPrefs.ACTIVE_MISSION_JSON, json.toString())
     }
 }
 
-fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences): AgentMissionSession? {
-    val json = prefs.getString("active_mission_json", null)
+fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, context: Context): AgentMissionSession? {
+    val json = AgentPrefs.loadActiveMission(context)
     if (json.isNullOrBlank()) return null
 
     try {
@@ -759,8 +785,8 @@ fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, pref
     }
 }
 
-fun FileImport(currentMission: MutableState<AgentMissionSession?>, prefs: SharedPreferences) {
-    val json = prefs.getString("active_mission_json", "") ?: return
+fun FileImport(currentMission: MutableState<AgentMissionSession?>, context: Context) {
+    val json = AgentPrefs.loadActiveMission(context)
     if (json.isNotBlank()) {
         importMissionFromJson(currentMission, json)
     }

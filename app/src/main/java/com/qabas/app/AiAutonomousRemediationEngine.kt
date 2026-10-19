@@ -200,13 +200,12 @@ object AiAutonomousRemediationEngine {
 
         onProgress("جلب بيانات مستودع GitHub النشط...")
         val activeRepo = RepoVaultManager.getActiveRepo(context)
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val token = activeRepo?.token?.takeIf { it.isNotBlank() } 
-            ?: prefs.getString("build_center_token", "") ?: ""
+            ?: AgentPrefs.getGitHubPat(context)
         val owner = activeRepo?.owner?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("build_center_owner", "") ?: ""
+            ?: AgentPrefs.getGitHubOwner(context)
         val repo = activeRepo?.repo?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("build_center_repo", "") ?: ""
+            ?: AgentPrefs.getGitHubRepo(context)
 
         if (token.isBlank() || owner.isBlank() || repo.isBlank()) {
             val msg = "لم يتم العثور على توكن GitHub أو مستودع مهيأ في الإعدادات. يمكنك إدخال بيانات المستودع في لوحة المطور."

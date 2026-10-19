@@ -77,7 +77,6 @@ fun ApiKeySetupDialog(
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val contextLocal = LocalContext.current
-    val prefs: SharedPreferences = contextLocal.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<LiveHealthStatus?>(null) }
     var smartSave by remember { mutableStateOf<UniversalKeyBrain.SmartSaveResult?>(null) }

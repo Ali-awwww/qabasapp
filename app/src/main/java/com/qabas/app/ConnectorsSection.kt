@@ -147,8 +147,7 @@ fun ConnectorsSection(
             val startTime = System.currentTimeMillis()
             when (c.id) {
                 "github" -> {
-                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    val token = prefs.getString("build_center_token", "") ?: ""
+                    val token = AgentPrefs.getGitHubPat(context)
                     if (token.isBlank()) {
                         delay(120)
                         set("github", false, "لا رمز PAT محفوظ — يتطلب تكويناً", 0)

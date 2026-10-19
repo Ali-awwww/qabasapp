@@ -58,7 +58,7 @@ fun BuildCenterSection(
     onNavigateTo: (AppState) -> Unit = {},
     onJumpAgentRoom: () -> Unit = {}
 ) {
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember { AgentPrefs.instance(context) }
     val scope = rememberCoroutineScope()
     val client = remember {
         OkHttpClient.Builder()

@@ -27,10 +27,7 @@ import java.util.concurrent.TimeUnit
  * القيم الوهمية (your_key / YOUR_...) تُعامل كمفقودة — لا تشغيل وهمي أبداً.
  */
 object KeyVault {
-    private const val PREFS = "qabas_prefs"
-
-    private fun prefs() =
-        AppServices.appContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+    private fun prefs() = AgentPrefs.instance(AppServices.appContext)
 
     private fun isReal(value: String?): Boolean {
         val t = KeyPoolManager.sanitizeApiKey(value ?: return false)

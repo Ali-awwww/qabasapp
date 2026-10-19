@@ -8,7 +8,6 @@ import android.util.Log
 object KeyDeepLinkHandler {
 
     private const val TAG = "KeyDeepLinkHandler"
-    private const val PREFS_NAME = "qabas_prefs"
     private const val SCHEME = "qabas"
     private const val HOST_KEYS = "keys"
 
@@ -84,7 +83,7 @@ object KeyDeepLinkHandler {
     fun applyImportedKeys(context: Context, keys: Map<String, String>): Pair<Boolean, String> {
         if (keys.isEmpty()) return false to "لا توجد مفاتيح"
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         val editor = prefs.edit()
 
         keys.forEach { (field, value) ->

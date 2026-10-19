@@ -588,7 +588,7 @@ private fun DevToolsPanel(    context: Context,
             }
             if (promptsText.isNullOrBlank()) {
                 val hasGemini = KeyVault.gemini.isNotBlank()
-                val savedOrKey = remember { mutableStateOf(prefs.getString("openrouter_key", "") ?: "") }
+                val savedOrKey = remember { mutableStateOf(AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY)) }
                 if (!hasGemini && savedOrKey.value.isBlank()) {
                     var draft by remember { mutableStateOf("") }
                     var saved by remember { mutableStateOf(false) }
@@ -617,7 +617,7 @@ private fun DevToolsPanel(    context: Context,
                             onClick = {
                                 val v = draft.trim()
                                 if (v.startsWith("sk-or-")) {
-                                    prefs.edit().putString("openrouter_key", v).apply()
+                                    AgentPrefs.putString(context, AgentPrefs.OPENROUTER_KEY, v)
                                     savedOrKey.value = v
                                     saved = true
                                 }

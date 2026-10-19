@@ -28,8 +28,7 @@ class AccountService(private val context: Context) {
 
     val hasCustomKeys: Boolean
         get() {
-            val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val hasGemini = !qabasPrefs.getString("gemini_key", "").isNullOrBlank()
+            val hasGemini = !AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).isNullOrBlank()
             val hasSettingsGemini = !context.getSharedPreferences("qabas_settings", Context.MODE_PRIVATE)
                 .getString("gemini_key", "").isNullOrBlank()
             return hasGemini || hasSettingsGemini

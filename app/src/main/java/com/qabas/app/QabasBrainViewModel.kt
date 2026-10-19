@@ -479,8 +479,7 @@ class QabasBrainViewModel(
         referenceMemory: String,
         chosenStyle: StyleObject?
     ): BrainDecision = withContext(Dispatchers.IO) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val apiKey = prefs.getString("gemini_key", "")?.trim().orEmpty()
+        val apiKey = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).trim()
 
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
             return@withContext buildFallbackDecision(idea, tonePreference, targetAudience, chosenStyle)

@@ -47,7 +47,7 @@ fun SupabaseCloudConfigDialog(
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    val sp = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val sp = remember(context) { AgentPrefs.instance(context) }
     var inputUrl by remember { mutableStateOf(sp.getString("supabase_url", "")?.ifBlank { SupabaseConfig.url } ?: SupabaseConfig.url) }
     var inputAnonKey by remember { mutableStateOf(sp.getString("supabase_anon_key", "")?.ifBlank { SupabaseConfig.key } ?: SupabaseConfig.key) }
 

@@ -66,7 +66,7 @@ fun AiStudioAgentScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val prefs: SharedPreferences = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+    val prefs = AgentPrefs.instance(context)
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab) }

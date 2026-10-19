@@ -1121,9 +1121,8 @@ object StyleBrain {
      * يمنع عمل العقل واستخراج الأنماط في حال عدم وجود مفتاح.
      */
     fun hasValidAiApiKey(context: Context): Boolean {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val geminiKey = prefs.getString("gemini_key", "")?.trim().orEmpty()
-        val groqKey = prefs.getString("groq_key", "")?.trim().orEmpty()
+        val geminiKey = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).trim()
+        val groqKey = AgentPrefs.getString(context, AgentPrefs.GROQ_KEY).trim()
         val hasGemini = geminiKey.isNotBlank() && geminiKey != "YOUR_GEMINI_API_KEY"
         val hasGroq = groqKey.isNotBlank() && groqKey != "YOUR_GROQ_API_KEY"
         return hasGemini || hasGroq
@@ -2249,8 +2248,7 @@ object StyleBrain {
 
         try {
             val actualContext = context ?: AppServices.appContext
-            val prefs = actualContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val apiKey = prefs.getString("gemini_key", "")?.trim().orEmpty()
+            val apiKey = AgentPrefs.getString(actualContext, AgentPrefs.GEMINI_KEY).trim()
 
             if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
                 Log.w("StyleBrain", "No Gemini API key available for Vision analysis, returning default style.")

@@ -440,7 +440,7 @@ enum class ApiKeysTab(val title: String, val icon: ImageVector) {
 @Composable
 fun ApiKeysScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember { AgentPrefs.instance(context) }
     val mainScope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableStateOf(ApiKeysTab.KEYS) }

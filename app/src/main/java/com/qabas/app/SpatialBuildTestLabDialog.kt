@@ -55,7 +55,7 @@ fun SpatialBuildTestLabDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember { AgentPrefs.instance(context) }
 
     val activeRepo = remember { RepoVaultManager.getActiveRepo(context) }
     val owner = activeRepo?.owner ?: prefs.getString("build_center_owner", "") ?: ""

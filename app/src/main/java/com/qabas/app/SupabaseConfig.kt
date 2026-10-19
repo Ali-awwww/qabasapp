@@ -59,8 +59,7 @@ object SupabaseConfig {
     val url: String
         get() {
             val fromPrefs = runCatching {
-                AppServices.appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-                    .getString("supabase_url", "") ?: ""
+                AgentPrefs.getString(AppServices.appContext, "supabase_url")
             }.getOrDefault("")
             if (isRealUrl(fromPrefs)) return fromPrefs.trim()
             val fromBuild = runCatching { BuildConfig.SUPABASE_URL }.getOrNull()?.takeIf { !it.isNullOrBlank() }?.trim()
@@ -72,8 +71,7 @@ object SupabaseConfig {
     val key: String
         get() {
             val fromPrefs = runCatching {
-                AppServices.appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-                    .getString("supabase_anon_key", "") ?: ""
+                AgentPrefs.getString(AppServices.appContext, "supabase_anon_key")
             }.getOrDefault("")
             if (isRealKey(fromPrefs)) return fromPrefs.trim()
             val fromBuild = runCatching { BuildConfig.SUPABASE_ANON_KEY }.getOrNull()?.takeIf { !it.isNullOrBlank() }?.trim()

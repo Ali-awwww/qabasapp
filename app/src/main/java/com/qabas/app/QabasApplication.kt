@@ -34,6 +34,7 @@ class QabasApplication : Application() {
 
         // Initialize core application services
         AppServices.init(this)
+        AgentPrefs.init(this)
         LocalAccountRegistry.init(this)
 
         // مهام بدء التشغيل: تحديث الإعدادات البعيدة + استقبال إشعارات البث السحابية + فحص التحديث

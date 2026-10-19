@@ -60,9 +60,9 @@ fun SpatialDevSettingsDialog(
 
     // بيانات مستودع GitHub
     val activeRepo = remember { RepoVaultManager.getActiveRepo(context) }
-    var ownerText by remember { mutableStateOf(activeRepo?.owner ?: prefs.getString("build_center_owner", "") ?: "") }
-    var repoText by remember { mutableStateOf(activeRepo?.repo ?: prefs.getString("build_center_repo", "") ?: "") }
-    var tokenText by remember { mutableStateOf(activeRepo?.token ?: prefs.getString("build_center_token", "") ?: "") }
+    var ownerText by remember { mutableStateOf(activeRepo?.owner ?: AgentPrefs.getGitHubOwner(context)) }
+    var repoText by remember { mutableStateOf(activeRepo?.repo ?: AgentPrefs.getGitHubRepo(context)) }
+    var tokenText by remember { mutableStateOf(activeRepo?.token ?: AgentPrefs.getGitHubPat(context)) }
     var branchText by remember { mutableStateOf(activeRepo?.defaultBranch ?: "main") }
     var showToken by remember { mutableStateOf(false) }
 
@@ -373,11 +373,8 @@ fun SpatialDevSettingsDialog(
                                                     customName = repoText.trim()
                                                 )
                                                 RepoVaultManager.addOrUpdateRepo(context, entry, setAsActive = true)
-                                                prefs.edit()
-                                                    .putString("build_center_owner", ownerText.trim())
-                                                    .putString("build_center_repo", repoText.trim())
-                                                    .putString("build_center_token", tokenText.trim())
-                                                    .apply()
+                                                AgentPrefs.putGitHubRepo(context, ownerText.trim(), repoText.trim())
+                                                AgentPrefs.putGitHubPat(context, tokenText.trim())
                                                 Toast.makeText(context, "تم حفظ المستودع في الخزانة بنجاح ✓", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 testResultStatus = Pair(false, "تعذر الاتصال بالمستودع! تحقق من الـ Token والصلاحيات.")

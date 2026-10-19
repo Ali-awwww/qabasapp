@@ -78,7 +78,7 @@ fun GithubXdeltaHubScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember(context) { AgentPrefs.instance(context) }
 
     // بيانات المستودع — القيم الرسمية ثابتة للجميع، والتوكن والمستودع
     // المخصص للمطور فقط (AdminGuard). لا يُضمَّن أي سر في الكود.
@@ -279,11 +279,8 @@ fun GithubXdeltaHubScreen(
             Toast.makeText(context, "إعدادات المستودع للمطور فقط 🔒", Toast.LENGTH_SHORT).show()
             return
         }
-        prefs.edit()
-            .putString("build_center_owner", ownerInput.trim())
-            .putString("build_center_repo", repoInput.trim())
-            .putString("build_center_token", tokenInput.trim())
-            .apply()
+        AgentPrefs.putGitHubRepo(context, ownerInput.trim(), repoInput.trim())
+        AgentPrefs.putGitHubPat(context, tokenInput.trim())
 
         // مزامنة مع خزانة المستودعات
         runCatching {

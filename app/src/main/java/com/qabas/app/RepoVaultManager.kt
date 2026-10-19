@@ -69,7 +69,7 @@ object RepoVaultManager {
     }
 
     fun getRepositories(context: Context): List<RepoVaultEntry> {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         val raw = prefs.getString(PREFS_KEY, null)
         val list = mutableListOf<RepoVaultEntry>()
 
@@ -88,7 +88,7 @@ object RepoVaultManager {
     }
 
     fun saveRepositories(context: Context, repos: List<RepoVaultEntry>) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         val arr = JSONArray()
         repos.forEach { arr.put(it.toJson()) }
         prefs.edit().putString(PREFS_KEY, arr.toString()).apply()
@@ -96,7 +96,7 @@ object RepoVaultManager {
     }
 
     fun getActiveRepoId(context: Context): String? {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         return prefs.getString(ACTIVE_REPO_ID_KEY, null)
     }
 
@@ -107,7 +107,7 @@ object RepoVaultManager {
     }
 
     fun setActiveRepo(context: Context, id: String): RepoVaultEntry? {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         val repos = getRepositories(context)
         val target = repos.find { it.id == id } ?: return null
 
@@ -127,7 +127,7 @@ object RepoVaultManager {
     }
 
     fun clearAll(context: Context) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val prefs = AgentPrefs.instance(context)
         prefs.edit()
             .remove(PREFS_KEY)
             .remove(ACTIVE_REPO_ID_KEY)
