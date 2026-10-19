@@ -125,3 +125,7 @@ ui/agent/
 - **المرحلة 4 (جزئي)**: حد أدنى 12sp لكل خطوط القسم، 48dp لأزرار الحالة والتبويبات الفرعية، إزالة أزرار الحالة غير القابلة للنقر.
 - **المرحلة 5 (جزئي)**: حذف `AgentRoomSection` القديمة (4951 حرفاً) وتحديث اختبار Compose للشاشة الموحدة.
 - **متبقٍ**: تفكيك ملف التبويبات إلى ملفات ≤800 سطر، وViewModel موحّد (مؤجّل بقرار المستخدم).
+- **تفكيك الملف (منجز):** حُذف `AgentRoomSection.kt` ووُزّع إلى
+  `ui/agent/tabs/{AgentConsoleTab, AgentRequirementsTab, AgentToolsTab, AgentHistoryTab}.kt`
+  و`ui/agent/components/{AgentChatUi, FreeProvidersUi}.kt`، مع تحديث خرائط `AgentPatches`.
+  يبقى تبويب الكونسول (~2450 سطراً) أكبر من هدف 800 سطر؛ يحتاج تفكيكاً داخلياً مع ViewModel.

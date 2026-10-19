@@ -17,7 +17,7 @@ fun extractTargetFile(prompt: String, responseText: String): String {
     val knownFiles = listOf(
         "MainActivity.kt", "QabasHomeScreen.kt", "AppNavigation.kt", "SettingsScreen.kt",
         "DeveloperDashboardScreen.kt", "AudioPlayerManager.kt", "RealServices.kt",
-        "AgentRoomSection.kt", "BuildCenterSection.kt", "CrashLogsHubScreen.kt",
+        "AgentConsoleTab.kt", "BuildCenterSection.kt", "CrashLogsHubScreen.kt",
         "QuranDataProvider.kt", "QabasBrainViewModel.kt", "BRollEngine.kt",
         "HealthCenterSection.kt", "AuditLogSection.kt", "RepoVaultManager.kt"
     )
@@ -37,7 +37,7 @@ fun extractTargetFile(prompt: String, responseText: String): String {
         "إعدادات" in p || "settings" in p -> "SettingsScreen.kt"
         "صوت" in p || "audio" in p || "تشغيل" in p -> "AudioPlayerManager.kt"
         "مطور" in p || "لوحة" in p || "dashboard" in p -> "DeveloperDashboardScreen.kt"
-        "وكيل" in p || "agent" in p -> "AgentRoomSection.kt"
+        "وكيل" in p || "agent" in p -> "AgentConsoleTab.kt"
         "بناء" in p || "build" in p -> "BuildCenterSection.kt"
         "انهيار" in p || "crash" in p || "logs" in p -> "CrashLogsHubScreen.kt"
         "قرآن" in p || "تفسير" in p || "quran" in p -> "QuranDataProvider.kt"
