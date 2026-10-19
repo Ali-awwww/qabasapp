@@ -340,21 +340,15 @@ fun AiStudioAgentScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFFE5B842))
                         }
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("مركز الوكيل الذكي", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-                            val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                            val isHealthy = if (isOfflineMode) isLocalInstalled else geminiHealth.isConnected
-                            AgentStatusChip(
-                                kind = if (isHealthy) AgentStatusKind.READY else AgentStatusKind.NEEDS_ACTION,
-                                text = if (isOfflineMode) {
-                                    if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
-                                } else {
-                                    if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
-                                },
-                                onClick = { if (isOfflineMode) showOnDeviceDialog = true else { keyDialogInitialTab = 0; showKeyDialog = true } },
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
+                        Text(
+                            "مركز الوكيل الذكي",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                         IconButton(
                             onClick = { showSettings = true },
                             modifier = Modifier
@@ -372,47 +366,34 @@ fun AiStudioAgentScreen(
                             border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.4f)),
                             modifier = Modifier.clickable { showRepoDialog = true }
                         ) {
-                            Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                Modifier.padding(horizontal = 8.dp, vertical = 5.dp).widthIn(max = 110.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(Icons.Default.Source, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(13.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = activeRepo?.repo ?: "بدون مستودع",
-                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1
+                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isOfflineMode) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFFE5B842).copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.5f)),
-                                    modifier = Modifier.clickable { showOnDeviceDialog = true }
-                                ) {
-                                    Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Memory, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(11.dp))
-                                        Spacer(Modifier.width(3.dp))
-                                        Text("محلي: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5B842))
-                                    }
-                                }
+                    val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
+                    val isHealthy = if (isOfflineMode) isLocalInstalled else geminiHealth.isConnected
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        AgentStatusChip(
+                            kind = if (isHealthy) AgentStatusKind.READY else AgentStatusKind.NEEDS_ACTION,
+                            text = if (isOfflineMode) {
+                                if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
                             } else {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = activeEnginePair.value.first.color.copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, activeEnginePair.value.first.color.copy(alpha = 0.4f)),
-                                    modifier = Modifier.clickable { keyDialogInitialTab = 0; showKeyDialog = true }
-                                ) {
-                                    Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = activeEnginePair.value.first.color, modifier = Modifier.size(11.dp))
-                                        Spacer(Modifier.width(3.dp))
-                                        Text(activeEnginePair.value.first.displayName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = activeEnginePair.value.first.color)
-                                    }
-                                }
-                            }
-                        }
+                                if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
+                            },
+                            onClick = { if (isOfflineMode) showOnDeviceDialog = true else { keyDialogInitialTab = 0; showKeyDialog = true } }
+                        )
+                        Spacer(Modifier.weight(1f))
                         Text(
                             text = when {
                                 isExecuting && isTeamMode && teamProgressText.isNotBlank() -> teamProgressText
@@ -421,8 +402,8 @@ fun AiStudioAgentScreen(
                             },
                             fontSize = 12.sp,
                             color = if (isExecuting) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.End,
-                            modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp)
+                            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
+                            modifier = Modifier.padding(start = 8.dp)
                         )
                     }
                     Spacer(Modifier.height(6.dp))

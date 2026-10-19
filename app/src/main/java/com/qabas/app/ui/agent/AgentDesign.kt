@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -168,6 +169,7 @@ fun AgentStatusChip(
     }
     Surface(
         modifier = modifier
+            .widthIn(max = 230.dp)
             .defaultMinSize(minHeight = AgentDesign.TouchTarget)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(AgentDesign.RadiusSm),
@@ -192,7 +194,8 @@ fun AgentStatusChip(
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = AgentDesign.FontXs,
-                maxLines = 1
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             if (onClick != null) {
                 Spacer(Modifier.width(AgentDesign.SpaceXs))
