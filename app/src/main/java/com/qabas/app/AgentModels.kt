@@ -12,39 +12,6 @@ import java.util.UUID
  * كل الـ enums والـ data classes الخاصة بالوكيل في مكان واحد —
  * الدمج لتخفيف التشتت، والحزمة نفسها فلا حاجة لأي import جديد.
  */
-/**
- * تفضيلات وإعدادات الوكيل الذكي (Agent Preferences)
- */
-object AgentPrefs {
-    const val MODEL = "agent_model"
-    const val MAX_TURNS = "agent_max_turns"
-    const val AUTO_FIX = "agent_auto_fix"
-    fun toolKey(name: String) = "tool_enabled_$name"
-
-    fun isToolEnabled(context: Context, name: String): Boolean =
-        com.qabas.app.AgentPrefs.isToolEnabled(context, name)
-
-    fun maxTurns(context: Context): Int =
-        com.qabas.app.AgentPrefs.maxTurns(context)
-
-    fun isAutoFix(context: Context): Boolean =
-        com.qabas.app.AgentPrefs.isAutoFix(context)
-
-    fun model(context: Context): String? =
-        com.qabas.app.AgentPrefs.model(context)
-
-    fun putModel(context: Context, model: String?) {
-        com.qabas.app.AgentPrefs.putModel(context, model)
-    }
-
-    fun putMaxTurns(context: Context, turns: Int) {
-        com.qabas.app.AgentPrefs.putMaxTurns(context, turns)
-    }
-
-    fun putAutoFix(context: Context, enabled: Boolean) {
-        com.qabas.app.AgentPrefs.putAutoFix(context, enabled)
-    }
-}
 
 /**
  * مزودو نماذج الذكاء الاصطناعي المدعومون مع الكشف التلقائي الذكي
