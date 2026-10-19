@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.agent.AgentNeonButton
+import com.qabas.app.ui.agent.AgentStatusChip
+import com.qabas.app.ui.agent.AgentStatusKind
 import com.qabas.app.ui.agent.AgentNeonCard
 import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.components.GlassmorphicSurface
@@ -340,25 +342,18 @@ fun AiStudioAgentScreen(
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("مركز الوكيل الذكي", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                                val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                                val dotColor = if (isOfflineMode) {
-                                    if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B)
+                            val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
+                            val isHealthy = if (isOfflineMode) isLocalInstalled else geminiHealth.isConnected
+                            AgentStatusChip(
+                                kind = if (isHealthy) AgentStatusKind.READY else AgentStatusKind.NEEDS_ACTION,
+                                text = if (isOfflineMode) {
+                                    if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
                                 } else {
-                                    if (geminiHealth.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)
-                                }
-                                Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
-                                Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = if (isOfflineMode) {
-                                        if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
-                                    } else {
-                                        if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
-                                    },
-                                    fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                                    color = if (geminiHealth.isConnected || (isOfflineMode && isLocalInstalled)) Color(0xFF10B981) else Color(0xFFE5B842)
-                                )
-                            }
+                                    if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
+                                },
+                                onClick = { if (isOfflineMode) showOnDeviceDialog = true else { keyDialogInitialTab = 0; showKeyDialog = true } },
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
                         }
                         IconButton(
                             onClick = { showSettings = true },
@@ -1063,6 +1058,7 @@ private fun UnifiedToolsAndReadinessSection(
                 border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)) else null,
                 modifier = Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp)
                     .clickable { subTab = 0 }
                     .testTag("sub_tab_readiness")
             ) {
@@ -1096,6 +1092,7 @@ private fun UnifiedToolsAndReadinessSection(
                 border = if (subTab == 1) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null,
                 modifier = Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp)
                     .clickable { subTab = 1 }
                     .testTag("sub_tab_tools")
             ) {

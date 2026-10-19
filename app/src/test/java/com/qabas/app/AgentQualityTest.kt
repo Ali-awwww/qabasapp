@@ -114,7 +114,7 @@ class AgentQualityTest {
     fun `agent screen renders deck modules and sub-tabs`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AgentRoomSection(onJumpBuildCenter = {}, onJumpKeys = {})
+                AiStudioAgentScreen(onBack = {}, initialTab = 2)
             }
         }
 

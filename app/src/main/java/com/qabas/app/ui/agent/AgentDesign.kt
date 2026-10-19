@@ -1,6 +1,7 @@
 package com.qabas.app.ui.agent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -166,7 +167,9 @@ fun AgentStatusChip(
         AgentStatusKind.FAILED -> AgentDesign.Danger to "توقف"
     }
     Surface(
-        modifier = modifier.defaultMinSize(minHeight = AgentDesign.TouchTarget),
+        modifier = modifier
+            .defaultMinSize(minHeight = AgentDesign.TouchTarget)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(AgentDesign.RadiusSm),
         color = dot.copy(alpha = 0.12f),
         border = BorderStroke(1.dp, dot.copy(alpha = 0.45f))
