@@ -2,6 +2,8 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
@@ -59,7 +61,16 @@ object AgentPrefs {
         if (prefs != null) return
         val appContext = context.applicationContext
         prefs = try {
-            val masterKeyAlias = MasterKeys.getOrCreate("AES256_GCM")
+            val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+                "qabas_agent_master",
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+            val masterKeyAlias = MasterKeys.getOrCreate(keyGenParameterSpec)
             EncryptedSharedPreferences.create(
                 PREFS_NAME,
                 masterKeyAlias,
