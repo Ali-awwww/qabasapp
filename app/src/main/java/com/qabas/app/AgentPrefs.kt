@@ -59,7 +59,7 @@ object AgentPrefs {
         if (prefs != null) return
         val appContext = context.applicationContext
         prefs = try {
-            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SCHEME)
+            val masterKeyAlias = MasterKeys.getOrCreate("AES256_GCM")
             EncryptedSharedPreferences.create(
                 PREFS_NAME,
                 masterKeyAlias,
