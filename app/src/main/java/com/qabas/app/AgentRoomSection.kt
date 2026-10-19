@@ -144,7 +144,7 @@ fun AgentRoomSection(
                                 "[$idxStr]",
                                 color = if (isSelected) tabAccent else Color(0xFF64748B),
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -162,7 +162,7 @@ fun AgentRoomSection(
                                 color = if (isSelected) Color.White else Color(0xFF94A3B8),
                                 fontFamily = CairoFont,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.5.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -634,7 +634,7 @@ internal fun AgentLiveConsoleTab(
                                 "SPATIAL HUD // EXECUTION TARGET",
                                 color = Color(0xFF00F0FF),
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -650,7 +650,7 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Icon(Icons.Default.SyncAlt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("خزانة المستودعات 🔄", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            Text("خزانة المستودعات 🔄", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -684,7 +684,7 @@ internal fun AgentLiveConsoleTab(
                                 "غرفة التنفيذ: الأوامر والأدوات وطابور العمل تطبق على هذا المستودع ⚡",
                                 color = Color(0xFF94A3B8),
                                 fontFamily = NotoSansFont,
-                                fontSize = 10.5.sp,
+                                fontSize = 12.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -710,7 +710,7 @@ internal fun AgentLiveConsoleTab(
                                 },
                                 color = if (ghState == GitHubConnectionState.CONNECTED) Color(0xFF10B981) else Color(0xFFF59E0B),
                                 fontFamily = CairoFont,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -725,7 +725,7 @@ internal fun AgentLiveConsoleTab(
                                 "الفرع: $ghBranch",
                                 color = Color(0xFF38BDF8),
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -741,7 +741,7 @@ internal fun AgentLiveConsoleTab(
                                     "${ghLatencyMs}ms",
                                     color = Color(0xFF8B5CF6),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.5.sp,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -793,7 +793,7 @@ internal fun AgentLiveConsoleTab(
                                 "UNIVERSAL ENGINE DETECTOR",
                                 color = activeEngineInfo.first.color,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -807,7 +807,7 @@ internal fun AgentLiveConsoleTab(
                                 if (isKeyBoxExpanded) "إغلاق ▲" else "تغيير المفتاح ▼",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -829,7 +829,7 @@ internal fun AgentLiveConsoleTab(
                                 color = activeEngineInfo.first.color,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
@@ -839,7 +839,7 @@ internal fun AgentLiveConsoleTab(
                                 "${activeEngineInfo.second.take(8)}•••${activeEngineInfo.second.takeLast(4)}",
                                 color = Color(0xFF64748B),
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -853,7 +853,7 @@ internal fun AgentLiveConsoleTab(
                             "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter, OpenAI, Claude) — سيكتشفه النظام تلقائياً:",
                             color = Color(0xFFCBD5E1),
                             fontFamily = CairoFont,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))
@@ -864,11 +864,11 @@ internal fun AgentLiveConsoleTab(
                                 customKeyInput = it
                                 detectedNewProvider = UniversalKeyBrain.detect(it)
                             },
-                            placeholder = { Text("الصق المفتاح هنا...", color = Color(0xFF64748B), fontSize = 11.sp) },
+                            placeholder = { Text("الصق المفتاح هنا...", color = Color(0xFF64748B), fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 color = Color.White
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -889,13 +889,13 @@ internal fun AgentLiveConsoleTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("المزود المكتشف: ", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
+                                    Text("المزود المكتشف: ", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                                     Text(
                                         detectedNewProvider.displayName,
                                         color = detectedNewProvider.color,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        fontSize = 12.sp
                                     )
                                 }
 
@@ -913,7 +913,7 @@ internal fun AgentLiveConsoleTab(
                                     modifier = Modifier.height(32.dp),
                                     enabled = detectedNewProvider != DetectedProvider.NONE
                                 ) {
-                                    Text("تفعيل وحفظ 💾", color = DeepSlate, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("تفعيل وحفظ 💾", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -948,7 +948,7 @@ internal fun AgentLiveConsoleTab(
                                             text = "احصل على مفتاح مجاني لـ Gemini 2.0 و Qwen Coder و Llama 3.3 مجاناً 100%",
                                             color = Color(0xFFA7F3D0),
                                             fontFamily = CairoFont,
-                                            fontSize = 10.sp
+                                            fontSize = 12.sp
                                         )
                                     }
                                 }
@@ -1006,7 +1006,7 @@ internal fun AgentLiveConsoleTab(
                                 "GITHUB REPOSITORY TELEMETRY",
                                 color = ghState.color,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -1022,7 +1022,7 @@ internal fun AgentLiveConsoleTab(
                                 color = ghState.color,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
@@ -1049,7 +1049,7 @@ internal fun AgentLiveConsoleTab(
                                         "المستخدم المصرح: @${ghUser ?: "auth"} • الفرع: $ghBranch • سرعة الاستجابة: ${ghLatencyMs}ms ✓",
                                         color = Color(0xFF94A3B8),
                                         fontFamily = CairoFont,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                                 GitHubConnectionState.SYNCING -> {
@@ -1064,7 +1064,7 @@ internal fun AgentLiveConsoleTab(
                                         "اختبار صلاحيات الرمز وجلب بيانات الفروع...",
                                         color = Color(0xFF94A3B8),
                                         fontFamily = CairoFont,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                                 GitHubConnectionState.PERMISSION_ERROR -> {
@@ -1079,7 +1079,7 @@ internal fun AgentLiveConsoleTab(
                                         ghErrorMessage.ifBlank { "الرمز منتهي الصلاحية أو يفتقد لصلاحية repo. اضغط لتحديث الرمز." },
                                         color = Color(0xFFEF4444),
                                         fontFamily = CairoFont,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.sp,
                                         lineHeight = 15.sp
                                     )
                                 }
@@ -1095,7 +1095,7 @@ internal fun AgentLiveConsoleTab(
                                         "لم يتم ربط مستودع GitHub بعد. اربط مستودعك لتمكين الدفع والـ PR المباشر.",
                                         color = Color(0xFF94A3B8),
                                         fontFamily = CairoFont,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                             }
@@ -1129,7 +1129,7 @@ internal fun AgentLiveConsoleTab(
                                         color = DeepSlate,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                             }
@@ -1207,7 +1207,7 @@ internal fun AgentLiveConsoleTab(
                                 "$totalQueue مهام",
                                 color = if (totalQueue > 0) Color(0xFF38BDF8) else Color(0xFF94A3B8),
                                 fontFamily = CairoFont,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
@@ -1239,7 +1239,7 @@ internal fun AgentLiveConsoleTab(
                                 ) {
                                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("نشطة: $runningCount", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("نشطة: $runningCount", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -1256,7 +1256,7 @@ internal fun AgentLiveConsoleTab(
                                 ) {
                                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFA855F7)))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("موقوفة: $pausedCount", color = Color(0xFFA855F7), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("موقوفة: $pausedCount", color = Color(0xFFA855F7), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1278,7 +1278,7 @@ internal fun AgentLiveConsoleTab(
                                 ) {
                                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF59E0B)))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("بالانتظار: $pendingCount", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("بالانتظار: $pendingCount", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -1295,7 +1295,7 @@ internal fun AgentLiveConsoleTab(
                                 ) {
                                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("مكتملة: $completedCount", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("مكتملة: $completedCount", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1315,7 +1315,7 @@ internal fun AgentLiveConsoleTab(
                                 "لا توجد مهام في الطابور حالياً. اكتب مهمة أدناه واضغط «➕ إضافة للطابور» ليتم إدراجها وجدولتها تلقائياً.",
                                 color = Color(0xFF64748B),
                                 fontFamily = CairoFont,
-                                fontSize = 10.5.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(12.dp),
                                 lineHeight = 16.sp
                             )
@@ -1355,7 +1355,7 @@ internal fun AgentLiveConsoleTab(
                                                         color = cmd.status.color,
                                                         fontFamily = FontFamily.Monospace,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 10.sp,
+                                                        fontSize = 12.sp,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                                     )
                                                 }
@@ -1365,7 +1365,7 @@ internal fun AgentLiveConsoleTab(
                                                     color = Color.White,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    fontSize = 11.5.sp,
+                                                    fontSize = 12.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -1383,7 +1383,7 @@ internal fun AgentLiveConsoleTab(
                                                     color = cmd.status.color,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 12.sp,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )
                                             }
@@ -1408,7 +1408,7 @@ internal fun AgentLiveConsoleTab(
                                                 else "⏳ بانتظار بدء الجولة...",
                                                 color = if (isCmdRunning) Color(0xFF38BDF8) else if (isCmdPaused) Color(0xFFA855F7) else Color(0xFF94A3B8),
                                                 fontFamily = CairoFont,
-                                                fontSize = 9.5.sp
+                                                fontSize = 12.sp
                                             )
 
                                             Text(
@@ -1416,7 +1416,7 @@ internal fun AgentLiveConsoleTab(
                                                 color = cmd.status.color,
                                                 fontFamily = FontFamily.Monospace,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 9.5.sp
+                                                fontSize = 12.sp
                                             )
                                         }
 
@@ -1449,7 +1449,7 @@ internal fun AgentLiveConsoleTab(
                                                     ) {
                                                         Icon(Icons.Default.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("إيقاف مؤقت", color = Color.White, fontFamily = CairoFont, fontSize = 10.5.sp)
+                                                        Text("إيقاف مؤقت", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
                                                 } else if (isCmdPaused) {
                                                     // زر استئناف
@@ -1462,7 +1462,7 @@ internal fun AgentLiveConsoleTab(
                                                     ) {
                                                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("استئناف", color = Color.White, fontFamily = CairoFont, fontSize = 10.5.sp)
+                                                        Text("استئناف", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
                                                 } else if (isCmdPending) {
                                                     // زر تشغيل الآن
@@ -1475,7 +1475,7 @@ internal fun AgentLiveConsoleTab(
                                                     ) {
                                                         Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("تنفيذ الآن", color = Color.White, fontFamily = CairoFont, fontSize = 10.5.sp)
+                                                        Text("تنفيذ الآن", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
 
                                                     // أزرار رفع وخفض الأولوية
@@ -1543,7 +1543,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.CleaningServices, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("مسح المنتهية 🧹", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                Text("مسح المنتهية 🧹", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             TextButton(
@@ -1556,7 +1556,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تفريغ الطابور كاملاً", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                Text("تفريغ الطابور كاملاً", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp)
                             }
                         }
                     }
@@ -1616,7 +1616,7 @@ internal fun AgentLiveConsoleTab(
                                 color = selectedSpecialization.color,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
@@ -1655,7 +1655,7 @@ internal fun AgentLiveConsoleTab(
                                             spec.title,
                                             color = if (isSelected) Color.White else Color(0xFF94A3B8),
                                             fontFamily = CairoFont,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -1690,7 +1690,7 @@ internal fun AgentLiveConsoleTab(
                                             spec.title,
                                             color = if (isSelected) Color.White else Color(0xFF94A3B8),
                                             fontFamily = CairoFont,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -1706,7 +1706,7 @@ internal fun AgentLiveConsoleTab(
                         selectedSpecialization.description,
                         color = Color(0xFF94A3B8),
                         fontFamily = CairoFont,
-                        fontSize = 10.5.sp,
+                        fontSize = 12.sp,
                         lineHeight = 15.sp
                     )
 
@@ -1732,14 +1732,14 @@ internal fun AgentLiveConsoleTab(
                                 "سعة نافذة السياق (Context Window):",
                                 color = Color(0xFFCBD5E1),
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
                                 "$totalTokensUsed / 128,000 توكن",
                                 color = GoldPrimary,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -1768,7 +1768,7 @@ internal fun AgentLiveConsoleTab(
                                 "🗜️ ضغط ذكي للسياق (Smart Compression)",
                                 color = if (contextCompressionEnabled) Color(0xFF38BDF8) else Color(0xFF64748B),
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             )
                             Switch(
                                 checked = contextCompressionEnabled,
@@ -1837,7 +1837,7 @@ internal fun AgentLiveConsoleTab(
                                     if (isPaused) "موقوف مؤقتاً ⏸️" else "الجولة $currentTurn / $maxTurns ⚡",
                                     color = statusColor,
                                     fontFamily = CairoFont,
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -1851,7 +1851,7 @@ internal fun AgentLiveConsoleTab(
                         value = missionInput,
                         onValueChange = { missionInput = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("اكتب الأمر التالي أو مهمة جديدة لإضافتها للطابور...", color = Color(0xFF64748B), fontSize = 11.5.sp) },
+                        placeholder = { Text("اكتب الأمر التالي أو مهمة جديدة لإضافتها للطابور...", color = Color(0xFF64748B), fontSize = 12.sp) },
                         textStyle = androidx.compose.ui.text.TextStyle(
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
@@ -1870,7 +1870,7 @@ internal fun AgentLiveConsoleTab(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Text("برومبتات سريعة لتتابع المحادثة والتعديل:", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.5.sp)
+                    Text("برومبتات سريعة لتتابع المحادثة والتعديل:", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     // برومبتات سريعة مرتبة في شبكة 2x2 هندسية دون قص جانبي
@@ -1894,7 +1894,7 @@ internal fun AgentLiveConsoleTab(
                                     "🎨 واجهة سيبرانية نيون",
                                     color = Color(0xFFCBD5E1),
                                     fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
@@ -1913,7 +1913,7 @@ internal fun AgentLiveConsoleTab(
                                     "💬 رسالة تأكيد الحفظ",
                                     color = Color(0xFFCBD5E1),
                                     fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
@@ -1937,7 +1937,7 @@ internal fun AgentLiveConsoleTab(
                                     "⚡ فحص سلامة البناء",
                                     color = Color(0xFFCBD5E1),
                                     fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
@@ -1956,7 +1956,7 @@ internal fun AgentLiveConsoleTab(
                                     "🔍 استكشاف شاشات العرض",
                                     color = Color(0xFFCBD5E1),
                                     fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
@@ -2138,7 +2138,7 @@ internal fun AgentLiveConsoleTab(
                         border = BorderStroke(1.dp, Color(0xFF1E2D4A))
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("الخطوات المكتملة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
+                            Text("الخطوات المكتملة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                             Text("${steps.size}", color = Color(0xFF38BDF8), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
@@ -2150,7 +2150,7 @@ internal fun AgentLiveConsoleTab(
                         border = BorderStroke(1.dp, Color(0xFF1E2D4A))
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("التوكينز المستهلكة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
+                            Text("التوكينز المستهلكة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                             Text("$totalTokensUsed", color = GoldPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
@@ -2162,7 +2162,7 @@ internal fun AgentLiveConsoleTab(
                         border = BorderStroke(1.dp, Color(0xFF1E2D4A))
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (isPaused) "موقوف مؤقتاً" else "الوقت المنقضي", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
+                            Text(if (isPaused) "موقوف مؤقتاً" else "الوقت المنقضي", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                             Text(
                                 if (isPaused) "⏸️ PAUSED" else "${elapsedTimeSeconds}s",
                                 color = if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981),
@@ -2224,7 +2224,7 @@ internal fun AgentLiveConsoleTab(
                                         color = phaseColor,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 12.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -2234,7 +2234,7 @@ internal fun AgentLiveConsoleTab(
                                     color = Color.White,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -2245,7 +2245,7 @@ internal fun AgentLiveConsoleTab(
                                     "${step.latencyMs}ms",
                                     color = Color(0xFF64748B),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -2255,7 +2255,7 @@ internal fun AgentLiveConsoleTab(
                             step.detail,
                             color = Color(0xFFCBD5E1),
                             fontFamily = CairoFont,
-                            fontSize = 10.5.sp,
+                            fontSize = 12.sp,
                             lineHeight = 15.sp
                         )
 
@@ -2269,7 +2269,7 @@ internal fun AgentLiveConsoleTab(
                                     "TOOL_INVOCATION: ${step.toolName}()",
                                     color = Color(0xFF38BDF8),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.sp,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -2307,15 +2307,15 @@ internal fun AgentLiveConsoleTab(
                                     generatedDiff!!.filePath.substringAfterLast("/"),
                                     color = Color.White,
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("+${generatedDiff!!.additions}", color = Color(0xFF10B981), fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("+${generatedDiff!!.additions}", color = Color(0xFF10B981), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("-${generatedDiff!!.deletions}", color = Color(0xFFEF4444), fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("-${generatedDiff!!.deletions}", color = Color(0xFFEF4444), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 IconButton(
                                     onClick = {
@@ -2347,7 +2347,7 @@ internal fun AgentLiveConsoleTab(
                                         text = line,
                                         color = txtColor,
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 12.sp,
                                         lineHeight = 14.sp
                                     )
                                 }
@@ -2394,7 +2394,7 @@ internal fun AgentLiveConsoleTab(
                                     "VERIFIED INTEGRITY ✅",
                                     color = Color(0xFF10B981),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -2405,7 +2405,7 @@ internal fun AgentLiveConsoleTab(
                             "يمكنك فحص الكود المولد للتأكد من سلامة توازنه، أو مراجعة طلب السحب في GitHub، أو التراجع الفوري عن هذه المهمة:",
                             color = Color(0xFF94A3B8),
                             fontFamily = CairoFont,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             lineHeight = 16.sp
                         )
 
@@ -2420,7 +2420,7 @@ internal fun AgentLiveConsoleTab(
                                     sanityCheckResult!!,
                                     color = Color(0xFF6EE7B7),
                                     fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.padding(10.dp),
                                     lineHeight = 16.sp
                                 )
@@ -2473,7 +2473,7 @@ internal fun AgentLiveConsoleTab(
                             if (isPushingToGitHub) {
                                 CircularProgressIndicator(color = Color(0xFF10B981), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري حفظ المقترح للفرع...", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp)
+                                Text("جاري حفظ المقترح للفرع...", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                             } else {
                                 Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -2506,7 +2506,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.Science, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("فحص الكود 🧪", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("فحص الكود 🧪", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             Button(
@@ -2523,7 +2523,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.Link, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("رابط الـ PR 🔗", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("رابط الـ PR 🔗", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             Button(
@@ -2547,7 +2547,7 @@ internal fun AgentLiveConsoleTab(
                             ) {
                                 Icon(Icons.Default.Undo, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تجاهل ✕", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("تجاهل ✕", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp)
                             }
                         }
                     }
@@ -2681,7 +2681,7 @@ private fun AgentChatOverlayDialog(
                                         text = specialization.badge,
                                         color = specialization.color,
                                         fontFamily = CairoFont,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
@@ -2705,7 +2705,7 @@ private fun AgentChatOverlayDialog(
                                     } else "جاهز للاستلام 💬",
                                     color = Color(0xFF94A3B8),
                                     fontFamily = CairoFont,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -2834,7 +2834,7 @@ private fun AgentChatOverlayDialog(
                                 text = prompt,
                                 color = Color(0xFF93C5FD),
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
@@ -2970,7 +2970,7 @@ private fun ChatMessageBubble(message: AgentChatMessage) {
                         color = if (isUser) Color(0xFFA7F3D0) else if (isSystem) Color(0xFF7DD3FC) else Color(0xFF93C5FD),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -2998,14 +2998,14 @@ private fun ChatMessageBubble(message: AgentChatMessage) {
                                         text = "📁 ${diff.filePath}",
                                         color = Color(0xFF7DD3FC),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = "+${diff.additions} / -${diff.deletions}",
                                         color = Color(0xFF34D399),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                                 if (diff.diffText.isNotBlank()) {
@@ -3014,7 +3014,7 @@ private fun ChatMessageBubble(message: AgentChatMessage) {
                                         text = diff.diffText.take(300),
                                         color = Color(0xFFCBD5E1),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         maxLines = 6,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -3212,7 +3212,7 @@ internal fun RequirementsTab(
                             color = if (!isClientMode) Color.White else Color(0xFF94A3B8),
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
                     }
 
@@ -3239,7 +3239,7 @@ internal fun RequirementsTab(
                             color = if (isClientMode) Color.White else Color(0xFF94A3B8),
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
                     }
                 }
@@ -3283,7 +3283,7 @@ internal fun RequirementsTab(
                                     "SYSTEM READINESS MATRIX",
                                     color = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )
@@ -3301,7 +3301,7 @@ internal fun RequirementsTab(
                                 else "استكمل الشروط غير المكتملة لتفعيل الإطلاق التلقائي",
                                 color = Color(0xFF94A3B8),
                                 fontFamily = CairoFont,
-                                fontSize = 10.5.sp
+                                fontSize = 12.sp
                             )
                         }
 
@@ -3337,7 +3337,7 @@ internal fun RequirementsTab(
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("$done/5", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                Text("$readyPercentage%", color = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF), fontFamily = FontFamily.Monospace, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text("$readyPercentage%", color = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -3355,7 +3355,7 @@ internal fun RequirementsTab(
                             "الحالة العامة: ${if (done == 5) "جاهز للعمليات المباشرة ✓" else "بانتظار اكتمال المتطلبات ⏳"}",
                             color = if (done == 5) Color(0xFF10B981) else Color(0xFFF59E0B),
                             fontFamily = CairoFont,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -3366,7 +3366,7 @@ internal fun RequirementsTab(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("إعادة الفحص", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("إعادة الفحص", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -3447,14 +3447,14 @@ internal fun RequirementsTab(
                                 )
                             }
                         }
-                        Text(r.hint, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                        Text(r.hint, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             if (r.state == ReqState.CHECKING) "جاري التحقق الفوري..." else r.detail.ifBlank { "—" },
                             color = color,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Normal,
-                            fontSize = 9.5.sp
+                            fontSize = 12.sp
                         )
                     }
 
@@ -3467,7 +3467,7 @@ internal fun RequirementsTab(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier.height(30.dp)
                         ) {
-                            Text("إصلاح", color = DeepSlate, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            Text("إصلاح", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.width(3.dp))
                             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(11.dp))
                         }
@@ -3562,7 +3562,7 @@ internal fun ToolsTab(context: Context) {
                                 "AGENT REASONING PARAMETERS",
                                 color = GoldPrimary,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -3576,14 +3576,14 @@ internal fun ToolsTab(context: Context) {
                                 "تهيئة النواة ⚙️",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
 
-                    Text("نموذج الاستدلال والبرمجة المستهدف:", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    Text("نموذج الاستدلال والبرمجة المستهدف:", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
 
                     Row(
                         modifier = Modifier
@@ -3614,7 +3614,7 @@ internal fun ToolsTab(context: Context) {
                                     color = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
@@ -3629,8 +3629,8 @@ internal fun ToolsTab(context: Context) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("الحد الأقصى لجولات التفكير (Max Turns):", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                            Text("عدد الجولات المسموح بها للوكيل لإكمال المهمة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                            Text("الحد الأقصى لجولات التفكير (Max Turns):", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("عدد الجولات المسموح بها للوكيل لإكمال المهمة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                         }
                         Surface(
                             color = Color(0xFF10B981).copy(alpha = 0.15f),
@@ -3642,7 +3642,7 @@ internal fun ToolsTab(context: Context) {
                                 color = Color(0xFF10B981),
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
@@ -3688,7 +3688,7 @@ internal fun ToolsTab(context: Context) {
                                     )
                                 }
                             }
-                            Text("عند حدوث خطأ تجميع، يحلل الوكيل الخطأ ويعيد بناء الكود تلقائياً.", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                            Text("عند حدوث خطأ تجميع، يحلل الوكيل الخطأ ويعيد بناء الكود تلقائياً.", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                         }
                         Switch(
                             checked = autoFix,
@@ -3725,7 +3725,7 @@ internal fun ToolsTab(context: Context) {
                     "${states.values.count { it }} مفعّلة",
                     color = Color(0xFF10B981),
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -3782,14 +3782,14 @@ internal fun ToolsTab(context: Context) {
                                 tool.name,
                                 color = Color(0xFF64748B),
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 9.sp
+                                fontSize = 12.sp
                             )
                         }
                         Text(
                             tool.description,
                             color = Color(0xFF94A3B8),
                             fontFamily = CairoFont,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             maxLines = 2
                         )
                     }
@@ -3905,7 +3905,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                     "MISSION TELEMETRY LOG",
                                     color = Color(0xFF00F0FF),
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )
@@ -3962,7 +3962,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF10B981)))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("تم بنجاح", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("تم بنجاح", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                         Text("$okCount مهمة", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -3991,7 +3991,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                                     .background(Color(0xFF00F0FF).copy(alpha = pulseAlpha))
                                             )
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("قيد التنفيذ", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("قيد التنفيذ", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                         Text("0 نشطة", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -4021,7 +4021,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFEF4444)))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("أخطاء", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("أخطاء", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                         Text("$failCount خطأ", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -4045,7 +4045,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(GoldPrimary))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("نسبة الإنجاز", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("نسبة الإنجاز", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                         Text("$successRate%", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -4067,7 +4067,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("ابحث في سجل المهام أو الأدوات...", color = Color(0xFF64748B), fontSize = 11.5.sp) },
+                    placeholder = { Text("ابحث في سجل المهام أو الأدوات...", color = Color(0xFF64748B), fontSize = 12.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
@@ -4076,7 +4076,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                             }
                         }
                     },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 11.5.sp, color = Color.White),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.sp, color = Color.White),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color(0xFF060B16),
                         unfocusedContainerColor = Color(0xFF060B16),
@@ -4117,7 +4117,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                     color = if (isSelected) Color.White else Color(0xFF94A3B8),
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -4157,7 +4157,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                             "يمكنك تشغيل مهمة جديدة من تبويب «[01] ⚡ التشغيل المباشر» لتسجيلها ومتابعتها هنا تلقائياً.",
                             color = Color(0xFF64748B),
                             fontFamily = CairoFont,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             textAlign = TextAlign.Center,
                             lineHeight = 16.sp
                         )
@@ -4215,7 +4215,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.US).format(Date(run.time)),
                                         color = Color(0xFF64748B),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 9.5.sp
+                                        fontSize = 12.sp
                                     )
                                 }
                             }
@@ -4233,7 +4233,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         color = statusColor,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 12.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -4285,7 +4285,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                             t,
                                             color = Color(0xFF94A3B8),
                                             fontFamily = FontFamily.Monospace,
-                                            fontSize = 9.sp,
+                                            fontSize = 12.sp,
                                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                         )
                                     }
@@ -4300,7 +4300,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                             Spacer(modifier = Modifier.height(8.dp))
 
                             if (run.summary.isNotBlank()) {
-                                Text("ملخص نتيجة العملية:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("ملخص نتيجة العملية:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
                                     color = Color(0xFF030712),
@@ -4311,7 +4311,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         run.summary,
                                         color = Color(0xFFCBD5E1),
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         lineHeight = 16.sp,
                                         modifier = Modifier.padding(8.dp)
                                     )
@@ -4320,7 +4320,7 @@ internal fun TaskHistoryLogTab(context: Context) {
 
                             if (!run.ok && run.error.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("نص الخطأ التشخيصي (Diagnostic Error):", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("نص الخطأ التشخيصي (Diagnostic Error):", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
                                     color = Color(0xFF030712),
@@ -4332,7 +4332,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         run.error,
                                         color = Color(0xFFFCA5A5),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         modifier = Modifier.padding(8.dp)
                                     )
                                 }
@@ -4366,7 +4366,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("نسخ التقرير 📋", color = Color.White, fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    Text("نسخ التقرير 📋", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -4499,7 +4499,7 @@ private fun FreeProvidersDialog(
                                 "احصل على مفاتيح API مجانية لتشغيل نماذج البرمجة بدون دفع",
                                 color = Color(0xFF94A3B8),
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -4543,7 +4543,7 @@ private fun FreeProvidersDialog(
                                 text = label,
                                 color = if (isSelected) Color.White else Color(0xFF93C5FD),
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
@@ -4617,7 +4617,7 @@ private fun FreeProviderCard(
                         color = item.color,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp,
+                        fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -4633,13 +4633,13 @@ private fun FreeProviderCard(
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("النموذج البرمجي الموصى به: ", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
+                        Text("النموذج البرمجي الموصى به: ", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
                         Text(
                             item.recommendedModel,
                             color = GoldPrimary,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -4647,7 +4647,7 @@ private fun FreeProviderCard(
                         item.modelDescription,
                         color = Color(0xFFCBD5E1),
                         fontFamily = CairoFont,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         lineHeight = 16.sp
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -4656,7 +4656,7 @@ private fun FreeProviderCard(
                         color = Color(0xFF34D399),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -4677,7 +4677,7 @@ private fun FreeProviderCard(
                 ) {
                     Icon(Icons.Default.Link, contentDescription = null, tint = item.color, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("نسخ رابط المفتاح المجاني 📋", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("نسخ رابط المفتاح المجاني 📋", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
 
@@ -4692,11 +4692,11 @@ private fun FreeProviderCard(
                 OutlinedTextField(
                     value = keyInput,
                     onValueChange = { keyInput = it },
-                    placeholder = { Text("الصق مفتاح ${item.name} هنا (${item.keyPrefix})...", color = Color(0xFF64748B), fontSize = 10.5.sp) },
+                    placeholder = { Text("الصق مفتاح ${item.name} هنا (${item.keyPrefix})...", color = Color(0xFF64748B), fontSize = 12.sp) },
                     modifier = Modifier.weight(1f).height(46.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 10.5.sp,
+                        fontSize = 12.sp,
                         color = Color.White
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -4721,7 +4721,7 @@ private fun FreeProviderCard(
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.height(46.dp)
                 ) {
-                    Text("تفعيل وحفظ 💾", color = DeepSlate, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("تفعيل وحفظ 💾", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -351,7 +351,7 @@ fun AiStudioAgentScreen(
                                     } else {
                                         if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
                                     },
-                                    fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp, fontFamily = FontFamily.Monospace,
                                     color = if (geminiHealth.isConnected || (isOfflineMode && isLocalInstalled)) Color(0xFF10B981) else Color(0xFFE5B842)
                                 )
                             }
@@ -367,7 +367,7 @@ fun AiStudioAgentScreen(
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = activeRepo?.repo ?: "بدون مستودع",
-                                    fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1
+                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1
                                 )
                             }
                         }
@@ -385,7 +385,7 @@ fun AiStudioAgentScreen(
                                     Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Memory, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(11.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("محلي: ${activeLocalModel.name}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5B842))
+                                        Text("محلي: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5B842))
                                     }
                                 }
                             } else {
@@ -398,7 +398,7 @@ fun AiStudioAgentScreen(
                                     Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Bolt, contentDescription = null, tint = activeEnginePair.value.first.color, modifier = Modifier.size(11.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text(activeEnginePair.value.first.displayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = activeEnginePair.value.first.color)
+                                        Text(activeEnginePair.value.first.displayName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = activeEnginePair.value.first.color)
                                     }
                                 }
                             }
@@ -409,7 +409,7 @@ fun AiStudioAgentScreen(
                                 isExecuting -> "الوكيل يعمل ذاتياً..."
                                 else -> "جاهز لتلقي الأمر"
                             },
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             color = if (isExecuting) Color(0xFF00E5FF) else Color(0xFF94A3B8),
                             fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.End,
                             modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp)
@@ -489,7 +489,7 @@ fun AiStudioAgentScreen(
                                             Spacer(Modifier.width(4.dp))
                                             Text(
                                                 text = if (isTeamMode) "فريق متعدد" else "وضع فردي",
-                                                fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
                                                 color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8)
                                             )
                                         }
@@ -507,7 +507,7 @@ fun AiStudioAgentScreen(
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("سحابي", fontSize = 11.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8))
+                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8))
                                     }
                                 }
                                 Surface(
@@ -519,7 +519,7 @@ fun AiStudioAgentScreen(
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("محلي", fontSize = 11.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8))
+                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8))
                                     }
                                 }
                             }
@@ -534,10 +534,10 @@ fun AiStudioAgentScreen(
                                 ) {
                                     Column(Modifier.padding(10.dp)) {
                                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                             Text(
                                                 text = if (isLocalInstalled) "جاهز" else "يلزم التنزيل",
-                                                fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
                                                 color = if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(
                                                     if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f),
@@ -587,7 +587,7 @@ fun AiStudioAgentScreen(
                                             Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(15.dp))
                                             Spacer(Modifier.width(5.dp))
                                             Text(
-                                                text = spec.title, fontSize = 11.sp,
+                                                text = spec.title, fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSelected) Color.White else Color(0xFF94A3B8), maxLines = 1
                                             )
@@ -627,7 +627,7 @@ fun AiStudioAgentScreen(
                                         ) {
                                             Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
-                                            Text(selectedModel.take(20), fontSize = 10.sp, fontFamily = CairoFont, maxLines = 1)
+                                            Text(selectedModel.take(20), fontSize = 12.sp, fontFamily = CairoFont, maxLines = 1)
                                         }
                                     }
                                     item {
@@ -640,7 +640,7 @@ fun AiStudioAgentScreen(
                                         ) {
                                             Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
-                                            Text("فريق النماذج", fontSize = 10.sp, fontFamily = CairoFont, maxLines = 1)
+                                            Text("فريق النماذج", fontSize = 12.sp, fontFamily = CairoFont, maxLines = 1)
                                         }
                                     }
                                 }
@@ -648,7 +648,7 @@ fun AiStudioAgentScreen(
                             }
                             Text(
                                 text = "أوامر سريعة:",
-                                fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8)
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8)
                             )
                             Spacer(Modifier.height(4.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -659,7 +659,7 @@ fun AiStudioAgentScreen(
                                         border = BorderStroke(1.dp, Color(0xFF475569)),
                                         modifier = Modifier.clickable(enabled = !isExecuting) { promptInput = qp }.wrapContentWidth()
                                     ) {
-                                        Text(qp.take(30) + "...", fontSize = 9.sp, color = Color(0xFFCBD5E1), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1)
+                                        Text(qp.take(30) + "...", fontSize = 12.sp, color = Color(0xFFCBD5E1), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1)
                                     }
                                 }
                             }
@@ -764,7 +764,7 @@ fun AiStudioAgentScreen(
                                     ) {
                                         Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("إعادة", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        Text("إعادة", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -928,7 +928,7 @@ private fun AgentContainer(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+                Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
             }
             Spacer(Modifier.height(8.dp))
             content()
@@ -955,12 +955,12 @@ private fun HealthPill(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)))
                 Spacer(Modifier.width(5.dp))
-                Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Spacer(Modifier.weight(1f))
-                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
+                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
             }
             Spacer(Modifier.height(3.dp))
-            Text(detail.take(50), fontSize = 9.sp, color = Color(0xFFCBD5E1), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail.take(50), fontSize = 12.sp, color = Color(0xFFCBD5E1), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

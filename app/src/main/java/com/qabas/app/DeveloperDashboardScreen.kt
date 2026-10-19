@@ -18,6 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CutCornerShape
+import com.qabas.app.ui.agent.AgentDesign
+import com.qabas.app.ui.agent.AgentNeonButton
+import com.qabas.app.ui.agent.AgentNeonCard
+import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.HudCornerDecor
 import androidx.compose.ui.geometry.Offset
@@ -653,7 +657,7 @@ fun AgentBuildHubScreen(
     onNavigateTo: (AppState) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🤖 وكيل البرمجة (Agent Room)", "🏗️ مركز البناء و APK (Build Center)")
+    val tabs = listOf("🤖 مركز الوكيل (شاشة موحدة)", "🏗️ مركز البناء و APK (Build Center)")
 
     // رجوع ذكي: إذا كان في تبويب فرعي، العودة للتبويب الرئيسي أولاً
     androidx.activity.compose.BackHandler(enabled = selectedTab != 0) {
@@ -745,10 +749,10 @@ fun AgentBuildHubScreen(
                                 color = if (selectedTab == 0) Color(0xFF0F3A2A) else Color(0xFF131F33),
                                 shape = RoundedCornerShape(6.dp),
                                 border = BorderStroke(0.8.dp, if (selectedTab == 0) Color(0xFF10B981) else Color(0xFF334155)),
-                                modifier = Modifier.clickable { selectedTab = 0 }
+                                modifier = Modifier.clickable { onNavigateTo(AppState.AI_STUDIO_AGENT) }
                             ) {
                                 Text(
-                                    "⚡ الوكيل",
+                                    "⚡ الوكيل ↗",
                                     color = if (selectedTab == 0) Color(0xFF34D399) else Color(0xFF94A3B8),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -797,17 +801,79 @@ fun AgentBuildHubScreen(
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (selectedTab) {
-                    0 -> AgentRoomSection(
-                        onJumpBuildCenter = { selectedTab = 1 },
+                    0 -> AgentRoomRedirectCard(
+                        onOpenAgentScreen = { onNavigateTo(AppState.AI_STUDIO_AGENT) },
                         onJumpKeys = { onNavigateSection(DashboardSection.CLOUD_API_HUB) }
                     )
                     1 -> BuildCenterSection(
                         context = context,
                         onNavigateTo = onNavigateTo,
-                        onJumpAgentRoom = { selectedTab = 0 }
+                        onJumpAgentRoom = { onNavigateTo(AppState.AI_STUDIO_AGENT) }
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * بطاقة التحويل الموحدة: لوحة المطور لم تعد تستضيف نسخة ثانية من غرفة الوكيل.
+ * كل منطق الوكيل يعيش في شاشة واحدة هي AiStudioAgentScreen.
+ */
+@Composable
+fun AgentRoomRedirectCard(
+    onOpenAgentScreen: () -> Unit,
+    onJumpKeys: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(AgentDesign.Backdrop)
+            .padding(AgentDesign.SpaceLg),
+        verticalArrangement = Arrangement.spacedBy(AgentDesign.SpaceMd)
+    ) {
+        AgentNeonCard(accent = AgentDesign.Primary) {
+            AgentSectionHeader(index = "00", title = "مركز الوكيل الذكي", accent = AgentDesign.Primary)
+            Spacer(Modifier.height(AgentDesign.SpaceMd))
+            Text(
+                "تم توحيد غرفة الوكيل في شاشة واحدة: المهمة، الطابور الحي، الأدوات والجاهزية، والسجل — بتبويبات هندسية واحدة.",
+                color = AgentDesign.TextSecondary,
+                fontFamily = CairoFont,
+                fontSize = AgentDesign.FontXs
+            )
+            Spacer(Modifier.height(AgentDesign.SpaceLg))
+            Row(horizontalArrangement = Arrangement.spacedBy(AgentDesign.SpaceSm)) {
+                AgentNeonButton(
+                    text = "فتح مركز الوكيل",
+                    onClick = onOpenAgentScreen,
+                    accent = AgentDesign.Primary,
+                    icon = Icons.Default.Bolt
+                )
+                AgentNeonButton(
+                    text = "مفاتيح API",
+                    onClick = onJumpKeys,
+                    accent = AgentDesign.Secondary,
+                    icon = Icons.Default.VpnKey
+                )
+            }
+        }
+
+        AgentNeonCard(accent = AgentDesign.Secondary) {
+            AgentSectionHeader(index = "01", title = "لماذا شاشة واحدة؟", accent = AgentDesign.Secondary)
+            Spacer(Modifier.height(AgentDesign.SpaceSm))
+            Text(
+                "نسخة واحدة من الحالة (سياق التنفيذ، الفريق، النموذج، السجل) تعني سلوكاً متسقاً وسجلاً حقيقياً لكل تشغيل، بدل نسختين متشابهتين تتباعدان مع الوقت.",
+                color = AgentDesign.TextSecondary,
+                fontFamily = CairoFont,
+                fontSize = AgentDesign.FontXs
+            )
+            Spacer(Modifier.height(AgentDesign.SpaceSm))
+            Text(
+                "مركز البناء و APK يبقى هنا في التبويب الثاني، ويفتح مركز الوكيل عند الحاجة للتشغيل.",
+                color = AgentDesign.TextSecondary,
+                fontFamily = CairoFont,
+                fontSize = AgentDesign.FontXs
+            )
         }
     }
 }

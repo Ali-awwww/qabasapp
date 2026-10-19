@@ -1,0 +1,118 @@
+# خطة العمل — إعادة هيكلة واجهة «الوكيل الذكي» الموحدة
+
+> وثيقة خطة (لا كود). الحالة: بانتظار إشارة البدء.
+
+## 0) القرارات المؤكدة
+- شاشة رئيسية واحدة فقط: `AiStudioAgentScreen` (تُدمج فيها كل الوظائف).
+- `AgentRoomSection` تتحول إلى **مكوّنات مشتركة**، وتُحذف كواجهة مستقلة من `DeveloperDashboardScreen`.
+- **4 تبويبات**: تشغيل / جاهزية / أدوات / سجل. إعدادات النموذج والجولات والإصلاح الذاتي → صفحة «الإعدادات».
+- الهوية: **نيون هندسي احترافي** (Glassmorphism منضبط + شبكة + توهج مدروس).
+- الأدوار: LongCat = صياغة الخطة، GLM = التنفيذ، DeepSeek = مراجعة/احتياطي.
+
+## 1) الهدف والنطاق
+- **داخل النطاق:** الواجهة، التخطيط، إدارة الحالة، الوصولية، التوحيد، الاختبارات.
+- **خارج النطاق (ممنوع المس):** منطق توليد الكود، حلقة البناء، محرك النماذج.
+
+## 2) الوضع الحالي (حقائق)
+- `AiStudioAgentScreen.kt` — 1084 سطر، نقطة الدخول من `AppNavigation.kt:451`.
+- `AgentRoomSection.kt` — 4723 سطر، 4 تبويبات، تُستدعى من `DeveloperDashboardScreen.kt:800`.
+- `AgentHudKit.kt` — 592 سطر: `HudPanel`, `HudMetric`, `AgentHudTabRail`, `LiveTelemetryHudStrip`, `AgentGeometricControlDeck`, `cyberGridBackground`.
+- الثيم يوفر ألواناً جاهزة: `AiCyan #22D3EE`, `AiNeonGreen #10B981`, `AiViolet #8B5CF6`, `AiDanger #F87171`, `AiGlowBlue #3B82F6`, `AiTeal #2DD4BF`, `DeepSlate`, `CardSurface`.
+
+## 3) الهوية البصرية — مواصفات النيون الهندسي
+- **خلفية:** `#05070F` ← `#070B16` مع شبكة هندسية خفيفة (`cyberGridBackground` بحدود منخفضة).
+- **أسطح:** `#0B1220` بحدود `AiCyan @ 30%` ونصف قطر 16، بلا توهج عشوائي.
+- **ألوان دلالية:** أساسي `AiCyan`، ثانوي `AiViolet`، نجاح `AiNeonGreen`، تحذير `#F59E0B`، خطأ `AiDanger`.
+- **نص:** أساسي `#E6EDF7`، ثانوي `#8A94A6`.
+- **خط:** `CairoFont` للعربية، `Roboto Mono` للأرقام/الكود. الأحجام: 12 / 14 / 16 / 20 / 28.
+- **مسافات:** 4 / 8 / 12 / 16 / 24 / 32. أنصاف أقطار: 10 / 14 / 18 / 24.
+- **لمسة هندسية:** زوايا مقصوصة خفيفة، مؤشرات رقم `[01]`، خطوط رفيعة متدرجة، بلا نبضات لا نهائية متعددة.
+
+## 4) خريطة الشاشات والتنقل
+```
+AgentScreen (شاشة واحدة)
+├─ رأس: رجوع | عنوان | شريحة الحالة | زر إعدادات
+├─ بطاقة المهمة: حقل الأمر + التخصص + زر تنفيذ
+├─ بطاقة المهمة النشطة (إن وُجدت)
+└─ تبويبات: تشغيل | جاهزية | أدوات | سجل
+     └─ صفحات فرعية (BottomSheet/تنقّل داخلي):
+        المهمة التفصيلية · الإعدادات · المستودع · المفاتيح · النموذج · الفريق
+```
+- بطاقة المستودع والمفاتيح **لا تظهران في الرئيسية**؛ تُفتحان من الحالة/الإعدادات.
+
+## 5) نظام التصميم (ملف واحد)
+`ui/agent/AgentDesignTokens.kt` — ألوان، خطوط، مسافات، حواف، وظلال، ومكوّنات:
+`AgentStatusChip`, `AgentPrimaryButton`, `AgentCard`, `AgentSectionHeader`, `AgentStepRow`, `AgentEmptyState`, `AgentErrorCard`, `AgentSkeleton`.
+
+## 6) هندسة الكود المستهدفة
+```
+ui/agent/
+  AgentScreen.kt            // نقطة الدخول
+  AgentViewModel.kt         // الحالة + الأحداث
+  AgentUiState.kt           // حالة immutable
+  AgentDesignTokens.kt
+  components/*.kt           // المكوّنات المشتركة
+  tabs/ConsoleTab.kt        // ≤ 500 سطر
+  tabs/ReadinessTab.kt
+  tabs/ToolsTab.kt
+  tabs/HistoryTab.kt
+  screens/MissionDetailScreen.kt
+  screens/SettingsScreen.kt
+  screens/RepoSetupScreen.kt
+  screens/KeysScreen.kt
+```
+- استبدال `20+ remember/mutableStateOf` بـ `AgentViewModel` + `StateFlow<AgentUiState>` وأحداث `sealed class`.
+- لا إعادة كتابة المحرك — استدعاء الواجهة فقط.
+
+## 7) تفكيك الملفات الحالية → الجديدة
+- `AgentRoomSection.kt` (4723) ← `AgentScreen.kt` + `tabs/*` + `screens/*` + `components/*`.
+- `AiStudioAgentScreen.kt` (1084) ← `AgentScreen.kt` + `screens/*`.
+- `AgentHudKit.kt` (592) ← `components/*` + `AgentDesignTokens.kt`.
+- الهدف: كل ملف **≤ 600–800 سطر**.
+
+## 8) مراحل التنفيذ
+
+### المرحلة 0 — الأساس (بلا تغيير مرئي)
+- إنشاء `AgentDesignTokens` والمكوّنات، وإبقاء `AgentRoomSection` غلافاً.
+- **القبول:** البناء أخضر، الاختبارات الحالية تمر، لا فرق بصري.
+
+### المرحلة 1 — الشاشة الرئيسية الجديدة
+- رأس + شريحة حالة + بطاقة مهمة + 4 تبويبات.
+- **القبول:** فتح القسم يُظهر الحالة بلمحة، وتنفيذ مهمة بضغطتين.
+
+### المرحلة 2 — التوحيد
+- `AgentRoomSection` تعتمد مكوّنات الشاشة الجديدة، ثم إزالتها من `DeveloperDashboardScreen`.
+- **القبول:** شاشة واحدة، لا تكرار مفاتيح/مستودع.
+
+### المرحلة 3 — الصفحات التفصيلية
+- مهمة / جاهزية / أدوات / سجل / إعدادات / مستودع / مفاتيح.
+- **القبول:** كل صفحة ملف واحد، كل زر يعمل.
+
+### المرحلة 4 — الوصولية والتلميع
+- 12sp حد أدنى، 48dp لمس، `contentDescription`، RTL، حالات فارغة/خطأ/skeleton.
+- **القبول:** فحص TalkBack، لا نصوص مقطوعة.
+
+### المرحلة 5 — تنظيف الإرث
+- حذف الأكواد غير المستخدمة، ودمج التكرار.
+- **القبول:** لا تحذيرات ميتة، والبناء أخضر.
+
+## 9) إدارة الحالة (مقترح)
+- `AgentUiState`: `status`, `activeMission`, `queue`, `readiness`, `tools`, `history`, `isExecuting`, `error`.
+- أحداث: `Execute`, `Pause`, `Resume`, `Stop`, `SelectTab`, `OpenDetail`, `SaveKey`, `SelectRepo`, `ApplyFix`.
+- مصدر الحقيقة يبقى كما هو (المحرك/المخازن)، والواجهة تعرض فقط.
+
+## 10) الاختبارات والقبول
+- اختبارات وحدة: دوال التحقق (validateTeam/cleanDisplayName/maskSecret/…).
+- اختبارات Compose: `testTags` للتبويبات والبطاقات.
+- تحديث CI: إضافة خطوة `testDebugUnitTest` و `lintDebug` إلى `android-ci.yml`.
+- القبول النهائي: البناء أخضر + الاختبارات تمر + مراجعة يدوية للشاشة.
+
+## 11) المخاطر والتخفيف
+- كسر سلوك التشغيل → لا نلمس المحرك؛ نغلف فقط.
+- انحدار بصري → مراجعة بعد كل مرحلة.
+- فقدان قرارات HUD → نحافظ على الهوية لكن منظمة.
+- حجم العمل → مراحل صغيرة، كل مرحلة تُدفع وتُبنى.
+
+## 12) التسليم والتواصل
+- كل مرحلة: commit + push + مراجعة نتيجة البناء، ثم تقرير قصير.
+- القرارات المصيرية تُعرض قبل التنفيذ.

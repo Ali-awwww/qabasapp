@@ -127,7 +127,7 @@ fun HudMetric(
             text = label,
             color = Color(0xFF64748B),
             fontFamily = CairoFont,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -144,7 +144,7 @@ fun HudMetric(
             color = accent,
             fontFamily = RobotoMonoFont,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -213,7 +213,7 @@ private fun HudTabItem(
                 color = if (selected) tab.accent else Color(0xFF475569),
                 fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 9.sp,
+                fontSize = 12.sp,
                 maxLines = 1
             )
             Spacer(Modifier.width(7.dp))
@@ -338,14 +338,14 @@ fun LiveTelemetryHudStrip(
                 Column {
                     Text(
                         text = "الاستجابة",
-                        fontSize = 9.sp,
+                        fontSize = 12.sp,
                         fontFamily = CairoFont,
                         color = Color(0xFF94A3B8),
                         maxLines = 1
                     )
                     Text(
                         text = if (isPinging) "فحص..." else if (isConnected) "${latencyMs}ms" else "مفصول",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
                         color = if (isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
@@ -380,14 +380,14 @@ fun LiveTelemetryHudStrip(
                 Column {
                     Text(
                         text = if (isOfflineMode) "نموذج محلي" else "النموذج النشط",
-                        fontSize = 9.sp,
+                        fontSize = 12.sp,
                         fontFamily = CairoFont,
                         color = Color(0xFF94A3B8),
                         maxLines = 1
                     )
                     Text(
                         text = activeModelName,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF00E5FF),
@@ -423,14 +423,14 @@ fun LiveTelemetryHudStrip(
                 Column {
                     Text(
                         text = "الذاكرة الحية",
-                        fontSize = 9.sp,
+                        fontSize = 12.sp,
                         fontFamily = CairoFont,
                         color = Color(0xFF94A3B8),
                         maxLines = 1
                     )
                     Text(
                         text = "${usedMemoryMb}/${maxMemoryMb}M",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF10B981),
@@ -569,7 +569,7 @@ fun AgentGeometricControlDeck(
                             2 -> "الأدوات"
                             else -> "السجلات"
                         },
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSelected) Color.White else Color(0xFF94A3B8),
