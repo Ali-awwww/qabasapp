@@ -36,7 +36,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassEmpty
-import com.qabas.app.CairoFont
+import com.qabas.app.ui.theme.CairoFont
 
 /**
  * AgentDesign — نظام التصميم الهندسي النيوني الموحد لقسم الوكيل الذكي.
