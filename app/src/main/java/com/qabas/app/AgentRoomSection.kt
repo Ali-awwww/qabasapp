@@ -3441,7 +3441,7 @@ internal fun RequirementsTab(
                                     },
                                     color = color,
                                     fontFamily = CairoFont,
-                                    fontSize = 8.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
@@ -3481,15 +3481,205 @@ internal fun RequirementsTab(
 /**
  * 🛠️ تبويب مصفوفة الأدوات البرمجية وإعدادات الوكيل (Spatial Tool Arsenal)
  */
+/**
+ * ⚙️ بطاقة إعدادات نواة الوكيل: النموذج المستهدف، حد الجولات، والإصلاح الذاتي.
+ * مشتركة بين صفحة الإعدادات وأي مدخل آخر، وتملك حالتها من AgentPrefs مباشرة.
+ */
+@Composable
+internal fun AgentKernelSettingsCard(context: Context) {
+    val prefs = com.qabas.app.AgentPrefs.instance(context)
+    var model by remember { mutableStateOf(AgentPrefs.model(context)) }
+    var maxTurns by remember { mutableStateOf(AgentPrefs.maxTurns(context).toFloat()) }
+    var autoFix by remember { mutableStateOf(AgentPrefs.isAutoFix(context)) }
+
+    Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xEE090F1F),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(
+                1.dp,
+                Brush.horizontalGradient(
+                    listOf(
+                        GoldPrimary.copy(alpha = 0.6f),
+                        Color(0xFF00F0FF).copy(alpha = 0.3f),
+                        Color(0xFF1E2D4A).copy(alpha = 0.5f)
+                    )
+                )
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(GoldPrimary)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "AGENT REASONING PARAMETERS",
+                            color = GoldPrimary,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                    Surface(
+                        color = GoldPrimary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            "تهيئة النواة ⚙️",
+                            color = GoldPrimary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Text("نموذج الاستدلال والبرمجة المستهدف:", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        null to "⚡ تلقائي (حسب المفتاح)",
+                        "anthropic/claude-sonnet-4.5" to "🧠 Claude Sonnet 4.5",
+                        "gemini-2.0-flash" to "💎 Gemini 2.0 Flash",
+                        "llama-3.3-70b-versatile" to "⚡ Groq Llama 70B",
+                        "poolside/laguna-s-2.1:free" to "🦙 Laguna Code Free",
+                        "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free"
+                    ).forEach { (id, label) ->
+                        val isSelected = model == id
+                        Surface(
+                            color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF060B16),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E2D4A)),
+                            modifier = Modifier.clickable {
+                                model = id
+                                prefs.edit().putString(AgentPrefs.MODEL, id ?: "").apply()
+                            }
+                        ) {
+                            Text(
+                                label,
+                                color = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("الحد الأقصى لجولات التفكير (Max Turns):", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("عدد الجولات المسموح بها للوكيل لإكمال المهمة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                    }
+                    Surface(
+                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            "${maxTurns.toInt()} جولات",
+                            color = Color(0xFF10B981),
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Slider(
+                    value = maxTurns,
+                    onValueChange = {
+                        maxTurns = it
+                        prefs.edit().putInt(AgentPrefs.MAX_TURNS, it.toInt()).apply()
+                    },
+                    valueRange = 1f..10f,
+                    steps = 8,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF10B981),
+                        activeTrackColor = Color(0xFF10B981),
+                        inactiveTrackColor = Color(0xFF1E2D4A)
+                    )
+                )
+
+                HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔧 الإصلاح التلقائي الذكي (Self-Healing)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = if (autoFix) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFF64748B).copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    if (autoFix) "ACTIVE" else "OFF",
+                                    color = if (autoFix) Color(0xFF10B981) else Color(0xFF64748B),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text("عند حدوث خطأ تجميع، يحلل الوكيل الخطأ ويعيد بناء الكود تلقائياً.", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = autoFix,
+                        onCheckedChange = {
+                            autoFix = it
+                            prefs.edit().putBoolean(AgentPrefs.AUTO_FIX, it).apply()
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF10B981),
+                            checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.3f),
+                            uncheckedThumbColor = Color(0xFF64748B),
+                            uncheckedTrackColor = Color(0xFF1E2D4A)
+                        )
+                    )
+                }
+            }
+        }
+}
+
 @Composable
 internal fun ToolsTab(context: Context) {
     val prefs = com.qabas.app.AgentPrefs.instance(context)
     val dummyCtx = remember { CodeTools.Ctx("-", "-", "-", "-") }
     val allTools = remember { CodeTools.definitions(dummyCtx) + AiTools.definitions(context) }
     var states by remember { mutableStateOf(allTools.associate { it.name to AgentPrefs.isToolEnabled(context, it.name) }) }
-    var model by remember { mutableStateOf(AgentPrefs.model(context)) }
-    var maxTurns by remember { mutableStateOf(AgentPrefs.maxTurns(context).toFloat()) }
-    var autoFix by remember { mutableStateOf(AgentPrefs.isAutoFix(context)) }
 
     val arabicNames = mapOf(
         "list_tree" to "📁 تصفح شجرة المستودع",
@@ -3524,190 +3714,7 @@ internal fun ToolsTab(context: Context) {
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // بطاقة معايير تشغيل الوكيل بنمط Spatial HUD
-        item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xEE090F1F),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            GoldPrimary.copy(alpha = 0.6f),
-                            Color(0xFF00F0FF).copy(alpha = 0.3f),
-                            Color(0xFF1E2D4A).copy(alpha = 0.5f)
-                        )
-                    )
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(GoldPrimary)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "AGENT REASONING PARAMETERS",
-                                color = GoldPrimary,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                        Surface(
-                            color = GoldPrimary.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                        ) {
-                            Text(
-                                "تهيئة النواة ⚙️",
-                                color = GoldPrimary,
-                                fontFamily = CairoFont,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Text("نموذج الاستدلال والبرمجة المستهدف:", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            null to "⚡ تلقائي (حسب المفتاح)",
-                            "anthropic/claude-sonnet-4.5" to "🧠 Claude Sonnet 4.5",
-                            "gemini-2.0-flash" to "💎 Gemini 2.0 Flash",
-                            "llama-3.3-70b-versatile" to "⚡ Groq Llama 70B",
-                            "poolside/laguna-s-2.1:free" to "🦙 Laguna Code Free",
-                            "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free"
-                        ).forEach { (id, label) ->
-                            val isSelected = model == id
-                            Surface(
-                                color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF060B16),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E2D4A)),
-                                modifier = Modifier.clickable {
-                                    model = id
-                                    prefs.edit().putString(AgentPrefs.MODEL, id ?: "").apply()
-                                }
-                            ) {
-                                Text(
-                                    label,
-                                    color = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("الحد الأقصى لجولات التفكير (Max Turns):", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("عدد الجولات المسموح بها للوكيل لإكمال المهمة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
-                        }
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
-                        ) {
-                            Text(
-                                "${maxTurns.toInt()} جولات",
-                                color = Color(0xFF10B981),
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Slider(
-                        value = maxTurns,
-                        onValueChange = {
-                            maxTurns = it
-                            prefs.edit().putInt(AgentPrefs.MAX_TURNS, it.toInt()).apply()
-                        },
-                        valueRange = 1f..10f,
-                        steps = 8,
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color(0xFF10B981),
-                            activeTrackColor = Color(0xFF10B981),
-                            inactiveTrackColor = Color(0xFF1E2D4A)
-                        )
-                    )
-
-                    HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🔧 الإصلاح التلقائي الذكي (Self-Healing)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    color = if (autoFix) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFF64748B).copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        if (autoFix) "ACTIVE" else "OFF",
-                                        color = if (autoFix) Color(0xFF10B981) else Color(0xFF64748B),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 8.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                            Text("عند حدوث خطأ تجميع، يحلل الوكيل الخطأ ويعيد بناء الكود تلقائياً.", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
-                        }
-                        Switch(
-                            checked = autoFix,
-                            onCheckedChange = {
-                                autoFix = it
-                                prefs.edit().putBoolean(AgentPrefs.AUTO_FIX, it).apply()
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF10B981),
-                                checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.3f),
-                                uncheckedThumbColor = Color(0xFF64748B),
-                                uncheckedTrackColor = Color(0xFF1E2D4A)
-                            )
-                        )
-                    }
-                }
-            }
-        }
-
+        // ترسانة الأدوات فقط — إعدادات النواة انتقلت إلى صفحة الإعدادات
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),

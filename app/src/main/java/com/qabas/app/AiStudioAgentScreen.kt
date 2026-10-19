@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.qabas.app.ui.agent.AgentNeonButton
+import com.qabas.app.ui.agent.AgentNeonCard
+import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +93,7 @@ fun AiStudioAgentScreen(
     var showKeyDialog by remember { mutableStateOf(false) }
     var keyDialogInitialTab by remember { mutableStateOf(0) }
     var showRepoDialog by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var showOnDeviceDialog by remember { mutableStateOf(false) }
@@ -356,6 +360,17 @@ fun AiStudioAgentScreen(
                                 )
                             }
                         }
+                        IconButton(
+                            onClick = { showSettings = true },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1E293B))
+                                .testTag("agent_open_settings")
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = "إعدادات الوكيل", tint = Color(0xFF8A94A6))
+                        }
+                        Spacer(Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0xFF1E293B).copy(alpha = 0.8f),
@@ -870,6 +885,47 @@ fun AiStudioAgentScreen(
         )
     }
     if (showRepoDialog) { RepoSetupDialog(context = context, activeRepo = activeRepo, onDismiss = { showRepoDialog = false }) }
+    if (showSettings) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showSettings = false },
+            sheetState = sheetState,
+            containerColor = Color(0xFF0B1220),
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF334155)) }
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("إعدادات الوكيل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { showSettings = false }) {
+                        Text("إغلاق", color = Color(0xFF22D3EE), fontFamily = CairoFont, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    "نموذج التنفيذ، حد الجولات، والإصلاح الذاتي — تُحفظ فوراً وتُطبّق على التشغيل القادم.",
+                    color = Color(0xFF8A94A6), fontFamily = CairoFont, fontSize = 12.sp
+                )
+                AgentKernelSettingsCard(context = context)
+                AgentNeonCard(accent = Color(0xFF8B5CF6)) {
+                    AgentSectionHeader(index = "02", title = "مفاتيح ومستودع", accent = Color(0xFF8B5CF6))
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AgentNeonButton(text = "مفاتيح API", onClick = { showSettings = false; keyDialogInitialTab = 0; showKeyDialog = true }, accent = Color(0xFF8B5CF6), icon = Icons.Default.VpnKey)
+                        AgentNeonButton(text = "ربط المستودع", onClick = { showSettings = false; showRepoDialog = true }, accent = Color(0xFF22D3EE), icon = Icons.Default.Source)
+                    }
+                }
+            }
+        }
+    }
     if (showOnDeviceDialog) {
         OnDeviceModelDownloadDialog(
             context = context,
