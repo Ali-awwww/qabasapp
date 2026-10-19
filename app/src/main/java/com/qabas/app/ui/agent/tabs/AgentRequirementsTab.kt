@@ -64,9 +64,8 @@ private enum class ReqState { CHECKING, OK, FAIL }
 
 
 /**
- * ⚡ تبويب كونسول تشغيل الوكيل المباشر مع طابور الأوامر والإيقاف المؤقت
-
-
+ * 🎯 تبويب شروط الجاهزية بنمط الزجاج السيبراني (Spatial HUD Readiness Matrix)
+ */
 @Composable
 internal fun RequirementsTab(
     context: Context,
