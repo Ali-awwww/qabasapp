@@ -324,20 +324,20 @@ fun AiStudioAgentScreen(
 
     Scaffold(
         bottomBar = bottomBar,
-        containerColor = Color(0xFF070B14),
+        containerColor = Color(0xFF05070F),
         topBar = {
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth().statusBarsPadding(),
-                backgroundColor = Color(0xFF0B132B).copy(alpha = 0.85f),
-                borderColor = Color(0xFF00E5FF).copy(alpha = 0.25f)
+                backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
+                borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = onBack,
-                            modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF1E293B))
+                            modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF0F1626))
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFFE5B842))
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE))
                         }
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -352,32 +352,12 @@ fun AiStudioAgentScreen(
                         IconButton(
                             onClick = { showSettings = true },
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF1E293B))
+                                .background(Color(0xFF0F1626))
                                 .testTag("agent_open_settings")
                         ) {
                             Icon(Icons.Default.Settings, contentDescription = "إعدادات الوكيل", tint = Color(0xFF8A94A6))
-                        }
-                        Spacer(Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF1E293B).copy(alpha = 0.8f),
-                            border = BorderStroke(1.dp, Color(0xFFE5B842).copy(alpha = 0.4f)),
-                            modifier = Modifier.clickable { showRepoDialog = true }
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 8.dp, vertical = 5.dp).widthIn(max = 110.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Source, contentDescription = null, tint = Color(0xFFE5B842), modifier = Modifier.size(13.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = activeRepo?.repo ?: "بدون مستودع",
-                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
-                            }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
@@ -401,7 +381,7 @@ fun AiStudioAgentScreen(
                                 else -> "جاهز لتلقي الأمر"
                             },
                             fontSize = 12.sp,
-                            color = if (isExecuting) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                            color = if (isExecuting) Color(0xFF22D3EE) else Color(0xFF8A94A6),
                             fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
                             modifier = Modifier.padding(start = 8.dp)
                         )
@@ -409,7 +389,7 @@ fun AiStudioAgentScreen(
                     Spacer(Modifier.height(6.dp))
                     Box(
                         Modifier.fillMaxWidth().height(1.dp).background(
-                            Brush.horizontalGradient(listOf(Color.Transparent, Color(0xFF00E5FF).copy(alpha = 0.7f), Color(0xFFE5B842).copy(alpha = 0.7f), Color.Transparent))
+                            Brush.horizontalGradient(listOf(Color.Transparent, Color(0xFF22D3EE).copy(alpha = 0.7f), Color(0xFF22D3EE).copy(alpha = 0.7f), Color.Transparent))
                         )
                     )
                 }
@@ -417,7 +397,7 @@ fun AiStudioAgentScreen(
         }
     ) { innerPadding ->
         Column(
-            Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070D))
+            Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
         ) {
             LiveTelemetryHudStrip(
                 latencyMs = geminiHealth.latencyMs,
@@ -466,51 +446,51 @@ fun AiStudioAgentScreen(
 
                         // Container 1: Mode & Team
                         item {
-                        AgentContainer(title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = Color(0xFF00E5FF)) {
+                        AgentContainer(index = "01", title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = Color(0xFF22D3EE)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF1E293B),
-                                        border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF334155)),
+                                        color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF0F1626),
+                                        border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF1E2D4A)),
                                         modifier = Modifier.clickable { isTeamMode = !isTeamMode }.testTag("agent_toggle_team_mode")
                                     ) {
                                         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
                                             Text(
                                                 text = if (isTeamMode) "فريق متعدد" else "وضع فردي",
                                                 fontSize = 12.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
-                                                color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF94A3B8)
+                                                color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF8A94A6)
                                             )
                                         }
                                     }
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth().background(Color(0xFF070B14), RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(Modifier.fillMaxWidth().background(Color(0xFF05070F), RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (!isOfflineMode) Color(0xFF00E5FF).copy(alpha = 0.25f) else Color.Transparent,
-                                    border = if (!isOfflineMode) BorderStroke(1.dp, Color(0xFF00E5FF)) else null,
+                                    color = if (!isOfflineMode) Color(0xFF22D3EE).copy(alpha = 0.25f) else Color.Transparent,
+                                    border = if (!isOfflineMode) BorderStroke(1.dp, Color(0xFF22D3EE)) else null,
                                     modifier = Modifier.weight(1f).clickable { isOfflineMode = false; OnDeviceModelManager.setOfflineModeActive(context, false) }
                                 ) {
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8))
+                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6))
                                     }
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (isOfflineMode) Color(0xFFE5B842).copy(alpha = 0.25f) else Color.Transparent,
-                                    border = if (isOfflineMode) BorderStroke(1.dp, Color(0xFFE5B842)) else null,
+                                    color = if (isOfflineMode) Color(0xFF22D3EE).copy(alpha = 0.25f) else Color.Transparent,
+                                    border = if (isOfflineMode) BorderStroke(1.dp, Color(0xFF22D3EE)) else null,
                                     modifier = Modifier.weight(1f).clickable { isOfflineMode = true; OnDeviceModelManager.setOfflineModeActive(context, true) }
                                 ) {
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF94A3B8))
+                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6))
                                     }
                                 }
                             }
@@ -564,15 +544,15 @@ fun AiStudioAgentScreen(
 
                         // Container 2: Specialization
                         item {
-                        AgentContainer(title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = Color(0xFFD4AF37)) {
+                        AgentContainer(index = "02", title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = Color(0xFF8B5CF6)) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 items(AgentSpecialization.entries.toTypedArray()) { spec ->
                                     val isSelected = selectedSpec == spec
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else Color(0xFF0F172A),
-                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else Color(0xFF334155)),
-                                        modifier = Modifier.heightIn(min = 40.dp).clickable { selectedSpec = spec }.wrapContentWidth()
+                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else Color(0xFF070B16),
+                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else Color(0xFF1E2D4A)),
+                                        modifier = Modifier.heightIn(min = 48.dp).clickable { selectedSpec = spec }.wrapContentWidth()
                                     ) {
                                         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(15.dp))
@@ -580,7 +560,7 @@ fun AiStudioAgentScreen(
                                             Text(
                                                 text = spec.title, fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) Color.White else Color(0xFF94A3B8), maxLines = 1
+                                                color = if (isSelected) Color.White else Color(0xFF8A94A6), maxLines = 1
                                             )
                                         }
                                     }
@@ -591,15 +571,15 @@ fun AiStudioAgentScreen(
 
                         // Container 3: Prompt & Execute
                         item {
-                        AgentContainer(title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = Color(0xFF10B981)) {
+                        AgentContainer(index = "03", title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = Color(0xFF10B981)) {
                             OutlinedTextField(
                                 value = promptInput,
                                 onValueChange = { promptInput = it },
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 140.dp).testTag("agent_studio_prompt_input"),
                                 placeholder = { Text("اكتب أمرك هنا...", color = Color(0xFF64748B), fontSize = 12.sp) },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF00E5FF), unfocusedBorderColor = Color(0xFF334155),
-                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Color(0xFF00E5FF)
+                                    focusedBorderColor = Color(0xFF22D3EE), unfocusedBorderColor = Color(0xFF1E2D4A),
+                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Color(0xFF22D3EE)
                                 ),
                                 shape = RoundedCornerShape(10.dp),
                                 enabled = !isExecuting,
@@ -611,10 +591,10 @@ fun AiStudioAgentScreen(
                                     item {
                                         OutlinedButton(
                                             onClick = { showModelPicker = true },
-                                            modifier = Modifier.height(34.dp),
+                                            modifier = Modifier.height(48.dp),
                                             shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF).copy(alpha = 0.1f), contentColor = Color(0xFF00E5FF))
+                                            border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22D3EE).copy(alpha = 0.1f), contentColor = Color(0xFF22D3EE))
                                         ) {
                                             Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
@@ -624,10 +604,10 @@ fun AiStudioAgentScreen(
                                     item {
                                         OutlinedButton(
                                             onClick = onOpenTeamConfig,
-                                            modifier = Modifier.height(34.dp),
+                                            modifier = Modifier.height(48.dp),
                                             shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37).copy(alpha = 0.1f), contentColor = Color(0xFFD4AF37))
+                                            border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.1f), contentColor = Color(0xFF8B5CF6))
                                         ) {
                                             Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
@@ -639,18 +619,18 @@ fun AiStudioAgentScreen(
                             }
                             Text(
                                 text = "أوامر سريعة:",
-                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8)
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8A94A6)
                             )
                             Spacer(Modifier.height(4.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                                 items(quickPrompts) { qp ->
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF1E293B),
-                                        border = BorderStroke(1.dp, Color(0xFF475569)),
+                                        color = Color(0xFF0F1626),
+                                        border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
                                         modifier = Modifier.clickable(enabled = !isExecuting) { promptInput = qp }.wrapContentWidth()
                                     ) {
-                                        Text(qp.take(30) + "...", fontSize = 12.sp, color = Color(0xFFCBD5E1), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1)
+                                        Text(qp.take(30) + "...", fontSize = 12.sp, color = Color(0xFFE6EDF7), modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), maxLines = 1)
                                     }
                                 }
                             }
@@ -662,7 +642,7 @@ fun AiStudioAgentScreen(
                                 if (isExecuting) {
                                     Button(
                                         onClick = { executionJob?.cancel(); executionJob = null; isExecuting = false; Toast.makeText(context, "تم إلغاء المهمة", Toast.LENGTH_SHORT).show() },
-                                        modifier = Modifier.weight(1f).height(46.dp),
+                                        modifier = Modifier.weight(1f).height(48.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -704,10 +684,10 @@ fun AiStudioAgentScreen(
                                             executionJob = job
                                         },
                                         enabled = !isExecuting,
-                                        modifier = Modifier.weight(1f).height(46.dp).testTag("agent_studio_execute_btn"),
+                                        modifier = Modifier.weight(1f).height(48.dp).testTag("agent_studio_execute_btn"),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFFE5B842) else Color(0xFF00E5FF),
-                                            contentColor = if (!canExecute) Color.White else Color(0xFF070B14)
+                                            containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF22D3EE),
+                                            contentColor = if (!canExecute) Color.White else Color(0xFF05070F)
                                         ),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -765,7 +745,7 @@ fun AiStudioAgentScreen(
                         // Container 4: Active Mission
                         currentMission?.let { mission ->
                             item {
-                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = Color(0xFFD4AF37)) {
+                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = Color(0xFF8B5CF6)) {
                                     LiveMissionExecutionCard(
                                         mission = mission,
                                         teamProgress = teamProgressText,
@@ -834,7 +814,7 @@ fun AiStudioAgentScreen(
                         // Container 5: History
                         if (missionHistory.isNotEmpty()) {
                             item {
-                                AgentContainer(title = "سجل العمليات", icon = Icons.Default.History, accent = Color(0xFF94A3B8)) {
+                                AgentContainer(index = "05", title = "سجل العمليات", icon = Icons.Default.History, accent = Color(0xFF8A94A6)) {
                                     missionHistory.take(5).forEach { itemMission ->
                                         HistoricalMissionCard(itemMission)
                                         Spacer(Modifier.height(6.dp))
@@ -867,7 +847,7 @@ fun AiStudioAgentScreen(
             onDismissRequest = { showSettings = false },
             sheetState = sheetState,
             containerColor = Color(0xFF0B1220),
-            dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF334155)) }
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF1E2D4A)) }
         ) {
             Column(
                 Modifier
@@ -918,13 +898,13 @@ fun AiStudioAgentScreen(
             text = {
                 Column(Modifier.fillMaxWidth()) {
                     models.forEach { m ->
-                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier.fillMaxWidth().padding(14.dp).clickable { selectedModel = m; showModelPicker = false }.background(if (selectedModel == m) Color(0xFF00E5FF).copy(alpha = 0.15f) else Color.Transparent))
+                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier.fillMaxWidth().padding(14.dp).clickable { selectedModel = m; showModelPicker = false }.background(if (selectedModel == m) Color(0xFF22D3EE).copy(alpha = 0.15f) else Color.Transparent))
                     }
                 }
             },
-            dismissButton = { TextButton(onClick = { showModelPicker = false }) { Text("إغلاق", color = Color(0xFF00E5FF), fontFamily = CairoFont) } },
+            dismissButton = { TextButton(onClick = { showModelPicker = false }) { Text("إغلاق", color = Color(0xFF22D3EE), fontFamily = CairoFont) } },
             confirmButton = {},
-            containerColor = Color(0xFF0B132B)
+            containerColor = Color(0xFF0B1220)
         )
     }
     if (showExitConfirmation) {
@@ -936,7 +916,7 @@ fun AiStudioAgentScreen(
                 TextButton(onClick = { showExitConfirmation = false; onBack() }) { Text("نعم، خروج", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showExitConfirmation = false }) { Text("إلغاء", color = Color(0xFF94A3B8), fontFamily = CairoFont) }
+                TextButton(onClick = { showExitConfirmation = false }) { Text("إلغاء", color = Color(0xFF8A94A6), fontFamily = CairoFont) }
             },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         )
@@ -948,21 +928,39 @@ private fun AgentContainer(
     title: String,
     icon: ImageVector,
     accent: Color,
+    modifier: Modifier = Modifier,
+    index: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF0D1527).copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        color = Color(0xEE0B1220),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f)),
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
+                if (index != null) {
+                    Text(
+                        "[$index]",
+                        color = accent,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE6EDF7), maxLines = 1)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier.fillMaxWidth().height(1.dp).background(
+                    Brush.horizontalGradient(listOf(accent.copy(alpha = 0.5f), accent.copy(alpha = 0.1f), Color.Transparent))
+                )
+            )
+            Spacer(Modifier.height(12.dp))
             content()
         }
     }
@@ -992,7 +990,7 @@ private fun HealthPill(
                 if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
             }
             Spacer(Modifier.height(3.dp))
-            Text(detail.take(50), fontSize = 12.sp, color = Color(0xFFCBD5E1), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail.take(50), fontSize = 12.sp, color = Color(0xFFE6EDF7), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1010,7 +1008,7 @@ private fun UnifiedToolsAndReadinessSection(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF05070D))
+            .background(Color(0xFF05070F))
     ) {
         Row(
             modifier = Modifier
@@ -1023,7 +1021,7 @@ private fun UnifiedToolsAndReadinessSection(
                         1.dp,
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                Color(0xFF22D3EE).copy(alpha = 0.4f),
                                 Color(0xFF10B981).copy(alpha = 0.4f)
                             )
                         )
@@ -1035,8 +1033,8 @@ private fun UnifiedToolsAndReadinessSection(
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 0) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.Transparent,
-                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)) else null,
+                color = if (subTab == 0) Color(0xFF22D3EE).copy(alpha = 0.22f) else Color.Transparent,
+                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.7f)) else null,
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minHeight = 48.dp)
@@ -1051,7 +1049,7 @@ private fun UnifiedToolsAndReadinessSection(
                     Icon(
                         imageVector = Icons.Default.Shield,
                         contentDescription = null,
-                        tint = if (subTab == 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                        tint = if (subTab == 0) Color(0xFF22D3EE) else Color(0xFF8A94A6),
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -1060,7 +1058,7 @@ private fun UnifiedToolsAndReadinessSection(
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 0) Color.White else Color(0xFF94A3B8),
+                        color = if (subTab == 0) Color.White else Color(0xFF8A94A6),
                         maxLines = 1,
                         softWrap = false
                     )
@@ -1085,7 +1083,7 @@ private fun UnifiedToolsAndReadinessSection(
                     Icon(
                         imageVector = Icons.Default.Handyman,
                         contentDescription = null,
-                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF8A94A6),
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -1094,7 +1092,7 @@ private fun UnifiedToolsAndReadinessSection(
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 1) Color.White else Color(0xFF94A3B8),
+                        color = if (subTab == 1) Color.White else Color(0xFF8A94A6),
                         maxLines = 1,
                         softWrap = false
                     )
