@@ -43,11 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.geometry.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.cos
+import kotlin.math.sin
 
 private data class PrayerSectionEntry(
     val title: String,
@@ -57,7 +60,7 @@ private data class PrayerSectionEntry(
 )
 
 /**
- * بوابة أقسام المحراب: بطاقة دخول لكل قسم تفتح شاشة كاملة بدل النافذة المطوية.
+ * بوابة أقسام المحراب — شبكة هندسية منتظمة (عمودان) بلا إيموجي.
  */
 @Composable
 private fun PrayerSectionsHub(
@@ -67,45 +70,101 @@ private fun PrayerSectionsHub(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_MD),
+        verticalArrangement = Arrangement.spacedBy(Geo.S_MD)
     ) {
-        Text(
-            "أقسام المحراب",
-            color = Color.White,
-            fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 15.sp
+        GeoHeader(
+            title = "أقسام المحراب",
+            subtitle = "خمسة أبواب متكاملة للصلاة والسنن والخشوع",
+            accent = GoldPrimary
         )
-        entries.forEachIndexed { index, entry ->
-            Surface(
-                onClick = { onOpen(index) },
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF131B2E),
-                border = BorderStroke(1.dp, entry.color.copy(alpha = 0.4f)),
-                modifier = Modifier.fillMaxWidth()
+
+        entries.chunked(2).forEachIndexed { rowIndex, rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Geo.S_MD)
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(entry.color.copy(alpha = 0.15f))
-                            .border(1.dp, entry.color.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(entry.icon, contentDescription = null, tint = entry.color, modifier = Modifier.size(22.dp))
+                rowItems.forEachIndexed { colIndex, entry ->
+                    val index = rowIndex * 2 + colIndex
+                    Box(modifier = Modifier.weight(1f)) {
+                        GeoSectionTile(
+                            title = entry.title,
+                            desc = entry.desc,
+                            icon = entry.icon,
+                            accent = entry.color,
+                            onClick = { onOpen(index) }
+                        )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(entry.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(entry.desc, color = Color.White.copy(alpha = 0.55f), fontFamily = CairoFont, fontSize = 11.sp)
-                    }
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "دخول", tint = entry.color.copy(alpha = 0.8f))
                 }
+                // حشو متوازن للصف الأخير الفردي
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * بلاطة قسم هندسية — أيقونة دائرية + عنوان + وصف + سهم.
+ */
+@Composable
+private fun GeoSectionTile(
+    title: String,
+    desc: String,
+    icon: ImageVector,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = GeoShape.Card,
+        color = GeoColor.surfaceRaised(),
+        border = BorderStroke(Geo.B_HAIRLINE, accent.copy(alpha = 0.26f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(Geo.S_MD),
+            verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                GeoIconBadge(
+                    icon = icon,
+                    accent = accent,
+                    size = 42.dp,
+                    iconSize = Geo.I_MD
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = accent.copy(alpha = 0.65f),
+                    modifier = Modifier.size(Geo.I_XS)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = title,
+                    color = GeoColor.textPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = desc,
+                    color = GeoColor.textMuted(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -138,19 +197,20 @@ fun PrayerTimesScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     // -1 = بوابة الأقسام (بطاقات دخول)، وإلا قسم مفتوح بشاشة كاملة
     var openedSection by remember { mutableIntStateOf(-1) }
+    // عناوين نظيفة بلا إيموجي — الأيقونة هي الحامل البصري الوحيد
     val tabs = listOf(
-        "⏱️ المواقيت",
-        "📿 السجل والسنن",
-        "⚠️ مرآة النذير",
-        "🌟 رياض الجنة",
-        "🧭 القبلة والخشوع"
+        "المواقيت",
+        "السجل والسنن",
+        "مرآة النذير",
+        "رياض الجنة",
+        "القبلة والخشوع"
     )
     val sectionEntries = listOf(
-        PrayerSectionEntry("⏱️ المواقيت", "جدول الصلوات اليومي والتنبيهات", Icons.Default.Schedule, Color(0xFF0EA5E9)),
-        PrayerSectionEntry("📿 السجل والسنن", "سجل المحافظة والسنن الرواتب", Icons.Default.MenuBook, Color(0xFF10B981)),
-        PrayerSectionEntry("⚠️ مرآة النذير", "عقوبات التهاون والتأخير", Icons.Default.Warning, Color(0xFFEF4444)),
-        PrayerSectionEntry("🌟 رياض الجنة", "ثواب المحافظة وحسن المقام", Icons.Default.Star, Color(0xFFF59E0B)),
-        PrayerSectionEntry("🧭 القبلة والخشوع", "اتجاه القبلة وفقه الخشوع", Icons.Default.Explore, Color(0xFF8B5CF6))
+        PrayerSectionEntry("المواقيت", "جدول الصلوات اليومي والتنبيهات", Icons.Default.Schedule, GeoColor.Prayer),
+        PrayerSectionEntry("السجل والسنن", "سجل المحافظة والسنن الرواتب", Icons.Default.MenuBook, GeoColor.Quran),
+        PrayerSectionEntry("مرآة النذير", "عقوبات التهاون والتأخير", Icons.Default.Warning, GeoColor.Warning),
+        PrayerSectionEntry("رياض الجنة", "ثواب المحافظة وحسن المقام", Icons.Default.Star, GeoColor.Reward),
+        PrayerSectionEntry("القبلة والخشوع", "اتجاه القبلة وفقه الخشوع", Icons.Default.Explore, GeoColor.Qibla)
     )
 
     // Live clock ticker
@@ -182,53 +242,87 @@ fun PrayerTimesScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF0D121F),
+        containerColor = GeoColor.screen(),
         bottomBar = bottomBar,
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Mosque, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        GeoIconBadge(
+                            icon = Icons.Default.Mosque,
+                            accent = GoldPrimary,
+                            size = 36.dp,
+                            iconSize = Geo.I_SM
+                        )
+                        Spacer(Modifier.width(Geo.S_SM))
                         Column {
                             Text(
                                 "محراب الصلاة والمواقيت",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 "${currentCity.nameAr} • ${currentCity.countryAr}",
-                                color = Color.White.copy(alpha = 0.7f),
+                                color = GeoColor.textMuted(),
                                 fontFamily = NotoSansFont,
-                                fontSize = 11.sp
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "رجوع",
+                            tint = GoldPrimary
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showCityDialog = true }) {
-                        Icon(Icons.Default.LocationOn, contentDescription = "تغيير المدينة", tint = GoldPrimary)
+                    // أزرار دائرية هندسية
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(GeoShape.Circle)
+                            .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
+                            .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
+                            .clickable { showCityDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = "تغيير المدينة",
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(Geo.I_SM)
+                        )
                     }
-                    IconButton(onClick = { showAudioSheet = true }) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = "أصوات الأذان", tint = GoldPrimary)
+                    Spacer(Modifier.width(Geo.S_SM))
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(GeoShape.Circle)
+                            .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
+                            .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
+                            .clickable { showAudioSheet = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.VolumeUp,
+                            contentDescription = "أصوات الأذان",
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(Geo.I_SM)
+                        )
                     }
+                    Spacer(Modifier.width(Geo.S_SM))
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D121F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = GeoColor.screen())
             )
         }
     ) { paddingValues ->
@@ -277,56 +371,75 @@ fun PrayerTimesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { openedSection = -1 }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "عودة للأقسام",
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(20.dp)
+                    GeoIconBadge(
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        accent = GoldPrimary,
+                        size = 30.dp,
+                        iconSize = Geo.I_XS
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(Geo.S_SM))
                     Text(
                         "كل الأقسام",
                         color = GoldPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 12.5.sp
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
                         sectionEntries[openedSection].title,
-                        color = Color.White,
+                        color = GeoColor.textPrimary(),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+                GeoDivider(color = GeoColor.hairline())
                 ScrollableTabRow(
                     selectedTabIndex = openedSection,
-                    containerColor = Color(0xFF131B2E),
+                    containerColor = Color.Transparent,
                     contentColor = GoldPrimary,
-                    edgePadding = 12.dp,
+                    edgePadding = Geo.S_MD,
+                    divider = {},
                     indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[openedSection]),
-                            color = GoldPrimary,
-                            height = 3.dp
+                        Box(
+                            modifier = Modifier
+                                .tabIndicatorOffset(tabPositions[openedSection])
+                                .height(3.dp)
+                                .background(
+                                    sectionEntries[openedSection].color,
+                                    RoundedCornerShape(2.dp)
+                                )
                         )
                     }
                 ) {
                     tabs.forEachIndexed { index, title ->
+                        val entry = sectionEntries[index]
+                        val isSelected = openedSection == index
                         Tab(
-                            selected = openedSection == index,
+                            selected = isSelected,
                             onClick = { openedSection = index },
+                            icon = {
+                                Icon(
+                                    entry.icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) entry.color else GeoColor.textMuted(),
+                                    modifier = Modifier.size(Geo.I_SM)
+                                )
+                            },
                             text = {
                                 Text(
                                     text = title,
                                     fontFamily = CairoFont,
-                                    fontWeight = if (openedSection == index) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp,
-                                    color = if (openedSection == index) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    color = if (isSelected) entry.color else GeoColor.textMuted()
                                 )
                             }
                         )
@@ -351,8 +464,9 @@ fun PrayerTimesScreen(
                     1 -> PrayerHabitTrackerTab(prefs = prefs)
                     2 -> SpiritualTopicsTab(
                         topics = PrayerRepository.warningTopics,
-                        headerTitle = "⚠️ مرآة النذير وعقوبات التهاون والتأخير",
+                        headerTitle = "مرآة النذير وعقوبات التهاون والتأخير",
                         headerDesc = "نصوص قاطعة وآثار نبوية تزلزل الغفلة وتوقظ القلب لحفظ الصلاة في وقتها",
+                        accent = GeoColor.Warning,
                         onShareTopic = { topic ->
                             val text = """
                                 ⚠️ ${topic.title}
@@ -377,8 +491,9 @@ fun PrayerTimesScreen(
                     )
                     3 -> SpiritualTopicsTab(
                         topics = PrayerRepository.rewardTopics,
-                        headerTitle = "🌟 رياض الجنة: ثواب المحافظة وحسن المقام",
+                        headerTitle = "رياض الجنة: ثواب المحافظة وحسن المقام",
                         headerDesc = "بشائر النور التام، تكفير الخطايا، رؤية وجه الله الكريم ورفقة النبي ﷺ في الفردوس",
+                        accent = GeoColor.Reward,
                         onShareTopic = { topic ->
                             val text = """
                                 🌟 ${topic.title}
@@ -522,9 +637,236 @@ fun PrayerTimesScreen(
             }
         )
     }
+
+    // نافذة تخصيص تنبيه صلاة — تُفتح عند الضغط على أي صف صلاة
+    selectedPrayerForConfig?.let { prayerKey ->
+        PrayerNotificationConfigDialog(
+            prayerKey = prayerKey,
+            prayerLabel = prayerKeyLabel(prayerKey),
+            onDismiss = { selectedPrayerForConfig = null },
+            onSaved = {
+                selectedPrayerForConfig = null
+                // إعادة الجدولة فوراً لتطبيق الصوت/التنبيه الجديد
+                runCatching { PrayerAlarmManager.scheduleAllPrayers(context) }
+            },
+            onOpenVoices = {
+                selectedPrayerForConfig = null
+                showAudioSheet = true
+            }
+        )
+    }
 }
 
-// --- Hero Countdown Card with Ring ---
+/** اسم الصلاة بالعربية من المفتاح */
+private fun prayerKeyLabel(key: String): String = when (key) {
+    "fajr" -> "الفجر"
+    "sunrise" -> "الشروق"
+    "dhuhr" -> "الظهر"
+    "asr" -> "العصر"
+    "maghrib" -> "المغرب"
+    "isha" -> "العشاء"
+    "qiyam" -> "قيام الليل"
+    else -> key
+}
+
+/**
+ * نافذة تخصيص تنبيه صلاة — هندسية، تكتب في qabas_prayer_prefs
+ * (نفس المخزن الذي يقرأه PrayerAlarmManager ← مصدر حقيقة واحد).
+ */
+@Composable
+private fun PrayerNotificationConfigDialog(
+    prayerKey: String,
+    prayerLabel: String,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    onOpenVoices: () -> Unit
+) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE) }
+
+    var isEnabled by remember {
+        mutableStateOf(prefs.getBoolean("notify_$prayerKey", true))
+    }
+    var soundMode by remember {
+        mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")
+    }
+
+    // أنماط الصوت — مطابقة تماماً لما يتعامل معه PrayerAzanReceiver
+    data class SoundOption(val value: String, val label: String, val icon: ImageVector, val hint: String)
+
+    val soundOptions = listOf(
+        SoundOption("FULL_AZAN", "أذان كامل", Icons.Default.RecordVoiceOver, "تلاوة الأذان كاملة"),
+        SoundOption("TAKBEER_ONLY", "تكبير فقط", Icons.Default.GraphicEq, "التكبير دون التلاوة"),
+        SoundOption("NOTIFICATION_ONLY", "تنبيه فقط", Icons.Default.NotificationsActive, "إشعار بلا تشغيل الأذان"),
+        SoundOption("SILENT", "صامت", Icons.Default.NotificationsNone, "إشعار صامت بلا صوت")
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A),
+        shape = GeoShape.CardLg,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GeoIconBadge(
+                    icon = Icons.Default.NotificationsActive,
+                    accent = GoldPrimary,
+                    size = 36.dp,
+                    iconSize = Geo.I_SM
+                )
+                Spacer(Modifier.width(Geo.S_MD))
+                Column {
+                    Text(
+                        text = "تنبيه $prayerLabel",
+                        color = GoldPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "خصّص نداء الأذان لهذه الصلاة",
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Geo.S_MD)) {
+                // تفعيل/تعطيل التنبيه
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "تفعيل تنبيه الأذان",
+                            color = GeoColor.textPrimary(),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "عند تعطيله لن يُجدوَل منبه هذه الصلاة",
+                            color = GeoColor.textMuted(),
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Switch(
+                        checked = isEnabled,
+                        onCheckedChange = { isEnabled = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = GoldPrimary,
+                            uncheckedThumbColor = Color.LightGray,
+                            uncheckedTrackColor = Color.DarkGray
+                        )
+                    )
+                }
+
+                GeoDivider()
+
+                // نمط الصوت
+                Text(
+                    text = "نمط الصوت",
+                    color = GeoColor.textPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                soundOptions.forEach { option ->
+                    val isSelected = soundMode == option.value
+                    Surface(
+                        onClick = { soundMode = option.value },
+                        shape = GeoShape.CardSm,
+                        color = if (isSelected) GeoColor.selectedBg() else Color.Transparent,
+                        border = BorderStroke(
+                            Geo.B_HAIRLINE,
+                            if (isSelected) GeoColor.outlineStrong() else GeoColor.hairline()
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = option.icon,
+                                contentDescription = null,
+                                tint = if (isSelected) GoldPrimary else GeoColor.textMuted(),
+                                modifier = Modifier.size(Geo.I_SM)
+                            )
+                            Spacer(Modifier.width(Geo.S_MD))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = option.label,
+                                    color = if (isSelected) GoldPrimary else GeoColor.textSecondary(),
+                                    fontFamily = CairoFont,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = option.hint,
+                                    color = GeoColor.textMuted(),
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 9.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(Geo.I_SM)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // اختيار صوت المؤذن
+                GeoButton(
+                    text = "اختيار صوت المؤذن",
+                    icon = Icons.Default.RecordVoiceOver,
+                    accent = GoldPrimary,
+                    variant = GeoButtonStyle.Outline,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenVoices
+                )
+            }
+        },
+        confirmButton = {
+            GeoButton(
+                text = "حفظ",
+                icon = Icons.Default.Check,
+                accent = GoldPrimary,
+                variant = GeoButtonStyle.Filled,
+                onClick = {
+                    prefs.edit()
+                        .putBoolean("notify_$prayerKey", isEnabled)
+                        .putString("sound_mode_$prayerKey", soundMode)
+                        .apply()
+                    onSaved()
+                }
+            )
+        },
+        dismissButton = {
+            GeoButton(
+                text = "إلغاء",
+                accent = GeoColor.textSecondary(),
+                variant = GeoButtonStyle.Ghost,
+                onClick = onDismiss
+            )
+        }
+    )
+}
+
+// --- Hero Countdown Card — هندسي نقي ---
 @Composable
 fun HeroPrayerCountdownCard(
     prayerTimes: CalculatedPrayerTimes,
@@ -532,162 +874,177 @@ fun HeroPrayerCountdownCard(
     onOpenVoices: () -> Unit,
     onShareTimetable: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.85f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow"
-    )
-
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = Color(0xFF151D30),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM)
+            .clip(GeoShape.CardLg)
+            .background(GeoColor.heroGradient, GeoShape.CardLg)
+            .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.CardLg)
     ) {
-        Box(
-            modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF1E293B),
-                            Color(0xFF0F172A)
-                        )
-                    )
-                )
-                .padding(20.dp)
+        Column(
+            modifier = Modifier.padding(Geo.S_LG),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+            // ── ترويسة: الصلاة القادمة + المدينة + مشاركة ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = "الصلاة القادمة",
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "صلاة ${prayerTimes.nextPrayerName}",
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(Modifier.width(Geo.S_SM))
+
+                // زر مشاركة هندسي دائري
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(GeoShape.Circle)
+                        .background(GoldPrimary.copy(alpha = 0.12f), GeoShape.Circle)
+                        .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
+                        .clickable(onClick = onShareTimetable),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = "مشاركة المواقيت",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(Geo.I_SM)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Geo.S_LG))
+
+            // ── الحلقة الهندسية + العدّاد ──
+            GeoProgressRing(
+                progress = prayerTimes.progressToNextPrayer,
+                size = 172.dp,
+                strokeWidth = Geo.RING_STROKE,
+                trackColor = Color.White.copy(alpha = 0.07f),
+                progressColor = GoldPrimary
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer),
+                        color = GeoColor.textPrimary(),
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 26.sp,
+                        letterSpacing = 1.sp,
+                        maxLines = 1
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "الأذان ${prayerTimes.nextPrayerTimeFormatted}",
+                        color = GoldPrimary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Geo.S_LG))
+
+            // ── شريط الأرقام السريعة ──
+            Surface(
+                shape = GeoShape.CardSm,
+                color = Color.White.copy(alpha = 0.04f),
+                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.hairline()),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Header Info
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Geo.S_SM),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.AccessTime,
-                            contentDescription = null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "الصلاة القادمة: صلاة ${prayerTimes.nextPrayerName}",
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    IconButton(
-                        onClick = onShareTimetable,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                    }
+                    GeoMiniStat(
+                        value = prayerTimes.fajr,
+                        label = "الفجر",
+                        accent = GeoColor.Dhikr,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 1.dp, height = 26.dp)
+                            .background(GeoColor.hairline())
+                    )
+                    GeoMiniStat(
+                        value = prayerTimes.dhuhr,
+                        label = "الظهر",
+                        accent = GeoColor.Prayer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 1.dp, height = 26.dp)
+                            .background(GeoColor.hairline())
+                    )
+                    GeoMiniStat(
+                        value = prayerTimes.maghrib,
+                        label = "المغرب",
+                        accent = GeoColor.Dua,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 1.dp, height = 26.dp)
+                            .background(GeoColor.hairline())
+                    )
+                    GeoMiniStat(
+                        value = prayerTimes.isha,
+                        label = "العشاء",
+                        accent = GeoColor.Qibla,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(Geo.S_MD))
 
-                // Circular Progress Ring & Digital Timer
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(150.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val strokeWidth = 10.dp.toPx()
-                        val diameter = size.minDimension - strokeWidth
-                        val radius = diameter / 2
-                        val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
-
-                        // Background Ring
-                        drawArc(
-                            color = Color.White.copy(alpha = 0.08f),
-                            startAngle = 0f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = Size(diameter, diameter),
-                            style = Stroke(width = strokeWidth)
-                        )
-
-                        // Glowing Active Arc
-                        drawArc(
-                            brush = Brush.sweepGradient(
-                                listOf(
-                                    GoldPrimary.copy(alpha = 0.5f),
-                                    GoldPrimary,
-                                    Color(0xFF10B981)
-                                )
-                            ),
-                            startAngle = -90f,
-                            sweepAngle = 360f * prayerTimes.progressToNextPrayer,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = Size(diameter, diameter),
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer),
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 22.sp,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "الأذان: ${prayerTimes.nextPrayerTimeFormatted}",
-                            color = GoldPrimary.copy(alpha = glowAlpha),
-                            fontFamily = NotoSansFont,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Action Bar: Listen to Adhan button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = onOpenVoices,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f).padding(end = 6.dp)
-                    ) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("أصوات الأذان", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-
-                    OutlinedButton(
-                        onClick = onShareTimetable,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f).padding(start = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("مشاركة الموعد", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
-                    }
-                }
+            // ── أزرار الإجراءات ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Geo.S_SM)
+            ) {
+                GeoButton(
+                    text = "أصوات الأذان",
+                    icon = Icons.Default.VolumeUp,
+                    accent = GoldPrimary,
+                    variant = GeoButtonStyle.Filled,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenVoices
+                )
+                GeoButton(
+                    text = "مشاركة الموعد",
+                    icon = Icons.Default.Share,
+                    accent = GeoColor.textSecondary(),
+                    variant = GeoButtonStyle.Outline,
+                    modifier = Modifier.weight(1f),
+                    onClick = onShareTimetable
+                )
             }
         }
     }
@@ -702,68 +1059,74 @@ fun TimetableAndControlsTab(
     onOpenVoices: () -> Unit
 ) {
     val prayers = listOf(
-        PrayerRowItem("fajr", "الفجر", prayerTimes.fajr, Icons.Default.Brightness3, Color(0xFF6366F1)),
-        PrayerRowItem("sunrise", "الشروق", prayerTimes.sunrise, Icons.Default.WbSunny, Color(0xFFF59E0B)),
-        PrayerRowItem("dhuhr", "الظهر", prayerTimes.dhuhr, Icons.Default.LightMode, Color(0xFFEAB308)),
-        PrayerRowItem("asr", "العصر", prayerTimes.asr, Icons.Default.WbTwilight, Color(0xFFF97316)),
-        PrayerRowItem("maghrib", "المغرب", prayerTimes.maghrib, Icons.Default.NightsStay, Color(0xFFEC4899)),
-        PrayerRowItem("isha", "العشاء", prayerTimes.isha, Icons.Default.Bedtime, Color(0xFF8B5CF6)),
+        PrayerRowItem("fajr", "الفجر", prayerTimes.fajr, Icons.Default.Brightness3, GeoColor.Dhikr),
+        PrayerRowItem("sunrise", "الشروق", prayerTimes.sunrise, Icons.Default.WbSunny, GeoColor.Reward),
+        PrayerRowItem("dhuhr", "الظهر", prayerTimes.dhuhr, Icons.Default.LightMode, GeoColor.Prayer),
+        PrayerRowItem("asr", "العصر", prayerTimes.asr, Icons.Default.WbTwilight, Color(0xFFFB923C)),
+        PrayerRowItem("maghrib", "المغرب", prayerTimes.maghrib, Icons.Default.NightsStay, GeoColor.Dua),
+        PrayerRowItem("isha", "العشاء", prayerTimes.isha, Icons.Default.Bedtime, GeoColor.Qibla),
         PrayerRowItem("qiyam", "قيام الليل والثلث الأخير", prayerTimes.qiyamStart, Icons.Default.Star, GoldPrimary)
     )
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+        verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
     ) {
         // بطاقة فحص وإعداد أذونات العمل بالخلفية للأذان
         item {
             val context = LocalContext.current
             var showBgDialog by remember { mutableStateOf(false) }
             val isBgReady = remember { BackgroundPermissionManager.isAllBackgroundPermissionsGranted(context) }
+            val statusAccent = if (isBgReady) GeoColor.Quran else GoldPrimary
 
             Surface(
                 onClick = { showBgDialog = true },
-                shape = RoundedCornerShape(14.dp),
-                color = if (isBgReady) Color(0xFF10B981).copy(alpha = 0.12f) else GoldPrimary.copy(alpha = 0.15f),
-                border = BorderStroke(1.dp, if (isBgReady) Color(0xFF10B981).copy(alpha = 0.4f) else GoldPrimary.copy(alpha = 0.5f)),
+                shape = GeoShape.Card,
+                color = statusAccent.copy(alpha = 0.08f),
+                border = BorderStroke(Geo.B_HAIRLINE, statusAccent.copy(alpha = 0.32f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.padding(Geo.S_MD),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Icon(
-                            imageVector = if (isBgReady) Icons.Default.VerifiedUser else Icons.Default.BatterySaver,
-                            contentDescription = null,
-                            tint = if (isBgReady) Color(0xFF10B981) else GoldPrimary,
-                            modifier = Modifier.size(20.dp)
+                    GeoIconBadge(
+                        icon = if (isBgReady) Icons.Default.VerifiedUser else Icons.Default.BatterySaver,
+                        accent = statusAccent,
+                        size = 40.dp,
+                        iconSize = Geo.I_MD
+                    )
+                    Spacer(Modifier.width(Geo.S_MD))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBgReady) "حماية الأذان بالخلفية مفعّلة" else "تفعيل العمل بالخلفية",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = statusAccent,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = if (isBgReady) "حماية الأذان بالخلفية: مفعّلة بالكامل ✅" else "تحسين دقة الأذان: تفعيل العمل بالخلفية ⚡",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = if (isBgReady) Color(0xFF10B981) else GoldPrimary
-                            )
-                            Text(
-                                text = if (isBgReady) "التطبيق مستثنى من قيود البطارية لرفع الأذان في موعده الدقيق" else "انقر لمنح أذونات البطارية والمنبهات الدقيقة لضمان سماع الأذان",
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = if (isBgReady) "التطبيق مستثنى من قيود البطارية لرفع الأذان في موعده"
+                            else "انقر لمنح أذونات البطارية والمنبهات الدقيقة",
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                            color = GeoColor.textMuted(),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Spacer(Modifier.width(Geo.S_SM))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = if (isBgReady) Color(0xFF10B981) else GoldPrimary,
-                        modifier = Modifier.size(16.dp)
+                        tint = statusAccent.copy(alpha = 0.7f),
+                        modifier = Modifier.size(Geo.I_XS)
                     )
                 }
             }
@@ -794,25 +1157,12 @@ fun TimetableAndControlsTab(
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "مواقيت صلوات اليوم",
-                    color = Color.White,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                Text(
-                    "اضغط لتخصيص التنبيه",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontFamily = NotoSansFont,
-                    fontSize = 11.sp
-                )
-            }
+            GeoHeader(
+                title = "مواقيت صلوات اليوم",
+                subtitle = "اضغط على أي صلاة لتخصيص تنبيهها",
+                accent = GoldPrimary,
+                modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
+            )
         }
 
         items(prayers) { prayer ->
@@ -822,94 +1172,93 @@ fun TimetableAndControlsTab(
             }
 
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = if (isNext) Color(0xFF1E293B) else Color(0xFF151B2B),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isNext) GoldPrimary.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f)
+                onClick = { onConfigPrayer(prayer.key) },
+                shape = GeoShape.Card,
+                color = if (isNext) GeoColor.selectedBg() else GeoColor.surfaceRaised(),
+                border = BorderStroke(
+                    Geo.B_HAIRLINE,
+                    if (isNext) GeoColor.outlineStrong() else GeoColor.hairline()
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(14.dp)
+                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM + 2.dp)
                         .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(prayer.color.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = prayer.icon,
-                                contentDescription = null,
-                                tint = prayer.color,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = prayer.nameAr,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isNext) GoldPrimary else Color.White,
-                                    fontSize = 15.sp
-                                )
-                                if (isNext) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Surface(
-                                        color = GoldPrimary.copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            "الصلاة القادمة",
-                                            color = GoldPrimary,
-                                            fontFamily = CairoFont,
-                                            fontSize = 9.sp,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
+                    GeoIconBadge(
+                        icon = prayer.icon,
+                        accent = prayer.color,
+                        size = 42.dp,
+                        iconSize = Geo.I_MD
+                    )
+                    Spacer(Modifier.width(Geo.S_MD))
+
+                    // اسم الصلاة + وقتها — مع weight حتى لا ينسحق النص
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (prayer.key == "qiyam") "يبدأ وقت النزول الإلهي" else "وقت النداء",
-                                fontFamily = NotoSansFont,
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontSize = 10.sp
+                                text = prayer.nameAr,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isNext) GoldPrimary else GeoColor.textPrimary(),
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            if (isNext) {
+                                Spacer(Modifier.width(Geo.S_SM))
+                                GeoChip(
+                                    text = "القادمة",
+                                    selected = true,
+                                    accent = GoldPrimary
+                                )
+                            }
                         }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = if (prayer.key == "qiyam") "يبدأ وقت النزول الإلهي" else "وقت النداء",
+                            fontFamily = NotoSansFont,
+                            color = GeoColor.textMuted(),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = prayer.time,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Black,
-                            color = if (isNext) GoldPrimary else Color.White,
-                            fontSize = 18.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = {
+                    Spacer(Modifier.width(Geo.S_SM))
+
+                    // الوقت — ثابت لا ينضغط
+                    Text(
+                        text = prayer.time,
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isNext) GoldPrimary else GeoColor.textPrimary(),
+                        fontSize = 17.sp,
+                        maxLines = 1
+                    )
+
+                    Spacer(Modifier.width(Geo.S_XS))
+
+                    // زر التنبيه
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(GeoShape.Circle)
+                            .clickable {
                                 isNotifyEnabled = !isNotifyEnabled
                                 prefs.edit().putBoolean("notify_${prayer.key}", isNotifyEnabled).apply()
                             },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isNotifyEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
-                                contentDescription = "تنبيه",
-                                tint = if (isNotifyEnabled) GoldPrimary else Color.White.copy(alpha = 0.3f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isNotifyEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
+                            contentDescription = if (isNotifyEnabled) "تعطيل تنبيه ${prayer.nameAr}" else "تفعيل تنبيه ${prayer.nameAr}",
+                            tint = if (isNotifyEnabled) prayer.color else GeoColor.textMuted(),
+                            modifier = Modifier.size(Geo.I_MD)
+                        )
                     }
                 }
             }
@@ -947,86 +1296,85 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
     var witrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_witr", false)) }
 
     val completedCount = (if (fajrDone) 1 else 0) + (if (dhuhrDone) 1 else 0) + (if (asrDone) 1 else 0) + (if (maghribDone) 1 else 0) + (if (ishaDone) 1 else 0)
+    val totalObligatory = 5
     val totalSunanCount = (if (rawatibDone) 1 else 0) + (if (duhaDone) 1 else 0) + (if (witrDone) 1 else 0)
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+        verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
     ) {
-        // Streak Card
+        // ── بطاقة السلسلة + حلقة التقدم ──
         item {
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF1E293B),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                shape = GeoShape.Card,
+                color = GeoColor.surfaceRaised(),
+                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.padding(Geo.S_MD),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🔥", fontSize = 24.sp)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                    // حلقة تقدم اليوم (الفرائض الخمس)
+                    GeoProgressRing(
+                        progress = if (totalObligatory > 0) completedCount.toFloat() / totalObligatory else 0f,
+                        size = 76.dp,
+                        strokeWidth = Geo.RING_TRACK_STROKE,
+                        trackColor = Color.White.copy(alpha = 0.08f),
+                        progressColor = GoldPrimary
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "سلسلة المحافظة على الصلاة",
-                                color = Color.White,
-                                fontFamily = CairoFont,
+                                text = "$completedCount/$totalObligatory",
+                                color = GeoColor.textPrimary(),
+                                fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                "$streakCount أيام متتالية في طاعة الله",
-                                color = GoldPrimary,
-                                fontFamily = NotoSansFont,
-                                fontSize = 12.sp
+                                fontSize = 15.sp,
+                                maxLines = 1
                             )
                         }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
+
+                    Spacer(Modifier.width(Geo.S_MD))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "$completedCount/5",
-                            color = Color.White,
+                            text = "سلسلة المحافظة على الصلاة",
+                            color = GeoColor.textPrimary(),
                             fontFamily = CairoFont,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 18.sp
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(Modifier.height(3.dp))
                         Text(
-                            "فرائض اليوم",
-                            color = Color.White.copy(alpha = 0.5f),
+                            text = "$streakCount يوماً متتالياً في طاعة الله",
+                            color = GoldPrimary,
                             fontFamily = NotoSansFont,
-                            fontSize = 10.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
         }
 
-        // Section: Mandatory Prayers
+        // ── عنوان قسم الفرائض ──
         item {
-            Text(
-                "الصلوات المكتوبة (الفرائض الخمس)",
-                color = GoldPrimary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+            GeoHeader(
+                title = "الصلوات المكتوبة",
+                subtitle = "الفرائض الخمس — اضغط الدائرة لأداء الصلاة",
+                accent = GoldPrimary,
+                modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
             )
         }
 
         item {
-            PrayerCheckCard("صلاة الفجر 🌅", fajrDone, fajrJamaah,
+            PrayerCheckCard("صلاة الفجر", Icons.Default.Brightness3, fajrDone, fajrJamaah,
                 onToggleDone = {
                     fajrDone = it
                     prefs.edit().putBoolean("${todayDateKey}_fajr", it).apply()
@@ -1038,7 +1386,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             )
         }
         item {
-            PrayerCheckCard("صلاة الظهر ☀️", dhuhrDone, dhuhrJamaah,
+            PrayerCheckCard("صلاة الظهر", Icons.Default.LightMode, dhuhrDone, dhuhrJamaah,
                 onToggleDone = {
                     dhuhrDone = it
                     prefs.edit().putBoolean("${todayDateKey}_dhuhr", it).apply()
@@ -1050,7 +1398,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             )
         }
         item {
-            PrayerCheckCard("صلاة العصر ⛅ (حفظ الصلاة الوسطى)", asrDone, asrJamaah,
+            PrayerCheckCard("صلاة العصر", Icons.Default.WbTwilight, asrDone, asrJamaah,
                 onToggleDone = {
                     asrDone = it
                     prefs.edit().putBoolean("${todayDateKey}_asr", it).apply()
@@ -1062,7 +1410,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             )
         }
         item {
-            PrayerCheckCard("صلاة المغرب 🌇", maghribDone, maghribJamaah,
+            PrayerCheckCard("صلاة المغرب", Icons.Default.NightsStay, maghribDone, maghribJamaah,
                 onToggleDone = {
                     maghribDone = it
                     prefs.edit().putBoolean("${todayDateKey}_maghrib", it).apply()
@@ -1074,7 +1422,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             )
         }
         item {
-            PrayerCheckCard("صلاة العشاء 🌌", ishaDone, ishaJamaah,
+            PrayerCheckCard("صلاة العشاء", Icons.Default.Bedtime, ishaDone, ishaJamaah,
                 onToggleDone = {
                     ishaDone = it
                     prefs.edit().putBoolean("${todayDateKey}_isha", it).apply()
@@ -1086,24 +1434,23 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             )
         }
 
-        // Section: Sunan & Nawafil
+        // ── عنوان قسم السنن ──
         item {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "السنن والنوافل اليومية (قصر الجنة وصلاة الأوابين)",
-                color = Color(0xFF10B981),
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+            GeoHeader(
+                title = "السنن والنوافل",
+                subtitle = "قصر الجنة وصلاة الأوابين",
+                accent = GeoColor.Quran,
+                modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
             )
         }
 
         item {
             SunnahCheckCard(
-                title = "السنن الرواتب (12 ركعة)",
-                subtitle = "بنى الله له بيتاً في الجنة (2 فجر، 4 قبل الظهر + 2 بعده، 2 مغرب، 2 عشاء)",
+                title = "السنن الرواتب",
+                subtitle = "12 ركعة: بنى الله له بيتاً في الجنة (2 فجر، 4 قبل الظهر و2 بعده، 2 مغرب، 2 عشاء)",
+                icon = Icons.Default.AutoAwesome,
                 isChecked = rawatibDone,
-                color = Color(0xFF10B981),
+                color = GeoColor.Quran,
                 onToggle = {
                     rawatibDone = it
                     prefs.edit().putBoolean("${todayDateKey}_rawatib", it).apply()
@@ -1113,10 +1460,11 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
 
         item {
             SunnahCheckCard(
-                title = "صلاة الضحى (صلاة الأوابين)",
-                subtitle = "تجزئ عن 360 صدقة عن مفاصل وعظام جسدك يومياً",
+                title = "صلاة الضحى",
+                subtitle = "صلاة الأوابين — تجزئ عن 360 صدقة عن مفاصل وعظام جسدك يومياً",
+                icon = Icons.Default.WbSunny,
                 isChecked = duhaDone,
-                color = Color(0xFFF59E0B),
+                color = GeoColor.Reward,
                 onToggle = {
                     duhaDone = it
                     prefs.edit().putBoolean("${todayDateKey}_duha", it).apply()
@@ -1126,10 +1474,11 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
 
         item {
             SunnahCheckCard(
-                title = "صلاة الوتر وقيام الليل 🌙",
+                title = "صلاة الوتر وقيام الليل",
                 subtitle = "شرف المؤمن وسياج النور وبركة اليوم",
+                icon = Icons.Default.Nightlight,
                 isChecked = witrDone,
-                color = Color(0xFF8B5CF6),
+                color = GeoColor.Qibla,
                 onToggle = {
                     witrDone = it
                     prefs.edit().putBoolean("${todayDateKey}_witr", it).apply()
@@ -1139,121 +1488,160 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
     }
 }
 
+/**
+ * بطاقة صلاة — هندسية، مع وزن مرن للنص حتى لا ينسحق عند الشاشات الضيقة.
+ */
 @Composable
 fun PrayerCheckCard(
     title: String,
+    icon: ImageVector,
     isDone: Boolean,
     isJamaah: Boolean,
     onToggleDone: (Boolean) -> Unit,
     onToggleJamaah: (Boolean) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF151B2B),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isDone) GoldPrimary.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f)
+        shape = GeoShape.Card,
+        color = if (isDone) GeoColor.selectedBg() else GeoColor.surfaceRaised(),
+        border = BorderStroke(
+            Geo.B_HAIRLINE,
+            if (isDone) GeoColor.outlineStrong() else GeoColor.hairline()
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = isDone,
-                    onCheckedChange = onToggleDone,
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = GoldPrimary,
-                        uncheckedColor = Color.White.copy(alpha = 0.4f),
-                        checkmarkColor = DeepSlate
+            // زر دائري هندسي للتحقق
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(GeoShape.Circle)
+                    .background(
+                        if (isDone) GoldPrimary else Color.White.copy(alpha = 0.06f),
+                        GeoShape.Circle
                     )
-                )
-                Text(
-                    text = title,
-                    color = if (isDone) GoldPrimary else Color.White,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    .border(
+                        Geo.B_HAIRLINE,
+                        if (isDone) GoldPrimary else GeoColor.outline(),
+                        GeoShape.Circle
+                    )
+                    .clickable { onToggleDone(!isDone) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isDone) Icons.Default.Check else icon,
+                    contentDescription = if (isDone) "تم أداء $title" else "تسجيل أداء $title",
+                    tint = if (isDone) GeoColor.onGold() else GeoColor.textMuted(),
+                    modifier = Modifier.size(Geo.I_SM)
                 )
             }
 
-            // Jamaah Chip
-            FilterChip(
+            Spacer(Modifier.width(Geo.S_MD))
+
+            // النص — weight حتى لا يضغطه الشريحة
+            Text(
+                text = title,
+                color = if (isDone) GoldPrimary else GeoColor.textPrimary(),
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+
+            Spacer(Modifier.width(Geo.S_SM))
+
+            // شريحة المسجد — ثابتة لا تنضغط
+            GeoChip(
+                text = "في المسجد",
+                icon = Icons.Default.Mosque,
                 selected = isJamaah,
-                onClick = { onToggleJamaah(!isJamaah) },
-                label = {
-                    Text(
-                        "في المسجد 🕌",
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp,
-                        color = if (isJamaah) DeepSlate else Color.White.copy(alpha = 0.7f)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = GoldPrimary,
-                    containerColor = Color(0xFF1E293B)
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = isJamaah,
-                    borderColor = if (isJamaah) GoldPrimary else Color.White.copy(alpha = 0.2f)
-                )
+                accent = GoldPrimary,
+                onClick = { onToggleJamaah(!isJamaah) }
             )
         }
     }
 }
 
+/**
+ * بطاقة سنة — هندسية، عنوان ووصف مرنانان.
+ */
 @Composable
 fun SunnahCheckCard(
     title: String,
     subtitle: String,
+    icon: ImageVector,
     isChecked: Boolean,
     color: Color,
     onToggle: (Boolean) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF151B2B),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isChecked) color.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f)
+        shape = GeoShape.Card,
+        color = if (isChecked) color.copy(alpha = 0.08f) else GeoColor.surfaceRaised(),
+        border = BorderStroke(
+            Geo.B_HAIRLINE,
+            if (isChecked) color.copy(alpha = 0.4f) else GeoColor.hairline()
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(Geo.S_MD)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Checkbox(
-                checked = isChecked,
-                onCheckedChange = onToggle,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = color,
-                    uncheckedColor = Color.White.copy(alpha = 0.4f),
-                    checkmarkColor = Color.White
+            // زر دائري هندسي
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(GeoShape.Circle)
+                    .background(
+                        if (isChecked) color else Color.White.copy(alpha = 0.06f),
+                        GeoShape.Circle
+                    )
+                    .border(
+                        Geo.B_HAIRLINE,
+                        if (isChecked) color else GeoColor.outline(),
+                        GeoShape.Circle
+                    )
+                    .clickable { onToggle(!isChecked) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isChecked) Icons.Default.Check else icon,
+                    contentDescription = if (isChecked) "تم تسجيل $title" else "تسجيل $title",
+                    tint = if (isChecked) Color.White else GeoColor.textMuted(),
+                    modifier = Modifier.size(Geo.I_SM)
                 )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
+            }
+
+            Spacer(Modifier.width(Geo.S_MD))
+
+            // النص — وزن مرن
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = if (isChecked) color else Color.White,
+                    color = if (isChecked) color else GeoColor.textPrimary(),
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(Modifier.height(3.dp))
                 Text(
                     text = subtitle,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = GeoColor.textMuted(),
                     fontFamily = NotoSansFont,
-                    fontSize = 10.sp
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -1266,32 +1654,22 @@ fun SpiritualTopicsTab(
     topics: List<SpiritualTopic>,
     headerTitle: String,
     headerDesc: String,
+    accent: Color = GoldPrimary,
     onShareTopic: (SpiritualTopic) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+        verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
     ) {
         item {
-            Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                Text(
-                    headerTitle,
-                    color = Color.White,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    headerDesc,
-                    color = Color.White.copy(alpha = 0.65f),
-                    fontFamily = NotoSansFont,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
-                )
-            }
+            GeoHeader(
+                title = headerTitle,
+                subtitle = headerDesc,
+                accent = accent,
+                modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
+            )
         }
 
         items(topics) { topic ->
@@ -1306,169 +1684,187 @@ fun SpiritualTopicCard(
     onShare: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF151B2B),
-        border = androidx.compose.foundation.BorderStroke(1.dp, topic.primaryColor.copy(alpha = 0.4f)),
+        shape = GeoShape.Card,
+        color = GeoColor.surfaceRaised(),
+        border = BorderStroke(Geo.B_HAIRLINE, topic.primaryColor.copy(alpha = 0.28f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(18.dp)
+            modifier = Modifier.padding(Geo.S_MD),
+            verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
         ) {
-            // Header tag
+            // ── ترويسة: الوسم + زر المشاركة ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = topic.primaryColor.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        topic.tag,
-                        color = topic.primaryColor,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onShare,
-                    modifier = Modifier.size(32.dp)
+                GeoChip(
+                    text = topic.tag,
+                    selected = true,
+                    accent = topic.primaryColor
+                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(GeoShape.Circle)
+                        .clickable(onClick = onShare),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Share,
-                        contentDescription = "مشاركة",
+                        contentDescription = "مشاركة ${topic.title}",
                         tint = topic.primaryColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(Geo.I_SM)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // ── العنوان والوصف ──
+            Column {
+                Text(
+                    text = topic.title,
+                    color = GeoColor.textPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.5.sp,
+                    lineHeight = 21.sp
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = topic.subtitle,
+                    color = GeoColor.textMuted(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
+            }
 
-            // Title
-            Text(
-                text = topic.title,
-                color = Color.White,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 22.sp
-            )
-
-            Text(
-                text = topic.subtitle,
-                color = Color.White.copy(alpha = 0.6f),
-                fontFamily = NotoSansFont,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-            )
-
-            // Quran or Hadith Box
+            // ── صندوق الآية ──
             topic.quranAyah?.let { ayah ->
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF0F172A),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                    shape = GeoShape.CardSm,
+                    color = GeoColor.surfaceSunken(),
+                    border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(Geo.S_MD)) {
                         Text(
                             text = ayah,
                             color = GoldPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            lineHeight = 22.sp,
+                            fontSize = 12.5.sp,
+                            lineHeight = 21.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
                         topic.quranSurahAndVerse?.let { ref ->
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "[$ref]",
-                                color = Color.White.copy(alpha = 0.5f),
+                                color = GeoColor.textMuted(),
                                 fontFamily = NotoSansFont,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.End,
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
                 }
             }
 
+            // ── صندوق الحديث ──
             topic.hadithText?.let { hadith ->
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF0F172A),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, topic.primaryColor.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                    shape = GeoShape.CardSm,
+                    color = GeoColor.surfaceSunken(),
+                    border = BorderStroke(Geo.B_HAIRLINE, topic.primaryColor.copy(alpha = 0.24f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(Geo.S_MD)) {
                         Text(
                             text = hadith,
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = GeoColor.textPrimary().copy(alpha = 0.9f),
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             lineHeight = 20.sp
                         )
                         topic.hadithSource?.let { src ->
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "— $src",
                                 color = topic.primaryColor,
                                 fontFamily = NotoSansFont,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.End,
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
                 }
             }
 
-            // Lesson & Tafsir
-            Text(
-                text = "📌 الشرح والبيان:",
-                color = Color.White,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
-            )
-            Text(
-                text = topic.detailedTafsirAndLesson,
-                color = Color.White.copy(alpha = 0.8f),
-                fontFamily = NotoSansFont,
-                fontSize = 11.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
-            )
+            // ── الشرح والبيان ──
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = topic.primaryColor,
+                        modifier = Modifier.size(Geo.I_XS)
+                    )
+                    Text(
+                        text = "الشرح والبيان",
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = topic.detailedTafsirAndLesson,
+                    color = GeoColor.textSecondary(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.sp,
+                    lineHeight = 18.sp
+                )
+            }
 
-            // Practical Step
+            // ── الخطوة العملية ──
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = topic.primaryColor.copy(alpha = 0.1f),
+                shape = GeoShape.CardSm,
+                color = topic.primaryColor.copy(alpha = 0.08f),
+                border = BorderStroke(Geo.B_HAIRLINE, topic.primaryColor.copy(alpha = 0.22f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(Geo.S_MD),
                     verticalAlignment = Alignment.Top
                 ) {
-                    Text("💡", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
+                    Icon(
+                        imageVector = Icons.Default.TipsAndUpdates,
+                        contentDescription = null,
+                        tint = topic.primaryColor,
+                        modifier = Modifier.size(Geo.I_SM)
+                    )
+                    Spacer(Modifier.width(Geo.S_SM))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "الخطوة العملية للتثبيت:",
+                            text = "الخطوة العملية للتثبيت",
                             color = topic.primaryColor,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
+                        Spacer(Modifier.height(3.dp))
                         Text(
-                            topic.practicalStep,
-                            color = Color.White.copy(alpha = 0.85f),
+                            text = topic.practicalStep,
+                            color = GeoColor.textSecondary(),
                             fontFamily = NotoSansFont,
                             fontSize = 10.sp,
                             lineHeight = 15.sp
@@ -1490,104 +1886,178 @@ fun QiblaAndKhushooTab(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+        verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
     ) {
-        // Qibla Compass Card
+        // ── بطاقة البوصلة الهندسية ──
         item {
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF151B2B),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                shape = GeoShape.Card,
+                color = GeoColor.surfaceRaised(),
+                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(Geo.S_LG),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        "اتجاه القبلة نحو الكعبة المشرفة",
-                        color = GoldPrimary,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        "من $cityName • ${prayerTimes.qiblaDirectionDeg.toInt()}° درجة من الشمال",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontFamily = NotoSansFont,
-                        fontSize = 11.sp
-                    )
+                    // ── ترويسة البوصلة ──
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Geo.S_MD)
+                    ) {
+                        GeoIconBadge(
+                            icon = Icons.Default.Explore,
+                            accent = GeoColor.Qibla,
+                            size = 38.dp,
+                            iconSize = Geo.I_MD
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "اتجاه القبلة",
+                                color = GeoColor.textPrimary(),
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "$cityName • ${prayerTimes.qiblaDirectionDeg.toInt()}° من الشمال",
+                                color = GeoColor.textMuted(),
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(Modifier.height(Geo.S_LG))
 
-                    // Compass Dial
+                    // ── قرص البوصلة ──
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(170.dp)
+                        modifier = Modifier.size(168.dp)
                     ) {
+                        // الحلقة الخارجية
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF0F172A),
-                            border = androidx.compose.foundation.BorderStroke(2.dp, GoldPrimary.copy(alpha = 0.3f)),
+                            color = GeoColor.surfaceSunken(),
+                            border = BorderStroke(Geo.B_STRONG, GeoColor.outline()),
                             modifier = Modifier.fillMaxSize()
                         ) {}
 
-                        // Degree Ring
+                        // شبكة الدرجات
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val center = Offset(size.width / 2, size.height / 2)
-                            val radius = size.minDimension / 2 - 12.dp.toPx()
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val outerRadius = size.minDimension / 2f - 4.dp.toPx()
+                            val innerRadius = outerRadius - 22.dp.toPx()
+
+                            // حلقة داخلية
                             drawCircle(
-                                color = GoldPrimary.copy(alpha = 0.1f),
-                                radius = radius,
+                                color = GoldPrimary.copy(alpha = 0.08f),
+                                radius = innerRadius,
                                 center = center
                             )
+
+                            // علامات الدرجات الأربع
+                            listOf(0f, 90f, 180f, 270f).forEach { deg ->
+                                val rad = Math.toRadians((deg - 90f).toDouble())
+                                val start = Offset(
+                                    center.x + (innerRadius + 2.dp.toPx()) * cos(rad).toFloat(),
+                                    center.y + (innerRadius + 2.dp.toPx()) * sin(rad).toFloat()
+                                )
+                                val end = Offset(
+                                    center.x + outerRadius * cos(rad).toFloat(),
+                                    center.y + outerRadius * sin(rad).toFloat()
+                                )
+                                drawLine(
+                                    color = GoldPrimary.copy(alpha = 0.35f),
+                                    start = start,
+                                    end = end,
+                                    strokeWidth = 1.5.dp.toPx()
+                                )
+                            }
                         }
 
-                        // Arrow Pointer to Kaaba
+                        // سهم القبلة
                         Icon(
                             imageVector = Icons.Default.Navigation,
                             contentDescription = "اتجاه القبلة",
                             tint = GoldPrimary,
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(60.dp)
                                 .rotate(prayerTimes.qiblaDirectionDeg)
                         )
 
-                        // Center Kaaba icon
+                        // رمز الكعبة — أيقونة بدل الإيموجي
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black)
-                                .border(1.dp, GoldPrimary, CircleShape),
+                                .background(GeoColor.surfaceSunken())
+                                .border(Geo.B_HAIRLINE, GoldPrimary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🕋", fontSize = 14.sp)
+                            Icon(
+                                imageVector = Icons.Default.Mosque,
+                                contentDescription = "الكعبة المشرفة",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(Geo.I_SM)
+                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(Modifier.height(Geo.S_MD))
 
-                    Text(
-                        "المسافة إلى مكة المكرمة: ${prayerTimes.distanceToMakkahKm} كم تقريباً",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    // ── شريط المسافة ──
+                    Surface(
+                        shape = GeoShape.CardSm,
+                        color = Color.White.copy(alpha = 0.04f),
+                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.hairline()),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "المسافة إلى مكة المكرمة",
+                                color = GeoColor.textSecondary(),
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(Modifier.width(Geo.S_SM))
+                            Text(
+                                text = "${prayerTimes.distanceToMakkahKm} كم",
+                                color = GoldPrimary,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // Fiqh & Khushoo' Articles
+        // ── عنوان فقه الخشوع ──
         item {
-            Text(
-                "فقه الخشوع وطرد وسواس الشيطان",
-                color = Color.White,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+            GeoHeader(
+                title = "فقه الخشوع وطرد وسواس الشيطان",
+                subtitle = "نصائح عملية لإدامة صفاء القلب",
+                accent = GeoColor.Qibla,
+                modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
             )
         }
 
@@ -1684,34 +2154,34 @@ fun AzanVoicesDialog(
 
                 Surface(
                     onClick = { localPicker.launch("audio/*") },
-                    shape = RoundedCornerShape(8.dp),
-                    color = GoldPrimary.copy(alpha = 0.18f),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                    shape = GeoShape.Chip,
+                    color = GoldPrimary.copy(alpha = 0.14f),
+                    border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("من الهاتف 📱", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(Geo.I_XS))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("من الهاتف", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
                 if (isDeveloper) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
                         onClick = { showDevUploadDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        shape = GeoShape.Chip,
+                        color = GeoColor.Quran.copy(alpha = 0.14f),
+                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.42f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("رفع سحابي ☁️", color = Color(0xFF10B981), fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = GeoColor.Quran, modifier = Modifier.size(Geo.I_XS))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("رفع سحابي", color = GeoColor.Quran, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }
@@ -1877,7 +2347,7 @@ fun AzanVoicesDialog(
                             if (isCloudVoice) {
                                 if (dlProgress != null && !dlProgress.isError && !dlProgress.isCompleted) {
                                     TransferCounterBar(
-                                        label = "تنزيل الأذان ⬇️",
+                                        label = "تنزيل الأذان",
                                         sentBytes = dlProgress.downloadedBytes,
                                         totalBytes = dlProgress.totalBytes,
                                         isUpload = false,
@@ -1896,14 +2366,14 @@ fun AzanVoicesDialog(
                                                 else Toast.makeText(context, "تعذر التنزيل — تحقق من الاتصال", Toast.LENGTH_SHORT).show()
                                             }
                                         },
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        modifier = Modifier.fillMaxWidth().height(32.dp)
+                                        shape = GeoShape.ButtonSmCompat,
+                                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.36f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.fillMaxWidth().height(34.dp)
                                     ) {
-                                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("تنزيل للاستماع دون إنترنت ⬇️", color = Color(0xFF10B981), fontSize = 10.5.sp, fontFamily = CairoFont)
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = GeoColor.Quran, modifier = Modifier.size(Geo.I_XS))
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text("تنزيل للاستماع دون إنترنت", color = GeoColor.Quran, fontSize = 10.5.sp, fontFamily = CairoFont, maxLines = 1)
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
@@ -1916,16 +2386,16 @@ fun AzanVoicesDialog(
                                         MuezzinVoiceManager.setDefaultVoiceId(context, voice.id)
                                         reloadVoices()
                                         BackgroundPermissionManager.refreshBackgroundSchedulers(context)
-                                        Toast.makeText(context, "تم تعيين ${voice.muezzinAr} كأذان افتراضي 🕋", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تم تعيين ${voice.muezzinAr} كأذان افتراضي", Toast.LENGTH_SHORT).show()
                                     },
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.4f)),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.fillMaxWidth().height(32.dp)
+                                    shape = GeoShape.ButtonSmCompat,
+                                    border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().height(34.dp)
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تعيين كأذان افتراضي للصلوات", color = GoldPrimary, fontSize = 10.5.sp, fontFamily = CairoFont)
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(Geo.I_XS))
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("تعيين كأذان افتراضي للصلوات", color = GoldPrimary, fontSize = 10.5.sp, fontFamily = CairoFont, maxLines = 1)
                                 }
                             }
                         }
@@ -1938,7 +2408,7 @@ fun AzanVoicesDialog(
                 Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
         },
-        containerColor = Color(0xFF151B2B)
+        containerColor = GeoColor.surfaceSunken()
     )
 
     // نافذة إضافة مؤذن جديد ديناميكياً
@@ -1966,7 +2436,7 @@ fun AzanVoicesDialog(
 }
 
 /**
- * نافذة إضافة صوت مؤذن جديد مخصص
+ * نافذة إضافة صوت مؤذن جديد مخصص — هندسية
  */
 @Composable
 fun AddCustomMuezzinDialog(
@@ -1978,36 +2448,66 @@ fun AddCustomMuezzinDialog(
     var streamUrl by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isFajrOnly by remember { mutableStateOf(false) }
+    val isValid = title.isNotBlank() && muezzinName.isNotBlank() && streamUrl.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        shape = RoundedCornerShape(20.dp),
+        containerColor = GeoColor.surfaceSunken(),
+        shape = GeoShape.CardLg,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AddCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("إضافة صوت مؤذن جديد", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                GeoIconBadge(
+                    icon = Icons.Default.AddCircle,
+                    accent = GoldPrimary,
+                    size = 36.dp,
+                    iconSize = Geo.I_SM
+                )
+                Spacer(Modifier.width(Geo.S_MD))
+                Column {
+                    Text(
+                        text = "إضافة صوت مؤذن جديد",
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "يُحفظ محلياً على جهازك",
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                }
             }
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
             ) {
                 Text(
-                    "أدخل بيانات ورابط الملف الصوتي للأذان (بصيغة MP3 أو رابط صوتي مباشر):",
-                    color = Color.Gray,
-                    fontFamily = CairoFont,
-                    fontSize = 11.sp
+                    "أدخل بيانات ورابط الملف الصوتي للأذان (MP3 أو رابط صوتي مباشر):",
+                    color = GeoColor.textMuted(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.5.sp,
+                    lineHeight = 15.sp
                 )
 
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("عنوان الأذان (مثال: أذان الحرم المكي)", fontFamily = CairoFont, fontSize = 11.sp) },
+                    label = { Text("عنوان الأذان", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, focusedLabelColor = GoldPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        focusedLabelColor = GoldPrimary,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -2016,16 +2516,30 @@ fun AddCustomMuezzinDialog(
                     onValueChange = { muezzinName = it },
                     label = { Text("اسم المؤذن والشيخ", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, focusedLabelColor = GoldPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        focusedLabelColor = GoldPrimary,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = streamUrl,
                     onValueChange = { streamUrl = it },
-                    label = { Text("رابط الصوت المباشر (URL / MP3)", fontFamily = CairoFont, fontSize = 11.sp) },
+                    label = { Text("رابط الصوت المباشر", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, focusedLabelColor = GoldPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        focusedLabelColor = GoldPrimary,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -2033,50 +2547,83 @@ fun AddCustomMuezzinDialog(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("وصف مختصر", fontFamily = CairoFont, fontSize = 11.sp) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, focusedLabelColor = GoldPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        focusedLabelColor = GoldPrimary,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                GeoDivider()
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("أذان مخصص لصلاة الفجر فقط", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "أذان مخصص لصلاة الفجر فقط",
+                            color = GeoColor.textPrimary(),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "يُستخدم هذا الصوت في الفجر دون بقية الصلوات",
+                            color = GeoColor.textMuted(),
+                            fontFamily = NotoSansFont,
+                            fontSize = 9.5.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.width(Geo.S_SM))
                     Switch(
                         checked = isFajrOnly,
                         onCheckedChange = { isFajrOnly = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = GoldPrimary,
+                            uncheckedThumbColor = Color.LightGray,
+                            uncheckedTrackColor = Color.DarkGray
+                        )
                     )
                 }
             }
         },
         confirmButton = {
-            Button(
+            GeoButton(
+                text = "حفظ وإضافة",
+                icon = Icons.Default.Check,
+                accent = GoldPrimary,
+                variant = GeoButtonStyle.Filled,
+                enabled = isValid,
                 onClick = {
-                    if (title.isNotBlank() && muezzinName.isNotBlank() && streamUrl.isNotBlank()) {
-                        val voice = AzanVoice(
-                            id = "custom_" + System.currentTimeMillis(),
-                            nameAr = title.trim(),
-                            muezzinAr = muezzinName.trim(),
-                            description = description.ifBlank { "أذان مخصص بصوت ${muezzinName.trim()}" },
-                            streamUrl = streamUrl.trim(),
-                            isFajrSpecific = isFajrOnly
-                        )
-                        onVoiceAdded(voice)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                shape = RoundedCornerShape(10.dp),
-                enabled = title.isNotBlank() && muezzinName.isNotBlank() && streamUrl.isNotBlank()
-            ) {
-                Text("حفظ وإضافة ➕", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-            }
+                    val voice = AzanVoice(
+                        id = "custom_" + System.currentTimeMillis(),
+                        nameAr = title.trim(),
+                        muezzinAr = muezzinName.trim(),
+                        description = description.ifBlank { "أذان مخصص بصوت ${muezzinName.trim()}" },
+                        streamUrl = streamUrl.trim(),
+                        isFajrSpecific = isFajrOnly
+                    )
+                    onVoiceAdded(voice)
+                }
+            )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.5.sp)
-            }
+            GeoButton(
+                text = "إلغاء",
+                accent = GeoColor.textSecondary(),
+                variant = GeoButtonStyle.Ghost,
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -2101,35 +2648,136 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri -> pickedUri = uri }
 
+    val canUpload = title.isNotBlank() && muezzinName.isNotBlank() && pickedUri != null && !uploading
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        shape = RoundedCornerShape(20.dp),
+        containerColor = GeoColor.surfaceSunken(),
+        shape = GeoShape.CardLg,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("رفع أذان للسحابة ☁️ (مطور)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                GeoIconBadge(
+                    icon = Icons.Default.CloudUpload,
+                    accent = GeoColor.Quran,
+                    size = 36.dp,
+                    iconSize = Geo.I_SM
+                )
+                Spacer(Modifier.width(Geo.S_MD))
+                Column {
+                    Text(
+                        text = "رفع أذان للسحابة",
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "للمطور فقط — يظهر لجميع المستخدمين",
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                }
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("يُرفع الملف إلى Supabase ويظهر لجميع المستخدمين فوراً.", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("عنوان الأذان", fontFamily = CairoFont, fontSize = 11.sp) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = muezzinName, onValueChange = { muezzinName = it }, label = { Text("اسم المؤذن", fontFamily = CairoFont, fontSize = 11.sp) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("وصف مختصر", fontFamily = CairoFont, fontSize = 11.sp) }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF10B981), focusedLabelColor = Color(0xFF10B981)), modifier = Modifier.fillMaxWidth())
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("مخصص للفجر فقط", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
-                    Switch(checked = isFajrOnly, onCheckedChange = { isFajrOnly = it }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF10B981)))
+            Column(
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
+            ) {
+                Text(
+                    "يُرفع الملف إلى Supabase ويظهر لجميع المستخدمين فوراً.",
+                    color = GeoColor.textMuted(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.5.sp,
+                    lineHeight = 15.sp
+                )
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("عنوان الأذان", fontFamily = CairoFont, fontSize = 11.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GeoColor.Quran,
+                        focusedLabelColor = GeoColor.Quran,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = muezzinName,
+                    onValueChange = { muezzinName = it },
+                    label = { Text("اسم المؤذن", fontFamily = CairoFont, fontSize = 11.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GeoColor.Quran,
+                        focusedLabelColor = GeoColor.Quran,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("وصف مختصر", fontFamily = CairoFont, fontSize = 11.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GeoColor.Quran,
+                        focusedLabelColor = GeoColor.Quran,
+                        unfocusedBorderColor = GeoColor.hairline(),
+                        focusedTextColor = GeoColor.textPrimary(),
+                        unfocusedTextColor = GeoColor.textPrimary()
+                    ),
+                    shape = GeoShape.CardSm,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "مخصص للفجر فقط",
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = isFajrOnly,
+                        onCheckedChange = { isFajrOnly = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = GeoColor.Quran,
+                            uncheckedThumbColor = Color.LightGray,
+                            uncheckedTrackColor = Color.DarkGray
+                        )
+                    )
                 }
-                OutlinedButton(onClick = { picker.launch("audio/*") }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.AudioFile, contentDescription = null, tint = Color(0xFF10B981))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (pickedUri == null) "اختر ملف الصوت (MP3)" else "تم اختيار الملف ✅", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
-                }
+
+                GeoButton(
+                    text = if (pickedUri == null) "اختر ملف الصوت" else "تم اختيار الملف",
+                    icon = if (pickedUri == null) Icons.Default.AudioFile else Icons.Default.CheckCircle,
+                    accent = GeoColor.Quran,
+                    variant = GeoButtonStyle.Outline,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { picker.launch("audio/*") }
+                )
+
                 if (uploading || uploadTotal > 0) {
                     TransferCounterBar(
-                        label = "رفع الأذان للسحابة ☁️",
+                        label = "رفع الأذان للسحابة",
                         sentBytes = uploadSent,
                         totalBytes = uploadTotal,
                         isUpload = true
@@ -2138,9 +2786,14 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
             }
         },
         confirmButton = {
-            Button(
+            GeoButton(
+                text = if (uploading) "جارٍ الرفع" else "رفع",
+                icon = Icons.Default.CloudUpload,
+                accent = GeoColor.Quran,
+                variant = GeoButtonStyle.Filled,
+                enabled = canUpload,
                 onClick = {
-                    val uri = pickedUri ?: return@Button
+                    val uri = pickedUri ?: return@GeoButton
                     uploading = true
                     uploadSent = 0L; uploadTotal = 0L
                     scope.launch {
@@ -2149,18 +2802,22 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
                         }
                         uploading = false
                         if (res.isSuccess) {
-                            Toast.makeText(context, "تم الرفع للسحابة بنجاح ☁️✅", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "تم الرفع للسحابة بنجاح", Toast.LENGTH_SHORT).show()
                             onUploaded()
                         } else {
                             Toast.makeText(context, "فشل الرفع: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                         }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                shape = RoundedCornerShape(10.dp),
-                enabled = title.isNotBlank() && muezzinName.isNotBlank() && pickedUri != null && !uploading
-            ) { Text("رفع ☁️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+                }
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.Gray, fontFamily = CairoFont) } }
+        dismissButton = {
+            GeoButton(
+                text = "إلغاء",
+                accent = GeoColor.textSecondary(),
+                variant = GeoButtonStyle.Ghost,
+                onClick = onDismiss
+            )
+        }
     )
 }

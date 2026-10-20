@@ -16,24 +16,73 @@ import java.util.Locale
 object NotificationPreferencesManager {
     private const val PREFS_NAME = "qabas_notification_settings"
 
+    /** مخزن تفضيلات الصلاة — مشترك مع شاشة المحراب و PrayerAlarmManager */
+    private const val PRAYER_PREFS_NAME = "qabas_prayer_prefs"
+
+    /**
+     * أنماط الصوت المتاحة لصلاة واحدة.
+     * القيم مطابقة تماماً لما يتعامل معه PrayerAzanReceiver — أي قيمة خارجها
+     * تجعل الإشعار لا يُعرض ولا يُشغَّل الصوت (فشل صامت).
+     */
+    const val SOUND_FULL_AZAN = "FULL_AZAN"
+    const val SOUND_TAKBEER_ONLY = "TAKBEER_ONLY"
+    const val SOUND_NOTIFICATION_ONLY = "NOTIFICATION_ONLY"
+    const val SOUND_SILENT = "SILENT"
+
+    // مفاتيح التفضيلات الأساسية
     private const val KEY_MASTER_ENABLED = "notif_master_enabled"
-    private const val KEY_PRAYER_AZAN = "notif_prayer_azan_enabled"
+    private const val KEY_PRAYER_AZAN = "notif_prayer_azan"
     private const val KEY_SUHUR_REMINDER = "notif_suhur_enabled"
     private const val KEY_FAJR_REMINDER = "notif_fajr_enabled"
     private const val KEY_DAILY_HADITH = "notif_daily_hadith_enabled"
     private const val KEY_MORNING_ATHKAR = "notif_morning_athkar_enabled"
     private const val KEY_EVENING_ATHKAR = "notif_evening_athkar_enabled"
     private const val KEY_TREND_ALERTS = "notif_trend_alerts_enabled"
-    private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_enabled"
+    private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_alerts_enabled"
     private const val KEY_SOUND_ENABLED = "notif_sound_enabled"
     private const val KEY_VIBRATION_ENABLED = "notif_vibration_enabled"
+    
+    // مفاتيح التوقيت
     private const val KEY_SUHUR_HOUR = "notif_suhur_hour"
     private const val KEY_SUHUR_MINUTE = "notif_suhur_minute"
     private const val KEY_FAJR_HOUR = "notif_fajr_hour"
     private const val KEY_FAJR_MINUTE = "notif_fajr_minute"
+    
+    // مفاتيح تتبع الورد
     private const val KEY_WIRAD_STREAK = "notif_wirad_streak"
     private const val KEY_LAST_WIRAD_DATE = "notif_last_wirad_date"
+    
+    // مفاتيح كل صلاة
+    private const val KEY_PRAYER_FAJR = "notify_fajr"
+    private const val KEY_PRAYER_SUNRISE = "notify_sunrise"
+    private const val KEY_PRAYER_DHUHR = "notify_dhuhr"
+    private const val KEY_PRAYER_ASR = "notify_asr"
+    private const val KEY_PRAYER_MAGHRIB = "notify_maghrib"
+    private const val KEY_PRAYER_ISHA = "notify_isha"
+    private const val KEY_PRAYER_SUHUR = "notify_suhur"
 
+    // مفاتيح إعداد الصوت لكل صلاة
+    private const val KEY_SOUND_MODE_FAJR = "sound_mode_fajr"
+    private const val KEY_SOUND_MODE_SUNRISE = "sound_mode_sunrise"
+    private const val KEY_SOUND_MODE_DHUHR = "sound_mode_dhuhr"
+    private const val KEY_SOUND_MODE_ASR = "sound_mode_asr"
+    private const val KEY_SOUND_MODE_MAGHRIB = "sound_mode_maghrib"
+    private const val KEY_SOUND_MODE_ISHA = "sound_mode_isha"
+    private const val KEY_SOUND_MODE_SUHUR = "sound_mode_suhur"
+
+    // مفاتيح معرف الصوت لكل صلاة
+    private const val KEY_VOICE_ID_FAJR = "voice_id_fajr"
+    private const val KEY_VOICE_ID_SUNRISE = "voice_id_sunrise"
+    private const val KEY_VOICE_ID_DHUHR = "voice_id_dhuhr"
+    private const val KEY_VOICE_ID_ASR = "voice_id_asr"
+    private const val KEY_VOICE_ID_MAGHRIB = "voice_id_maghrib"
+    private const val KEY_VOICE_ID_ISHA = "voice_id_isha"
+    private const val KEY_VOICE_ID_SUHUR = "voice_id_suhur"
+
+    // مفاتيح تفضيلات الصلاة العالمية
+    private const val KEY_GLOBAL_PRAYER_ENABLED = "prayer_notifications_enabled"
+
+    // متغيرات الحالة التفاعلية
     private val _masterEnabled = MutableStateFlow(true)
     val masterEnabled: StateFlow<Boolean> = _masterEnabled.asStateFlow()
 
@@ -67,20 +116,14 @@ object NotificationPreferencesManager {
     private val _vibrationEnabled = MutableStateFlow(true)
     val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
 
-    private val _suhurTime = MutableStateFlow(Pair(3, 30))
-    val suhurTime: StateFlow<Pair<Int, Int>> = _suhurTime.asStateFlow()
-
-    private val _fajrTime = MutableStateFlow(Pair(5, 0))
-    val fajrTime: StateFlow<Pair<Int, Int>> = _fajrTime.asStateFlow()
-
+    // متغيرات حالة تتبع الورد
     private val _wiradStreak = MutableStateFlow(0)
     val wiradStreak: StateFlow<Int> = _wiradStreak.asStateFlow()
 
-    private var isInitialized = false
-
     fun init(context: Context) {
-        if (isInitialized) return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        
+        // تهيئة متغيرات الحالة من SharedPreferences
         _masterEnabled.value = prefs.getBoolean(KEY_MASTER_ENABLED, true)
         _prayerAzanEnabled.value = prefs.getBoolean(KEY_PRAYER_AZAN, true)
         _suhurReminderEnabled.value = prefs.getBoolean(KEY_SUHUR_REMINDER, true)
@@ -92,119 +135,166 @@ object NotificationPreferencesManager {
         _devChatAlertsEnabled.value = prefs.getBoolean(KEY_DEV_CHAT_ALERTS, true)
         _soundEnabled.value = prefs.getBoolean(KEY_SOUND_ENABLED, true)
         _vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, true)
-
-        val sH = prefs.getInt(KEY_SUHUR_HOUR, 3)
-        val sM = prefs.getInt(KEY_SUHUR_MINUTE, 30)
-        _suhurTime.value = Pair(sH, sM)
-
-        val fH = prefs.getInt(KEY_FAJR_HOUR, 5)
-        val fM = prefs.getInt(KEY_FAJR_MINUTE, 0)
-        _fajrTime.value = Pair(fH, fM)
-
-        _wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 1)
-
-        isInitialized = true
-    }
-
-    private fun getPrefs(context: Context): SharedPreferences {
-        init(context)
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        
+        _wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 0)
+        
+        // التسجيل على التغييرات لتحديث UI في الوقت الفعلي
+        prefs.registerOnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                KEY_MASTER_ENABLED -> _masterEnabled.value = prefs.getBoolean(key, true)
+                KEY_PRAYER_AZAN -> _prayerAzanEnabled.value = prefs.getBoolean(key, true)
+                KEY_SUHUR_REMINDER -> _suhurReminderEnabled.value = prefs.getBoolean(key, true)
+                KEY_FAJR_REMINDER -> _fajrReminderEnabled.value = prefs.getBoolean(key, true)
+                KEY_DAILY_HADITH -> _dailyHadithEnabled.value = prefs.getBoolean(key, true)
+                KEY_MORNING_ATHKAR -> _morningAthkarEnabled.value = prefs.getBoolean(key, true)
+                KEY_EVENING_ATHKAR -> _eveningAthkarEnabled.value = prefs.getBoolean(key, true)
+                KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)
+                KEY_DEV_CHAT_ALERTS -> _devChatAlertsEnabled.value = prefs.getBoolean(key, true)
+                KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
+                KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
+                KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
+            }
+        }
     }
 
     fun setMasterEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_MASTER_ENABLED, enabled).apply()
         _masterEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_MASTER_ENABLED, enabled).apply()
-        if (enabled) {
-            scheduleAllConfiguredAlarms(context)
-        }
     }
 
     fun setPrayerAzanEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_PRAYER_AZAN, enabled).apply()
         _prayerAzanEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_PRAYER_AZAN, enabled).apply()
     }
 
     fun setSuhurReminderEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SUHUR_REMINDER, enabled).apply()
         _suhurReminderEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_SUHUR_REMINDER, enabled).apply()
-        if (enabled) {
-            SpiritualNotificationManager.scheduleNotification(context, "suhur")
-        }
     }
 
     fun setFajrReminderEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_FAJR_REMINDER, enabled).apply()
         _fajrReminderEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_FAJR_REMINDER, enabled).apply()
-        if (enabled) {
-            SpiritualNotificationManager.scheduleNotification(context, "fajr")
-        }
     }
 
     fun setDailyHadithEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_DAILY_HADITH, enabled).apply()
         _dailyHadithEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_DAILY_HADITH, enabled).apply()
-        AppNotificationService.setDailyHadithEnabled(context, enabled)
     }
 
     fun setMorningAthkarEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_MORNING_ATHKAR, enabled).apply()
         _morningAthkarEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_MORNING_ATHKAR, enabled).apply()
     }
 
     fun setEveningAthkarEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_EVENING_ATHKAR, enabled).apply()
         _eveningAthkarEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_EVENING_ATHKAR, enabled).apply()
     }
 
     fun setTrendAlertsEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_TREND_ALERTS, enabled).apply()
         _trendAlertsEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_TREND_ALERTS, enabled).apply()
     }
 
     fun setDevChatAlertsEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_DEV_CHAT_ALERTS, enabled).apply()
         _devChatAlertsEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_DEV_CHAT_ALERTS, enabled).apply()
     }
 
     fun setSoundEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
         _soundEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
     }
 
     fun setVibrationEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply()
         _vibrationEnabled.value = enabled
-        getPrefs(context).edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply()
     }
 
     fun setSuhurTime(context: Context, hour: Int, minute: Int) {
-        _suhurTime.value = Pair(hour, minute)
-        getPrefs(context).edit()
-            .putInt(KEY_SUHUR_HOUR, hour)
-            .putInt(KEY_SUHUR_MINUTE, minute)
-            .apply()
-        SpiritualNotificationManager.scheduleNotification(context, "suhur")
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_SUHUR_HOUR, hour).putInt(KEY_SUHUR_MINUTE, minute).apply()
     }
 
     fun setFajrTime(context: Context, hour: Int, minute: Int) {
-        _fajrTime.value = Pair(hour, minute)
-        getPrefs(context).edit()
-            .putInt(KEY_FAJR_HOUR, hour)
-            .putInt(KEY_FAJR_MINUTE, minute)
-            .apply()
-        SpiritualNotificationManager.scheduleNotification(context, "fajr")
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_FAJR_HOUR, hour).putInt(KEY_FAJR_MINUTE, minute).apply()
+    }
+
+    fun setWiradStreak(context: Context, streak: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_WIRAD_STREAK, streak).apply()
+        _wiradStreak.value = streak
+    }
+
+    fun incrementWiradStreak(context: Context) {
+        val newStreak = _wiradStreak.value + 1
+        setWiradStreak(context, newStreak)
     }
 
     fun recordWirdCompleted(context: Context) {
-        val prefs = getPrefs(context)
-        val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
-        val lastDate = prefs.getString(KEY_LAST_WIRAD_DATE, "")
-        val currentStreak = prefs.getInt(KEY_WIRAD_STREAK, 0)
-        val newStreak = if (lastDate == today) currentStreak else currentStreak + 1
-        _wiradStreak.value = newStreak
+        incrementWiradStreak(context)
+        // تسجيل التاريخ لآخر ورد
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        prefs.edit().putString(KEY_LAST_WIRAD_DATE, dateFormat.format(Date())).apply()
+    }
+
+    /**
+     * تفضيلات تنبيه صلاة واحدة.
+     * ملاحظة مهمة: تُخزَّن في "qabas_prayer_prefs" — نفس المخزن الذي تستخدمه
+     * شاشة المحراب و PrayerAlarmManager، حتى لا يوجد مصدران للحقيقة.
+     */
+    fun getPrayerPreferences(context: Context, prayerKey: String): Pair<Boolean, String> {
+        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+        val prayerEnabled = prefs.getBoolean(getPrayerPrefKey(prayerKey), true)
+        val soundMode = prefs.getString(getSoundModeKey(prayerKey), SOUND_FULL_AZAN) ?: SOUND_FULL_AZAN
+        return Pair(prayerEnabled, soundMode)
+    }
+
+    fun getVoiceId(context: Context, prayerKey: String): String {
+        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(getVoiceIdKey(prayerKey), "") ?: ""
+    }
+
+    fun setPrayerPreferences(
+        context: Context,
+        prayerKey: String,
+        enabled: Boolean,
+        soundMode: String,
+        voiceId: String
+    ) {
+        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_LAST_WIRAD_DATE, today)
-            .putInt(KEY_WIRAD_STREAK, newStreak)
+            .putBoolean(getPrayerPrefKey(prayerKey), enabled)
+            .putString(getSoundModeKey(prayerKey), soundMode)
+            .putString(getVoiceIdKey(prayerKey), voiceId)
             .apply()
+    }
+
+    fun isGlobalPrayerEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_GLOBAL_PRAYER_ENABLED, true)
+    }
+
+    fun scheduleAllConfiguredAlarms(context: Context) {
+        init(context)
+        if (!_masterEnabled.value) return
+        if (_suhurReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "suhur")
+        if (_fajrReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "fajr")
+        if (_dailyHadithEnabled.value) AppNotificationService.scheduleDailyHadithAlarm(context)
     }
 
     fun scheduleSnooze(context: Context, minutes: Int) {
@@ -234,11 +324,42 @@ object NotificationPreferencesManager {
         }
     }
 
-    fun scheduleAllConfiguredAlarms(context: Context) {
-        init(context)
-        if (!_masterEnabled.value) return
-        if (_suhurReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "suhur")
-        if (_fajrReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "fajr")
-        if (_dailyHadithEnabled.value) AppNotificationService.scheduleDailyHadithAlarm(context)
+    private fun getPrayerPrefKey(prayerKey: String): String {
+        return when (prayerKey) {
+            "fajr" -> KEY_PRAYER_FAJR
+            "sunrise" -> KEY_PRAYER_SUNRISE
+            "dhuhr" -> KEY_PRAYER_DHUHR
+            "asr" -> KEY_PRAYER_ASR
+            "maghrib" -> KEY_PRAYER_MAGHRIB
+            "isha" -> KEY_PRAYER_ISHA
+            "suhur" -> KEY_PRAYER_SUHUR
+            else -> prayerKey
+        }
+    }
+
+    private fun getSoundModeKey(prayerKey: String): String {
+        return when (prayerKey) {
+            "fajr" -> KEY_SOUND_MODE_FAJR
+            "sunrise" -> KEY_SOUND_MODE_SUNRISE
+            "dhuhr" -> KEY_SOUND_MODE_DHUHR
+            "asr" -> KEY_SOUND_MODE_ASR
+            "maghrib" -> KEY_SOUND_MODE_MAGHRIB
+            "isha" -> KEY_SOUND_MODE_ISHA
+            "suhur" -> KEY_SOUND_MODE_SUHUR
+            else -> "sound_mode_$prayerKey"
+        }
+    }
+
+    private fun getVoiceIdKey(prayerKey: String): String {
+        return when (prayerKey) {
+            "fajr" -> KEY_VOICE_ID_FAJR
+            "sunrise" -> KEY_VOICE_ID_SUNRISE
+            "dhuhr" -> KEY_VOICE_ID_DHUHR
+            "asr" -> KEY_VOICE_ID_ASR
+            "maghrib" -> KEY_VOICE_ID_MAGHRIB
+            "isha" -> KEY_VOICE_ID_ISHA
+            "suhur" -> KEY_VOICE_ID_SUHUR
+            else -> "voice_id_$prayerKey"
+        }
     }
 }

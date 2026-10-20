@@ -51,10 +51,18 @@ object PrayerAlarmManager {
      * جدولة جميع الصلوات الخمس والتنبيهات لليوم والغد بناءً على المدينة المحفوظة
      */
     fun scheduleAllPrayers(context: Context) {
-        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
-        val globalEnabled = prayerPrefs.getBoolean("prayer_notifications_enabled", true)
-        if (!globalEnabled) {
-            Log.d(TAG, "Prayer notifications are globally disabled in settings.")
+        // قراءة الإعدادات من NotificationPreferencesManager لضمان التكوين الموحد
+        NotificationPreferencesManager.init(context)
+        
+        if (!NotificationPreferencesManager.masterEnabled.value) {
+            Log.d(TAG, "Prayer notifications are globally disabled in NotificationPreferencesManager.")
+            return
+        }
+
+        // التحقق مما إذا كانت صلوات الأذان العامة مفعلة (وليس فقط التنبيهات)
+        val globalPrayerEnabled = NotificationPreferencesManager.isGlobalPrayerEnabled(context)
+        if (!globalPrayerEnabled) {
+            Log.d(TAG, "Global prayer notifications are disabled.")
             return
         }
 
@@ -65,6 +73,8 @@ object PrayerAlarmManager {
         val tomorrowCal = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
         val tomorrowTimes = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCal, city, city.defaultMethod)
 
+        // جدول كل الصلوات — التحقق من تمكين كل صلاة يتم داخل scheduleSinglePrayer
+        // (مصدر الحقيقة الوحيد: qabas_prayer_prefs / notify_<key>) مع إلغاء المنبه المعطّل.
         scheduleSinglePrayer(context, PRAYER_FAJR, todayTimes.fajr, tomorrowTimes.fajr, "صلاة الفجر")
         scheduleSinglePrayer(context, PRAYER_SUNRISE, todayTimes.sunrise, tomorrowTimes.sunrise, "شروق الشمس")
         scheduleSinglePrayer(context, PRAYER_DHUHR, todayTimes.dhuhr, tomorrowTimes.dhuhr, "صلاة الظهر")
@@ -77,6 +87,14 @@ object PrayerAlarmManager {
         try { AzanCountdownService.start(context) } catch (_: Exception) {}
 
         Log.d(TAG, "Scheduled all real prayer alarms successfully for city: ${city.nameAr}")
+    }
+
+    /**
+     * هل تنبيه هذه الصلاة مفعّل؟ (مصدر الحقيقة: qabas_prayer_prefs)
+     */
+    fun isPrayerEnabled(context: Context, prayerKey: String): Boolean {
+        val prefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
+        return prefs.getBoolean("notify_$prayerKey", true)
     }
 
     private fun scheduleSinglePrayer(
