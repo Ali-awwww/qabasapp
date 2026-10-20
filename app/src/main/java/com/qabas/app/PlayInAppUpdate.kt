@@ -68,7 +68,7 @@ object PlayInAppUpdate {
         startUpdateFlow(context, AppUpdateType.FLEXIBLE, onResult)
     }
 
-    private fun startUpdateFlow(context: Context, type: AppUpdateType, onResult: (Boolean) -> Unit) {
+    private fun startUpdateFlow(context: Context, type: Int, onResult: (Boolean) -> Unit) {
         if (!isPlayInstalled(context)) {
             onResult(false)
             return

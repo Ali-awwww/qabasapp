@@ -105,12 +105,14 @@ object AzanCloudRepository {
                 audioUrl = publicUrl,
                 isFajrSpecific = isFajrSpecific
             )
-            // ⚠️ كان Insert لا تُفحص نتيجته — فيفشل صامتاً ويظهر للمستخدم "نجاح" بلا صف فعلي
-            val insertError = client.from(TABLE).insert(row).error
-            if (insertError != null) {
-                Log.e(TAG, "insert failed: ${insertError.message} / ${insertError.code}")
+            // ⚠️ كان Insert لا تُفحص نتيجته — فيفشل صامتاً ويظهر للمستخدم "نجاح" بلا صف فعلي.
+            // في supabase-kt 3.x، insert() يرمي استثناءً (وليس يُرجع .error) при فشل RLS
+            try {
+                client.from(TABLE).insert(row)
+            } catch (e: Exception) {
+                Log.e(TAG, "insert failed", e)
                 return@withContext Result.failure(
-                    IllegalStateException("تعذّر حفظ الصوت في قاعدة البيانات: ${insertError.message}")
+                    IllegalStateException("تعذّر حفظ الصوت في قاعدة البيانات: ${e.message}")
                 )
             }
             // تحديث الكاش المحلي فوراً
