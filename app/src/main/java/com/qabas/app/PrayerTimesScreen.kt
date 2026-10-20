@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +45,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.geometry.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -2133,69 +2136,129 @@ fun AzanVoicesDialog(
         }
     }
 
-    AlertDialog(
+    // نافذة مقيّدة الارتفاع: رأس ثابت + جسم قابل للتمرير + تذييل ثابت
+    // (AlertDialog كان يتجاوز حدود الشاشة فيتداخل التذييل مع المحتوى)
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "أصوات المؤذنين الحية",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        color = GoldPrimary,
-                        fontSize = 16.sp
-                    )
-                }
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f),
+            shape = GeoShape.CardLg,
+            color = GeoColor.surfaceSunken(),
+            border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
 
-                Surface(
-                    onClick = { localPicker.launch("audio/*") },
-                    shape = GeoShape.Chip,
-                    color = GoldPrimary.copy(alpha = 0.14f),
-                    border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
+                // ── رأس ثابت ──
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_MD),
+                    verticalArrangement = Arrangement.spacedBy(Geo.S_SM)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(Geo.I_XS))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("من الهاتف", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.VolumeUp,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "أصوات المؤذنين الحية",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            color = GoldPrimary,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
                     }
-                }
-                if (isDeveloper) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        onClick = { showDevUploadDialog = true },
-                        shape = GeoShape.Chip,
-                        color = GeoColor.Quran.copy(alpha = 0.14f),
-                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.42f))
+
+                    // شريط الأدوات — صف قابل للتمرير أفقياً حتى لا يتداخل مع العنوان
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            onClick = { localPicker.launch("audio/*") },
+                            shape = GeoShape.Chip,
+                            color = GoldPrimary.copy(alpha = 0.14f),
+                            border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
                         ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = GeoColor.Quran, modifier = Modifier.size(Geo.I_XS))
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text("رفع سحابي", color = GeoColor.Quran, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(Geo.I_XS)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    "من الهاتف",
+                                    color = GoldPrimary,
+                                    fontSize = 11.sp,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        if (isDeveloper) {
+                            Surface(
+                                onClick = { showDevUploadDialog = true },
+                                shape = GeoShape.Chip,
+                                color = GeoColor.Quran.copy(alpha = 0.14f),
+                                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.42f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.CloudUpload,
+                                        contentDescription = null,
+                                        tint = GeoColor.Quran,
+                                        modifier = Modifier.size(Geo.I_XS)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        "رفع سحابي",
+                                        color = GeoColor.Quran,
+                                        fontSize = 11.sp,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 440.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+
+                GeoDivider()
+
+                // ── جسم قابل للتمرير ──
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                 Text(
                     "أصوات الأذان الحية المعتمدة حصراً بصوت كبار المؤذنين، ويمكنك تعيين المؤذن الافتراضي أو إضافة أصوات أخرى لاحقاً:",
                     color = Color.White.copy(alpha = 0.75f),
@@ -2403,14 +2466,27 @@ fun AzanVoicesDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+
+                // ── تذييل ثابت ──
+                GeoDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GeoButton(
+                        text = "إغلاق",
+                        icon = Icons.Default.Close,
+                        accent = GoldPrimary,
+                        variant = GeoButtonStyle.Outline,
+                        onClick = onDismiss
+                    )
+                }
             }
-        },
-        containerColor = GeoColor.surfaceSunken()
-    )
+        }
+    }
 
     // نافذة إضافة مؤذن جديد ديناميكياً
     if (showAddMuezzinDialog) {
