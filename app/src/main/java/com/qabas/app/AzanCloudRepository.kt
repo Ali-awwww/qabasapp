@@ -105,7 +105,14 @@ object AzanCloudRepository {
                 audioUrl = publicUrl,
                 isFajrSpecific = isFajrSpecific
             )
-            client.from(TABLE).insert(row)
+            // ⚠️ كان Insert لا تُفحص نتيجته — فيفشل صامتاً ويظهر للمستخدم "نجاح" بلا صف فعلي
+            val insertError = client.from(TABLE).insert(row).error
+            if (insertError != null) {
+                Log.e(TAG, "insert failed: ${insertError.message} / ${insertError.code}")
+                return@withContext Result.failure(
+                    IllegalStateException("تعذّر حفظ الصوت في قاعدة البيانات: ${insertError.message}")
+                )
+            }
             // تحديث الكاش المحلي فوراً
             MuezzinVoiceManager.cacheCloudVoices(
                 context,
