@@ -171,6 +171,8 @@ dependencies {
   implementation(libs.ffmpeg.kit.full)
   implementation(libs.smart.exception.java)
   implementation(libs.billing.ktx)
+  // Play In-App Update — تحديث سلس بلا "مصادر غير معروفة" (يتطلب نشر التطبيق على Google Play)
+  implementation(libs.play.app.update)
   // implementation(libs.opencv) // Unused / removed to reduce APK size by >130MB and enable smooth emulator preview
   implementation(libs.androidx.camera.camera2)
   implementation(libs.androidx.camera.lifecycle)

@@ -91,6 +91,14 @@
             </intent-filter>
         </receiver>
         <receiver
+            android:name=".UpdateInstallReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.qabas.app.ACTION_INSTALL_UPDATE" />
+            </intent-filter>
+        </receiver>
+        <receiver
             android:name=".PrayerAzanBootReceiver"
             android:enabled="true"
             android:exported="true">
