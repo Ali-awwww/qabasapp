@@ -368,7 +368,7 @@ fun DownloadsHubScreen(
                             isChecking = isCheckingUpdate,
                             onCheckUpdates = {
                                 DownloadsHubManager.checkAndStartAutoUpdate(context, force = true)
-                                Toast.makeText(context, "جاري فحص التحديثات عبر GitHub Releases 🔍", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, UpdateChannelFacade.checkingToast(context), Toast.LENGTH_SHORT).show()
                             },
                             onInstall = {
                                 val ok = DownloadsHubManager.installDownloadedUpdate(context)
@@ -1370,13 +1370,18 @@ private fun AppUpdatesHubSection(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "قناة التحديث الرسمية",
+                                text = UpdateChannelFacade.channelLabel(context),
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
                                 color = TextSecondary
                             )
                             Text(
-                                text = "Ali-awwww/qabasapp",
+                                // اسم المستودع يظهر للمطور فقط — المستخدم العادي يرى اسم القناة
+                                text = if (UpdateChannelFacade.isDeveloper(context)) {
+                                    UpdateChannelFacade.effectiveRepo(context)
+                                } else {
+                                    UpdateChannelFacade.PUBLIC_CHANNEL_NAME
+                                },
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp,
@@ -1385,7 +1390,7 @@ private fun AppUpdatesHubSection(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "GitHub Releases API",
+                                text = UpdateChannelFacade.checkSourceLabel(context),
                                 fontFamily = CairoFont,
                                 fontSize = 9.sp,
                                 color = Color(0xFF10B981)
@@ -1410,12 +1415,12 @@ private fun AppUpdatesHubSection(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "جاري التحقق من GitHub Releases...",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepSlate,
-                            fontSize = 12.5.sp
-                        )
+                                text = UpdateChannelFacade.checkingButtonLabel(context),
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepSlate,
+                                fontSize = 12.5.sp
+                            )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -1425,7 +1430,7 @@ private fun AppUpdatesHubSection(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "فحص التحديثات الآن عبر GitHub Releases 🔄",
+                            text = UpdateChannelFacade.checkButtonLabel(context),
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             color = DeepSlate,
@@ -1434,6 +1439,11 @@ private fun AppUpdatesHubSection(
                     }
                 }
             }
+        }
+
+        // 1.5 لوحة تشخيص التحديث — للمطور فقط (تختفي تماماً عن المستخدم العادي)
+        if (UpdateChannelFacade.isDeveloper(context)) {
+            UpdateDiagnosticsPanel()
         }
 
         // 2. بطاقة حالة التحديث (قيد التنزيل أو مكتمل أو لا يوجد)
@@ -1666,7 +1676,7 @@ private fun AppUpdatesHubSection(
                     )
 
                     Text(
-                        text = "أنت تستخدم النسخة v$currentVersionName. عند توفر أي إصدار أحدث على GitHub Releases، سيبدأ النظام بتنزيله تلقائياً وعرضه مباشرة في مركز التنزيلات.",
+                        text = UpdateChannelFacade.aboutText(context, currentVersionName),
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp,
                         color = TextSecondary,
@@ -1704,7 +1714,7 @@ private fun AppUpdatesHubSection(
                     )
                 }
                 Text(
-                    text = "• يفحص التطبيق تلقائياً مستودع GitHub دورياً عند فتح التطبيق.\n• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء زر التثبيت اليدوي متاحاً هنا في أي وقت.",
+                    text = UpdateChannelFacade.behaviorText(context),
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
                     color = Color.White.copy(alpha = 0.75f),

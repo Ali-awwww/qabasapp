@@ -57,6 +57,7 @@ class UpdateDownloadService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var activeKey: String? = null
     private var lastPercent = -1
+    private var activeVersionName: String = ""
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -81,6 +82,7 @@ class UpdateDownloadService : Service() {
 
     private fun startDownload(info: UpdateManager.UpdateInfo, forceFull: Boolean) {
         activeKey = "${info.versionName}|${info.versionCode}"
+        activeVersionName = info.versionName
         lastPercent = -1
         ensureChannel()
         acquireWakeLock()
@@ -109,7 +111,11 @@ class UpdateDownloadService : Service() {
 
     private fun finishDownload(ok: Boolean, msg: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        val done = buildDoneNotification(if (ok) "اكتمل التنزيل" else "تعذّر التنزيل", msg)
+        val done = buildDoneNotification(
+            if (ok) "اكتمل التنزيل" else "تعذّر التنزيل",
+            msg,
+            installable = ok
+        )
         nm?.notify(NOTIF_ID, done)
         stopForeground(STOP_FOREGROUND_DETACH)
         releaseWakeLock()
@@ -138,14 +144,25 @@ class UpdateDownloadService : Service() {
         return builder.build()
     }
 
-    private fun buildDoneNotification(title: String, text: String): android.app.Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildDoneNotification(title: String, text: String, installable: Boolean): android.app.Notification {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(false)
-            .setAutoCancel(true)
-            .build()
+            .setAutoCancel(!installable)
+
+        if (installable) {
+            // زر «تثبيت الآن» يفتح مثبّت النظام مباشرة من الإشعار
+            val installPending = UpdateInstallReceiver.pendingIntent(this, activeVersionName)
+            builder.addAction(
+                android.R.drawable.stat_sys_upload_done,
+                "تثبيت الآن",
+                installPending
+            )
+            builder.setContentIntent(installPending)
+        }
+        return builder.build()
     }
 
     private fun ensureChannel() {

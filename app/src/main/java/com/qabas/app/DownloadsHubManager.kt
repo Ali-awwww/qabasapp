@@ -888,6 +888,17 @@ object DownloadsHubManager {
     }
 
     /**
+     * فتح مثبّت النظام مباشرة من إشعار/اختصار — يجد الحزمة المنزّلة تلقائياً.
+     * (يُستخدم من UpdateInstallReceiver)
+     */
+    fun installVersion(context: Context, versionName: String): Boolean {
+        val apk = UpdateManager.getDownloadedApkFile(context, versionName) ?: return false
+        if (!apk.exists() || apk.length() <= 1_000_000L) return false
+        UpdateManager.launchInstaller(context, apk)
+        return true
+    }
+
+    /**
      * حذف حزمة التحديث لتوفير الذاكرة
      */
     fun deleteDownloadedUpdate(context: Context): Boolean {
