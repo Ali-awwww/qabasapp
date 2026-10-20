@@ -31,14 +31,14 @@ object NotificationPreferencesManager {
 
     // مفاتيح التفضيلات الأساسية
     private const val KEY_MASTER_ENABLED = "notif_master_enabled"
-    private const val KEY_PRAYER_AZAN = "notif_prayer_azan"
+    private const val KEY_PRAYER_AZAN = "notif_prayer_azan_enabled"
     private const val KEY_SUHUR_REMINDER = "notif_suhur_enabled"
     private const val KEY_FAJR_REMINDER = "notif_fajr_enabled"
     private const val KEY_DAILY_HADITH = "notif_daily_hadith_enabled"
     private const val KEY_MORNING_ATHKAR = "notif_morning_athkar_enabled"
     private const val KEY_EVENING_ATHKAR = "notif_evening_athkar_enabled"
     private const val KEY_TREND_ALERTS = "notif_trend_alerts_enabled"
-    private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_alerts_enabled"
+    private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_enabled"
     private const val KEY_SOUND_ENABLED = "notif_sound_enabled"
     private const val KEY_VIBRATION_ENABLED = "notif_vibration_enabled"
     
@@ -116,9 +116,19 @@ object NotificationPreferencesManager {
     private val _vibrationEnabled = MutableStateFlow(true)
     val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
 
+    // توقيت تنبيه السحر (ساعة، دقيقة)
+    private val _suhurTime = MutableStateFlow(Pair(3, 30))
+    val suhurTime: StateFlow<Pair<Int, Int>> = _suhurTime.asStateFlow()
+
+    // توقيت تنبيه الفجر (ساعة، دقيقة)
+    private val _fajrTime = MutableStateFlow(Pair(5, 0))
+    val fajrTime: StateFlow<Pair<Int, Int>> = _fajrTime.asStateFlow()
+
     // متغيرات حالة تتبع الورد
     private val _wiradStreak = MutableStateFlow(0)
     val wiradStreak: StateFlow<Int> = _wiradStreak.asStateFlow()
+
+    private var isInitialized = false
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -137,7 +147,17 @@ object NotificationPreferencesManager {
         _vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, true)
         
         _wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 0)
-        
+
+        // توقيت السحر والفجر
+        _suhurTime.value = Pair(
+            prefs.getInt(KEY_SUHUR_HOUR, 3),
+            prefs.getInt(KEY_SUHUR_MINUTE, 30)
+        )
+        _fajrTime.value = Pair(
+            prefs.getInt(KEY_FAJR_HOUR, 5),
+            prefs.getInt(KEY_FAJR_MINUTE, 0)
+        )
+
         // التسجيل على التغييرات لتحديث UI في الوقت الفعلي
         prefs.registerOnSharedPreferenceChangeListener { _, key ->
             when (key) {
@@ -153,8 +173,26 @@ object NotificationPreferencesManager {
                 KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
                 KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
                 KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
+                KEY_SUHUR_HOUR -> _suhurTime.value = Pair(
+                    prefs.getInt(KEY_SUHUR_HOUR, 3),
+                    prefs.getInt(KEY_SUHUR_MINUTE, 30)
+                )
+                KEY_SUHUR_MINUTE -> _suhurTime.value = Pair(
+                    prefs.getInt(KEY_SUHUR_HOUR, 3),
+                    prefs.getInt(KEY_SUHUR_MINUTE, 30)
+                )
+                KEY_FAJR_HOUR -> _fajrTime.value = Pair(
+                    prefs.getInt(KEY_FAJR_HOUR, 5),
+                    prefs.getInt(KEY_FAJR_MINUTE, 0)
+                )
+                KEY_FAJR_MINUTE -> _fajrTime.value = Pair(
+                    prefs.getInt(KEY_FAJR_HOUR, 5),
+                    prefs.getInt(KEY_FAJR_MINUTE, 0)
+                )
             }
         }
+
+        isInitialized = true
     }
 
     fun setMasterEnabled(context: Context, enabled: Boolean) {
@@ -226,11 +264,13 @@ object NotificationPreferencesManager {
     fun setSuhurTime(context: Context, hour: Int, minute: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_SUHUR_HOUR, hour).putInt(KEY_SUHUR_MINUTE, minute).apply()
+        _suhurTime.value = Pair(hour, minute)
     }
 
     fun setFajrTime(context: Context, hour: Int, minute: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_FAJR_HOUR, hour).putInt(KEY_FAJR_MINUTE, minute).apply()
+        _fajrTime.value = Pair(hour, minute)
     }
 
     fun setWiradStreak(context: Context, streak: Int) {

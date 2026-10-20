@@ -61,34 +61,34 @@ import com.qabas.app.ui.theme.TextSecondary
 // ═══════════════════════════════════════════════
 object Geo {
     // أنصاف الأقطار الموحدة
-    const val R_CARD = 18.dp
-    const val R_CARD_SM = 12.dp
-    const val R_CARD_LG = 26.dp
-    const val R_BUTTON = 12.dp
-    const val R_BUTTON_SM = 8.dp
-    const val R_CHIP = 100.dp
+    val R_CARD = 18.dp
+    val R_CARD_SM = 12.dp
+    val R_CARD_LG = 26.dp
+    val R_BUTTON = 12.dp
+    val R_BUTTON_SM = 8.dp
+    val R_CHIP = 100.dp
 
     // الشبكة (مضاعفات 4dp)
-    const val S_XS = 4.dp
-    const val S_SM = 8.dp
-    const val S_MD = 14.dp
-    const val S_LG = 20.dp
-    const val S_XL = 28.dp
+    val S_XS = 4.dp
+    val S_SM = 8.dp
+    val S_MD = 14.dp
+    val S_LG = 20.dp
+    val S_XL = 28.dp
 
     // الأيقونات
-    const val I_XS = 14.dp
-    const val I_SM = 18.dp
-    const val I_MD = 22.dp
-    const val I_LG = 28.dp
-    const val I_XL = 44.dp
+    val I_XS = 14.dp
+    val I_SM = 18.dp
+    val I_MD = 22.dp
+    val I_LG = 28.dp
+    val I_XL = 44.dp
 
     // الحدود
-    const val B_HAIRLINE = 1.dp
-    const val B_STRONG = 2.dp
+    val B_HAIRLINE = 1.dp
+    val B_STRONG = 2.dp
 
     // الحلقات
-    const val RING_STROKE = 7.dp
-    const val RING_TRACK_STROKE = 5.dp
+    val RING_STROKE = 7.dp
+    val RING_TRACK_STROKE = 5.dp
 }
 
 // ═══════════════════════════════════════════════
