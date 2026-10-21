@@ -2140,20 +2140,34 @@ fun ProfileScreen(
                             registeredAccounts.filter { !it.email.equals(userEmail, ignoreCase = true) }.forEach { otherAcc ->
                                 Surface(
                                     onClick = {
-                                        showSwitchAccountDialog = false
-                                        val isAdmin = otherAcc.type == "مطور" || CloudServices.isOwnerAccount(otherAcc.email)
-                                        prefs.edit()
-                                            .putBoolean("is_logged_in", true)
-                                            .putBoolean("is_admin", isAdmin)
-                                            .putBoolean("is_developer", isAdmin)
-                                            .putString("user_email", otherAcc.email)
-                                            .putString("user_name", otherAcc.name)
-                                            .putString("user_display_name", otherAcc.name)
-                                            .putString("user_custom_id", otherAcc.customId)
-                                            .putString("user_tag", UserIdentifierManager.formatDisplay(otherAcc.customId))
-                                            .apply()
-                                        Toast.makeText(context, "تم التبديل إلى: ${otherAcc.name} (${otherAcc.email}) ✅", Toast.LENGTH_SHORT).show()
-                                        onNavigate(AppState.HOME)
+                                        coroutineScope.launch {
+                                            val oldUserId = ActiveSessionManager.currentUserId(context)
+                                            if (!oldUserId.isNullOrBlank()) {
+                                                runCatching { ActiveSessionManager.release(context, oldUserId) }
+                                            }
+                                            val newUserId = (if (SupabaseServices.isSupabaseAvailable) {
+                                                SupabaseServices.Database.getUserByEmail(otherAcc.email)?.id
+                                            } else null) ?: otherAcc.id
+                                            if (!newUserId.isNullOrBlank() && !ActiveSessionManager.claim(context, newUserId)) {
+                                                Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى أولاً.", Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+                                            val isAdmin = otherAcc.type == "مطور" || CloudServices.isOwnerAccount(otherAcc.email)
+                                            prefs.edit()
+                                                .putBoolean("is_logged_in", true)
+                                                .putBoolean("is_admin", isAdmin)
+                                                .putBoolean("is_developer", isAdmin)
+                                                .putString("user_id", newUserId)
+                                                .putString("user_email", otherAcc.email)
+                                                .putString("user_name", otherAcc.name)
+                                                .putString("user_display_name", otherAcc.name)
+                                                .putString("user_custom_id", otherAcc.customId)
+                                                .putString("user_tag", UserIdentifierManager.formatDisplay(otherAcc.customId))
+                                                .apply()
+                                            showSwitchAccountDialog = false
+                                            Toast.makeText(context, "تم التبديل إلى: ${otherAcc.name} (${otherAcc.email}) ✅", Toast.LENGTH_SHORT).show()
+                                            onNavigate(AppState.HOME)
+                                        }
                                     },
                                     color = CardSurface,
                                     shape = RoundedCornerShape(8.dp),
@@ -2189,6 +2203,10 @@ fun ProfileScreen(
                     onClick = {
                         showSwitchAccountDialog = false
                         coroutineScope.launch {
+                            val userId = ActiveSessionManager.currentUserId(context)
+                            if (!userId.isNullOrBlank()) {
+                                runCatching { ActiveSessionManager.release(context, userId) }
+                            }
                             runCatching { SupabaseServices.Auth.logout() }
                         }
                         prefs.edit()
@@ -2197,6 +2215,7 @@ fun ProfileScreen(
                             .remove("is_developer")
                             .remove("user_email")
                             .remove("user_name")
+                            .remove("user_id")
                             .apply()
                         onNavigate(AppState.LOGIN)
                     },

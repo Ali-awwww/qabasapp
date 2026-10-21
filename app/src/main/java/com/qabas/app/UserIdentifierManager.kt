@@ -20,6 +20,7 @@ object UserIdentifierManager {
     private const val KEY_CUSTOM_ID = "user_custom_id"
     private const val KEY_USER_TAG = "user_tag"
     private const val KEY_MAP_PREFIX = "user_id_map_"
+    private const val KEY_CUSTOM_ID_MAP_PREFIX = "user_custom_id_map_"
     const val KEY_ACCOUNT_NUMBER = "user_account_number"
     private const val KEY_ACCOUNT_MAP_PREFIX = "user_acc_map_"
     private const val KEY_NEXT_ACCOUNT_SEQ = "next_account_seq_num"
@@ -240,7 +241,7 @@ object UserIdentifierManager {
         val cleanEmail = email.trim().lowercase(Locale.ROOT)
         val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
 
-        val localCustomId = getCustomId(context).ifBlank { getOrCreateCustomId(context, cleanEmail, displayName) }
+        val localCustomId = getCustomId(context, cleanEmail).ifBlank { getOrCreateCustomId(context, cleanEmail, displayName) }
         val localAccountNumber = getOrCreateAccountNumber(context, cleanEmail, displayName)
 
         if (cloudUser != null) {
@@ -306,7 +307,7 @@ object UserIdentifierManager {
         }
 
         val cleanEmail = currentEmail?.trim()?.lowercase(Locale.ROOT)
-        val mySavedId = getCustomId(context)
+        val mySavedId = getCustomId(context, currentEmail)
         if (clean.equals(normalize(mySavedId), ignoreCase = true)) {
             return@withContext CustomIdAvailabilityResult.CurrentUserOwnsIt
         }
@@ -373,7 +374,7 @@ object UserIdentifierManager {
 
             // تثبيته في السحابة في جدول المستخدمين
             val userId = cloudUser?.id ?: SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
-            val currentCustomId = cloudUser?.customId ?: getCustomId(context).ifBlank { generateUniqueId(cleanEmail) }
+            val currentCustomId = cloudUser?.customId ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
             SupabaseServices.Database.saveUser(
                 id = userId,
                 name = cloudUser?.name ?: displayName ?: cleanEmail.substringBefore("@"),
@@ -393,18 +394,27 @@ object UserIdentifierManager {
      * استرجاع المعرّف الخاص للمستخدم الحالي المسجل فقط.
      * لا يقوم بتوليد يوزر وهمي عشوائي للمستخدمين غير المسجلين.
      */
-    fun getCustomId(context: Context): String {
+    fun getCustomId(context: Context, email: String? = null): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val cleanEmail = email?.trim()?.lowercase(Locale.ROOT)
+        if (!cleanEmail.isNullOrBlank()) {
+            // المعرّف مربوط بالبريد أولاً: لا نعيد معرّف حساب آخر مسجّل على نفس الجهاز
+            val perEmail = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
+            if (!perEmail.isNullOrBlank()) return normalize(perEmail)
+        }
         val savedId = prefs.getString(KEY_CUSTOM_ID, null)
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val email = prefs.getString("user_email", null)
+        val sessionEmail = cleanEmail ?: prefs.getString("user_email", null)
 
-        if (!savedId.isNullOrBlank() && (isLoggedIn || !email.isNullOrBlank())) {
-            return savedId
+        if (!savedId.isNullOrBlank() && (isLoggedIn || !sessionEmail.isNullOrBlank())) {
+            if (cleanEmail.isNullOrBlank()) return savedId
+            val ownerEmail = prefs.getString(KEY_MAP_PREFIX + normalize(savedId), null)
+                ?.trim()?.lowercase(Locale.ROOT)
+            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) return savedId
         }
 
         // فحص بديل من user_tag القديم فقط إذا كان هناك جلسة نشطة
-        if (isLoggedIn || !email.isNullOrBlank()) {
+        if (isLoggedIn || !sessionEmail.isNullOrBlank()) {
             val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
             if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user") {
                 val normalized = normalize(oldTag)
@@ -413,8 +423,8 @@ object UserIdentifierManager {
             }
 
             val name = prefs.getString("user_name", null)
-            val newId = generateUniqueId(name ?: email)
-            saveCustomId(context, newId, email)
+            val newId = generateUniqueId(name ?: sessionEmail)
+            saveCustomId(context, newId, sessionEmail)
             return newId
         }
 
@@ -436,26 +446,45 @@ object UserIdentifierManager {
 
         val resolvedEmail = email ?: prefs.getString("user_email", null)
         if (!resolvedEmail.isNullOrBlank()) {
-            editor.putString(KEY_MAP_PREFIX + clean, resolvedEmail.trim().lowercase(Locale.ROOT))
+            val cleanEmail = resolvedEmail.trim().lowercase(Locale.ROOT)
+            editor.putString(KEY_MAP_PREFIX + clean, cleanEmail)
+            editor.putString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, clean)
         }
         editor.apply()
     }
 
     /**
      * إنشاء أو استعادة المعرّف مع ربطه ببريد Gmail المحدد.
+     * المعرّف يُحفظ لكل بريد على حدة حتى لا يتغيّر عند تسجيل الدخول مجدداً.
      */
     fun getOrCreateCustomId(context: Context, email: String?, displayName: String? = null): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val existing = prefs.getString(KEY_CUSTOM_ID, null)
-        if (!existing.isNullOrBlank()) {
-            if (!email.isNullOrBlank()) {
-                prefs.edit().putString(KEY_MAP_PREFIX + existing, email.trim().lowercase(Locale.ROOT)).apply()
+        val cleanEmail = email?.trim()?.lowercase(Locale.ROOT)
+
+        if (!cleanEmail.isNullOrBlank()) {
+            val perEmail = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
+            if (!perEmail.isNullOrBlank()) {
+                val normalized = normalize(perEmail)
+                prefs.edit()
+                    .putString(KEY_CUSTOM_ID, normalized)
+                    .apply()
+                return normalized
             }
-            return existing
         }
 
-        val generated = generateUniqueId(displayName ?: email)
-        saveCustomId(context, generated, email)
+        val existing = prefs.getString(KEY_CUSTOM_ID, null)
+        if (!existing.isNullOrBlank()) {
+            if (cleanEmail.isNullOrBlank()) return existing
+            val ownerEmail = prefs.getString(KEY_MAP_PREFIX + existing, null)
+                ?.trim()?.lowercase(Locale.ROOT)
+            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) {
+                saveCustomId(context, existing, cleanEmail)
+                return existing
+            }
+        }
+
+        val generated = generateUniqueId(displayName ?: cleanEmail)
+        saveCustomId(context, generated, cleanEmail)
         return generated
     }
 

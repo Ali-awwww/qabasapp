@@ -23,7 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AppNavigation(
@@ -48,6 +51,22 @@ fun AppNavigation(
             }
         }
     )
+
+    // جلسة نشطة واحدة: نبضة دورية تحافظ على ملكية الجلسة وتُخرج عند استخدام الحساب على جهاز آخر
+    LaunchedEffect(Unit) {
+        while (true) {
+            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("is_logged_in", false)) {
+                val userId = ActiveSessionManager.currentUserId(context)
+                if (!userId.isNullOrBlank() && !ActiveSessionManager.claim(context, userId)) {
+                    withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                    Toast.makeText(context, "تم تسجيل الخروج: الحساب نشط على جهاز آخر.", Toast.LENGTH_LONG).show()
+                    viewModel.updateState { copy(appState = AppState.LOGIN) }
+                }
+            }
+            delay(45_000)
+        }
+    }
 
     LaunchedEffect(appState) {
         PerfTracker.onFirstFrame(appState.name)
@@ -416,6 +435,10 @@ fun AppNavigation(
             SettingsScreen(
                 onLogout = {
                     viewModel.viewModelScope.launch {
+                        val userId = ActiveSessionManager.currentUserId(context)
+                        if (!userId.isNullOrBlank()) {
+                            runCatching { ActiveSessionManager.release(context, userId) }
+                        }
                         runCatching { SupabaseServices.Auth.logout() }
                     }
                     context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()

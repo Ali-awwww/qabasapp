@@ -81,16 +81,32 @@ object SupabaseServices {
                     filter {
                         ilike("email", cleanEmail)
                     }
+                    order("is_eligible", Order.DESCENDING)
+                    order("created_at", Order.ASCENDING)
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()
                 if (byEmail != null) {
-                    if ((byEmail.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
+                    val needsName = byEmail.name.isNullOrBlank() && !name.isNullOrBlank()
+                    if (needsName ||
+                        (byEmail.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
                         (byEmail.accountNumber.isNullOrBlank() && !accountNumber.isNullOrBlank())) {
                         val updated = byEmail.copy(
+                            name = byEmail.name?.takeIf { it.isNotBlank() } ?: name,
                             customId = byEmail.customId?.takeIf { it.isNotBlank() } ?: customId,
                             accountNumber = byEmail.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
                         )
-                        client.postgrest.from("users").upsert(updated)
+                        // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
+                        val fields = mutableMapOf<String, Any>()
+                        updated.name?.takeIf { it.isNotBlank() }?.let { fields["name"] = it }
+                        updated.customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
+                        updated.accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
+                        if (fields.isNotEmpty()) {
+                            client.postgrest.from("users").update(fields) {
+                                filter {
+                                    eq("id", byEmail.id)
+                                }
+                            }
+                        }
                         return updated
                     }
                     return byEmail
@@ -112,7 +128,17 @@ object SupabaseServices {
                         customId = existing.customId?.takeIf { it.isNotBlank() } ?: customId,
                         accountNumber = existing.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
                     )
-                    client.postgrest.from("users").upsert(updated)
+                    // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
+                    val fields = mutableMapOf<String, Any>()
+                    updated.customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
+                    updated.accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
+                    if (fields.isNotEmpty()) {
+                        client.postgrest.from("users").update(fields) {
+                            filter {
+                                eq("id", existing.id)
+                            }
+                        }
+                    }
                     return updated
                 }
                 return existing
@@ -141,6 +167,8 @@ object SupabaseServices {
                 filter {
                     ilike("email", cleanEmail)
                 }
+                order("is_eligible", Order.DESCENDING)
+                order("created_at", Order.ASCENDING)
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
         }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
@@ -175,6 +203,38 @@ object SupabaseServices {
             accountNumber: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
+            val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
+
+            // صف واحد لكل بريد: إن وُجد صف بالبريد نحدّثه بدل إنشاء صف جديد بمعرّف مختلف.
+            if (cleanEmail.isNotBlank()) {
+                val existing = client.postgrest.from("users").select {
+                    filter {
+                        ilike("email", cleanEmail)
+                    }
+                    order("is_eligible", Order.DESCENDING)
+                    order("created_at", Order.ASCENDING)
+                    limit(1)
+                }.decodeSingleOrNull<UserRow>()
+
+                if (existing != null) {
+                    val fields = mutableMapOf<String, Any>(
+                        "email" to email,
+                        "type" to type,
+                        "status" to "active"
+                    )
+                    if (name.isNotBlank()) fields["name"] = name
+                    customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
+                    accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
+                    // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
+                    client.postgrest.from("users").update(fields) {
+                        filter {
+                            eq("id", existing.id)
+                        }
+                    }
+                    return true
+                }
+            }
+
             val row = UserRow(
                 id = id,
                 externalId = id,
@@ -188,6 +248,74 @@ object SupabaseServices {
             client.postgrest.from("users").upsert(row)
             true
         }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}") }.getOrDefault(false)
+
+        /**
+         * جلسة نشطة واحدة للحساب: تحجز الجلسة إن لم تكن هناك جلسة حيّة أخرى،
+         * وتعيد false إذا كان الحساب مستخدماً حالياً على جهاز آخر.
+         */
+        suspend fun claimActiveSession(
+            userId: String,
+            sessionId: String,
+            ttlSeconds: Long = 150L
+        ): Boolean = runCatching {
+            if (!isSupabaseAvailable || userId.isBlank() || sessionId.isBlank()) return true
+            val client = client ?: return true
+            val now = java.time.Instant.now()
+
+            val current = client.postgrest.from("users").select {
+                filter {
+                    eq("id", userId)
+                }
+                limit(1)
+            }.decodeSingleOrNull<UserSessionRow>() ?: return true
+
+            val holder = current.activeSessionId?.takeIf { it.isNotBlank() }
+            val heartbeatFresh = current.sessionUpdatedAt?.let {
+                runCatching {
+                    java.time.Duration.between(java.time.Instant.parse(it), now).seconds <= ttlSeconds
+                }.getOrDefault(false)
+            } ?: false
+
+            if (holder != null && holder != sessionId && heartbeatFresh) return false
+
+            client.postgrest.from("users").update(
+                mapOf(
+                    "active_session_id" to sessionId,
+                    "session_updated_at" to now.toString()
+                )
+            ) {
+                filter {
+                    eq("id", userId)
+                }
+            }
+
+            val after = client.postgrest.from("users").select {
+                filter {
+                    eq("id", userId)
+                }
+                limit(1)
+            }.decodeSingleOrNull<UserSessionRow>() ?: return true
+
+            after.activeSessionId == sessionId
+        }.onFailure { Log.w(TAG, "claimActiveSession failed: ${it.message}") }.getOrDefault(true)
+
+        /** تحرير الجلسة عند تسجيل الخروج (فقط إذا كانت الجلسة الحالية هي صاحبتها). */
+        suspend fun releaseActiveSession(userId: String, sessionId: String): Boolean = runCatching {
+            if (!isSupabaseAvailable || userId.isBlank() || sessionId.isBlank()) return false
+            val client = client ?: return false
+            client.postgrest.from("users").update(
+                mapOf(
+                    "active_session_id" to "",
+                    "session_updated_at" to java.time.Instant.now().toString()
+                )
+            ) {
+                filter {
+                    eq("id", userId)
+                    eq("active_session_id", sessionId)
+                }
+            }
+            true
+        }.onFailure { Log.w(TAG, "releaseActiveSession failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getAllUsers(): List<UserRow> = runCatching {
             val client = client ?: return emptyList()
@@ -408,8 +536,12 @@ object SupabaseServices {
                 filter {
                     eq("is_eligible", true)
                 }
-                limit(limit)
+                order("strikes", Order.DESCENDING)
+                limit(limit * 3)
             }.decodeList<LeaderboardRow>()
+                // صف واحد لكل اسم معروض حتى لا تتكرر الحسابات المكرّرة في لوحة الشرف
+                .distinctBy { it.name.trim().lowercase(java.util.Locale.ROOT).ifBlank { it.userId } }
+                .take(limit.toInt())
         }.onFailure { Log.e(TAG, "getLeaderboard failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun upsertLeaderboardScore(
@@ -1215,6 +1347,14 @@ object SupabaseServices {
         @SerialName("custom_id") val customId: String? = null,
         @SerialName("account_number") val accountNumber: String? = null,
         @SerialName("created_at") val createdAt: String? = null
+    )
+
+    /** أعمدة الجلسة فقط — منفصلة عن UserRow حتى لا تُكتب ضمن upsert المستخدم. */
+    @Serializable
+    data class UserSessionRow(
+        val id: String = "",
+        @SerialName("active_session_id") val activeSessionId: String? = null,
+        @SerialName("session_updated_at") val sessionUpdatedAt: String? = null
     )
 
     @Serializable

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     is_eligible BOOLEAN DEFAULT true,
     custom_id TEXT,
     account_number TEXT,
+    active_session_id TEXT,
+    session_updated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );

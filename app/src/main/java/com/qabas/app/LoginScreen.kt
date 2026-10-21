@@ -481,10 +481,16 @@ fun LoginScreen(
                                     }
                                     var accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail)
 
+                                    var canonicalUserId = externalId
+                                    var effectiveLoginName = targetEmail.substringBefore('@')
+
                                     if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(externalId, lowerEmail, null, finalCustomId, accountNumber)
+                                        val existing = SupabaseServices.Database.ensureUser(canonicalUserId, lowerEmail, null, finalCustomId, accountNumber)
                                         if (existing != null) {
+                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
                                             if (existing.type.isNotBlank()) userType = existing.type
+                                            // الاسم المخزَّن هو المصدر: لا نعيد كتابته باسم البريد عند كل دخول
+                                            if (!existing.name.isNullOrBlank()) effectiveLoginName = existing.name
                                             if (!existing.customId.isNullOrBlank()) {
                                                 finalCustomId = existing.customId
                                                 UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
@@ -493,21 +499,30 @@ fun LoginScreen(
                                                 accountNumber = existing.accountNumber
                                                 UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
                                             }
+                                        } else {
+                                            SupabaseServices.Database.saveUser(
+                                                id = canonicalUserId,
+                                                name = effectiveLoginName,
+                                                email = targetEmail,
+                                                type = userType,
+                                                customId = finalCustomId,
+                                                accountNumber = accountNumber
+                                            )
                                         }
-                                        SupabaseServices.Database.saveUser(
-                                            id = externalId,
-                                            name = lowerEmail.substringBefore('@'),
-                                            email = targetEmail,
-                                            type = userType,
-                                            customId = finalCustomId,
-                                            accountNumber = accountNumber
-                                        )
+                                    }
+
+                                    // جلسة نشطة واحدة فقط: ارفض الدخول إذا كان الحساب حياً على جهاز آخر
+                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
+                                        runCatching { SupabaseServices.Auth.logout() }
+                                        authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً."
+                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
                                     }
 
                                     val finalIsAdmin = isAdmin || userType == "مطور" || userType == "خاص"
                                     val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
 
-                                    val effectiveLoginName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() } ?: targetEmail.substringBefore('@')
                                     val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveLoginName, accountNumber)
 
                                     LocalAccountRegistry.registerOrUpdateAccount(
@@ -530,6 +545,7 @@ fun LoginScreen(
                                         putBoolean("is_developer", finalIsDeveloper)
                                         putBoolean("is_premium", true)
                                         putBoolean("is_relative", isRelative)
+                                        putString("user_id", canonicalUserId)
                                         putString("user_email", targetEmail)
                                         putString("user_name", effectiveLoginName)
                                         putString("user_display_name", effectiveLoginName)
@@ -825,11 +841,18 @@ fun LoginScreen(
                                     val customId = UserIdentifierManager.getOrCreateCustomId(context, unregisteredTargetEmail, defaultName)
                                     val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, unregisteredTargetEmail, defaultName)
 
+                                    var canonicalUserId = userId
+                                    var effectiveName = defaultName
+
                                     if (SupabaseServices.isSupabaseAvailable) {
-                                        SupabaseServices.Database.ensureUser(userId, lower, defaultName, customId, accountNumber)
+                                        val existing = SupabaseServices.Database.ensureUser(userId, lower, defaultName, customId, accountNumber)
+                                        if (existing != null) {
+                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
+                                            if (!existing.name.isNullOrBlank()) effectiveName = existing.name
+                                        }
                                         SupabaseServices.Database.saveUser(
-                                            id = userId,
-                                            name = defaultName,
+                                            id = canonicalUserId,
+                                            name = effectiveName,
                                             email = unregisteredTargetEmail,
                                             type = userType,
                                             customId = customId,
@@ -837,13 +860,20 @@ fun LoginScreen(
                                         )
                                     }
 
-                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(defaultName, accountNumber)
+                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
+                                        runCatching { SupabaseServices.Auth.logout() }
+                                        Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
+                                        isQuickRegistering = false
+                                        return@launch
+                                    }
+
+                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveName, accountNumber)
 
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
                                             id = unregisteredTargetEmail,
-                                            name = defaultName,
+                                            name = effectiveName,
                                             email = unregisteredTargetEmail,
                                             customId = customId,
                                             accountNumber = accountNumber,
@@ -858,9 +888,10 @@ fun LoginScreen(
                                         putBoolean("is_admin", isAdmin)
                                         putBoolean("is_developer", CloudServices.isOwnerAccount(lower))
                                         putBoolean("is_premium", true)
+                                        putString("user_id", canonicalUserId)
                                         putString("user_email", unregisteredTargetEmail)
-                                        putString("user_name", defaultName)
-                                        putString("user_display_name", defaultName)
+                                        putString("user_name", effectiveName)
+                                        putString("user_display_name", effectiveName)
                                         putString("user_custom_id", customId)
                                         putString("user_tag", UserIdentifierManager.formatDisplay(customId))
                                         putString("user_account_number", accountNumber)

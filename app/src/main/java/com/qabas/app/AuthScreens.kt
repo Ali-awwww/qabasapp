@@ -53,7 +53,7 @@ fun RegisterScreen(
     val draftPass = remember { prefs.getString("draft_register_password", "") ?: "" }
 
     var name by remember { mutableStateOf(if (draftEmail.isNotBlank()) draftEmail.substringBefore('@') else "") }
-    var customId by remember { mutableStateOf(UserIdentifierManager.generateUniqueId()) }
+    var customId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf(draftEmail) }
     var password by remember { mutableStateOf(draftPass) }
     var confirmPassword by remember { mutableStateOf(draftPass) }
@@ -379,7 +379,13 @@ fun RegisterScreen(
                             val finalCustomId = if (customId.isNotBlank()) {
                                 UserIdentifierManager.normalize(customId)
                             } else {
-                                UserIdentifierManager.normalize(UserIdentifierManager.generateUniqueId(name.ifBlank { trimmedEmail }))
+                                // معرّف مشتق من البريد/الاسم، لا قيمة عشوائية جديدة كل مرة
+                                UserIdentifierManager.normalize(trimmedEmail.substringBefore('@').ifBlank { name })
+                                    .ifBlank {
+                                        UserIdentifierManager.normalize(
+                                            UserIdentifierManager.generateUniqueId(trimmedEmail.ifBlank { name })
+                                        )
+                                    }
                             }
 
                             isLoading = true
@@ -420,24 +426,38 @@ fun RegisterScreen(
 
                                     UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
 
+                                    var canonicalUserId = userId
+                                    var effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
+
                                     if (SupabaseServices.isSupabaseAvailable) {
-                                        SupabaseServices.Database.ensureUser(userId, lowerEmail, name.trim(), finalCustomId, accountNumber)
+                                        val existing = SupabaseServices.Database.ensureUser(userId, lowerEmail, effectiveManualName, finalCustomId, accountNumber)
+                                        if (existing != null) {
+                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
+                                            if (!existing.name.isNullOrBlank()) effectiveManualName = existing.name
+                                        }
                                         SupabaseServices.Database.saveUser(
-                                            id = userId, 
-                                            name = name.trim(), 
-                                            email = trimmedEmail, 
-                                            type = userType, 
+                                            id = canonicalUserId,
+                                            name = effectiveManualName,
+                                            email = trimmedEmail,
+                                            type = userType,
                                             customId = finalCustomId,
                                             accountNumber = accountNumber
                                         )
                                     }
 
-                                    val effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
+                                    // جلسة نشطة واحدة فقط لكل حساب
+                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
+                                        runCatching { SupabaseServices.Auth.logout() }
+                                        Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+
                                     val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveManualName, accountNumber)
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
-                                            id = userId,
+                                            id = canonicalUserId,
                                             name = effectiveManualName,
                                             email = trimmedEmail,
                                             customId = finalCustomId,
@@ -455,6 +475,7 @@ fun RegisterScreen(
                                         putBoolean("is_admin", isAdmin)
                                         putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
                                         putBoolean("is_premium", true)
+                                        putString("user_id", canonicalUserId)
                                         putString("user_email", trimmedEmail)
                                         putString("user_name", effectiveManualName)
                                         putString("user_display_name", effectiveManualName)
