@@ -40,8 +40,6 @@ object AppNotificationService {
     private const val SETTINGS_PREFS = "qabas_notification_settings"
     private const val KEY_DAILY_HADITH_HOUR = "notif_daily_hadith_hour"
     private const val KEY_DAILY_HADITH_MINUTE = "notif_daily_hadith_minute"
-    private const val CHANNEL_ID = "qabas_trend_alerts"
-    private const val HADITH_CHANNEL_ID = "qabas_daily_hadith"
 
     // حالة حيّة تدفع الواجهة فور أي تغيير (إضافة / قراءة / حذف)
     private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
@@ -194,13 +192,13 @@ object AppNotificationService {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             if (notificationManager != null) {
-                val notifId = (System.currentTimeMillis() % 10000).toInt()
+                val notifId = QabasNotificationHelper.nextNotificationId(context) ?: return
                 val builder = QabasNotificationHelper.createBaseBuilder(
                     context = context,
                     channelId = QabasNotificationHelper.CHANNEL_HADITH,
                     title = title,
                     message = message
-                )
+                ) ?: return
 
                 // أداة 1: مشاركة الحديث الشريف
                 QabasNotificationHelper.addActionShare(
@@ -377,13 +375,13 @@ object AppNotificationService {
         try {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             if (notificationManager != null) {
-                val notifId = (System.currentTimeMillis() % 10000).toInt()
+                val notifId = QabasNotificationHelper.nextNotificationId(context) ?: return
                 val builder = QabasNotificationHelper.createBaseBuilder(
                     context = context,
                     channelId = QabasNotificationHelper.CHANNEL_SYSTEM,
                     title = title,
                     message = message
-                )
+                ) ?: return
 
                 QabasNotificationHelper.addActionShare(
                     builder = builder,

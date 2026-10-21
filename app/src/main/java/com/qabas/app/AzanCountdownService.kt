@@ -106,7 +106,8 @@ class AzanCountdownService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle("🕌 عدّاد الأذان")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -120,14 +121,7 @@ class AzanCountdownService : Service() {
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(NotificationManager::class.java)
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "عدّاد اقتراب الأذان", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "إشعار ثابت يعرض الوقت المتبقي على الأذان القادم"
-                }
-            )
-        }
+        QabasNotificationHelper.ensureChannel(this, QabasNotificationHelper.CHANNEL_AZAN_COUNTDOWN)
     }
 
     private data class NextPrayer(val prayerName: String, val triggerMillis: Long, val voiceId: String)

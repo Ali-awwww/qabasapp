@@ -232,7 +232,9 @@ class AzanPlaybackService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(this))
+            .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle("🕌 حان الآن وقت $prayerName")
             .setContentText("صوت $muezzinName")
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -247,20 +249,7 @@ class AzanPlaybackService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "صوت الأذان المباشر",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "تشغيل صوت الأذان في أوقات الصلاة مع شاشة كاملة"
-                setSound(null, null)
-                enableVibration(true)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
+        QabasNotificationHelper.ensureChannel(this, QabasNotificationHelper.CHANNEL_AZAN_PLAYBACK)
     }
 
     override fun onDestroy() {

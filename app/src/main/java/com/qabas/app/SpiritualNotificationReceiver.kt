@@ -64,14 +64,14 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
 
     private fun showNotification(context: Context, title: String, message: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notifId = (System.currentTimeMillis() % 10000).toInt()
+        val notifId = QabasNotificationHelper.nextNotificationId(context) ?: return
 
         val builder = QabasNotificationHelper.createBaseBuilder(
             context = context,
             channelId = QabasNotificationHelper.CHANNEL_SPIRITUAL,
             title = title,
             message = message
-        )
+        ) ?: return
 
         // أداة 1: استماع فوري للآية / الورد
         QabasNotificationHelper.addActionListen(

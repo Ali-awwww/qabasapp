@@ -27,7 +27,7 @@ class ModelDownloadService : Service() {
         const val ACTION_START = "com.qabas.app.MODEL_START"
         const val ACTION_CANCEL = "com.qabas.app.MODEL_CANCEL"
         const val EXTRA_MODEL_ID = "model_id"
-        private const val CHANNEL_ID = "qabas_models"
+        private val CHANNEL_ID get() = QabasNotificationHelper.CHANNEL_MODELS
         private const val NOTIF_ID = 2002
         private const val WAKE_TAG = "Qabas:ModelDownload"
 
@@ -140,12 +140,10 @@ class ModelDownloadService : Service() {
             Intent(this, ModelDownloadService::class.java).apply { action = ACTION_CANCEL },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("تنزيل $modelName")
-            .setContentText(if (percent != null) "$text • $percent٪" else text)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
+        val builder = QabasNotificationHelper.createProgressBuilder(
+            this, CHANNEL_ID, "تنزيل $modelName",
+            if (percent != null) "$text • $percent٪" else text
+        )
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إلغاء", cancelIntent)
         if (percent != null) {
             builder.setProgress(100, percent, false)
@@ -160,23 +158,19 @@ class ModelDownloadService : Service() {
 
     private fun buildDoneNotification(title: String, text: String): android.app.Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(this))
+            .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(false)
             .setAutoCancel(true)
             .build()
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "تنزيلات نماذج الذكاء", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "عداد تقدم تنزيل النماذج اللغوية"
-                }
-            )
-        }
+        QabasNotificationHelper.ensureChannel(this, QabasNotificationHelper.CHANNEL_MODELS)
     }
 
     private fun startForegroundWithType(id: Int, notification: android.app.Notification) {

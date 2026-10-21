@@ -7,9 +7,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "qabas_general_notifications"
-    private const val CHANNEL_NAME = "إشعارات قبس العامة"
-    private const val CHANNEL_DESC = "تنبيهات العمليات والتحديثات والنشاط العام"
+    private val CHANNEL_ID get() = QabasNotificationHelper.CHANNEL_GENERAL
 
     fun showNotification(
         context: Context,
@@ -19,20 +17,11 @@ object NotificationHelper {
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = CHANNEL_DESC
-                enableVibration(true)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
+        QabasNotificationHelper.ensureChannel(context, QabasNotificationHelper.CHANNEL_GENERAL)
 
-        val notifId = (System.currentTimeMillis() % 10000).toInt()
-        val builder = QabasNotificationHelper.createBaseBuilder(context, CHANNEL_ID, title, message)
+        // معرّف مضمون الحفظ قبل الإرسال — وإلا يُتجاوز الإشعار مع تسجيل السبب
+        val notifId = QabasNotificationHelper.nextNotificationId(context) ?: return
+        val builder = QabasNotificationHelper.createBaseBuilder(context, CHANNEL_ID, title, message) ?: return
 
         if (!shareText.isNullOrBlank()) {
             QabasNotificationHelper.addActionShare(builder, context, notifId, shareText)

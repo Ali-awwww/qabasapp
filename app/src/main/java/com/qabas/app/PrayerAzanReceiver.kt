@@ -69,18 +69,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "مواقيت الصلاة والأذان",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "تنبيهات حية لمواقيت الصلاة الخمس والأذان الشريف"
-                enableVibration(true)
-                setShowBadge(true)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
+        QabasNotificationHelper.ensureChannel(context, CHANNEL_ID)
 
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -126,7 +115,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         val isStrongSound = soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
             .setLargeIcon(appIcon)
             .setColor(0xFFD4AF37.toInt())
             .setContentTitle("الله أكبر • $prayerName")
@@ -152,18 +141,8 @@ class PrayerAzanReceiver : BroadcastReceiver() {
 
         // 🔑 استخدام الاستيرادية القصوى للقناة الجديدة (Azan Alarm) حتى تظهر فوق شاشة القفل
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val azanAlarmChannel = NotificationChannel(
-                "qabas_azan_alarm_channel",
-                "منبه الأذان (شاشة كاملة)",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "إشعار الأذان الذي يفتح شاشة كاملة فوق أي تطبيق أو قفل"
-                setSound(null, null)
-                enableVibration(true)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-            }
-            notificationManager.createNotificationChannel(azanAlarmChannel)
-            builder.setChannelId("qabas_azan_alarm_channel")
+            QabasNotificationHelper.ensureChannel(context, QabasNotificationHelper.CHANNEL_AZAN_ALARM)
+            builder.setChannelId(QabasNotificationHelper.CHANNEL_AZAN_ALARM)
         }
 
         notificationManager.notify(notifId, builder.build())

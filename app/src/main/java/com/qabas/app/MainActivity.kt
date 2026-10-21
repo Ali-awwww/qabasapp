@@ -1032,6 +1032,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         handleDeepLink(intent)
+        handleNotificationNavigation(intent)
         // حدّث نية النشاط حتى يعالج onResume الأحدث لا الأصلية القديمة
         setIntent(intent)
     }
@@ -1039,6 +1040,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         UpdateManager.onAppForeground()
+        handleNotificationNavigation(intent)
         // نية «تثبيت الآن» من الإشعار تُستهلك مرة واحدة فقط
         if (handleInstallIntent(intent)) {
             UpdateManager.attemptPendingInstall(this)
@@ -1053,7 +1055,32 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * معالجة نية تثبيت التحديث الواردة من إشعار «تثبيت الآن».
+     * معالجة وجهة التنقّل من الإشعارات (navigate_to / target_screen).
+     * كانت تُكتب هذه الحقول في النوايا ولا يقرأها أحد — فكانت وعود تنقّل معطّلة.
+     * تُستهلك مرة واحدة وتُطلب عبر AppNavigator (تعمل مع الإقلاع البارد والاستئناف).
+     */
+    private fun handleNotificationNavigation(intent: android.content.Intent) {
+        val target = intent.getStringExtra("navigate_to")
+            ?: intent.getStringExtra("target_screen")
+            ?: return
+        // استهلاك الحقول — لن يُعالج الطلب مرة أخرى
+        intent.removeExtra("navigate_to")
+        intent.removeExtra("target_screen")
+        val appState = when (target.lowercase()) {
+            "prayer_times" -> AppState.PRAYER_TIMES
+            "notifications" -> AppState.NOTIFICATIONS
+            "quran_hub" -> AppState.QURAN_HUB
+            "hadith_studio" -> AppState.HADITH_STUDIO
+            "azkar" -> AppState.AZKAR
+            "rewards" -> AppState.REWARDS
+            "downloads", "download_manager" -> AppState.DOWNLOAD_MANAGER
+            "settings" -> AppState.SETTINGS
+            else -> runCatching { AppState.valueOf(target.uppercase()) }.getOrNull()
+        } ?: return
+        AppNavigator.navigateFromNotification(appState)
+    }
+
+    /** معالجة نية تثبيت التحديث الواردة من إشعار «تثبيت الآن».
      * تُستهلك النية (تُمسح) بعد القراءة حتى لا يُعاد فتح المثبّت
      * عند كل onResume. تعيد true فقط عند أول قراءة نية تثبيت.
      */

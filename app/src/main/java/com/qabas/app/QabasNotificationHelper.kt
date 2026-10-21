@@ -26,7 +26,165 @@ object QabasNotificationHelper {
     const val CHANNEL_SYSTEM = "qabas_system_alerts"
     const val CHANNEL_DEV_CHAT = "qabas_dev_chat"
 
-    private const val BRAND_COLOR = 0xFFD4AF37.toInt() // Qabas Gold
+    // ─── قنوات مركزية إضافية (تُنشأ بالمعرّفات نفسها الموجودة مسبقاً) ───
+    const val CHANNEL_GENERAL = "qabas_general_notifications"
+    const val CHANNEL_UPDATES = "qabas_updates"
+    const val CHANNEL_MODELS = "qabas_models"
+    const val CHANNEL_TRENDS = "qabas_trend_alerts"
+    const val CHANNEL_PUBLISH_SCHEDULER = "qabas_publish_scheduler"
+    const val CHANNEL_PRAYER_LEGACY = "qabas_prayer_notifications_channel"
+    const val CHANNEL_AZAN_ALARM = "qabas_azan_alarm_channel"
+    const val CHANNEL_AZAN_PLAYBACK = "qabas_azan_playback_channel"
+    const val CHANNEL_AZAN_COUNTDOWN = "qabas_azan_countdown_channel"
+    const val CHANNEL_AUDIO_PLAYBACK = "qabas_audio_playback_channel"
+
+    const val BRAND_COLOR = 0xFFD4AF37.toInt() // Qabas Gold
+
+    /** مخزن عدّاد المعرّفات الديناميكية الدائم (محفوظ على القرص) */
+    private const val ID_PREFS = "qabas_notification_ids"
+    private const val KEY_NEXT_DYNAMIC_ID = "next_dynamic_id"
+
+    /**
+     * قاعدة أرقام الإشعارات الديناميكية — أعلى بكثير من أي معرّف خدمة ثابت
+     * في التطبيق (مثل 2001 و9923) فلا يحدث تصادم معها أبداً.
+     */
+    private const val DYNAMIC_ID_BASE = 10_000_000
+
+    /** قفل تخصيص المعرّفات الديناميكية (سلامة تعدد الخيوط) */
+    private val idAllocLock = Any()
+
+    /**
+     * تخصيص معرّف إشعار ديناميكي شبه فريد عبر إعادة تشغيل العملية نفسها:
+     * - عدّاد دائم محفوظ على القرص يُكتب بشكل متزامن (commit) قبل إعادة الرقم
+     * - إعادة تشغيل العملية تستأنف من آخر قيمة محفوظة فلا يتكرر المعرّف في المسار الطبيعي
+     * - إن فشل الحفظ المتزامن تعيد null — ومسار الإرسال يتجاوز الإشعار المتأثر مع
+     *   تسجيل السبب (لا معرّف مضمون الفردية بلا حفظ ناجح، ولا يُسقط التطبيق)
+     * - معرفات الخدمات الثابتة (مثل 2001 و9923) أعلى منها القاعدة بكثير فلا تصادم
+     */
+    fun nextNotificationId(context: Context): Int? {
+        val prefs = context.applicationContext
+            .getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE)
+        synchronized(idAllocLock) {
+            val next = prefs.getInt(KEY_NEXT_DYNAMIC_ID, DYNAMIC_ID_BASE) + 1
+            val persisted = prefs.edit().putInt(KEY_NEXT_DYNAMIC_ID, next).commit()
+            if (!persisted) {
+                android.util.Log.w(
+                    "QabasNotificationHelper",
+                    "تعذّر حفظ عدّاد معرّفات الإشعارات — سيُتجاوز هذا الإشعار"
+                )
+                return null
+            }
+            return next
+        }
+    }
+
+    /**
+     * سجل القنوات المركزي — تعريف كل قناة بمحدداتها الدقيقة (الأهمية، الوصف،
+     * الصوت، الاهتزاز، الرؤية) مطابقاً لما كان يُنشئه كل مكون لنفسه، حتى لا
+     * تتغير إعدادات المستخدمين عند المركزية. الإنشاء idempotent ولا يعدّل
+     * قناة قائمة (خصائص القنوات غير قابلة للتعديل بعد الإنشاء).
+     */
+    private fun channelDefinition(context: Context, channelId: String): NotificationChannel? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+        return when (channelId) {
+            CHANNEL_SPIRITUAL -> NotificationChannel(
+                CHANNEL_SPIRITUAL, "نفحات السحر والتنبيهات الإيمانية", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات خاشعة لآيات السحر والفجر والورد القرآني"
+                enableVibration(true)
+            }
+            CHANNEL_PRAYER -> NotificationChannel(
+                CHANNEL_PRAYER, "الأذان ومواقيت الصلاة", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "نداء الأذان والتنبيه بدخول أوقات الصلاة المفروضة"
+                enableVibration(true)
+            }
+            CHANNEL_HADITH -> NotificationChannel(
+                CHANNEL_HADITH, "الحديث النبوي اليومي الشريف", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "إشعار يومي بأحاديث صحيحة من صحيح البخاري ومسلم"
+            }
+            CHANNEL_DEV_CHAT -> NotificationChannel(
+                CHANNEL_DEV_CHAT, "محادثات المطور والدعم المباشر", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات فورية عند وصول رد من فريق التطوير والإشراف"
+            }
+            CHANNEL_SYSTEM -> NotificationChannel(
+                CHANNEL_SYSTEM, "استوديو قبس والتحديثات", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "تنبيهات تقدم المعالجة، تنزيل المقاطع، وتريندات المجتمع"
+            }
+            CHANNEL_GENERAL -> NotificationChannel(
+                CHANNEL_GENERAL, "إشعارات قبس العامة", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات العمليات والتحديثات والنشاط العام"
+                enableVibration(true)
+            }
+            CHANNEL_UPDATES -> NotificationChannel(
+                CHANNEL_UPDATES, "تحديثات قبس", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "تقدّم تنزيل تحديثات التطبيق"
+            }
+            CHANNEL_MODELS -> NotificationChannel(
+                CHANNEL_MODELS, "تنزيلات نماذج الذكاء", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "عداد تقدم تنزيل النماذج اللغوية"
+            }
+            CHANNEL_TRENDS -> NotificationChannel(
+                CHANNEL_TRENDS, "تريندات المجتمع", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "تنبيهات التريندات والنشاطات المجتمعية"
+            }
+            CHANNEL_PUBLISH_SCHEDULER -> NotificationChannel(
+                CHANNEL_PUBLISH_SCHEDULER, "جدولة النشر الذكية (Smart Publish)", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات التوقيت المثالي لنشر الفيديوهات لزيادة التفاعل والانتشار"
+            }
+            CHANNEL_PRAYER_LEGACY -> NotificationChannel(
+                CHANNEL_PRAYER_LEGACY, "مواقيت الصلاة والأذان", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات حية لمواقيت الصلاة الخمس والأذان الشريف"
+                enableVibration(true)
+                setShowBadge(true)
+            }
+            CHANNEL_AZAN_ALARM -> NotificationChannel(
+                CHANNEL_AZAN_ALARM, "منبه الأذان (شاشة كاملة)", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "إشعار الأذان الذي يفتح شاشة كاملة فوق أي تطبيق أو قفل"
+                setSound(null, null)
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            CHANNEL_AZAN_PLAYBACK -> NotificationChannel(
+                CHANNEL_AZAN_PLAYBACK, "صوت الأذان المباشر", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تشغيل صوت الأذان في أوقات الصلاة مع شاشة كاملة"
+                setSound(null, null)
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            CHANNEL_AZAN_COUNTDOWN -> NotificationChannel(
+                CHANNEL_AZAN_COUNTDOWN, "عدّاد اقتراب الأذان", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "إشعار ثابت يعرض الوقت المتبقي على الأذان القادم"
+            }
+            CHANNEL_AUDIO_PLAYBACK -> NotificationChannel(
+                CHANNEL_AUDIO_PLAYBACK, "تشغيل الصوت في الخلفية - قبس", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "إشعارات وأزرار التحكم في الصوت والتلاوات في الخلفية"
+                setShowBadge(false)
+            }
+            else -> null
+        }
+    }
+
+    /** إنشاء قناة إن لم تكن موجودة — من التعريف المركزي الدقيق */
+    fun ensureChannel(context: Context, channelId: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val channel = channelDefinition(context, channelId) ?: return
+        manager.createNotificationChannel(channel)
+    }
 
     /**
      * استخراج أيقونة التطبيق الحقيقية بصيغة Bitmap لوضعها بجانب نص الإشعار (Large Icon)
@@ -56,53 +214,13 @@ object QabasNotificationHelper {
     }
 
     /**
-     * تهيئة وإنشاء كافة قنوات الإشعارات في النظام
+     * تهيئة وإنشاء كافة قنوات الإشعارات الأساسية في النظام
      */
     fun initializeChannels(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-
-        val channels = listOf(
-            NotificationChannel(
-                CHANNEL_SPIRITUAL,
-                "نفحات السحر والتنبيهات الإيمانية",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "تنبيهات خاشعة لآيات السحر والفجر والورد القرآني"
-                enableVibration(true)
-            },
-            NotificationChannel(
-                CHANNEL_PRAYER,
-                "الأذان ومواقيت الصلاة",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "نداء الأذان والتنبيه بدخول أوقات الصلاة المفروضة"
-                enableVibration(true)
-            },
-            NotificationChannel(
-                CHANNEL_HADITH,
-                "الحديث النبوي اليومي الشريف",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "إشعار يومي بأحاديث صحيحة من صحيح البخاري ومسلم"
-            },
-            NotificationChannel(
-                CHANNEL_DEV_CHAT,
-                "محادثات المطور والدعم المباشر",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "تنبيهات فورية عند وصول رد من فريق التطوير والإشراف"
-            },
-            NotificationChannel(
-                CHANNEL_SYSTEM,
-                "استوديو قبس والتحديثات",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "تنبيهات تقدم المعالجة، تنزيل المقاطع، وتريندات المجتمع"
-            }
-        )
-
-        channels.forEach { manager.createNotificationChannel(it) }
+        listOf(
+            CHANNEL_SPIRITUAL, CHANNEL_PRAYER, CHANNEL_HADITH,
+            CHANNEL_DEV_CHAT, CHANNEL_SYSTEM
+        ).forEach { ensureChannel(context, it) }
     }
 
     /**
@@ -113,7 +231,7 @@ object QabasNotificationHelper {
         channelId: String,
         title: String,
         message: String
-    ): NotificationCompat.Builder {
+    ): NotificationCompat.Builder? {
         initializeChannels(context)
         NotificationPreferencesManager.init(context)
 
@@ -125,15 +243,22 @@ object QabasNotificationHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("navigate_to", "notifications")
         }
+        val reqCode = nextNotificationId(context) ?: run {
+            android.util.Log.w(
+                "QabasNotificationHelper",
+                "تعذّر تخصيص معرّف إشعار — تُتجاهل بناءة هذا الإشعار"
+            )
+            return null
+        }
         val contentPendingIntent = PendingIntent.getActivity(
             context,
-            (System.currentTimeMillis() % 10000).toInt(),
+            reqCode,
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_notification) // أيقونة شريط الحالة
+            .setSmallIcon(R.drawable.ic_stat_qabas) // جذوة قبس — أيقونة الحالة الموحّدة
             .setLargeIcon(appIcon) // أيقونة التطبيق تظهر بجانب عنوان ونص الإشعار
             .setColor(BRAND_COLOR)
             .setContentTitle(title)
@@ -181,7 +306,8 @@ object QabasNotificationHelper {
     }
 
     /**
-     * إضافة أداة "مشاركة المحتوى" إلى الإشعار
+     * إضافة أداة "مشاركة المحتوى" إلى الإشعار — مباشرة عبر نشاطي chooser
+     * (بدون قفزة BroadcastReceiver: قفزات الإشعارات محجوبة في أندرويد 12+).
      */
     fun addActionShare(
         builder: NotificationCompat.Builder,
@@ -189,18 +315,18 @@ object QabasNotificationHelper {
         notifId: Int,
         shareText: String
     ) {
-        val intent = Intent(context, NotificationActionReceiver::class.java).apply {
-            action = NotificationActionReceiver.ACTION_SHARE
-            putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)
-            putExtra(NotificationActionReceiver.EXTRA_SHARE_TEXT, shareText)
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, shareText)
         }
-        val pendingIntent = PendingIntent.getBroadcast(
+        val chooser = Intent.createChooser(shareIntent, "مشاركة عبر")
+        val pendingIntent = PendingIntent.getActivity(
             context,
             notifId * 10 + 2,
-            intent,
+            chooser,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        builder.addAction(android.R.drawable.ic_menu_share, "مشاركة 📤", pendingIntent)
+        builder.addAction(android.R.drawable.ic_menu_share, "مشاركة", pendingIntent)
     }
 
     /**
@@ -248,17 +374,39 @@ object QabasNotificationHelper {
     }
 
     /**
+     * بنّاء إشعارات التقدّم الموحّد (تنزيلات وعمليات) — جذوة قبس + لون ذهبي
+     * + تحديث صامت (لا يرن عند كل نسبة تقدّم) + إمكانية إضافة زر إلغاء.
+     */
+    fun createProgressBuilder(
+        context: Context,
+        channelId: String,
+        title: String,
+        text: String
+    ): NotificationCompat.Builder {
+        ensureChannel(context, channelId)
+        return NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setLargeIcon(getAppIconBitmap(context))
+            .setColor(BRAND_COLOR)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+    }
+
+    /**
      * إرسال إشعار تجريبي فوري تفاعلي كامل لإثبات ظهور الأيقونة وعمل الأدوات مباشرة
      */
     fun sendInteractiveTestNotification(context: Context) {
         NotificationPreferencesManager.init(context)
         val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        val notifId = (System.currentTimeMillis() % 10000).toInt()
+        val notifId = nextNotificationId(context) ?: return
         val title = "قبس • تجربة الإشعارات التفاعلية 🔔"
         val verseText = "﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾\nتم تفعيل ظهور أيقونة قبس بجانب الإشعار بنجاح! جرب أدوات الإشعار التفاعلية بالأسفل الآن:"
 
-        val builder = createBaseBuilder(context, CHANNEL_SPIRITUAL, title, verseText)
+        val builder = createBaseBuilder(context, CHANNEL_SPIRITUAL, title, verseText) ?: return
 
         // أداة 1: استماع فوري
         addActionListen(

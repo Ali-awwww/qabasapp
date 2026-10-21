@@ -661,7 +661,6 @@ object SocialAccountManager {
     // Smart Scheduling & Optimal Time Engine
     // ==========================================
     private const val KEY_SCHEDULED_ITEMS = "scheduled_publish_items"
-    private const val SCHEDULER_CHANNEL_ID = "qabas_publish_scheduler"
 
     /**
      * Calculates data-driven optimal posting windows for each platform
@@ -985,29 +984,23 @@ object SocialAccountManager {
         try {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             if (notificationManager != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val channel = NotificationChannel(
-                        SCHEDULER_CHANNEL_ID,
-                        "جدولة النشر الذكية (Smart Publish)",
-                        NotificationManager.IMPORTANCE_HIGH
-                    ).apply {
-                        description = "تنبيهات التوقيت المثالي لنشر الفيديوهات لزيادة التفاعل والانتشار"
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
+                QabasNotificationHelper.ensureChannel(context, QabasNotificationHelper.CHANNEL_PUBLISH_SCHEDULER)
 
                 val notificationTitle = "⏰ حان موعد النشر المثالي على $platformName!"
                 val notificationBody = "«$title» - الخوارزمية في قمة نشاطها الآن لنشر الأثر المبارك 🚀"
 
-                val builder = NotificationCompat.Builder(context, SCHEDULER_CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                val builder = NotificationCompat.Builder(context, QabasNotificationHelper.CHANNEL_PUBLISH_SCHEDULER)
+                    .setSmallIcon(R.drawable.ic_stat_qabas)
+                    .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(context))
+                    .setColor(QabasNotificationHelper.BRAND_COLOR)
                     .setContentTitle(notificationTitle)
                     .setContentText(notificationBody)
                     .setStyle(NotificationCompat.BigTextStyle().bigText("$notificationBody\n\nالوسوم المقترحة: $hashtags"))
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setAutoCancel(true)
 
-                notificationManager.notify((System.currentTimeMillis() % 10000).toInt(), builder.build())
+                val notifId = QabasNotificationHelper.nextNotificationId(context) ?: return
+                notificationManager.notify(notifId, builder.build())
                 
                 // Add to internal app notification feed as well
                 AppNotificationService.sendNotification(

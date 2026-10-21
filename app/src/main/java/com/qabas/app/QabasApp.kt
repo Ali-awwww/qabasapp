@@ -76,6 +76,27 @@ fun QabasApp() {
         previousAppState = state.appState
     }
 
+    // وجهة التنقّل المطلوبة من الإشعارات (navigate_to) — تُستهلك مرة واحدة.
+    // تُحتفظ حتى يجهز التطبيق (بعد التهيئة/الدخول) ثم تُطبّق، حتى مع الإقلاع البارد.
+    val authFunnelStates = remember {
+        setOf(
+            AppState.DATA_LOADING, AppState.ONBOARDING, AppState.LOGIN,
+            AppState.REGISTER, AppState.FORGOT_PASSWORD
+        )
+    }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.flow.combine(
+            AppNavigator.notificationDestination,
+            viewModel.state
+        ) { destination, currentState -> destination to currentState.appState }
+            .collect { (destination, currentAppState) ->
+                if (destination == null) return@collect
+                if (currentAppState in authFunnelStates) return@collect // تُحفظ حتى الجاهزية
+                viewModel.updateState { copy(appState = destination) }
+                AppNavigator.consumeNotificationDestination()
+            }
+    }
+
     // Observe global navigator events (e.g. from Spatial HUD Lens Camera)
     LaunchedEffect(Unit) {
         AppNavigator.targetAppState.collect { newTarget ->

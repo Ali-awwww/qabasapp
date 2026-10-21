@@ -470,7 +470,8 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(track.title)
             .setContentText("${track.artist} • ${track.category}")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentIntent(contentPendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(isPlaying)
@@ -519,18 +520,7 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "تشغيل الصوت في الخلفية - قبس",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "إشعارات وأزرار التحكم في الصوت والتلاوات في الخلفية"
-                setShowBadge(false)
-            }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            nm?.createNotificationChannel(channel)
-        }
+        QabasNotificationHelper.ensureChannel(this, QabasNotificationHelper.CHANNEL_AUDIO_PLAYBACK)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -29,7 +29,6 @@ class UpdateDownloadService : Service() {
         const val ACTION_CANCEL = "com.qabas.app.UPDATE_CANCEL"
         const val EXTRA_INFO = "info_json"
         const val EXTRA_FORCE_FULL = "force_full"
-        private const val CHANNEL_ID = "qabas_updates"
         private const val NOTIF_ID = 2001
         private const val WAKE_TAG = "Qabas:UpdateDownload"
 
@@ -61,16 +60,12 @@ class UpdateDownloadService : Service() {
          */
         fun notifyInstallReady(context: Context, versionName: String, versionCode: Int, apkSize: Long = 0L) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "تحديثات قبس", NotificationManager.IMPORTANCE_LOW).apply {
-                        description = "تقدّم تنزيل تحديثات التطبيق"
-                    }
-                )
-            }
+            QabasNotificationHelper.ensureChannel(context, QabasNotificationHelper.CHANNEL_UPDATES)
             val installPending = UpdateInstallReceiver.pendingIntent(context, versionName, versionCode, apkSize)
-            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            val notif = NotificationCompat.Builder(context, QabasNotificationHelper.CHANNEL_UPDATES)
+                .setSmallIcon(R.drawable.ic_stat_qabas)
+                .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(context))
+                .setColor(QabasNotificationHelper.BRAND_COLOR)
                 .setContentTitle("اكتمل التنزيل")
                 .setContentText("التحديث $versionName جاهز للتثبيت")
                 .setOngoing(false)
@@ -162,12 +157,9 @@ class UpdateDownloadService : Service() {
             Intent(this, UpdateDownloadService::class.java).apply { action = ACTION_CANCEL },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("تحديث قبس")
-            .setContentText(text)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
+        val builder = QabasNotificationHelper.createProgressBuilder(
+            this, QabasNotificationHelper.CHANNEL_UPDATES, "تحديث قبس", text
+        )
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إلغاء", cancelIntent)
         if (percent != null) {
             builder.setProgress(100, percent, false)
@@ -178,10 +170,13 @@ class UpdateDownloadService : Service() {
     }
 
     private fun buildDoneNotification(title: String, text: String, installable: Boolean): android.app.Notification {
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+        val builder = NotificationCompat.Builder(this, QabasNotificationHelper.CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(this))
+            .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(false)
             .setAutoCancel(!installable)
 
@@ -199,14 +194,7 @@ class UpdateDownloadService : Service() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "تحديثات قبس", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "تقدّم تنزيل تحديثات التطبيق"
-                }
-            )
-        }
+        QabasNotificationHelper.ensureChannel(this, QabasNotificationHelper.CHANNEL_UPDATES)
     }
 
     private fun startForegroundWithType(id: Int, notification: android.app.Notification) {

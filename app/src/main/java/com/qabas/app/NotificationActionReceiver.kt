@@ -17,12 +17,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_MARK_DONE = "com.qabas.app.ACTION_NOTIFICATION_MARK_DONE"
         const val ACTION_LISTEN = "com.qabas.app.ACTION_NOTIFICATION_LISTEN"
         const val ACTION_SNOOZE = "com.qabas.app.ACTION_NOTIFICATION_SNOOZE"
-        const val ACTION_OPEN_SECTION = "com.qabas.app.ACTION_NOTIFICATION_OPEN_SECTION"
 
         const val EXTRA_SHARE_TEXT = "extra_share_text"
         const val EXTRA_NOTIF_ID = "extra_notif_id"
         const val EXTRA_MESSAGE = "extra_message"
-        const val EXTRA_TARGET_SECTION = "extra_target_section"
         const val EXTRA_AUDIO_URL = "extra_audio_url"
         const val EXTRA_AUDIO_TITLE = "extra_audio_title"
     }
@@ -33,20 +31,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val notifId = intent.getIntExtra(EXTRA_NOTIF_ID, -1)
 
         when (intent.action) {
-            ACTION_SHARE -> {
-                val text = intent.getStringExtra(EXTRA_SHARE_TEXT)
-                    ?: "«أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ» 🌿 من تطبيق قبس"
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, text)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                val chooser = Intent.createChooser(shareIntent, "مشاركة المحتوى الإيماني عبر").apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(chooser)
-                if (notifId != -1) notifManager?.cancel(notifId)
-            }
+            // ACTION_SHARE نُقل إلى نشاطي مباشر في QabasNotificationHelper.addActionShare
+            // (قفزات الإشعارات عبر BroadcastReceiver محجوبة في أندرويد 12+)
 
             ACTION_MARK_DONE -> {
                 val msg = intent.getStringExtra(EXTRA_MESSAGE)
@@ -78,15 +64,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 NotificationPreferencesManager.scheduleSnooze(context, 15)
             }
 
-            ACTION_OPEN_SECTION -> {
-                val target = intent.getStringExtra(EXTRA_TARGET_SECTION) ?: "NOTIFICATIONS"
-                val launchIntent = Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    putExtra("target_screen", target)
-                }
-                context.startActivity(launchIntent)
-                if (notifId != -1) notifManager?.cancel(notifId)
-            }
         }
     }
 }

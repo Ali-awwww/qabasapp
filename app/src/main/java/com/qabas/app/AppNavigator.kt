@@ -1,8 +1,11 @@
 package com.qabas.app
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 🧭 ملاح التطبيق الفضائي العام (Global Spatial App Navigator)
@@ -18,6 +21,24 @@ object AppNavigator {
 
     fun navigateTo(appState: AppState) {
         _targetAppState.tryEmit(appState)
+    }
+
+    /**
+     * وجهة تنقّل مطلوبة من إشعار (navigate_to / target_screen) — StateFlow
+     * يبقى محفوظاً حتى استهلاكه، فيعمل مع الإقلاع البارد (قبل تركيب الواجهة)
+     * ومع الاستئناف الدافئ على حد سواء.
+     */
+    private val _notificationDestination = kotlinx.coroutines.flow.MutableStateFlow<AppState?>(null)
+    val notificationDestination: kotlinx.coroutines.flow.StateFlow<AppState?> =
+        _notificationDestination.asStateFlow()
+
+    /** طلب تنقّل من إشعار — يُستهلك مرة واحدة في QabasApp بعد جاهزية التطبيق */
+    fun navigateFromNotification(appState: AppState) {
+        _notificationDestination.value = appState
+    }
+
+    fun consumeNotificationDestination() {
+        _notificationDestination.value = null
     }
 
     fun navigateToInputWithText(text: String) {
