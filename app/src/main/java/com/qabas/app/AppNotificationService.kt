@@ -405,11 +405,6 @@ object AppNotificationService {
             e.printStackTrace()
         }
     }
-
-    fun clearNotifications(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_NOTIFICATIONS).apply()
-    }
 }
 
 class DailyHadithReceiver : BroadcastReceiver() {
