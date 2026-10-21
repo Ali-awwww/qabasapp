@@ -75,38 +75,40 @@ internal fun markupDistanceToSegment(p: Offset, a: Offset, b: Offset): Float {
 }
 
 /** هل النقطة (نسبية) تقع داخل/على الشكل؟ يُستخدم لاختيار الشكل وسحبه. */
-internal fun markupHitTest(shape: MarkupShape, p: Offset): Boolean = when (shape.tool) {
-    MarkupTool.RECTANGLE -> {
-        val (tl, br) = markupRectOf(shape)
-        p.x >= tl.x && p.x <= br.x && p.y >= tl.y && p.y <= br.y
-    }
-    MarkupTool.ELLIPSE -> {
-        val (tl, br) = markupRectOf(shape)
-        val cx = (tl.x + br.x) / 2f
-        val cy = (tl.y + br.y) / 2f
-        val rx = max((br.x - tl.x) / 2f, 0.0001f)
-        val ry = max((br.y - tl.y) / 2f, 0.0001f)
-        val nx = (p.x - cx) / rx
-        val ny = (p.y - cy) / ry
-        (nx * nx + ny * ny) <= 1f
-    }
-    MarkupTool.ARROW, MarkupTool.LINE -> {
-        val a = shape.points.getOrNull(0) ?: return false
-        val b = shape.points.getOrNull(1) ?: return false
-        markupDistanceToSegment(p, a, b) <= 0.03f
-    }
-    MarkupTool.FREEHAND -> {
-        if (shape.points.size < 2) return false
-        for (i in 0 until shape.points.size - 1) {
-            if (markupDistanceToSegment(p, shape.points[i], shape.points[i + 1]) <= 0.03f) return true
+internal fun markupHitTest(shape: MarkupShape, p: Offset): Boolean {
+    return when (shape.tool) {
+        MarkupTool.RECTANGLE -> {
+            val (tl, br) = markupRectOf(shape)
+            p.x >= tl.x && p.x <= br.x && p.y >= tl.y && p.y <= br.y
         }
-        false
+        MarkupTool.ELLIPSE -> {
+            val (tl, br) = markupRectOf(shape)
+            val cx = (tl.x + br.x) / 2f
+            val cy = (tl.y + br.y) / 2f
+            val rx = max((br.x - tl.x) / 2f, 0.0001f)
+            val ry = max((br.y - tl.y) / 2f, 0.0001f)
+            val nx = (p.x - cx) / rx
+            val ny = (p.y - cy) / ry
+            (nx * nx + ny * ny) <= 1f
+        }
+        MarkupTool.ARROW, MarkupTool.LINE -> {
+            val a = shape.points.getOrNull(0) ?: return false
+            val b = shape.points.getOrNull(1) ?: return false
+            markupDistanceToSegment(p, a, b) <= 0.03f
+        }
+        MarkupTool.FREEHAND -> {
+            if (shape.points.size < 2) return false
+            for (i in 0 until shape.points.size - 1) {
+                if (markupDistanceToSegment(p, shape.points[i], shape.points[i + 1]) <= 0.03f) return true
+            }
+            false
+        }
+        MarkupTool.TEXT -> {
+            val a = shape.points.firstOrNull() ?: return false
+            hypot(p.x - a.x, p.y - a.y) <= 0.06f
+        }
+        MarkupTool.SELECT -> false
     }
-    MarkupTool.TEXT -> {
-        val a = shape.points.firstOrNull() ?: return false
-        hypot(p.x - a.x, p.y - a.y) <= 0.06f
-    }
-    MarkupTool.SELECT -> false
 }
 
 /**
