@@ -523,7 +523,9 @@ class VideoEngineManager(private val context: Context) {
                 
                 if (localAmbientPath.isNotEmpty()) {
                     val mixedOutputPath = File(cacheDir, "final_mixed.mp4").absolutePath
-                    val mixSuccess = VideoProcessor.mergeAmbientAudio(context, concatOutputPath, localAmbientPath, mixedOutputPath)
+                    // ⚠️ نخلط الصوت المحيطي مع الملف العامل الحالي (الذي قد يحمل التعليق الصوتي)
+                    // استخدام concatOutputPath هنا كان يُسقط التعليق الصوتي بالكامل من التصدير
+                    val mixSuccess = VideoProcessor.mergeAmbientAudio(context, currentWorkingVideoPath, localAmbientPath, mixedOutputPath)
                     if (mixSuccess) {
                         currentWorkingVideoPath = mixedOutputPath
                     }

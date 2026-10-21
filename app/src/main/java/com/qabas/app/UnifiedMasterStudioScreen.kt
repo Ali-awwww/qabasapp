@@ -177,7 +177,7 @@ fun UnifiedMasterStudioScreen(
 
                 // 2. توليد الصوت
                 val fullNarrativeText = scenes.joinToString(" ") { it.title }
-                val audioFile = AppServices.generateVoiceover(fullNarrativeText, selectedVoice)
+                val audioFile = AppServices.generateVoiceover(fullNarrativeText, tone = "وثائقي", voiceId = selectedVoice)
                 voiceAudioPath = audioFile
 
                 // 🔑 تحذير المستخدم إذا فشل توليد الصوت (لا نتظاهر بنجاح وهمي)
@@ -718,7 +718,7 @@ fun UnifiedMasterStudioScreen(
                             scope.launch {
                                 selectedVoice = voice
                                 val fullText = generatedScenes.joinToString(" ") { it.title }
-                                voiceAudioPath = AppServices.generateVoiceover(fullText, voice)
+                                voiceAudioPath = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
                                 Toast.makeText(context, "تم تحديث الصوت بنجاح ✓", Toast.LENGTH_SHORT).show()
                             }
                         },

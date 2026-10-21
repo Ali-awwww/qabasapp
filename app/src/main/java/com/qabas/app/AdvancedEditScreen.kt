@@ -80,7 +80,6 @@ fun AdvancedEditScreen(
     onUpdateScenes: (List<Scene>) -> Unit,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
 
     var editableScenes by remember(scenes) {
@@ -93,6 +92,12 @@ fun AdvancedEditScreen(
                 )
             } else scenes.toMutableList()
         )
+    }
+
+    // ⚠️ حفظ التعديلات قبل مغادرة المحرر — كانت الضغطة على «رجوع» تُهمل كل تعديلات التايم لاين
+    BackHandler {
+        onUpdateScenes(editableScenes)
+        onBack()
     }
 
     var currentPlaybackTime by remember { mutableFloatStateOf(0f) }
@@ -212,7 +217,11 @@ fun AdvancedEditScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        // حفظ التعديلات قبل الرجوع حتى لا تضيع تعديلات التايم لاين
+                        onUpdateScenes(editableScenes)
+                        onBack()
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = Translator.tr("رجوع"),
@@ -1306,7 +1315,11 @@ fun AdvancedEditScreen(
             onDismiss = { showEditSceneDialog = false },
             onSave = { updatedScene ->
                 val updated = editableScenes.toMutableList()
-                val idx = updated.indexOfFirst { it.title == sceneBeingEdited!!.title }
+                // مطابقة المشهد بالهوية أولاً (أدق)، ثم بالعنوان كبديل احتياطي
+                var idx = updated.indexOfFirst { it === sceneBeingEdited }
+                if (idx == -1) {
+                    idx = updated.indexOfFirst { it.title == sceneBeingEdited!!.title }
+                }
                 if (idx != -1) {
                     updated[idx] = updatedScene
                     editableScenes = updated

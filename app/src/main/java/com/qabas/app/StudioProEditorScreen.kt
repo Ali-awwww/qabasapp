@@ -27,6 +27,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -312,7 +314,26 @@ fun StudioProEditorScreen(
                                         val scale = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "scale", 1f)
                                         val opacity = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "opacity", 1f)
                                         
-                                        alpha = (clip.filters.brightness.coerceIn(0f, 1f)) * opacity
+                                        // الشفافية من خاصية opacity فقط — كان السطوع يقود alpha فيختفي المقطع
+                                        alpha = opacity
+                                        // السطوع والتباين والتشبّع تُطبَّق كمرشّح لوني حقيقي (سابقاً كانت بلا أي أثر)
+                                        val b = clip.filters.brightness.coerceIn(0f, 2f)
+                                        val ct = clip.filters.contrast.coerceIn(0f, 2f)
+                                        val sat = clip.filters.saturation.coerceIn(0f, 2f)
+                                        val k = b * ct
+                                        val o = 0.5f * (1f - ct) + (b - 1f) * 0.25f
+                                        val lr = 0.2126f; val lg = 0.7152f; val lb = 0.0722f
+                                        val inv = 1f - sat
+                                        colorFilter = ColorFilter.colorMatrix(
+                                            ColorMatrix(
+                                                floatArrayOf(
+                                                    inv * lr + sat * k, inv * lg, inv * lb, 0f, sat * o * 255f,
+                                                    inv * lr, inv * lg + sat * k, inv * lb, 0f, sat * o * 255f,
+                                                    inv * lr, inv * lg, inv * lb + sat * k, 0f, sat * o * 255f,
+                                                    0f, 0f, 0f, 1f, 0f
+                                                )
+                                            )
+                                        )
                                         scaleX = clip.transform.scaleX * scale
                                         scaleY = clip.transform.scaleY * scale
                                         rotationZ = clip.transform.rotation
@@ -337,27 +358,30 @@ fun StudioProEditorScreen(
                                 )
                             }
                             // Simplified simulation of word highlight based on time
+                            // ⚠️ استخدام firstOrNull بدل first() — النص الفارغ كان يُسقط التطبيق (NoSuchElementException)
                             val currentWord = activeCaptions.firstOrNull { 
                                 val relativeTime = projectState.currentTimeMs % 5000L
                                 relativeTime >= it.startTimeMs && relativeTime <= it.endTimeMs 
-                            } ?: activeCaptions.first()
+                            } ?: activeCaptions.firstOrNull()
 
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
-                                Text(
-                                    currentWord.text,
-                                    color = currentWord.color,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 28.sp,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 20.dp)
-                                )
-                                Text(
-                                    "AI Kinetic Style: ${currentWord.style.name}",
-                                    color = GoldPrimary.copy(alpha = 0.6f),
-                                    fontSize = 10.sp,
-                                    fontFamily = RobotoMonoFont
-                                )
+                            if (currentWord != null) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
+                                    Text(
+                                        currentWord.text,
+                                        color = currentWord.color,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 28.sp,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 20.dp)
+                                    )
+                                    Text(
+                                        "AI Kinetic Style: ${currentWord.style.name}",
+                                        color = GoldPrimary.copy(alpha = 0.6f),
+                                        fontSize = 10.sp,
+                                        fontFamily = RobotoMonoFont
+                                    )
+                                }
                             }
                         } else {
                             val currentScale = activeTextClip?.let { 
