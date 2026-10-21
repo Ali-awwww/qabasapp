@@ -35,6 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,6 +95,26 @@ fun ReelsScreen(
     var allReels by remember { mutableStateOf<List<SupabaseServices.ReelRow>>(emptyList()) }
     var hiddenReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(true) }
+    // فشل الشبكة (يُميَّز عن القائمة الفارغة فعلاً) — يعرض حالة خطأ مع إعادة محاولة
+    var loadError by remember { mutableStateOf(false) }
+
+    // ترقيم صفحات: تحميل المزيد عند الاقتراب من نهاية القائمة (بدون كتلة إنزال تقليدي)
+    var canLoadMore by remember { mutableStateOf(true) }
+    var isLoadingMore by remember { mutableStateOf(false) }
+    val requestGeneration = remember { java.util.concurrent.atomic.AtomicInteger(0) }
+
+    // المحفوظات السحابية (reel_bookmarks) — تُزامن حالة «محفوظ» عبر أجهزة المستخدم
+    var cloudBookmarks by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // قياس مدة المشاهدة الفعلية لكل مقطع (ثواني تشغيل حقيقية لا وقت مرور)
+    // خريطة حالة تشغيل لكل صفحة — لا تتسرب حالة صفحة لأخرى عند التمرير السريع
+    val pagePlayingStates = remember { mutableStateMapOf<Int, Boolean>() }
+    // مدة المشاهدة الفعلية المتراكمة لكل مقطع (ثواني تشغيل حقيقية)
+    val watchSeconds = remember { mutableStateMapOf<String, Int>() }
+    var lastWatchedReelId by remember { mutableStateOf<String?>(null) }
+
+    // أقفال منع تكرار الطلب لكل مقطع (إعجاب) حتى لا تتعارض نقرات متسارعة
+    val likeInFlight = remember { mutableStateMapOf<String, Boolean>() }
 
     // Top Navigation & Filter State
     var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following)
@@ -163,6 +186,22 @@ fun ReelsScreen(
         }
     }
 
+    // دورة الحياة: إيقاف التشغيل عند خروج التطبيق للخلفية (ON_STOP) واستئنافه عند العودة —
+    // لا يستمر صوت الفيديو في الخلفية أبداً (سلوك تيك توك/انستغرام)
+    var isScreenActive by remember { mutableStateOf(true) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> isScreenActive = true
+                Lifecycle.Event.ON_STOP -> isScreenActive = false
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Graceful Back Handling (DevChat -> Sheets -> Search -> Home)
     BackHandler {
         when {
@@ -197,22 +236,59 @@ fun ReelsScreen(
         ReelPublishManager.isDeveloperUser(context, currentUserEmail)
     }
 
+    /**
+     * إثبات المشاهدة: تسجيل محلي + سحابي (للمستخدم المصادق فقط) بمدة المشاهدة الفعلية المقيسة.
+     */
+    fun finalizeWatch(reelId: String?) {
+        val rid = reelId ?: return
+        val secs = watchSeconds[rid] ?: 0
+        if (secs <= 0) return
+        val reel = allReels.find { it.id == rid } ?: return
+        ReelPreferencesManager.recordWatch(
+            context = context,
+            reelId = rid,
+            title = reel.title,
+            userName = reel.userName,
+            userAvatar = reel.userAvatar,
+            videoUrl = reel.videoUrl,
+            category = selectedCategory,
+            durationSec = secs
+        )
+        val authId = SupabaseServices.Auth.getCurrentUserId()
+        if (authId != null) {
+            scope.launch {
+                runCatching { SupabaseServices.Profiles.recordReelWatch(rid, authId, secs) }
+            }
+        }
+    }
+
     val loadReels = {
         scope.launch {
             isLoading = true
+            loadError = false
+            val gen = requestGeneration.incrementAndGet()
             val remoteReels = runCatching {
                 if (!ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
-                    emptyList()
+                    null
                 } else {
                     withTimeoutOrNull(7000L) {
-                        SupabaseServices.Profiles.getActiveReels()
-                    } ?: emptyList()
+                        SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = 0)
+                    } ?: null
                 }
             }.onSuccess {
                 ReelSafetyGuardrails.recordNetworkSuccess()
             }.onFailure {
                 ReelSafetyGuardrails.recordNetworkFailure()
-            }.getOrDefault(emptyList())
+            }.getOrNull()
+
+            // إسقاط الاستجابات المتقادمة: طلب أحدث بدأ قبل اكتمال هذا
+            if (gen != requestGeneration.get()) return@launch
+
+            if (remoteReels == null) {
+                loadError = true
+                isLoading = false
+                return@launch
+            }
 
             // Strict sanitization: drops malformed URLs, clamps numerical bounds, strips control characters
             val sanitized = remoteReels.mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
@@ -234,12 +310,61 @@ fun ReelsScreen(
             val finalReels = sanitized.filterNot { isDemoOrMockReel(it) }
 
             allReels = finalReels
+            canLoadMore = remoteReels.size >= REELS_PAGE_SIZE
             // Populate likes & counts from real database rows
             allReels.forEach { r ->
                 dynamicLikeCounts[r.id] = r.likesCount
                 likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
             }
+            lastWatchedReelId = null
+            watchSeconds.clear()
             isLoading = false
+
+            // مزامنة المحفوظات السحابية للمستخدم المصادق
+            val authId = SupabaseServices.Auth.getCurrentUserId()
+            if (authId != null) {
+                runCatching {
+                    withTimeoutOrNull(5000L) {
+                        SupabaseServices.Profiles.getBookmarkedReelIds(authId)
+                    }
+                }.getOrNull()?.let { ids ->
+                    if (ids.isNotEmpty()) cloudBookmarks = ids
+                }
+            }
+        }
+    }
+
+    /** تحميل الصفحة التالية من الخلاصة (تمرير لانهائي) */
+    fun loadMoreReels() {
+        if (isLoadingMore || !canLoadMore || allReels.isEmpty()) return
+        isLoadingMore = true
+        scope.launch {
+            val gen = requestGeneration.incrementAndGet()
+            val nextPage = runCatching {
+                withTimeoutOrNull(7000L) {
+                    SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = allReels.size)
+                } ?: null
+            }.onSuccess { ReelSafetyGuardrails.recordNetworkSuccess() }
+                .onFailure { ReelSafetyGuardrails.recordNetworkFailure() }
+                .getOrNull()
+            isLoadingMore = false
+
+            // إسقاط الاستجابات المتقادمة (طلب أحدث أثناء جلب هذه)
+            if (gen != requestGeneration.get()) return@launch
+            if (nextPage == null) return@launch // فشل صامت للتحميل الزائد: القائمة الحالية تبقى
+
+            val newOnes = nextPage.mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
+                .filter { r -> allReels.none { it.id == r.id } }
+            canLoadMore = nextPage.size >= REELS_PAGE_SIZE
+            if (newOnes.isNotEmpty()) {
+                allReels = allReels + newOnes
+                newOnes.forEach { r ->
+                    if (!dynamicLikeCounts.containsKey(r.id)) {
+                        dynamicLikeCounts[r.id] = r.likesCount
+                        likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
+                    }
+                }
+            }
         }
     }
 
@@ -290,20 +415,44 @@ fun ReelsScreen(
 
     val pagerState = rememberPagerState(pageCount = { displayReels.size })
 
-    // Track Watch History when page settles
+    // حالة التشغيل الفعلية للصفحة الحالية (مستمدة من خريطة الصفحات — لا تسرب حالة)
+    val currentReelActuallyPlaying = pagePlayingStates[pagerState.currentPage] == true
+
+    // إثبات المشاهدة عند مغادرة المقطع: تسجيل بالمدة الفعلية المقيسة (لا قيمة مختلقة)
     LaunchedEffect(pagerState.currentPage, displayReels) {
-        if (displayReels.isNotEmpty() && pagerState.currentPage < displayReels.size) {
-            val currentReel = displayReels[pagerState.currentPage]
-            ReelPreferencesManager.recordWatch(
-                context = context,
-                reelId = currentReel.id,
-                title = currentReel.title,
-                userName = currentReel.userName,
-                userAvatar = currentReel.userAvatar,
-                videoUrl = currentReel.videoUrl,
-                category = selectedCategory,
-                durationSec = 2
-            )
+        if (displayReels.isEmpty()) return@LaunchedEffect
+        val page = pagerState.currentPage
+        if (page >= displayReels.size) return@LaunchedEffect
+        if (lastWatchedReelId != null && lastWatchedReelId != displayReels[page].id) {
+            finalizeWatch(lastWatchedReelId)
+        }
+        lastWatchedReelId = displayReels[page].id
+    }
+
+    // عدّاد المشاهدة: يتراكم فقط أثناء التشغيل الفعلي للمقطع الحالي (لا أثناء الإيقاف/الجلب)
+    LaunchedEffect(currentReelActuallyPlaying, pagerState.currentPage, displayReels) {
+        if (!currentReelActuallyPlaying || displayReels.isEmpty()) return@LaunchedEffect
+        while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+            delay(1000)
+            val page = pagerState.currentPage
+            if (page >= displayReels.size) break
+            val id = displayReels[page].id
+            watchSeconds[id] = (watchSeconds[id] ?: 0) + 1
+        }
+    }
+
+    // عند مغادرة الشاشة نهائياً: إثبات مشاهدة آخر مقطع
+    DisposableEffect(Unit) {
+        onDispose {
+            finalizeWatch(lastWatchedReelId)
+        }
+    }
+
+    // تمرير لانهائي: جلب الصفحة التالية عند الاقتراب من نهاية القائمة الحالية
+    LaunchedEffect(pagerState.currentPage, displayReels.size, isLoading) {
+        if (isLoading || displayReels.isEmpty()) return@LaunchedEffect
+        if (pagerState.currentPage >= displayReels.size - 3) {
+            loadMoreReels()
         }
     }
 
@@ -336,6 +485,56 @@ fun ReelsScreen(
                                 fontFamily = CairoFont,
                                 fontSize = 13.sp
                             )
+                        }
+                    }
+                } else if (loadError && allReels.isEmpty()) {
+                    // فشل التحميل (يُميَّز عن لا نتائج): إعادة محاولة صريحة
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF0B1324), Color.Black, Color(0xFF070B14))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WifiOff,
+                                contentDescription = null,
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "تعذر الاتصال بالخلاصة",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "تحقق من اتصالك بالإنترنت ثم أعد المحاولة",
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Button(
+                                onClick = { loadReels() },
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.heightIn(min = 44.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                     }
                 } else if (allReels.isEmpty()) {
@@ -451,6 +650,50 @@ fun ReelsScreen(
                     }
                 }
             } else {
+                if (displayReels.isEmpty()) {
+                    // توجد مقاطع لكن لا نتائج مطابقة للفلاتر/البحث الحالية
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SearchOff,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(46.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "لا نتائج مطابقة لبحثك أو تصنيفك الحالي",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    selectedCategory = "ALL"
+                                    searchQuery = ""
+                                    isSearchActive = false
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
+                                modifier = Modifier.heightIn(min = 44.dp)
+                            ) {
+                                Icon(Icons.Default.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("مسح الفلاتر", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                } else {
                     VerticalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
@@ -459,12 +702,14 @@ fun ReelsScreen(
                         val reel = displayReels[page]
                         val isPageVisible = pagerState.currentPage == page
                         val isLiked = likedReelIds[reel.id] == true
-                        val isSaved = savedReels.any { it.reelId == reel.id }
+                        // محفوظ محلياً أو في المحفوظات السحابية (مزامنة عبر الأجهزة)
+                        val isSaved = savedReels.any { it.reelId == reel.id } || cloudBookmarks.contains(reel.id)
                         val currentLikes = dynamicLikeCounts[reel.id] ?: reel.likesCount
 
                         val handleToggleLike: () -> Unit = {
-                            if (ReelSafetyGuardrails.canPerformLike(reel.id)) {
+                            if (ReelSafetyGuardrails.canPerformLike(reel.id) && likeInFlight[reel.id] != true) {
                                 val newLikedState = !isLiked
+                                likeInFlight[reel.id] = true
                                 likedReelIds[reel.id] = newLikedState
                                 dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
 
@@ -479,21 +724,41 @@ fun ReelsScreen(
                                 )
 
                                 scope.launch {
-                                    runCatching {
+                                    val authId = SupabaseServices.Auth.getCurrentUserId()
+                                    val ok = authId != null && runCatching {
                                         withTimeoutOrNull(5000L) {
                                             if (newLikedState) {
-                                                SupabaseServices.Profiles.likeReel(reel.id, currentUserId)
+                                                SupabaseServices.Profiles.likeReel(reel.id, authId)
                                             } else {
-                                                SupabaseServices.Profiles.unlikeReel(reel.id, currentUserId)
+                                                SupabaseServices.Profiles.unlikeReel(reel.id, authId)
                                             }
-                                        }
+                                        } ?: false
+                                    }.getOrDefault(false)
+
+                                    if (authId != null && !ok) {
+                                        // فشل التسجيل السحابي: تراجع فوري عن التحديث المتفائل
+                                        likedReelIds[reel.id] = !newLikedState
+                                        dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
+                                        ReelPreferencesManager.toggleLiked(
+                                            context = context,
+                                            reelId = reel.id,
+                                            title = reel.title,
+                                            userName = reel.userName,
+                                            userAvatar = reel.userAvatar,
+                                            videoUrl = reel.videoUrl,
+                                            category = selectedCategory
+                                        )
+                                        Toast.makeText(context, "تعذر تسجيل الإعجاب — تحقق من اتصالك", Toast.LENGTH_SHORT).show()
                                     }
+                                    likeInFlight[reel.id] = false
                                 }
                             }
                         }
 
                         val handleToggleSave: () -> Unit = {
-                            val nowSaved = ReelPreferencesManager.toggleSave(
+                            val wasCloudSaved = cloudBookmarks.contains(reel.id)
+                            val wasLocalSaved = savedReels.any { it.reelId == reel.id }
+                            val nowLocalSaved = ReelPreferencesManager.toggleSave(
                                 context = context,
                                 reelId = reel.id,
                                 title = reel.title,
@@ -504,9 +769,44 @@ fun ReelsScreen(
                             )
                             Toast.makeText(
                                 context,
-                                if (nowSaved) "تم حفظ المقطع في المحفوظات 🔖" else "تمت إزالة المقطع من المحفوظات",
+                                if (nowLocalSaved) "تم حفظ المقطع في المحفوظات 🔖" else "تمت إزالة المقطع من المحفوظات",
                                 Toast.LENGTH_SHORT
                             ).show()
+
+                            // مزامنة سحابية للمستخدم المصادق — مع تراجع فوري عند الفشل
+                            val authId = SupabaseServices.Auth.getCurrentUserId()
+                            if (authId != null) {
+                                // الحالة السحابية تحاكي الحالة المحلية النهائية
+                                val nowCloudSaved = nowLocalSaved
+                                if (nowCloudSaved) cloudBookmarks = cloudBookmarks + reel.id else cloudBookmarks = cloudBookmarks - reel.id
+                                scope.launch {
+                                    val ok = runCatching {
+                                        withTimeoutOrNull(5000L) {
+                                            if (nowCloudSaved) {
+                                                SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
+                                            } else {
+                                                SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
+                                            }
+                                        } ?: false
+                                    }.getOrDefault(false)
+                                    if (!ok) {
+                                        // تراجع سحابي + تراجع محلي (اتساق كامل بين الطبقتين)
+                                        cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
+                                        if (nowLocalSaved != wasLocalSaved) {
+                                            ReelPreferencesManager.toggleSave(
+                                                context = context,
+                                                reelId = reel.id,
+                                                title = reel.title,
+                                                userName = reel.userName,
+                                                userAvatar = reel.userAvatar,
+                                                videoUrl = reel.videoUrl,
+                                                category = selectedCategory
+                                            )
+                                        }
+                                        Toast.makeText(context, "تعذر مزامنة المحفوظات مع السحابة", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
                         }
 
                         val isNetworkPermitted = remember(autoplayWifiOnly) {
@@ -516,7 +816,8 @@ fun ReelsScreen(
                         Box(modifier = Modifier.fillMaxSize()) {
                             ReelPlayer(
                                 videoUrl = reel.videoUrl,
-                                isPlaying = isPageVisible && isNetworkPermitted,
+                                // بوابة التشغيل الموحّدة: الصفحة مرئية + الشبكة مسموحة + الشاشة نشطة
+                                isPlaying = isPageVisible && isNetworkPermitted && isScreenActive,
                                 playbackSpeed = playbackSpeed,
                                 volume = audioVolume,
                                 brightness = screenBrightness,
@@ -536,6 +837,10 @@ fun ReelsScreen(
                                     }
                                 },
                                 onSingleTap = { chromeVisible = !chromeVisible },
+                                // قياس التشغيل الفعلي لكل صفحة (لعدّاد مدة المشاهدة)
+                                onActualPlayingChanged = { playing ->
+                                    pagePlayingStates[page] = playing
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
 
@@ -617,6 +922,7 @@ fun ReelsScreen(
                             )
                         }
                     }
+                }
                 }
 
                 // Floating Particles Layer
@@ -929,7 +1235,6 @@ fun ReelsScreen(
         ReelCommentsBottomSheet(
             reel = reel,
             currentUserId = currentUserId,
-            currentUserName = currentUserName,
             onDismiss = { activeCommentReel = null }
         )
     }
@@ -1114,8 +1419,8 @@ fun ReelSpatialHUDOverlays(
         label = "rotation"
     )
 
-    // أدوات التفاعل مطوية افتراضياً، ويُكشف عنها بسهم «التفاعل»
-    var actionsExpanded by remember { mutableStateOf(false) }
+    // أدوات التفاعل ظاهرة افتراضياً (بارتي تيك توك) — وتُطوى بسهم «التفاعل» عند الرغبة
+    var actionsExpanded by remember { mutableStateOf(true) }
     // بطاقة الناشر والوصف مطوية افتراضياً، وتُفتح بسهم «التفاصيل»
     var infoExpanded by remember { mutableStateOf(false) }
 
@@ -1256,29 +1561,13 @@ fun ReelSpatialHUDOverlays(
                     }
                 }
 
-                // سطر معلومات النشر: شارة الفحص الشرعي + التصنيف + الوسوم
+                // سطر معلومات النشر: التصنيف + الوسوم
                 val publishTags = reel.tags.filter { it.isNotBlank() }.take(3)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(top = 6.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.2f),
-                        border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = "مفحوص شرعياً 🌿",
-                            fontFamily = CairoFont,
-                            fontSize = 9.sp,
-                            color = Color(0xFF10B981),
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                    }
                     publishTags.forEach { tag ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -1351,7 +1640,7 @@ fun ReelSpatialHUDOverlays(
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "صوت أصلي معتمد // استوديو قبس",
+                        text = "الصوت الأصلي للمقطع",
                         color = Color.White.copy(alpha = 0.9f),
                         fontFamily = CairoFont,
                         fontSize = 10.sp
@@ -1580,7 +1869,6 @@ fun ReelRailButton(
 fun ReelCommentsBottomSheet(
     reel: SupabaseServices.ReelRow,
     currentUserId: String,
-    currentUserName: String,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1588,9 +1876,22 @@ fun ReelCommentsBottomSheet(
     var commentText by remember { mutableStateOf("") }
     var commentsList by remember { mutableStateOf<List<SupabaseServices.ReelCommentRow>>(emptyList()) }
     var isPosting by remember { mutableStateOf(false) }
+    // حالة جلب التعليقات: تحميل / فشل — يُميَّزان عن القائمة الفارغة
+    var commentsLoading by remember { mutableStateOf(true) }
+    var commentsError by remember { mutableStateOf(false) }
 
     LaunchedEffect(reel.id) {
-        commentsList = SupabaseServices.Profiles.getReelComments(reel.id)
+        commentsLoading = true
+        commentsError = false
+        val loaded = runCatching {
+            SupabaseServices.Profiles.getReelComments(reel.id)
+        }.getOrDefault(null)
+        if (loaded == null) {
+            commentsError = true
+        } else {
+            commentsList = loaded
+        }
+        commentsLoading = false
     }
 
     val submitComment: (String) -> Unit = submit@{ raw ->
@@ -1602,18 +1903,14 @@ fun ReelCommentsBottomSheet(
         }
         isPosting = true
         coroutineScope.launch {
-            val ok = runCatching {
+            // يُدرج الصف الفعلي الذي أعادته الخلفية (بمعرّفه ووقته الحقيقيين) — لا صف مختلق محلياً
+            val inserted = runCatching {
                 withTimeoutOrNull(6000L) {
                     SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, sanitized)
-                } ?: false
-            }.getOrDefault(false)
-            if (ok) {
-                commentsList = commentsList + SupabaseServices.ReelCommentRow(
-                    id = "local_${System.currentTimeMillis()}",
-                    reelId = reel.id,
-                    userId = currentUserName,
-                    commentText = sanitized
-                )
+                }
+            }.getOrNull()
+            if (inserted != null) {
+                commentsList = commentsList + inserted
                 commentText = ""
             } else {
                 Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
@@ -1649,7 +1946,32 @@ fun ReelCommentsBottomSheet(
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
-            if (commentsList.isEmpty()) {
+            if (commentsLoading) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
+                }
+            } else if (commentsError) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "تعذر تحميل التعليقات",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontFamily = CairoFont,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            } else if (commentsList.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -1743,7 +2065,8 @@ fun ReelCommentsBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 8.dp)
+                    .imePadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
@@ -1783,6 +2106,9 @@ fun ReelCommentsBottomSheet(
         }
     }
 }
+
+/** حجم صفحة خلاصة الريلز — أساس التمرير اللانهائي */
+private const val REELS_PAGE_SIZE = 20
 
 private fun formatCount(count: Int): String {
     return when {

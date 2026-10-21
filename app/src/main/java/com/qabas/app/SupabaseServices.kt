@@ -980,13 +980,24 @@ object SupabaseServices {
             }.decodeSingleOrNull<ProfileRow>()
         }.onFailure { Log.e(TAG, "getUserProfile failed: ${it.message}") }.getOrNull()
 
-        suspend fun getActiveReels(): List<ReelRow>? = runCatching {
+        /**
+         * جلب مقاطع الريلز النشطة — الأحدث أولاً (created_at ثم id لضمان ترتيب ثابت)
+         * مع ترقيم صفحات مدى (range) لتمرير لانهائي.
+         * تعيد null عند فشل الشبكة/العميل، وقائمة فارغة عند عدم وجود مقاطع — للتمييز بينهما.
+         */
+        suspend fun getActiveReels(
+            limit: Int = 20,
+            offset: Int = 0
+        ): List<ReelRow>? = runCatching {
             val client = client ?: return null
             client.postgrest.from("reels").select {
                 filter {
                     eq("is_active", true)
                 }
-                limit(20)
+                // ترتيب ثابت: الأحدث أولاً، وid كفاصل للتعادل لضمان عدم تكرار/إسقاط صفحات
+                order("created_at", Order.DESCENDING)
+                order("id", Order.DESCENDING)
+                range(offset, offset + limit - 1)
             }.decodeList<ReelRow>()
         }.onFailure { Log.e(TAG, "getActiveReels failed: ${it.message}") }.getOrNull()
 
@@ -1055,18 +1066,23 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "unlikeReel failed: ${it.message}") }.getOrDefault(false)
 
-        suspend fun getReelComments(reelId: String): List<ReelCommentRow> = runCatching {
-            val client = client ?: return emptyList()
+        /** تعيد null عند الفشل (شبكة/عميل) وقائمة فارغة عند عدم وجود تعليقات — للتمييز بينهما */
+        suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
+            val client = client ?: return null
             client.postgrest.from("reel_comments").select {
                 filter {
                     eq("reel_id", reelId)
                 }
                 order("created_at", Order.ASCENDING)
             }.decodeList<ReelCommentRow>()
-        }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
-        suspend fun addReelComment(reelId: String, userId: String, commentText: String): Boolean = runCatching {
-            val client = client ?: return false
+        /**
+         * إضافة تعليق على ريل — يعيد الصف المُدرج فعلياً من الخلفية
+         * (بمعرّفه ووقته الحقيقيين) بدل اختلاقهما محلياً.
+         */
+        suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
+            val client = client ?: return null
             val comment = ReelCommentRow(
                 id = UUID.randomUUID().toString(),
                 reelId = reelId,
@@ -1075,9 +1091,63 @@ object SupabaseServices {
                 likesCount = 0,
                 createdAt = java.time.Instant.now().toString()
             )
-            client.postgrest.from("reel_comments").insert(comment)
+            client.postgrest.from("reel_comments").insert(comment) {
+                select()
+            }.decodeSingleOrNull<ReelCommentRow>()
+        }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrNull()
+
+        // ==========================================
+        // المحفوظات السحابية للريلز (reel_bookmarks)
+        // ==========================================
+
+        /** جلب معرّفات الريلز المحفوظة لمستخدم — لمزامنة حالة «محفوظ» عبر الأجهزة */
+        suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
+                filter {
+                    eq("user_id", userId)
+                }
+            }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
+        }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
+
+        /** حفظ ريل في المحفوظات السحابية */
+        suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            client.postgrest.from("reel_bookmarks").upsert(ReelBookmarkRow(reelId = reelId, userId = userId))
             true
-        }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { Log.e(TAG, "addReelBookmark failed: ${it.message}") }.getOrDefault(false)
+
+        /** إزالة ريل من المحفوظات السحابية */
+        suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            client.postgrest.from("reel_bookmarks").delete {
+                filter {
+                    eq("reel_id", reelId)
+                    eq("user_id", userId)
+                }
+            }
+            true
+        }.onFailure { Log.e(TAG, "removeReelBookmark failed: ${it.message}") }.getOrDefault(false)
+
+        // ==========================================
+        // سجل المشاهدات السحابي (reel_history)
+        // ==========================================
+
+        /**
+         * تسجيل مشاهدة ريل في السجل السحابي بمدة المشاهدة الفعلية المقيسة.
+         * يُستدعى فقط عند وجود مستخدم مصادق — لا يُكتب بريد ضيف.
+         */
+        suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Boolean = runCatching {
+            val client = client ?: return false
+            client.postgrest.from("reel_history").insert(
+                mapOf(
+                    "reel_id" to reelId,
+                    "user_id" to userId,
+                    "watched_duration_sec" to watchedDurationSec.coerceIn(0, 3600)
+                )
+            )
+            true
+        }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrDefault(false)
     }
 
     // ==========================================
@@ -1513,6 +1583,12 @@ object SupabaseServices {
         @SerialName("comment_text") val commentText: String = "",
         @SerialName("likes_count") val likesCount: Int = 0,
         @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
+    data class ReelBookmarkRow(
+        @SerialName("reel_id") val reelId: String,
+        @SerialName("user_id") val userId: String
     )
 
     @Serializable
