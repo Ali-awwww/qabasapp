@@ -3,6 +3,7 @@ package com.qabas.app
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -174,6 +175,89 @@ private fun GeoSectionTile(
     }
 }
 
+/**
+ * ترويسة الشاشة الكاملة للقسم — أيقونة كبيرة + عنوان + وصف + رجوع لبوابة المحراب.
+ */
+@Composable
+private fun SectionFullScreenHeader(
+    entry: PrayerSectionEntry,
+    onBack: () -> Unit
+) {
+    Surface(
+        shape = GeoShape.Card,
+        color = Color.Transparent,
+        border = BorderStroke(Geo.B_HAIRLINE, entry.color.copy(alpha = 0.30f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM)
+    ) {
+        Box(
+            modifier = Modifier.background(
+                Brush.horizontalGradient(
+                    listOf(entry.color.copy(alpha = 0.16f), Color.Transparent)
+                )
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Geo.S_MD),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(GeoShape.Circle)
+                        .background(entry.color.copy(alpha = 0.10f), GeoShape.Circle)
+                        .border(Geo.B_HAIRLINE, entry.color.copy(alpha = 0.34f), GeoShape.Circle)
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "رجوع إلى أقسام المحراب",
+                        tint = entry.color,
+                        modifier = Modifier.size(Geo.I_SM)
+                    )
+                }
+
+                Spacer(Modifier.width(Geo.S_MD))
+
+                GeoIconBadge(
+                    icon = entry.icon,
+                    accent = entry.color,
+                    size = 46.dp,
+                    iconSize = Geo.I_LG
+                )
+
+                Spacer(Modifier.width(Geo.S_MD))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = entry.title,
+                        color = GeoColor.textPrimary(),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = entry.desc,
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.5.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrayerTimesScreen(
@@ -197,18 +281,13 @@ fun PrayerTimesScreen(
     // Audio Playback State
     val audioPlaybackState by AzanAudioPlayer.playbackState.collectAsState()
 
-    // Tabs
-    var selectedTab by remember { mutableIntStateOf(0) }
     // -1 = بوابة الأقسام (بطاقات دخول)، وإلا قسم مفتوح بشاشة كاملة
     var openedSection by remember { mutableIntStateOf(-1) }
+    BackHandler(enabled = openedSection != -1) {
+        AppSoundManager.playClick()
+        openedSection = -1
+    }
     // عناوين نظيفة بلا إيموجي — الأيقونة هي الحامل البصري الوحيد
-    val tabs = listOf(
-        "المواقيت",
-        "السجل والسنن",
-        "مرآة النذير",
-        "رياض الجنة",
-        "القبلة والخشوع"
-    )
     val sectionEntries = listOf(
         PrayerSectionEntry("المواقيت", "جدول الصلوات اليومي والتنبيهات", Icons.Default.Schedule, GeoColor.Prayer),
         PrayerSectionEntry("السجل والسنن", "سجل المحافظة والسنن الرواتب", Icons.Default.MenuBook, GeoColor.Quran),
@@ -261,7 +340,8 @@ fun PrayerTimesScreen(
                         Spacer(Modifier.width(Geo.S_SM))
                         Column {
                             Text(
-                                "محراب الصلاة والمواقيت",
+                                if (openedSection == -1) "محراب الصلاة والمواقيت"
+                                else sectionEntries[openedSection].title,
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -270,7 +350,8 @@ fun PrayerTimesScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "${currentCity.nameAr} • ${currentCity.countryAr}",
+                                if (openedSection == -1) "${currentCity.nameAr} • ${currentCity.countryAr}"
+                                else sectionEntries[openedSection].desc,
                                 color = GeoColor.textMuted(),
                                 fontFamily = NotoSansFont,
                                 fontSize = 10.5.sp,
@@ -281,7 +362,12 @@ fun PrayerTimesScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (openedSection != -1) {
+                            AppSoundManager.playClick()
+                            openedSection = -1
+                        } else onBack()
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "رجوع",
@@ -335,129 +421,64 @@ fun PrayerTimesScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Hero Live Countdown & Next Prayer Ring
-            HeroPrayerCountdownCard(
-                prayerTimes = prayerTimes,
-                cityName = currentCity.nameAr,
-                onOpenVoices = { showAudioSheet = true },
-                onShareTimetable = {
-                    val timetableText = """
-                        🕌 مواقيت الصلاة اليوم في ${currentCity.nameAr} (${currentCity.countryAr}):
-                        • الفجر: ${prayerTimes.fajr}
-                        • الشروق: ${prayerTimes.sunrise}
-                        • الظهر: ${prayerTimes.dhuhr}
-                        • العصر: ${prayerTimes.asr}
-                        • المغرب: ${prayerTimes.maghrib}
-                        • العشاء: ${prayerTimes.isha}
-                        • الثلث الأخير وقيام الليل: ${prayerTimes.qiyamStart}
-                        
-                        ⏱️ الصلاة القادمة: صلاة ${prayerTimes.nextPrayerName} بعد ${PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer)}
-                        ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَّوْقُوتًا﴾
-                        تطبيق قبس — مشكاة الهدى
-                    """.trimIndent()
-                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                        putExtra(Intent.EXTRA_TEXT, timetableText)
-                        type = "text/plain"
-                    }
-                    context.startActivity(Intent.createChooser(sendIntent, "مشاركة مواقيت الصلاة"))
-                }
-            )
-
-            // Tabs Header
             if (openedSection == -1) {
-                PrayerSectionsHub(
-                    entries = sectionEntries,
-                    onOpen = { openedSection = it }
-                )
-            } else {
-                // شريط العودة لبوابة الأقسام + عنوان القسم المفتوح
-                Row(
+                // ── بوابة المحراب: العدّاد الحي + بطاقات الأقسام ──
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { openedSection = -1 }
-                        .padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = Geo.S_LG)
                 ) {
-                    GeoIconBadge(
-                        icon = Icons.AutoMirrored.Filled.ArrowForward,
-                        accent = GoldPrimary,
-                        size = 30.dp,
-                        iconSize = Geo.I_XS
-                    )
-                    Spacer(modifier = Modifier.width(Geo.S_SM))
-                    Text(
-                        "كل الأقسام",
-                        color = GoldPrimary,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        sectionEntries[openedSection].title,
-                        color = GeoColor.textPrimary(),
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                GeoDivider(color = GeoColor.hairline())
-                ScrollableTabRow(
-                    selectedTabIndex = openedSection,
-                    containerColor = Color.Transparent,
-                    contentColor = GoldPrimary,
-                    edgePadding = Geo.S_MD,
-                    divider = {},
-                    indicator = { tabPositions ->
-                        Box(
-                            modifier = Modifier
-                                .tabIndicatorOffset(tabPositions[openedSection])
-                                .height(3.dp)
-                                .background(
-                                    sectionEntries[openedSection].color,
-                                    RoundedCornerShape(2.dp)
-                                )
-                        )
-                    }
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        val entry = sectionEntries[index]
-                        val isSelected = openedSection == index
-                        Tab(
-                            selected = isSelected,
-                            onClick = { openedSection = index },
-                            icon = {
-                                Icon(
-                                    entry.icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) entry.color else GeoColor.textMuted(),
-                                    modifier = Modifier.size(Geo.I_SM)
-                                )
-                            },
-                            text = {
-                                Text(
-                                    text = title,
-                                    fontFamily = CairoFont,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    color = if (isSelected) entry.color else GeoColor.textMuted()
-                                )
-                            }
-                        )
-                    }
-                }
-            }
+                    HeroPrayerCountdownCard(
+                        prayerTimes = prayerTimes,
+                        cityName = currentCity.nameAr,
+                        onOpenVoices = { showAudioSheet = true },
+                        onShareTimetable = {
+                            val timetableText = """
+                                🕌 مواقيت الصلاة اليوم في ${currentCity.nameAr} (${currentCity.countryAr}):
+                                • الفجر: ${prayerTimes.fajr}
+                                • الشروق: ${prayerTimes.sunrise}
+                                • الظهر: ${prayerTimes.dhuhr}
+                                • العصر: ${prayerTimes.asr}
+                                • المغرب: ${prayerTimes.maghrib}
+                                • العشاء: ${prayerTimes.isha}
+                                • الثلث الأخير وقيام الليل: ${prayerTimes.qiyamStart}
 
-            // Tab Content — القسم المفتوح فقط بشاشة كاملة
-            if (openedSection != -1) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-            ) {
+                                ⏱️ الصلاة القادمة: صلاة ${prayerTimes.nextPrayerName} بعد ${PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer)}
+                                ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَّوْقُوتًا﴾
+                                تطبيق قبس — مشكاة الهدى
+                            """.trimIndent()
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                putExtra(Intent.EXTRA_TEXT, timetableText)
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "مشاركة مواقيت الصلاة"))
+                        }
+                    )
+
+                    PrayerSectionsHub(
+                        entries = sectionEntries,
+                        onOpen = {
+                            AppSoundManager.playClick()
+                            openedSection = it
+                        }
+                    )
+                }
+            } else {
+                // ── شاشة كاملة مستقلة للقسم المفتوح (أيقونة + عنوان + محتوى) ──
+                SectionFullScreenHeader(
+                    entry = sectionEntries[openedSection],
+                    onBack = {
+                        AppSoundManager.playClick()
+                        openedSection = -1
+                    }
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
                 when (openedSection) {
                     0 -> TimetableAndControlsTab(
                         prayerTimes = prayerTimes,
