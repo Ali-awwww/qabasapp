@@ -268,7 +268,7 @@ jobs:
           else
             echo "🆕 Creating release $VERSION..."
             gh release create "$VERSION" "$APK_FILE" \
-              --title "Qabas Studio v1.3.1 - Build #${{ github.run_number }}" \
+              --title "Qabas Studio v${VERSION_NAME} - Build #${{ github.run_number }}" \
               --notes-file release_notes.md \
               --draft=false
           fi

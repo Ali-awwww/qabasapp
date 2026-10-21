@@ -51,6 +51,35 @@ class UpdateDownloadService : Service() {
                 Intent(context, UpdateDownloadService::class.java).apply { action = ACTION_CANCEL }
             )
         }
+
+        /**
+         * إشعار «اكتمل التنزيل — ثبّت الآن» لحزمة جاهزة للتثبيت.
+         * يُستخدم عند وجود حزمة محمّلة مسبقاً عند الإقلاع: فتح المثبّت مباشرة من
+         * الخلفية محجوب في أندرويد 10+، بينما نقرة الإشعار تفتح النشاط في
+         * المقدمة ويفتح المثبّت بعدها (وإن رُفضت الإشعارات تبقى الحزمة
+         * متاحة من مركز التنزيلات داخل التطبيق).
+         */
+        fun notifyInstallReady(context: Context, versionName: String, versionCode: Int, apkSize: Long = 0L) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                nm.createNotificationChannel(
+                    NotificationChannel(CHANNEL_ID, "تحديثات قبس", NotificationManager.IMPORTANCE_LOW).apply {
+                        description = "تقدّم تنزيل تحديثات التطبيق"
+                    }
+                )
+            }
+            val installPending = UpdateInstallReceiver.pendingIntent(context, versionName, versionCode, apkSize)
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("اكتمل التنزيل")
+                .setContentText("التحديث $versionName جاهز للتثبيت")
+                .setOngoing(false)
+                .setAutoCancel(true)
+                .addAction(android.R.drawable.stat_sys_upload_done, "تثبيت الآن", installPending)
+                .setContentIntent(installPending)
+                .build()
+            nm.notify(NOTIF_ID, notif)
+        }
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -58,6 +87,8 @@ class UpdateDownloadService : Service() {
     private var activeKey: String? = null
     private var lastPercent = -1
     private var activeVersionName: String = ""
+    private var activeVersionCode: Int = -1
+    private var activeApkSize: Long = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -83,6 +114,8 @@ class UpdateDownloadService : Service() {
     private fun startDownload(info: UpdateManager.UpdateInfo, forceFull: Boolean) {
         activeKey = "${info.versionName}|${info.versionCode}"
         activeVersionName = info.versionName
+        activeVersionCode = info.versionCode
+        activeApkSize = info.apkSize
         lastPercent = -1
         ensureChannel()
         acquireWakeLock()
@@ -154,7 +187,7 @@ class UpdateDownloadService : Service() {
 
         if (installable) {
             // زر «تثبيت الآن» يفتح مثبّت النظام مباشرة من الإشعار
-            val installPending = UpdateInstallReceiver.pendingIntent(this, activeVersionName)
+            val installPending = UpdateInstallReceiver.pendingIntent(this, activeVersionName, activeVersionCode, activeApkSize)
             builder.addAction(
                 android.R.drawable.stat_sys_upload_done,
                 "تثبيت الآن",

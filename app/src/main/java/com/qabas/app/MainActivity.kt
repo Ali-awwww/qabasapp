@@ -1032,6 +1032,43 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         handleDeepLink(intent)
+        // حدّث نية النشاط حتى يعالج onResume الأحدث لا الأصلية القديمة
+        setIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        UpdateManager.onAppForeground()
+        // نية «تثبيت الآن» من الإشعار تُستهلك مرة واحدة فقط
+        if (handleInstallIntent(intent)) {
+            UpdateManager.attemptPendingInstall(this)
+        } else {
+            UpdateManager.maybeResumePendingInstall(this)
+        }
+    }
+
+    override fun onPause() {
+        UpdateManager.onAppBackground()
+        super.onPause()
+    }
+
+    /**
+     * معالجة نية تثبيت التحديث الواردة من إشعار «تثبيت الآن».
+     * تُستهلك النية (تُمسح) بعد القراءة حتى لا يُعاد فتح المثبّت
+     * عند كل onResume. تعيد true فقط عند أول قراءة نية تثبيت.
+     */
+    private fun handleInstallIntent(intent: android.content.Intent): Boolean {
+        if (intent.action != UpdateInstallReceiver.ACTION_INSTALL) return false
+        val versionName = intent.getStringExtra(UpdateInstallReceiver.EXTRA_VERSION_NAME).orEmpty()
+        val versionCode = intent.getIntExtra(UpdateInstallReceiver.EXTRA_VERSION_CODE, -1)
+        val apkSize = intent.getLongExtra(UpdateInstallReceiver.EXTRA_APK_SIZE, 0L)
+        // استهلاك النية — لن تُعالج مرة أخرى
+        intent.action = null
+        if (versionName.isNotBlank() && versionCode > 0) {
+            UpdateManager.setPendingInstall(this, versionName, versionCode, apkSize)
+            return true
+        }
+        return false
     }
 
     private fun handleDeepLink(intent: android.content.Intent) {

@@ -77,6 +77,8 @@ data class AppUpdateDownloadItem(
     val apkUrl: String = "",
     val deltaUrl: String? = null,
     val totalBytes: Long = 0L,
+    /** الحجم المتوقع للحزمة الكاملة من الريليز — ثابت ولا يتغير مع تقدم التنزيل */
+    val expectedApkSize: Long = 0L,
     val downloadedBytes: Long = 0L,
     val progress: Float = 0f,
     val speedBytesPerSec: Long = 0L,
@@ -218,6 +220,7 @@ object DownloadsHubManager {
                             versionCode = currentVersionCode + 1,
                             releaseNotes = "حزمة التحديث منزّلة وجاهزة للتثبيت الفوري على هاتفك 🚀",
                             totalBytes = latestApk.length(),
+                            expectedApkSize = latestApk.length(),
                             downloadedBytes = latestApk.length(),
                             progress = 1f,
                             phase = "COMPLETED",
@@ -271,7 +274,9 @@ object DownloadsHubManager {
                     val (_, ok, msg) = res
                     val current = _appUpdateDownload.value
                     if (current != null) {
-                        val apkFile = UpdateManager.getDownloadedApkFile(context, current.versionName)
+                        val apkFile = UpdateManager.getValidatedDownloadedApk(
+                            context, current.versionName, current.versionCode, current.expectedApkSize
+                        )
                         if (ok && apkFile != null && apkFile.exists()) {
                             _appUpdateDownload.value = current.copy(
                                 downloadedBytes = apkFile.length(),
@@ -785,7 +790,9 @@ object DownloadsHubManager {
                     Log.d(TAG, "🚀 New update detected: ${update.versionName} - starting auto download!")
                     
                     // تحقق مما إذا كانت الحزمة منزلة وموجودة بالفعل
-                    val existingApk = UpdateManager.getDownloadedApkFile(context, update.versionName)
+                    val existingApk = UpdateManager.getValidatedDownloadedApk(
+                        context, update.versionName, update.versionCode, update.apkSize
+                    )
                     if (existingApk != null && existingApk.exists() && existingApk.length() > 1_000_000) {
                         Log.d(TAG, "📦 Update package already exists: ${existingApk.absolutePath}")
                         _appUpdateDownload.value = AppUpdateDownloadItem(
@@ -795,6 +802,7 @@ object DownloadsHubManager {
                             apkUrl = update.apkUrl,
                             deltaUrl = update.deltaUrl,
                             totalBytes = existingApk.length(),
+                            expectedApkSize = update.apkSize,
                             downloadedBytes = existingApk.length(),
                             progress = 1f,
                             phase = "COMPLETED",
@@ -802,9 +810,11 @@ object DownloadsHubManager {
                             isCompleted = true,
                             localApkPath = existingApk.absolutePath
                         )
-                        withContext(Dispatchers.Main) {
-                            UpdateManager.launchInstaller(context, existingApk)
-                        }
+                        // فتح المثبّت من الخلفية محجوب في أندرويد 10+ — إشعار
+                        // «ثبّت الآن» يفتح النشاط في المقدمة ثم واجهة التثبيت.
+                        UpdateDownloadService.notifyInstallReady(
+                            context, update.versionName, update.versionCode, update.apkSize
+                        )
                     } else {
                         // بدء التنزيل التلقائي فوراً
                         val targetSize = if (update.deltaSize > 0) update.deltaSize else update.apkSize
@@ -815,6 +825,7 @@ object DownloadsHubManager {
                             apkUrl = update.apkUrl,
                             deltaUrl = update.deltaUrl,
                             totalBytes = targetSize,
+                            expectedApkSize = update.apkSize,
                             downloadedBytes = 0L,
                             progress = 0f,
                             phase = "DOWNLOADING",
@@ -849,6 +860,7 @@ object DownloadsHubManager {
             apkUrl = update.apkUrl,
             deltaUrl = update.deltaUrl,
             totalBytes = targetSize,
+            expectedApkSize = update.apkSize,
             downloadedBytes = 0L,
             progress = 0f,
             phase = "DOWNLOADING",
@@ -891,8 +903,9 @@ object DownloadsHubManager {
      * فتح مثبّت النظام مباشرة من إشعار/اختصار — يجد الحزمة المنزّلة تلقائياً.
      * (يُستخدم من UpdateInstallReceiver)
      */
-    fun installVersion(context: Context, versionName: String): Boolean {
-        val apk = UpdateManager.getDownloadedApkFile(context, versionName) ?: return false
+    fun installVersion(context: Context, versionName: String, versionCode: Int, apkSize: Long = 0L): Boolean {
+        // الحزمة تُحدد بالاسم ورقم البناء معاً — لا نثبّت حزمة غير محددة بدقة
+        val apk = UpdateManager.getValidatedDownloadedApk(context, versionName, versionCode, apkSize) ?: return false
         if (!apk.exists() || apk.length() <= 1_000_000L) return false
         UpdateManager.launchInstaller(context, apk)
         return true

@@ -116,7 +116,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
     val signingInfo = remember { readSigningFingerprint(context) }
 
     LaunchedEffect(Unit) {
-        localApk = UpdateManager.getDownloadedApkFile(context, currentVersionName)
+        localApk = UpdateManager.getLatestDownloadedUpdateApk(context)
     }
 
     Surface(

@@ -1,59 +1,58 @@
 package com.qabas.app
 
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 
 /**
- * 📦 UpdateInstallReceiver — يفتح مثبّت أندرويد مباشرة بعد اكتمال تنزيل التحديث.
+ * 📦 UpdateInstallReceiver — أدوات بناء Intent التثبيت.
  *
- * الهدف: جعل تجربة التحديث أقرب ما يمكن للتلقائية:
- *   تنزيل في الخلفية ← إشعار دائم ← عند الاكتمال: زر «تثبيت الآن» في الإشعار
- *   يفتح نافذة تثبيت النظام مباشرة (بلا رحلة عبر الواجهة).
- *
- * ملاحظة: أندرويد 8+ يفرض عرض نافذة النظام — لا يمكن تجاوزها إلا عبر
- * Play In-App Update (انظر [PlayInAppUpdate]).
+ * ملاحظة أندرويد 12+: يُمنع بدء نشاط من إشعار عبر BroadcastReceiver
+ * (notification trampoline)، لذا يبني [pendingIntent] نشاط MainActivity
+ * مباشرةً، ويعالجه MainActivity في onNewIntent/onResume ثم يفتح المثبّت.
+ * صنف BroadcastReceiver نفسه باقٍ فقط للتوافق مع الإشعارات القديمة.
  */
-class UpdateInstallReceiver : BroadcastReceiver() {
+class UpdateInstallReceiver : android.content.BroadcastReceiver() {
 
     companion object {
-        private const val TAG = "UpdateInstallReceiver"
         const val ACTION_INSTALL = "com.qabas.app.ACTION_INSTALL_UPDATE"
         const val EXTRA_VERSION_NAME = "extra_version_name"
+        const val EXTRA_VERSION_CODE = "extra_version_code"
+        const val EXTRA_APK_SIZE = "extra_apk_size"
         const val REQUEST_CODE = 7711
 
-        /** يبني Intent بث intent لتثبيت نسخة محددة */
-        fun intent(context: Context, versionName: String): Intent =
-            Intent(context, UpdateInstallReceiver::class.java).apply {
+        /** Intent نشاط MainActivity يفتح واجهة تثبيت نسخة محددة */
+        fun installActivityIntent(
+            context: Context,
+            versionName: String,
+            versionCode: Int,
+            apkSize: Long = 0L
+        ): Intent =
+            Intent(context, MainActivity::class.java).apply {
                 action = ACTION_INSTALL
                 putExtra(EXTRA_VERSION_NAME, versionName)
+                putExtra(EXTRA_VERSION_CODE, versionCode)
+                putExtra(EXTRA_APK_SIZE, apkSize)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
 
-        /** PendingIntent صالح للبدء من إشعار أو خدمة */
-        fun pendingIntent(context: Context, versionName: String): PendingIntent {
+        /** PendingIntent نشاطي صالح من الإشعارات (بدون trampoline) */
+        fun pendingIntent(
+            context: Context,
+            versionName: String,
+            versionCode: Int,
+            apkSize: Long = 0L
+        ): PendingIntent {
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            return PendingIntent.getBroadcast(context, REQUEST_CODE, intent(context, versionName), flags)
+            return PendingIntent.getActivity(
+                context, REQUEST_CODE,
+                installActivityIntent(context, versionName, versionCode, apkSize), flags
+            )
         }
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != ACTION_INSTALL) return
-
-        val versionName = intent.getStringExtra(EXTRA_VERSION_NAME).orEmpty()
-        val apk = if (versionName.isNotBlank()) {
-            UpdateManager.getDownloadedApkFile(context, versionName)
-        } else {
-            null
-        }
-
-        if (apk == null || !apk.exists()) {
-            Log.w(TAG, "لا توجد حزمة منزّلة للتثبيت (version=$versionName)")
-            return
-        }
-
-        Log.d(TAG, "فتح المثبّت للحزمة: ${apk.absolutePath}")
-        UpdateManager.launchInstaller(context, apk)
+        // مسار التوافق مع الإشعارات القديمة فقط — دون معلومات نسخة دقيقة
+        // لا نثبّت حزمة غير محددة الهوية بدقة.
     }
 }
