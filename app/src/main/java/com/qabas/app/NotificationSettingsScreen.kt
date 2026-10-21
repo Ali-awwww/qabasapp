@@ -67,6 +67,9 @@ fun NotificationSettingsScreen(
     val vibrationEnabled by NotificationPreferencesManager.vibrationEnabled.collectAsState()
     val suhurTime by NotificationPreferencesManager.suhurTime.collectAsState()
     val fajrTime by NotificationPreferencesManager.fajrTime.collectAsState()
+    val dailyHadithTime by NotificationPreferencesManager.dailyHadithTime.collectAsState()
+    val morningTime by NotificationPreferencesManager.morningTime.collectAsState()
+    val eveningTime by NotificationPreferencesManager.eveningTime.collectAsState()
     val streakCount by NotificationPreferencesManager.wiradStreak.collectAsState()
 
     // Permission Check & Request
@@ -471,17 +474,41 @@ fun NotificationSettingsScreen(
                 SectionHeader(title = "الحديث النبوي الشريف", icon = Icons.Default.AutoStories)
             }
             item {
-                NotificationToggleItem(
-                    title = "حديث اليوم النبوي الصحيح",
-                    subtitle = "حديث صحيح يومياً من البخاري ومسلم في الثامنة صباحاً مع أداة مشاركة فورية",
-                    icon = Icons.Default.Book,
-                    checked = dailyHadithEnabled && masterEnabled,
-                    enabled = masterEnabled,
-                    onCheckedChange = {
-                        AppSoundManager.playToggle()
-                        NotificationPreferencesManager.setDailyHadithEnabled(context, it)
+                Column {
+                    NotificationToggleItem(
+                        title = "حديث اليوم النبوي الصحيح",
+                        subtitle = "حديث صحيح يومياً من البخاري ومسلم في الوقت الذي تختاره مع أداة مشاركة فورية",
+                        icon = Icons.Default.Book,
+                        checked = dailyHadithEnabled && masterEnabled,
+                        enabled = masterEnabled,
+                        onCheckedChange = {
+                            AppSoundManager.playToggle()
+                            NotificationPreferencesManager.setDailyHadithEnabled(context, it)
+                        }
+                    )
+                    if (dailyHadithEnabled && masterEnabled) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        TimePresetSelector(
+                            currentHour = dailyHadithTime.first,
+                            currentMinute = dailyHadithTime.second,
+                            presets = listOf(
+                                Pair(6, 0),
+                                Pair(8, 0),
+                                Pair(12, 0),
+                                Pair(20, 0)
+                            ),
+                            onSelect = { h, m ->
+                                AppSoundManager.playClick()
+                                NotificationPreferencesManager.setDailyHadithTime(context, h, m)
+                                Toast.makeText(
+                                    context,
+                                    "تم ضبط وقت حديث اليوم: ${String.format("%02d:%02d", h, m)} 🌿",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
                     }
-                )
+                }
             }
 
             // 8. Section: Athkar & Fortification
@@ -489,30 +516,58 @@ fun NotificationSettingsScreen(
                 SectionHeader(title = "أذكار الصباح والمساء", icon = Icons.Default.Shield)
             }
             item {
-                NotificationToggleItem(
-                    title = "أذكار الصباح (حصن المسلم)",
-                    subtitle = "تذكير يومي بأذكار الصباح في بداية النهار لتمام الحفظ والسكينة",
-                    icon = Icons.Default.Brightness5,
-                    checked = morningAthkarEnabled && masterEnabled,
-                    enabled = masterEnabled,
-                    onCheckedChange = {
-                        AppSoundManager.playToggle()
-                        NotificationPreferencesManager.setMorningAthkarEnabled(context, it)
+                Column {
+                    NotificationToggleItem(
+                        title = "أذكار الصباح (حصن المسلم)",
+                        subtitle = "تذكير يومي بأذكار الصباح في بداية النهار لتمام الحفظ والسكينة",
+                        icon = Icons.Default.Brightness5,
+                        checked = morningAthkarEnabled && masterEnabled,
+                        enabled = masterEnabled,
+                        onCheckedChange = {
+                            AppSoundManager.playToggle()
+                            NotificationPreferencesManager.setMorningAthkarEnabled(context, it)
+                        }
+                    )
+                    if (morningAthkarEnabled && masterEnabled) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        TimePresetSelector(
+                            currentHour = morningTime.first,
+                            currentMinute = morningTime.second,
+                            presets = listOf(Pair(6, 0), Pair(7, 0), Pair(8, 0), Pair(9, 0)),
+                            onSelect = { h, m ->
+                                AppSoundManager.playClick()
+                                NotificationPreferencesManager.setMorningTime(context, h, m)
+                            }
+                        )
                     }
-                )
+                }
             }
             item {
-                NotificationToggleItem(
-                    title = "أذكار المساء",
-                    subtitle = "تذكير يومي بأذكار المساء قبل الغروب للحفظ والطمأنينة",
-                    icon = Icons.Default.Brightness4,
-                    checked = eveningAthkarEnabled && masterEnabled,
-                    enabled = masterEnabled,
-                    onCheckedChange = {
-                        AppSoundManager.playToggle()
-                        NotificationPreferencesManager.setEveningAthkarEnabled(context, it)
+                Column {
+                    NotificationToggleItem(
+                        title = "أذكار المساء",
+                        subtitle = "تذكير يومي بأذكار المساء قبل الغروب للحفظ والطمأنينة",
+                        icon = Icons.Default.Brightness4,
+                        checked = eveningAthkarEnabled && masterEnabled,
+                        enabled = masterEnabled,
+                        onCheckedChange = {
+                            AppSoundManager.playToggle()
+                            NotificationPreferencesManager.setEveningAthkarEnabled(context, it)
+                        }
+                    )
+                    if (eveningAthkarEnabled && masterEnabled) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        TimePresetSelector(
+                            currentHour = eveningTime.first,
+                            currentMinute = eveningTime.second,
+                            presets = listOf(Pair(17, 0), Pair(18, 0), Pair(19, 0), Pair(20, 0)),
+                            onSelect = { h, m ->
+                                AppSoundManager.playClick()
+                                NotificationPreferencesManager.setEveningTime(context, h, m)
+                            }
+                        )
                     }
-                )
+                }
             }
 
             // 9. Section: Developer Chat & Direct Alerts
@@ -709,7 +764,7 @@ private fun TimePresetSelector(
                     .clickable { onSelect(h, m) }
             ) {
                 Text(
-                    text = String.format("%02d:%02d ص", h, m),
+                    text = String.format("%02d:%02d %s", h, m, if (h < 12) "ص" else "م"),
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

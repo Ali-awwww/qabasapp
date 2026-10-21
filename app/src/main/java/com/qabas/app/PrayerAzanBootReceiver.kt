@@ -39,12 +39,16 @@ class PrayerAzanBootReceiver : BroadcastReceiver() {
         wakeLock?.acquire(15000L)
 
         try {
-            // 🔑 على targetSdk 36+، لا نستطيع بدء Foreground Service من broadcast receiver مباشرة
-            // نكتفي بإعادة جدولة AlarmManager فقط — الخدمة ستُبدأ عند وصول أول أذان
-            PrayerAlarmManager.scheduleAllPrayers(context)
+            // 🔑 إعادة جدولة كل المنبهات (الصلاة + السحر + الفجر + الحديث اليومي)
+            // لضمان انطلاق كل إشعار في وقته بعد الإقلاع أو تغيير الساعة/المنطقة الزمنية.
+            NotificationPreferencesManager.scheduleAllConfiguredAlarms(context)
 
             // نحاول بدء AzanCountdownService لكن نجاهل فشله (بدء FGS محدود على Android 14+)
-            try { AzanCountdownService.start(context) } catch (_: Exception) { /* target-36 boot-start restriction */ }
+            if (NotificationPreferencesManager.masterEnabled.value &&
+                NotificationPreferencesManager.prayerAzanEnabled.value
+            ) {
+                try { AzanCountdownService.start(context) } catch (_: Exception) { /* target-36 boot-start restriction */ }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to re-schedule prayers: ${e.message}")
         } finally {

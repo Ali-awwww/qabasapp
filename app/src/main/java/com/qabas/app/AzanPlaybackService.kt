@@ -232,7 +232,7 @@ class AzanPlaybackService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("🕌 حان الآن وقت $prayerName")
             .setContentText("صوت $muezzinName")
             .setPriority(NotificationCompat.PRIORITY_MAX)

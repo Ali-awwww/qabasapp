@@ -154,7 +154,6 @@ class MainActivity : ComponentActivity() {
                 // إصلاح القوة الوهمية 50 عندما السمات فارغة
                 StyleBrainLoadFix.repairPersistedEmptyCore(this@MainActivity)
                 StyleManager.init(this@MainActivity)
-                SpiritualNotificationManager.initialize(this@MainActivity)
                 NotificationPreferencesManager.scheduleAllConfiguredAlarms(this@MainActivity)
             }
         }

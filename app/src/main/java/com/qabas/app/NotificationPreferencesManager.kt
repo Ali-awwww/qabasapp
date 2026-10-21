@@ -47,6 +47,12 @@ object NotificationPreferencesManager {
     private const val KEY_SUHUR_MINUTE = "notif_suhur_minute"
     private const val KEY_FAJR_HOUR = "notif_fajr_hour"
     private const val KEY_FAJR_MINUTE = "notif_fajr_minute"
+    private const val KEY_DAILY_HADITH_HOUR = "notif_daily_hadith_hour"
+    private const val KEY_DAILY_HADITH_MINUTE = "notif_daily_hadith_minute"
+    private const val KEY_MORNING_HOUR = "notif_morning_hour"
+    private const val KEY_MORNING_MINUTE = "notif_morning_minute"
+    private const val KEY_EVENING_HOUR = "notif_evening_hour"
+    private const val KEY_EVENING_MINUTE = "notif_evening_minute"
     
     // مفاتيح تتبع الورد
     private const val KEY_WIRAD_STREAK = "notif_wirad_streak"
@@ -124,18 +130,34 @@ object NotificationPreferencesManager {
     private val _fajrTime = MutableStateFlow(Pair(5, 0))
     val fajrTime: StateFlow<Pair<Int, Int>> = _fajrTime.asStateFlow()
 
+    // توقيت الحديث اليومي (ساعة، دقيقة)
+    private val _dailyHadithTime = MutableStateFlow(Pair(8, 0))
+    val dailyHadithTime: StateFlow<Pair<Int, Int>> = _dailyHadithTime.asStateFlow()
+
+    // توقيت أذكار الصباح والمساء
+    private val _morningTime = MutableStateFlow(Pair(7, 0))
+    val morningTime: StateFlow<Pair<Int, Int>> = _morningTime.asStateFlow()
+
+    private val _eveningTime = MutableStateFlow(Pair(18, 0))
+    val eveningTime: StateFlow<Pair<Int, Int>> = _eveningTime.asStateFlow()
+
     // متغيرات حالة تتبع الورد
     private val _wiradStreak = MutableStateFlow(0)
     val wiradStreak: StateFlow<Int> = _wiradStreak.asStateFlow()
 
     private var isInitialized = false
+    private var boundPrefs: SharedPreferences? = null
+    private var boundPrayerPrefs: SharedPreferences? = null
+    private var changeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        
+        val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+
         // تهيئة متغيرات الحالة من SharedPreferences
         _masterEnabled.value = prefs.getBoolean(KEY_MASTER_ENABLED, true)
-        _prayerAzanEnabled.value = prefs.getBoolean(KEY_PRAYER_AZAN, true)
+        // المفتاح العام للصلاة يعيش في مخزن الصلاة (مصدر حقيقة واحد مع شاشة المحراب)
+        _prayerAzanEnabled.value = prayerPrefs.getBoolean(KEY_GLOBAL_PRAYER_ENABLED, true)
         _suhurReminderEnabled.value = prefs.getBoolean(KEY_SUHUR_REMINDER, true)
         _fajrReminderEnabled.value = prefs.getBoolean(KEY_FAJR_REMINDER, true)
         _dailyHadithEnabled.value = prefs.getBoolean(KEY_DAILY_HADITH, true)
@@ -157,39 +179,68 @@ object NotificationPreferencesManager {
             prefs.getInt(KEY_FAJR_HOUR, 5),
             prefs.getInt(KEY_FAJR_MINUTE, 0)
         )
+        _dailyHadithTime.value = Pair(
+            prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+            prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
+        )
+        _morningTime.value = Pair(
+            prefs.getInt(KEY_MORNING_HOUR, 7),
+            prefs.getInt(KEY_MORNING_MINUTE, 0)
+        )
+        _eveningTime.value = Pair(
+            prefs.getInt(KEY_EVENING_HOUR, 18),
+            prefs.getInt(KEY_EVENING_MINUTE, 0)
+        )
 
-        // التسجيل على التغييرات لتحديث UI في الوقت الفعلي
-        prefs.registerOnSharedPreferenceChangeListener { _, key ->
-            when (key) {
-                KEY_MASTER_ENABLED -> _masterEnabled.value = prefs.getBoolean(key, true)
-                KEY_PRAYER_AZAN -> _prayerAzanEnabled.value = prefs.getBoolean(key, true)
-                KEY_SUHUR_REMINDER -> _suhurReminderEnabled.value = prefs.getBoolean(key, true)
-                KEY_FAJR_REMINDER -> _fajrReminderEnabled.value = prefs.getBoolean(key, true)
-                KEY_DAILY_HADITH -> _dailyHadithEnabled.value = prefs.getBoolean(key, true)
-                KEY_MORNING_ATHKAR -> _morningAthkarEnabled.value = prefs.getBoolean(key, true)
-                KEY_EVENING_ATHKAR -> _eveningAthkarEnabled.value = prefs.getBoolean(key, true)
-                KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)
-                KEY_DEV_CHAT_ALERTS -> _devChatAlertsEnabled.value = prefs.getBoolean(key, true)
-                KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
-                KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
-                KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
-                KEY_SUHUR_HOUR -> _suhurTime.value = Pair(
-                    prefs.getInt(KEY_SUHUR_HOUR, 3),
-                    prefs.getInt(KEY_SUHUR_MINUTE, 30)
-                )
-                KEY_SUHUR_MINUTE -> _suhurTime.value = Pair(
-                    prefs.getInt(KEY_SUHUR_HOUR, 3),
-                    prefs.getInt(KEY_SUHUR_MINUTE, 30)
-                )
-                KEY_FAJR_HOUR -> _fajrTime.value = Pair(
-                    prefs.getInt(KEY_FAJR_HOUR, 5),
-                    prefs.getInt(KEY_FAJR_MINUTE, 0)
-                )
-                KEY_FAJR_MINUTE -> _fajrTime.value = Pair(
-                    prefs.getInt(KEY_FAJR_HOUR, 5),
-                    prefs.getInt(KEY_FAJR_MINUTE, 0)
-                )
+        // التسجيل على التغييرات لتحديث UI في الوقت الفعلي (مرة واحدة فقط لكل مخزن)
+        if (boundPrefs !== prefs) {
+            changeListener?.let { listener ->
+                boundPrefs?.unregisterOnSharedPreferenceChangeListener(listener)
+                boundPrayerPrefs?.unregisterOnSharedPreferenceChangeListener(listener)
             }
+            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                when (key) {
+                    KEY_MASTER_ENABLED -> _masterEnabled.value = prefs.getBoolean(key, true)
+                    KEY_PRAYER_AZAN -> _prayerAzanEnabled.value = prefs.getBoolean(key, true)
+                    KEY_SUHUR_REMINDER -> _suhurReminderEnabled.value = prefs.getBoolean(key, true)
+                    KEY_FAJR_REMINDER -> _fajrReminderEnabled.value = prefs.getBoolean(key, true)
+                    KEY_DAILY_HADITH -> _dailyHadithEnabled.value = prefs.getBoolean(key, true)
+                    KEY_MORNING_ATHKAR -> _morningAthkarEnabled.value = prefs.getBoolean(key, true)
+                    KEY_EVENING_ATHKAR -> _eveningAthkarEnabled.value = prefs.getBoolean(key, true)
+                    KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)
+                    KEY_DEV_CHAT_ALERTS -> _devChatAlertsEnabled.value = prefs.getBoolean(key, true)
+                    KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
+                    KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
+                    KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
+                    KEY_SUHUR_HOUR, KEY_SUHUR_MINUTE -> _suhurTime.value = Pair(
+                        prefs.getInt(KEY_SUHUR_HOUR, 3),
+                        prefs.getInt(KEY_SUHUR_MINUTE, 30)
+                    )
+                    KEY_FAJR_HOUR, KEY_FAJR_MINUTE -> _fajrTime.value = Pair(
+                        prefs.getInt(KEY_FAJR_HOUR, 5),
+                        prefs.getInt(KEY_FAJR_MINUTE, 0)
+                    )
+                    KEY_DAILY_HADITH_HOUR, KEY_DAILY_HADITH_MINUTE -> _dailyHadithTime.value = Pair(
+                        prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+                        prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
+                    )
+                    KEY_MORNING_HOUR, KEY_MORNING_MINUTE -> _morningTime.value = Pair(
+                        prefs.getInt(KEY_MORNING_HOUR, 7),
+                        prefs.getInt(KEY_MORNING_MINUTE, 0)
+                    )
+                    KEY_EVENING_HOUR, KEY_EVENING_MINUTE -> _eveningTime.value = Pair(
+                        prefs.getInt(KEY_EVENING_HOUR, 18),
+                        prefs.getInt(KEY_EVENING_MINUTE, 0)
+                    )
+                    KEY_GLOBAL_PRAYER_ENABLED -> _prayerAzanEnabled.value =
+                        prayerPrefs.getBoolean(key, true)
+                }
+            }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            prayerPrefs.registerOnSharedPreferenceChangeListener(listener)
+            changeListener = listener
+            boundPrefs = prefs
+            boundPrayerPrefs = prayerPrefs
         }
 
         isInitialized = true
@@ -199,42 +250,74 @@ object NotificationPreferencesManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_MASTER_ENABLED, enabled).apply()
         _masterEnabled.value = enabled
+        if (enabled) scheduleAllConfiguredAlarms(context) else cancelAllConfiguredAlarms(context)
     }
 
     fun setPrayerAzanEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_PRAYER_AZAN, enabled).apply()
+        val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+        prayerPrefs.edit().putBoolean(KEY_GLOBAL_PRAYER_ENABLED, enabled).apply()
         _prayerAzanEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            PrayerAlarmManager.scheduleAllPrayers(context)
+        } else {
+            PrayerAlarmManager.ALL_PRAYERS.forEach { PrayerAlarmManager.cancelPrayerAlarm(context, it) }
+            runCatching { AzanCountdownService.stop(context) }
+        }
     }
 
     fun setSuhurReminderEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_SUHUR_REMINDER, enabled).apply()
         _suhurReminderEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "suhur")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "suhur")
+        }
     }
 
     fun setFajrReminderEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_FAJR_REMINDER, enabled).apply()
         _fajrReminderEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "fajr")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "fajr")
+        }
     }
 
     fun setDailyHadithEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_DAILY_HADITH, enabled).apply()
         _dailyHadithEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            AppNotificationService.scheduleDailyHadithAlarm(context)
+        } else {
+            AppNotificationService.cancelDailyHadithAlarm(context)
+        }
     }
 
     fun setMorningAthkarEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_MORNING_ATHKAR, enabled).apply()
         _morningAthkarEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "morning")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "morning")
+        }
     }
 
     fun setEveningAthkarEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_EVENING_ATHKAR, enabled).apply()
         _eveningAthkarEnabled.value = enabled
+        if (enabled && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "evening")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "evening")
+        }
     }
 
     fun setTrendAlertsEnabled(context: Context, enabled: Boolean) {
@@ -265,12 +348,48 @@ object NotificationPreferencesManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_SUHUR_HOUR, hour).putInt(KEY_SUHUR_MINUTE, minute).apply()
         _suhurTime.value = Pair(hour, minute)
+        if (_suhurReminderEnabled.value && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "suhur")
+        }
     }
 
     fun setFajrTime(context: Context, hour: Int, minute: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_FAJR_HOUR, hour).putInt(KEY_FAJR_MINUTE, minute).apply()
         _fajrTime.value = Pair(hour, minute)
+        if (_fajrReminderEnabled.value && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "fajr")
+        }
+    }
+
+    fun setDailyHadithTime(context: Context, hour: Int, minute: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_DAILY_HADITH_HOUR, hour)
+            .putInt(KEY_DAILY_HADITH_MINUTE, minute)
+            .apply()
+        _dailyHadithTime.value = Pair(hour, minute)
+        if (_dailyHadithEnabled.value && _masterEnabled.value) {
+            AppNotificationService.scheduleDailyHadithAlarm(context)
+        }
+    }
+
+    fun setMorningTime(context: Context, hour: Int, minute: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_MORNING_HOUR, hour).putInt(KEY_MORNING_MINUTE, minute).apply()
+        _morningTime.value = Pair(hour, minute)
+        if (_morningAthkarEnabled.value && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "morning")
+        }
+    }
+
+    fun setEveningTime(context: Context, hour: Int, minute: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_EVENING_HOUR, hour).putInt(KEY_EVENING_MINUTE, minute).apply()
+        _eveningTime.value = Pair(hour, minute)
+        if (_eveningAthkarEnabled.value && _masterEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "evening")
+        }
     }
 
     fun setWiradStreak(context: Context, streak: Int) {
@@ -331,10 +450,48 @@ object NotificationPreferencesManager {
 
     fun scheduleAllConfiguredAlarms(context: Context) {
         init(context)
-        if (!_masterEnabled.value) return
-        if (_suhurReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "suhur")
-        if (_fajrReminderEnabled.value) SpiritualNotificationManager.scheduleNotification(context, "fajr")
-        if (_dailyHadithEnabled.value) AppNotificationService.scheduleDailyHadithAlarm(context)
+        if (!_masterEnabled.value) {
+            cancelAllConfiguredAlarms(context)
+            return
+        }
+        if (_prayerAzanEnabled.value) {
+            PrayerAlarmManager.scheduleAllPrayers(context)
+        }
+        if (_suhurReminderEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "suhur")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "suhur")
+        }
+        if (_fajrReminderEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "fajr")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "fajr")
+        }
+        if (_morningAthkarEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "morning")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "morning")
+        }
+        if (_eveningAthkarEnabled.value) {
+            SpiritualNotificationManager.scheduleNotification(context, "evening")
+        } else {
+            SpiritualNotificationManager.cancelNotification(context, "evening")
+        }
+        if (_dailyHadithEnabled.value) {
+            AppNotificationService.scheduleDailyHadithAlarm(context)
+        } else {
+            AppNotificationService.cancelDailyHadithAlarm(context)
+        }
+    }
+
+    private fun cancelAllConfiguredAlarms(context: Context) {
+        PrayerAlarmManager.ALL_PRAYERS.forEach { PrayerAlarmManager.cancelPrayerAlarm(context, it) }
+        AppNotificationService.cancelDailyHadithAlarm(context)
+        SpiritualNotificationManager.cancelNotification(context, "suhur")
+        SpiritualNotificationManager.cancelNotification(context, "fajr")
+        SpiritualNotificationManager.cancelNotification(context, "morning")
+        SpiritualNotificationManager.cancelNotification(context, "evening")
+        runCatching { AzanCountdownService.stop(context) }
     }
 
     fun scheduleSnooze(context: Context, minutes: Int) {

@@ -78,7 +78,8 @@ class AzanCountdownService : Service() {
                 }
                 val text = "المتبقي على ${next.prayerName}: ${formatRemaining(remaining)} ⏳"
                 updateNotif(text, next)
-                delay(if (remaining < 60_000) 1_000 else 5_000)
+                // عدّاد لحظي حقيقي: تحديث كل ثانية ليعرض الثواني بدقة
+                delay(1_000)
             }
         }
     }
@@ -105,7 +106,7 @@ class AzanCountdownService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("🕌 عدّاد الأذان")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

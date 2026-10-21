@@ -11,11 +11,18 @@ import java.util.Calendar
 
 class SpiritualNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val isEnabled = qabasPrefs.getBoolean("spiritual_notifications_enabled", true)
-        if (!isEnabled) return
+        NotificationPreferencesManager.init(context)
+        if (!NotificationPreferencesManager.masterEnabled.value) return
 
         val type = intent.getStringExtra("notification_type") ?: "general"
+        val typeEnabled = when (type) {
+            "suhur" -> NotificationPreferencesManager.suhurReminderEnabled.value
+            "fajr" -> NotificationPreferencesManager.fajrReminderEnabled.value
+            "morning" -> NotificationPreferencesManager.morningAthkarEnabled.value
+            "evening" -> NotificationPreferencesManager.eveningAthkarEnabled.value
+            else -> true
+        }
+        if (!typeEnabled) return
         val (title, message) = when (type) {
             "suhur" -> {
                 "قبس السحر ✨" to (getRandomVerse(context) ?: "«أَمَّنْ هُوَ قَانِتٌ آنَاءَ اللَّيْلِ سَاجِدًا وَقَائِمًا يَحْذَرُ الْآخِرَةَ وَيَرْجُو رَحْمَةَ رَبِّهِ»")
@@ -23,13 +30,25 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             "fajr" -> {
                 "نور الفجر 🌅" to (getRandomVirtue(context) ?: "«وقرآن الفجر إن قرآن الفجر كان مشهودا» - اجعل وردك الآن بداية لفتح عظيم.")
             }
+            "morning" -> {
+                "أذكار الصباح ☀️" to "«أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ» - حصّن يومك بذكر الله."
+            }
+            "evening" -> {
+                "أذكار المساء 🌙" to "«أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ» - اختم يومك بالطمأنينة."
+            }
             else -> {
                 "تذكير إيماني 🌿" to "«وذكر فإن الذكرى تنفع المؤمنين» - حان وقت وردك القرآني."
             }
         }
 
         showNotification(context, title, message)
-        
+        AppNotificationService.recordNotification(
+            context = context,
+            title = title,
+            message = message,
+            category = AppNotificationService.CATEGORY_SPIRITUAL
+        )
+
         // Reschedule for next day
         SpiritualNotificationManager.scheduleNotification(context, type)
     }
@@ -90,13 +109,60 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
 }
 
 object SpiritualNotificationManager {
+    private const val PREFS = "qabas_notification_settings"
+    private const val KEY_SUHUR_HOUR = "notif_suhur_hour"
+    private const val KEY_SUHUR_MINUTE = "notif_suhur_minute"
+    private const val KEY_FAJR_HOUR = "notif_fajr_hour"
+    private const val KEY_FAJR_MINUTE = "notif_fajr_minute"
+    private const val KEY_MORNING_HOUR = "notif_morning_hour"
+    private const val KEY_MORNING_MINUTE = "notif_morning_minute"
+    private const val KEY_EVENING_HOUR = "notif_evening_hour"
+    private const val KEY_EVENING_MINUTE = "notif_evening_minute"
+
+    private fun requestCodeFor(type: String): Int = when (type) {
+        "suhur" -> 1001
+        "fajr" -> 1002
+        "morning" -> 1003
+        "evening" -> 1004
+        else -> 1005
+    }
+
     fun initialize(context: Context) {
-        val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val isEnabled = qabasPrefs.getBoolean("spiritual_notifications_enabled", true)
-        if (isEnabled) {
+        NotificationPreferencesManager.init(context)
+        if (!NotificationPreferencesManager.masterEnabled.value) return
+        if (NotificationPreferencesManager.suhurReminderEnabled.value) {
             scheduleNotification(context, "suhur")
-            scheduleNotification(context, "fajr")
+        } else {
+            cancelNotification(context, "suhur")
         }
+        if (NotificationPreferencesManager.fajrReminderEnabled.value) {
+            scheduleNotification(context, "fajr")
+        } else {
+            cancelNotification(context, "fajr")
+        }
+        if (NotificationPreferencesManager.morningAthkarEnabled.value) {
+            scheduleNotification(context, "morning")
+        } else {
+            cancelNotification(context, "morning")
+        }
+        if (NotificationPreferencesManager.eveningAthkarEnabled.value) {
+            scheduleNotification(context, "evening")
+        } else {
+            cancelNotification(context, "evening")
+        }
+    }
+
+    fun cancelNotification(context: Context, type: String) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager ?: return
+        val requestCode = requestCodeFor(type)
+        val intent = Intent(context, SpiritualNotificationReceiver::class.java).apply {
+            putExtra("notification_type", type)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (pendingIntent != null) alarmManager.cancel(pendingIntent)
     }
 
     fun scheduleNotification(context: Context, type: String) {
@@ -105,22 +171,32 @@ object SpiritualNotificationManager {
             putExtra("notification_type", type)
         }
 
-        val requestCode = if (type == "suhur") 1001 else 1002
+        val requestCode = requestCodeFor(type)
         val pendingIntent = PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         // 🔑 قراءة الوقت المحفوظ من إعدادات الإشعارات بدل الأوقات الثابتة
-        val notifPrefs = context.getSharedPreferences("qabas_notification_settings", Context.MODE_PRIVATE)
-        val hour: Int
-        val minute: Int
-        if (type == "suhur") {
-            hour = notifPrefs.getInt("notif_suhur_hour", 3)
-            minute = notifPrefs.getInt("notif_suhur_minute", 30)
-        } else {
-            hour = notifPrefs.getInt("notif_fajr_hour", 5)
-            minute = notifPrefs.getInt("notif_fajr_minute", 0)
+        val notifPrefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val (hour, minute) = when (type) {
+            "suhur" -> Pair(
+                notifPrefs.getInt(KEY_SUHUR_HOUR, 3),
+                notifPrefs.getInt(KEY_SUHUR_MINUTE, 30)
+            )
+            "fajr" -> Pair(
+                notifPrefs.getInt(KEY_FAJR_HOUR, 5),
+                notifPrefs.getInt(KEY_FAJR_MINUTE, 0)
+            )
+            "morning" -> Pair(
+                notifPrefs.getInt(KEY_MORNING_HOUR, 7),
+                notifPrefs.getInt(KEY_MORNING_MINUTE, 0)
+            )
+            "evening" -> Pair(
+                notifPrefs.getInt(KEY_EVENING_HOUR, 18),
+                notifPrefs.getInt(KEY_EVENING_MINUTE, 0)
+            )
+            else -> Pair(7, 0)
         }
 
         val calendar = Calendar.getInstance()

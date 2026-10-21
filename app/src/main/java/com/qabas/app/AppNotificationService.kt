@@ -10,6 +10,10 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
@@ -20,14 +24,36 @@ object AppNotificationService {
         val title: String,
         val message: String,
         val isTrendAlert: Boolean = false,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = System.currentTimeMillis(),
+        val isRead: Boolean = false,
+        val category: String = CATEGORY_SYSTEM
     )
+
+    const val CATEGORY_SYSTEM = "system"
+    const val CATEGORY_PRAYER = "prayer"
+    const val CATEGORY_SPIRITUAL = "spiritual"
+    const val CATEGORY_HADITH = "hadith"
+    const val CATEGORY_TREND = "trend"
 
     private const val PREFS_NAME = "qabas_notifications"
     private const val KEY_NOTIFICATIONS = "notifications"
-    private const val KEY_DAILY_HADITH_ENABLED = "daily_hadith_enabled"
+    private const val SETTINGS_PREFS = "qabas_notification_settings"
+    private const val KEY_DAILY_HADITH_HOUR = "notif_daily_hadith_hour"
+    private const val KEY_DAILY_HADITH_MINUTE = "notif_daily_hadith_minute"
     private const val CHANNEL_ID = "qabas_trend_alerts"
     private const val HADITH_CHANNEL_ID = "qabas_daily_hadith"
+
+    // حالة حيّة تدفع الواجهة فور أي تغيير (إضافة / قراءة / حذف)
+    private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
+    val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
+
+    private var boundPrefs: SharedPreferences? = null
+    private var boundContext: Context? = null
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == KEY_NOTIFICATIONS) {
+            boundContext?.let { reload(it) }
+        }
+    }
 
     val AUTHENTIC_HADITHS = listOf(
         "قال رسول الله ﷺ: «إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى» (صحيح البخاري)",
@@ -46,61 +72,89 @@ object AppNotificationService {
         "قال رسول الله ﷺ: «إِنَّ اللَّهَ يُحِبُّ إِذَا عَمِلَ أَحَدُكُمْ عَمَلًا أَنْ يُتْقِنَهُ» (شعب الإيمان - صحيح)"
     )
 
+    /** مصدر الحقيقة الوحيد: إعدادات الإشعارات الموحّدة */
     fun isDailyHadithEnabled(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_DAILY_HADITH_ENABLED, true)
+        NotificationPreferencesManager.init(context)
+        return NotificationPreferencesManager.masterEnabled.value &&
+            NotificationPreferencesManager.dailyHadithEnabled.value
     }
 
     fun setDailyHadithEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_DAILY_HADITH_ENABLED, enabled).apply()
-        if (enabled) {
-            scheduleDailyHadithAlarm(context)
-        } else {
-            cancelDailyHadithAlarm(context)
-        }
+        NotificationPreferencesManager.setDailyHadithEnabled(context, enabled)
     }
 
-    fun triggerDailyHadithNow(context: Context): String {
-        val hadith = AUTHENTIC_HADITHS.random()
-        sendNotification(
-            context = context,
-            title = "📖 حديث اليوم النبوي الشريف",
-            message = hadith,
-            isTrendAlert = false
+    fun getDailyHadithTime(context: Context): Pair<Int, Int> {
+        val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        return Pair(
+            prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+            prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
         )
-        postHadithSystemNotification(context, "📖 حديث اليوم النبوي الشريف", hadith)
+    }
+
+    fun setDailyHadithTime(context: Context, hour: Int, minute: Int) {
+        context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_DAILY_HADITH_HOUR, hour)
+            .putInt(KEY_DAILY_HADITH_MINUTE, minute)
+            .apply()
+        if (isDailyHadithEnabled(context)) scheduleDailyHadithAlarm(context)
+    }
+
+    fun triggerDailyHadithNow(context: Context, force: Boolean = false): String {
+        val hadith = AUTHENTIC_HADITHS.random()
+        if (!force && !isDailyHadithEnabled(context)) return hadith
+        val title = "📖 حديث اليوم النبوي الشريف"
+        recordNotification(context, title, hadith, category = CATEGORY_HADITH)
+        postHadithSystemNotification(context, title, hadith)
         return hadith
     }
 
     fun scheduleDailyHadithAlarm(context: Context) {
+        if (!isDailyHadithEnabled(context)) {
+            cancelDailyHadithAlarm(context)
+            return
+        }
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val intent = Intent(context, DailyHadithReceiver::class.java)
+            val intent = Intent(context, DailyHadithReceiver::class.java).apply {
+                action = "com.qabas.app.ACTION_DAILY_HADITH"
+            }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
                 1001,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            val (hour, minute) = getDailyHadithTime(context)
             val calendar = Calendar.getInstance().apply {
                 timeInMillis = System.currentTimeMillis()
-                set(Calendar.HOUR_OF_DAY, 8) // 8:00 AM daily
-                set(Calendar.MINUTE, 0)
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
                 set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
                 if (timeInMillis <= System.currentTimeMillis()) {
                     add(Calendar.DAY_OF_YEAR, 1)
                 }
             }
 
+            val showIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra("navigate_to", "notifications")
+            }
+            val showPendingIntent = PendingIntent.getActivity(
+                context,
+                1101,
+                showIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
             val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 alarmManager.canScheduleExactAlarms()
             } else true
             if (canExact) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(calendar.timeInMillis, showPendingIntent),
                     pendingIntent
                 )
             } else {
@@ -115,15 +169,17 @@ object AppNotificationService {
         }
     }
 
-    private fun cancelDailyHadithAlarm(context: Context) {
+    fun cancelDailyHadithAlarm(context: Context) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val intent = Intent(context, DailyHadithReceiver::class.java)
+            val intent = Intent(context, DailyHadithReceiver::class.java).apply {
+                action = "com.qabas.app.ACTION_DAILY_HADITH"
+            }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
                 1001,
                 intent,
-                PendingIntent.FLAG_NO_CREATE or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             )
             if (pendingIntent != null) {
                 alarmManager.cancel(pendingIntent)
@@ -135,6 +191,7 @@ object AppNotificationService {
 
     private fun postHadithSystemNotification(context: Context, title: String, message: String) {
         try {
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             if (notificationManager != null) {
                 val notifId = (System.currentTimeMillis() % 10000).toInt()
@@ -176,6 +233,42 @@ object AppNotificationService {
         }
     }
 
+    /** يربط الواجهة بالحالة الحيّة ويطلق التحديثات لحظة تغيّر المخزن */
+    fun observeNotifications(context: Context): StateFlow<List<AppNotification>> {
+        init(context)
+        return notifications
+    }
+
+    fun init(context: Context) {
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (boundContext === appContext && boundPrefs === prefs) {
+            reload(appContext)
+            return
+        }
+        boundPrefs?.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        boundContext = appContext
+        boundPrefs = prefs
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+        purgeLegacySampleNotifications(appContext)
+        reload(appContext)
+    }
+
+    /** إزالة بيانات العرض التجريبية القديمة التي كانت تُحقن تلقائياً (مرة واحدة) */
+    private fun purgeLegacySampleNotifications(context: Context) {
+        val legacyTitles = setOf(
+            "🚨 تنبيه عاجل من مرصد الثغور!",
+            "⚡ تريند يحتاج مدافعة سريعة"
+        )
+        val current = getNotifications(context)
+        val cleaned = current.filterNot { it.title in legacyTitles }
+        if (cleaned.size != current.size) persist(context, cleaned)
+    }
+
+    private fun reload(context: Context) {
+        _notifications.value = getNotifications(context)
+    }
+
     fun getNotifications(context: Context): List<AppNotification> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val json = prefs.getString(KEY_NOTIFICATIONS, "[]") ?: "[]"
@@ -190,7 +283,9 @@ object AppNotificationService {
                         title = obj.getString("title"),
                         message = obj.getString("message"),
                         isTrendAlert = obj.optBoolean("isTrendAlert", false),
-                        timestamp = obj.getLong("timestamp")
+                        timestamp = obj.getLong("timestamp"),
+                        isRead = obj.optBoolean("isRead", true),
+                        category = obj.optString("category", if (obj.optBoolean("isTrendAlert", false)) CATEGORY_TREND else CATEGORY_SYSTEM)
                     )
                 )
             }
@@ -200,27 +295,83 @@ object AppNotificationService {
         return list
     }
 
-    fun sendNotification(context: Context, title: String, message: String, isTrendAlert: Boolean = false) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val notifications = getNotifications(context).toMutableList()
-        notifications.add(0, AppNotification(title = title, message = message, isTrendAlert = isTrendAlert))
-        
+    private fun persist(context: Context, list: List<AppNotification>) {
         val array = JSONArray()
-        for (notif in notifications) {
+        for (notif in list) {
             val obj = JSONObject()
             obj.put("id", notif.id)
             obj.put("title", notif.title)
             obj.put("message", notif.message)
             obj.put("isTrendAlert", notif.isTrendAlert)
             obj.put("timestamp", notif.timestamp)
+            obj.put("isRead", notif.isRead)
+            obj.put("category", notif.category)
             array.put(obj)
         }
-        
-        prefs.edit().putString(KEY_NOTIFICATIONS, array.toString()).apply()
-
-        // Post System Notification
-        postSystemNotification(context, title, message)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_NOTIFICATIONS, array.toString()).apply()
+        _notifications.value = list
     }
+
+    fun sendNotification(
+        context: Context,
+        title: String,
+        message: String,
+        isTrendAlert: Boolean = false,
+        category: String = CATEGORY_SYSTEM
+    ) {
+        NotificationPreferencesManager.init(context)
+        if (!NotificationPreferencesManager.masterEnabled.value) return
+        if (isTrendAlert && !NotificationPreferencesManager.trendAlertsEnabled.value) return
+
+        recordNotification(context, title, message, isTrendAlert, category)
+
+        if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            postSystemNotification(context, title, message)
+        }
+    }
+
+    /** يسجّل الإشعار في المركز الحيّ فقط (للإشعارات التي تم عرضها بنظام مخصص) */
+    fun recordNotification(
+        context: Context,
+        title: String,
+        message: String,
+        isTrendAlert: Boolean = false,
+        category: String = CATEGORY_SYSTEM
+    ) {
+        val list = getNotifications(context).toMutableList()
+        list.add(
+            0,
+            AppNotification(
+                title = title,
+                message = message,
+                isTrendAlert = isTrendAlert,
+                category = category,
+                isRead = false
+            )
+        )
+        persist(context, list)
+    }
+
+    fun markRead(context: Context, id: String) {
+        val list = getNotifications(context).map { if (it.id == id) it.copy(isRead = true) else it }
+        persist(context, list)
+    }
+
+    fun markAllRead(context: Context) {
+        val list = getNotifications(context).map { it.copy(isRead = true) }
+        persist(context, list)
+    }
+
+    fun deleteNotification(context: Context, id: String) {
+        persist(context, getNotifications(context).filterNot { it.id == id })
+    }
+
+    fun clearNotifications(context: Context) {
+        persist(context, emptyList())
+    }
+
+    fun unreadCount(context: Context): Int = getNotifications(context).count { !it.isRead }
 
     private fun postSystemNotification(context: Context, title: String, message: String) {
         try {

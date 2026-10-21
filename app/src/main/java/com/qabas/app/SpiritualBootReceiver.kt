@@ -10,9 +10,12 @@ class SpiritualBootReceiver : BroadcastReceiver() {
         if (a == Intent.ACTION_BOOT_COMPLETED || a == Intent.ACTION_LOCKED_BOOT_COMPLETED ||
             a == "android.intent.action.QUICKBOOT_POWERON" || a == "com.htc.intent.action.QUICKBOOT_POWERON"
         ) {
-            SpiritualNotificationManager.initialize(context)
-            PrayerAlarmManager.scheduleAllPrayers(context)
-            try { AzanCountdownService.start(context) } catch (_: Exception) {}
+            NotificationPreferencesManager.scheduleAllConfiguredAlarms(context)
+            if (NotificationPreferencesManager.masterEnabled.value &&
+                NotificationPreferencesManager.prayerAzanEnabled.value
+            ) {
+                try { AzanCountdownService.start(context) } catch (_: Exception) {}
+            }
         }
     }
 }

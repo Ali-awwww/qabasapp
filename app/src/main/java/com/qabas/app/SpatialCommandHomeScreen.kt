@@ -142,6 +142,10 @@ fun SpatialCommandHomeScreen(
         PrayerCalculationHelper.calculatePrayerTimes(cal, selectedCity, selectedCity.defaultMethod)
     }
 
+    // عدّاد غير المقروء الحي لمركز الإشعارات
+    val liveNotifications by AppNotificationService.observeNotifications(context).collectAsState()
+    val unreadNotifications = liveNotifications.count { !it.isRead }
+
     // إذن الميكروفون
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -353,7 +357,8 @@ fun SpatialCommandHomeScreen(
                         onDeveloperDashboard = onDeveloperDashboard,
                         onViewDownloads = onViewDownloads,
                         isAdmin = isAdmin,
-                        networkStatus = networkStatus
+                        networkStatus = networkStatus,
+                        unreadNotifications = unreadNotifications
                     )
 
                     // 1.1 Holographic Dynamic Greeting & System Telemetry
@@ -618,7 +623,8 @@ private fun SpatialHudTopBar(
     onDeveloperDashboard: () -> Unit,
     onViewDownloads: () -> Unit,
     isAdmin: Boolean,
-    networkStatus: ConnectivityObserver.Status
+    networkStatus: ConnectivityObserver.Status,
+    unreadNotifications: Int = 0
 ) {
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
@@ -742,12 +748,31 @@ private fun SpatialHudTopBar(
                     onClick = onViewNotifications,
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        Icons.Default.NotificationsNone,
-                        contentDescription = "Notifications",
-                        tint = primaryColor,
-                        modifier = Modifier.size(17.dp)
-                    )
+                    BadgedBox(
+                        badge = {
+                            if (unreadNotifications > 0) {
+                                Badge(
+                                    containerColor = Color(0xFFEF4444),
+                                    contentColor = Color.White
+                                ) {
+                                    Text(
+                                        text = if (unreadNotifications > 99) "99+" else unreadNotifications.toString(),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.NotificationsNone,
+                            contentDescription = "Notifications",
+                            tint = primaryColor,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
                 }
 
                 IconButton(

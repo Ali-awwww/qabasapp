@@ -123,6 +123,7 @@ object QabasNotificationHelper {
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "notifications")
         }
         val contentPendingIntent = PendingIntent.getActivity(
             context,
@@ -132,7 +133,7 @@ object QabasNotificationHelper {
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher) // أيقونة شريط الحالة
+            .setSmallIcon(R.drawable.ic_notification) // أيقونة شريط الحالة
             .setLargeIcon(appIcon) // أيقونة التطبيق تظهر بجانب عنوان ونص الإشعار
             .setColor(BRAND_COLOR)
             .setContentTitle(title)
@@ -285,6 +286,12 @@ object QabasNotificationHelper {
         )
 
         notifManager.notify(notifId, builder.build())
+        AppNotificationService.recordNotification(
+            context = context,
+            title = title,
+            message = verseText,
+            category = AppNotificationService.CATEGORY_SPIRITUAL
+        )
         Toast.makeText(context, "تم إرسال الإشعار التفاعلي! تفقّد شريط الإشعارات بالأعلى 🔔", Toast.LENGTH_LONG).show()
     }
 }

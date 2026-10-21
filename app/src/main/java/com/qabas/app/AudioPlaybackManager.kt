@@ -470,7 +470,7 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(track.title)
             .setContentText("${track.artist} • ${track.category}")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(contentPendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(isPlaying)

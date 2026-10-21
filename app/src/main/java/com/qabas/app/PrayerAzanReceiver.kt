@@ -126,7 +126,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         val isStrongSound = soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(appIcon)
             .setColor(0xFFD4AF37.toInt())
             .setContentTitle("الله أكبر • $prayerName")
@@ -167,5 +167,12 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         }
 
         notificationManager.notify(notifId, builder.build())
+
+        AppNotificationService.recordNotification(
+            context = context,
+            title = "الله أكبر • $prayerName",
+            message = message,
+            category = AppNotificationService.CATEGORY_PRAYER
+        )
     }
 }
