@@ -109,6 +109,12 @@ fun SpatialDraggableDevCameraButton(
 
     var isCapturing by remember { mutableStateOf(false) }
     var showFlashEffect by remember { mutableStateOf(false) }
+    // عدّاد تنازلي يظهر أثناء مهلة التثبيت قبل التقاط اللقطة (1 ثانية)
+    var captureCountdown by remember { mutableIntStateOf(0) }
+    // تخطي الوميض الأبيض: تأخير الالتقاط ثانية واحدة حتى تستقر الواجهة
+    var skipWhiteFlashDelay by remember {
+        mutableStateOf(prefs.getBoolean("spatial_cam_skip_white_flash", true))
+    }
 
     // Animation
     val infiniteTransition = rememberInfiniteTransition(label = "DevCamTransition")
@@ -191,9 +197,21 @@ fun SpatialDraggableDevCameraButton(
             scope.launch {
                 isCapturing = true
                 showFlashEffect = true
-                delay(100) // Hide button briefly so it is never captured in the screenshot
-                val bitmap = BugReportManager.captureScreenshot(view)
+                delay(120) // ومضة قصيرة كتغذية بصرية فقط
+                // إزالة الوميض الأبيض تماماً قبل الالتقاط حتى لا يُحفظ داخل الصورة
                 showFlashEffect = false
+                if (skipWhiteFlashDelay) {
+                    // مهلة ثانية واحدة: تسمح بانتهاء أي انتقال/وميض أبيض قبل التقاط اللقطة
+                    captureCountdown = 3
+                    repeat(3) {
+                        delay(334)
+                        captureCountdown -= 1
+                    }
+                    captureCountdown = 0
+                    // مهلة قصيرة إضافية حتى تُحذف واجهة العدّاد من الشاشة قبل الالتقاط
+                    delay(120)
+                }
+                val bitmap = BugReportManager.captureScreenshot(view)
                 isCapturing = false
 
                 if (bitmap != null) {
@@ -220,13 +238,53 @@ fun SpatialDraggableDevCameraButton(
             }
         }
 
-        // Shutter flash effect
+        // Shutter flash effect — تدرّج ذهبي خفيف بدل الغطاء الأبيض (يُخفى قبل الالتقاط)
         if (showFlashEffect) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.55f))
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                GoldPrimary.copy(alpha = 0.28f),
+                                Color.Transparent
+                            )
+                        )
+                    )
             )
+        }
+
+        // عدّاد تنازلي أثناء مهلة التثبيت (تأخير ثانية واحدة قبل الالتقاط)
+        if (captureCountdown > 0) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color.Black.copy(alpha = 0.75f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp)
+                    ) {
+                        Text(
+                            text = "📸",
+                            fontSize = 24.sp
+                        )
+                        Text(
+                            text = "جارٍ تخطي الوميض الأبيض… $captureCountdown",
+                            color = GoldPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = CairoFont,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
         }
 
         // Floating Lens Button
@@ -460,6 +518,7 @@ fun SpatialDraggableDevCameraButton(
                 isCompact = isCompactMode,
                 isDocked = isDockedMode,
                 singleTapInstantSnap = singleTapInstantSnap,
+                skipWhiteFlash = skipWhiteFlashDelay,
                 onDismiss = { showMainHubDialog = false },
                 onInstantCapture = {
                     showMainHubDialog = false
@@ -512,6 +571,10 @@ fun SpatialDraggableDevCameraButton(
                 onToggleInstantSnap = { instant ->
                     singleTapInstantSnap = instant
                     prefs.edit().putBoolean("spatial_cam_tap_instant_snap", instant).apply()
+                },
+                onToggleSkipWhiteFlash = { skip ->
+                    skipWhiteFlashDelay = skip
+                    prefs.edit().putBoolean("spatial_cam_skip_white_flash", skip).apply()
                 },
                 onSelectCorner = { corner -> snapToCorner(corner) }
             )
@@ -567,6 +630,7 @@ private fun SpatialDevCamHubDialog(
     isCompact: Boolean,
     isDocked: Boolean,
     singleTapInstantSnap: Boolean,
+    skipWhiteFlash: Boolean,
     onDismiss: () -> Unit,
     onInstantCapture: () -> Unit,
     onOpenInspector: () -> Unit,
@@ -577,6 +641,7 @@ private fun SpatialDevCamHubDialog(
     onToggleCompact: (Boolean) -> Unit,
     onToggleDocked: (Boolean) -> Unit,
     onToggleInstantSnap: (Boolean) -> Unit,
+    onToggleSkipWhiteFlash: (Boolean) -> Unit,
     onSelectCorner: (DevCamCorner) -> Unit
 ) {
     Dialog(
@@ -785,6 +850,43 @@ private fun SpatialDevCamHubDialog(
                         )
                     }
 
+                    // تخطي الوميض الأبيض (تأخير الالتقاط ثانية واحدة)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "تخطي الوميض الأبيض (تأخير الالتقاط ثانية)",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontFamily = CairoFont,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "يمنع التقاط شاشة بيضاء عندRapidCapture",
+                                color = Color.White.copy(alpha = 0.55f),
+                                fontSize = 10.sp,
+                                fontFamily = CairoFont,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = skipWhiteFlash,
+                            onCheckedChange = onToggleSkipWhiteFlash,
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF10B981))
+                        )
+                    }
+
                     // Compact Size Toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -864,85 +966,91 @@ private fun SpatialSnapshotPreviewDialog(
     onSendToDev: (Bitmap, File?) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isSaving by remember { mutableStateOf(false) }
 
-    // Markup / Annotation state: lets user tap to place a focus marker on a bug or UI element
-    var markerOffset by remember { mutableStateOf<Offset?>(null) }
-    var currentBitmap by remember { mutableStateOf(bitmap) }
-
-    fun addAnnotationMarker(tapRelativeX: Float, tapRelativeY: Float) {
-        val mutableBmp = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(mutableBmp)
-        val paintCircle = Paint().apply {
-            color = android.graphics.Color.RED
-            style = Paint.Style.STROKE
-            strokeWidth = 8f
-            isAntiAlias = true
-        }
-        val paintFill = Paint().apply {
-            color = android.graphics.Color.argb(80, 255, 0, 0)
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
-
-        val pxX = tapRelativeX * mutableBmp.width
-        val pxY = tapRelativeY * mutableBmp.height
-        val radius = 48f
-
-        canvas.drawCircle(pxX, pxY, radius, paintFill)
-        canvas.drawCircle(pxX, pxY, radius, paintCircle)
-
-        currentBitmap = mutableBmp
-        markerOffset = Offset(tapRelativeX, tapRelativeY)
-        AppSoundManager.playClick()
-        Toast.makeText(context, "تم تمييز موضع الخلل على اللقطة 🎯", Toast.LENGTH_SHORT).show()
-    }
+    // 🔷 حالة التحديد الهندسي: الأشكال الموضوعة على اللقطة
+    var shapes by remember { mutableStateOf<List<MarkupShape>>(emptyList()) }
+    var activeTool by remember { mutableStateOf(MarkupTool.RECTANGLE) }
+    var activeColor by remember { mutableStateOf(MarkupPalette.first()) }
+    var selectedShapeId by remember { mutableStateOf<Long?>(null) }
 
     fun saveToGallery() {
         isSaving = true
         AppSoundManager.playActivate()
-        try {
-            val filename = "Qabas_Capture_${System.currentTimeMillis()}.png"
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Qabas")
-                }
+        scope.launch {
+            val finalBmp = withContext(Dispatchers.Default) {
+                SpatialMarkupRenderer.render(bitmap, shapes)
             }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri != null) {
-                context.contentResolver.openOutputStream(uri)?.use { stream ->
-                    currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            try {
+                val filename = "Qabas_Capture_${System.currentTimeMillis()}.png"
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Qabas")
+                    }
                 }
-                Toast.makeText(context, "تم حفظ لقطة الشاشة في مجلد الصور بنجاح 💾", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(context, "تعذر الحفظ في المعرض", Toast.LENGTH_SHORT).show()
+                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { stream ->
+                        finalBmp.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                    }
+                    Toast.makeText(context, "تم حفظ اللقطة مع التحديدات في مجلد الصور 💾", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "تعذر الحفظ في المعرض", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "خطأ أثناء الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isSaving = false
             }
-        } catch (e: Exception) {
-            Toast.makeText(context, "خطأ أثناء الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
-        } finally {
-            isSaving = false
         }
     }
 
     fun shareImage() {
-        if (file == null) {
-            Toast.makeText(context, "الملف المؤقت غير جاهز للمشاركة", Toast.LENGTH_SHORT).show()
-            return
-        }
         AppSoundManager.playClick()
-        try {
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "image/png"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "تم توثيق الشاشة عبر عدسة قبس الفضائية 📸 - شاشة: ${BugReportManager.currentScreen}")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        scope.launch {
+            val finalBmp = withContext(Dispatchers.Default) {
+                SpatialMarkupRenderer.render(bitmap, shapes)
             }
-            context.startActivity(Intent.createChooser(intent, "مشاركة لقطة الشاشة 🚀"))
-        } catch (e: Exception) {
-            Toast.makeText(context, "تعذر المشاركة: ${e.message}", Toast.LENGTH_SHORT).show()
+            val shareFile = withContext(Dispatchers.IO) {
+                BugReportManager.saveBitmapToCache(context, finalBmp)
+            }
+            if (shareFile == null) {
+                Toast.makeText(context, "تعذر تجهيز الملف للمشاركة", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            try {
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", shareFile)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/*"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_TEXT, "تم توثيق الشاشة عبر عدسة قبس الفضائية 📸 - شاشة: ${BugReportManager.currentScreen}")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "مشاركة لقطة الشاشة 🚀"))
+            } catch (e: Exception) {
+                Toast.makeText(context, "تعذر المشاركة: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun sendToDeveloper() {
+        AppSoundManager.playActivate()
+        scope.launch {
+            if (shapes.isEmpty()) {
+                // لا يوجد تحديدات: نرسل اللقطة الأصلية كما هي
+                onSendToDev(bitmap, file)
+                return@launch
+            }
+            val finalBmp = withContext(Dispatchers.Default) {
+                SpatialMarkupRenderer.render(bitmap, shapes)
+            }
+            val finalFile = withContext(Dispatchers.IO) {
+                BugReportManager.saveBitmapToCache(context, finalBmp)
+            }
+            onSendToDev(finalBmp, finalFile)
         }
     }
 
@@ -964,10 +1072,10 @@ private fun SpatialSnapshotPreviewDialog(
                     .clip(RoundedCornerShape(24.dp))
                     .background(DeepSlate)
                     .border(1.2.dp, GoldPrimary.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
-                    .padding(20.dp)
+                    .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Header
                 Row(
@@ -982,34 +1090,38 @@ private fun SpatialSnapshotPreviewDialog(
                         Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.8f))
                     }
                     Text(
-                        text = "معاينة اللقطة وتوثيق الشاشة 📸",
+                        text = "توثيق الشاشة بالأشكال الهندسية 📸",
                         color = GoldPrimary,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = CairoFont
+                        fontFamily = CairoFont,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Interactive Annotation Thumbnail: tap anywhere to place a red focus target!
+                // 🎯 لوحة التحديد الهندسي فوق اللقطة
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 250.dp)
+                        .heightIn(min = 200.dp, max = 320.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
                         .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                        .pointerInput(Unit) {
-                            detectTapGestures { offset ->
-                                val relX = (offset.x / size.width).coerceIn(0f, 1f)
-                                val relY = (offset.y / size.height).coerceIn(0f, 1f)
-                                addAnnotationMarker(relX, relY)
+                ) {
+                    SpatialMarkupCanvas(
+                        bitmap = bitmap,
+                        shapes = shapes,
+                        activeTool = activeTool,
+                        activeColor = activeColor,
+                        onShapesChange = { updated ->
+                            shapes = updated
+                            if (selectedShapeId != null && updated.none { it.id == selectedShapeId }) {
+                                selectedShapeId = null
                             }
                         },
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.foundation.Image(
-                        bitmap = currentBitmap.asImageBitmap(),
-                        contentDescription = "معاينة لقطة الشاشة",
+                        onShapeSelected = { id -> selectedShapeId = id },
                         modifier = Modifier.fillMaxSize()
                     )
 
@@ -1022,14 +1134,61 @@ private fun SpatialSnapshotPreviewDialog(
                             .padding(bottom = 8.dp)
                     ) {
                         Text(
-                            text = if (markerOffset == null) "المس أي مكان بالصورة لتحديد موضع الخلل 🎯" else "تم تحديد موضع الخلل بنجاح ✓",
-                            color = if (markerOffset == null) Color.White.copy(alpha = 0.85f) else Color(0xFF10B981),
+                            text = activeTool.hint,
+                            color = if (shapes.isEmpty()) Color.White.copy(alpha = 0.85f) else Color(0xFF10B981),
                             fontSize = 10.5.sp,
                             fontFamily = CairoFont,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
+
+                // 🎛️ شريط أدوات الأشكال
+                SpatialMarkupToolbar(
+                    activeTool = activeTool,
+                    activeColor = activeColor,
+                    hasShapes = shapes.isNotEmpty(),
+                    hasSelection = selectedShapeId != null,
+                    onToolChange = { tool ->
+                        activeTool = tool
+                        if (tool != MarkupTool.SELECT) selectedShapeId = null
+                    },
+                    onColorChange = { color -> activeColor = color },
+                    onUndo = {
+                        shapes = shapes.dropLast(1)
+                        selectedShapeId = null
+                    },
+                    onClear = {
+                        shapes = emptyList()
+                        selectedShapeId = null
+                    },
+                    onDeleteSelected = {
+                        val target = selectedShapeId
+                        if (target != null) {
+                            shapes = shapes.filterNot { it.id == target }
+                            selectedShapeId = null
+                        }
+                    }
+                )
+
+                // عداد التحديدات
+                Text(
+                    text = if (shapes.isEmpty()) {
+                        "لم تُضف أي أشكال بعد — اختر أداة ثم اسحب فوق الصورة 🎯"
+                    } else {
+                        "عدد التحديدات: ${shapes.size} — يمكن سحب أي شكل في وضع «تحريك» لنقله"
+                    },
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontFamily = CairoFont,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 // Primary User Actions: Save & Share
                 Row(
@@ -1066,7 +1225,7 @@ private fun SpatialSnapshotPreviewDialog(
 
                 // Send to Developer Button
                 Button(
-                    onClick = { onSendToDev(currentBitmap, file) },
+                    onClick = { sendToDeveloper() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
@@ -1075,7 +1234,7 @@ private fun SpatialSnapshotPreviewDialog(
                 ) {
                     Icon(Icons.Default.BugReport, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("إرسال تقرير للمطور مع اللقطة 🛠️", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("إرسال تقرير للمطور مع التحديدات 🛠️", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
