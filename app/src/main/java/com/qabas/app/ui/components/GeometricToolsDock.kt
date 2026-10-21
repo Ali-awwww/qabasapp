@@ -112,25 +112,38 @@ fun GeometricToolsDock(
             DockPanel(tools = tools)
         }
 
-        Surface(
-            shape = HexagonShape,
-            color = Color(0xFF0B1324).copy(alpha = 0.92f),
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.55f)),
-            modifier = Modifier
-                .size(54.dp)
-                .clip(HexagonShape)
-                .clickable { onToggle() }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(46.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowUp,
-                    contentDescription = "أدوات الشاشة",
-                    tint = GoldPrimary,
-                    modifier = Modifier
-                        .size(26.dp)
-                        .rotate(handleRotation)
-                )
+            Surface(
+                shape = HexagonShape,
+                color = Color(0xFF0B1324).copy(alpha = 0.92f),
+                border = BorderStroke(1.4.dp, GoldPrimary.copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(HexagonShape)
+                    .clickable { onToggle() }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "أدوات الشاشة",
+                        tint = GoldPrimary,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(handleRotation)
+                    )
+                }
             }
+            Text(
+                text = "الأدوات",
+                color = GoldPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 9.5.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
     }
 }

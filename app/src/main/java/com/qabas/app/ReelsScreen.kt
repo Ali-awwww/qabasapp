@@ -1114,8 +1114,10 @@ fun ReelSpatialHUDOverlays(
         label = "rotation"
     )
 
-    // أدوات التفاعل مطوية افتراضياً، ويُكشف عنها بسهم/زر الحلوية
+    // أدوات التفاعل مطوية افتراضياً، ويُكشف عنها بسهم «التفاعل»
     var actionsExpanded by remember { mutableStateOf(false) }
+    // بطاقة الناشر والوصف مطوية افتراضياً، وتُفتح بسهم «التفاصيل»
+    var infoExpanded by remember { mutableStateOf(false) }
 
     // معلومات الناشر: حالة المتابعة وما إذا كان المقطع للمستخدم نفسه
     val hudContext = LocalContext.current
@@ -1138,48 +1140,19 @@ fun ReelSpatialHUDOverlays(
             .fillMaxSize()
             .navigationBarsPadding()
     ) {
-        // Bottom Meta Info (Creator profile, description, sound, spiritual reactions)
+        // Bottom Meta Info (audio badge + collapsible creator/description)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 14.dp, end = 66.dp, bottom = 80.dp)
+                .padding(start = 14.dp, end = 66.dp, bottom = 96.dp)
                 .fillMaxWidth()
         ) {
-            // Micro Spiritual Reactions Bar (Horizontal Scroll, strictly non-overlapping)
-            LazyRow(
-                modifier = Modifier.padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // بطاقة الناشر والوصف — مطوية افتراضياً لتقليل التشيت، وتُفتح بسهم «التفاصيل»
+            AnimatedVisibility(
+                visible = infoExpanded,
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
             ) {
-                val microReactions = listOf(
-                    SpiritualReaction("subhanallah", "سبحان الله", "💫"),
-                    SpiritualReaction("alhamdulillah", "الحمد لله", "🌿"),
-                    SpiritualReaction("mashallah", "ما شاء الله", "🌟"),
-                    SpiritualReaction("jazakallah", "أجر 🤍", "")
-                )
-                items(microReactions) { rx ->
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.Black.copy(alpha = 0.55f),
-                        border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.35f)),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { onReactionTriggered(rx) }
-                    ) {
-                        Text(
-                            text = if (rx.icon.isNotEmpty()) "${rx.icon} ${rx.text}" else rx.text,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.5.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            color = Color.White.copy(alpha = 0.95f),
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
             // شريط الناشر: صورة + اسم + موثق + زر متابعة، وسطر معلومات النشر
             Column(
                 modifier = Modifier
@@ -1353,6 +1326,7 @@ fun ReelSpatialHUDOverlays(
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -1403,6 +1377,38 @@ fun ReelSpatialHUDOverlays(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // مُرتّبة حسب الأهمية: إعجاب ← تعليق ← حفظ ← مشاركة ← المزيد
+                    ReelRailButton(
+                        icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        label = formatCount(likesCount),
+                        tint = if (isLiked) Color(0xFFEF4444) else Color.White,
+                        onClick = onLike
+                    )
+                    ReelRailButton(
+                        icon = Icons.Default.Comment,
+                        label = formatCount(reel.commentsCount),
+                        tint = Color.White,
+                        onClick = onComment
+                    )
+                    ReelRailButton(
+                        icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        label = if (isSaved) "محفوظ" else "حفظ",
+                        tint = if (isSaved) GoldPrimary else Color.White,
+                        onClick = onSave
+                    )
+                    ReelRailButton(
+                        icon = Icons.Default.Share,
+                        label = formatCount(reel.sharesCount),
+                        tint = Color.White,
+                        onClick = onShare
+                    )
+                    ReelRailButton(
+                        icon = Icons.Default.MoreHoriz,
+                        label = "المزيد",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        onClick = onMoreOptions
+                    )
+
                     // 🎵 Spinning audio disc (geometric hub)
                     Box(
                         modifier = Modifier
@@ -1422,58 +1428,69 @@ fun ReelSpatialHUDOverlays(
                                 .background(GoldPrimary)
                         )
                     }
-
-                    ReelRailButton(
-                        icon = Icons.Default.Comment,
-                        label = formatCount(reel.commentsCount),
-                        tint = Color.White,
-                        onClick = onComment
-                    )
-                    ReelRailButton(
-                        icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        label = if (isSaved) "محفوظ" else "حفظ",
-                        tint = if (isSaved) GoldPrimary else Color.White,
-                        onClick = onSave
-                    )
-                    ReelRailButton(
-                        icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        label = formatCount(likesCount),
-                        tint = if (isLiked) Color(0xFFEF4444) else Color.White,
-                        onClick = onLike
-                    )
-                    ReelRailButton(
-                        icon = Icons.Default.Share,
-                        label = formatCount(reel.sharesCount),
-                        tint = Color.White,
-                        onClick = onShare
-                    )
-                    ReelRailButton(
-                        icon = Icons.Default.MoreHoriz,
-                        label = "المزيد",
-                        tint = Color.White.copy(alpha = 0.85f),
-                        onClick = onMoreOptions
-                    )
                 }
             }
-
-            // زر الحلوية/السهم: يكشف أو يخفي كل الخيارات
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF0F172A).copy(alpha = 0.75f))
-                    .border(1.4.dp, GoldPrimary.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                    .clickable { actionsExpanded = !actionsExpanded },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (actionsExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                    contentDescription = if (actionsExpanded) "إخفاء الخيارات" else "إظهار الخيارات",
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
         }
+
+        // الأسهم الثلاثة بنفس القياس وبنفس الارتفاع مع اسم كل سهم أسفله
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 10.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            ReelArrowButton(
+                expanded = infoExpanded,
+                label = "التفاصيل",
+                onClick = { infoExpanded = !infoExpanded }
+            )
+            ReelArrowButton(
+                expanded = actionsExpanded,
+                label = "التفاعل",
+                onClick = { actionsExpanded = !actionsExpanded }
+            )
+        }
+    }
+}
+
+/**
+ * سهم تبديل موحّد (نفس القياس) مع اسمه أسفله
+ */
+@Composable
+fun ReelArrowButton(
+    expanded: Boolean,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(46.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.75f))
+                .border(1.4.dp, GoldPrimary.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                contentDescription = label,
+                tint = GoldPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = GoldPrimary,
+            fontFamily = CairoFont,
+            fontSize = 9.5.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
@@ -1576,6 +1593,35 @@ fun ReelCommentsBottomSheet(
         commentsList = SupabaseServices.Profiles.getReelComments(reel.id)
     }
 
+    val submitComment: (String) -> Unit = submit@{ raw ->
+        val sanitized = ReelSafetyGuardrails.sanitizeCommentText(raw) ?: return@submit
+        if (isPosting) return@submit
+        if (!ReelSafetyGuardrails.canPostComment()) {
+            Toast.makeText(context, "يرجى الانتظار قليلاً قبل إرسال تعليق آخر ⏱️", Toast.LENGTH_SHORT).show()
+            return@submit
+        }
+        isPosting = true
+        coroutineScope.launch {
+            val ok = runCatching {
+                withTimeoutOrNull(6000L) {
+                    SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, sanitized)
+                } ?: false
+            }.getOrDefault(false)
+            if (ok) {
+                commentsList = commentsList + SupabaseServices.ReelCommentRow(
+                    id = "local_${System.currentTimeMillis()}",
+                    reelId = reel.id,
+                    userId = currentUserName,
+                    commentText = sanitized
+                )
+                commentText = ""
+            } else {
+                Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
+            }
+            isPosting = false
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF0F172A),
@@ -1660,6 +1706,39 @@ fun ReelCommentsBottomSheet(
                 }
             }
 
+            // تفاعلات سريعة تُنشر كتعليق بدل ازدحام الشاشة
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(SPIRITUAL_REACTIONS.take(4)) { reaction ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = GoldPrimary.copy(alpha = 0.12f),
+                        border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(enabled = !isPosting) {
+                                submitComment("${reaction.icon} ${reaction.text}")
+                            }
+                    ) {
+                        Text(
+                            text = "${reaction.icon} ${reaction.text}",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
             // Input Row
             Row(
                 modifier = Modifier
@@ -1687,35 +1766,7 @@ fun ReelCommentsBottomSheet(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 IconButton(
-                    onClick = {
-                        val sanitized = ReelSafetyGuardrails.sanitizeCommentText(commentText)
-                        if (sanitized != null && !isPosting) {
-                            if (!ReelSafetyGuardrails.canPostComment()) {
-                                Toast.makeText(context, "يرجى الانتظار قليلاً قبل إرسال تعليق آخر ⏱️", Toast.LENGTH_SHORT).show()
-                                return@IconButton
-                            }
-                            isPosting = true
-                            coroutineScope.launch {
-                                val ok = runCatching {
-                                    withTimeoutOrNull(6000L) {
-                                        SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, sanitized)
-                                    } ?: false
-                                }.getOrDefault(false)
-                                if (ok) {
-                                    commentsList = commentsList + SupabaseServices.ReelCommentRow(
-                                        id = "local_${System.currentTimeMillis()}",
-                                        reelId = reel.id,
-                                        userId = currentUserName,
-                                        commentText = sanitized
-                                    )
-                                    commentText = ""
-                                } else {
-                                    Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
-                                }
-                                isPosting = false
-                            }
-                        }
-                    },
+                    onClick = { submitComment(commentText) },
                     enabled = commentText.isNotBlank() && !isPosting,
                     modifier = Modifier
                         .size(44.dp)
