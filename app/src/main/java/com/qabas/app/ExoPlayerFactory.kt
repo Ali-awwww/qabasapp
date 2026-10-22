@@ -2,7 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import androidx.media3.common.C
-import androidx.media3.common.audio.AudioAttributes
+import androidx.media3.common.AudioAttributes
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource

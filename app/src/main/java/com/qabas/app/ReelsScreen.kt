@@ -57,6 +57,7 @@ import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**

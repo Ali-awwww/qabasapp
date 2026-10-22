@@ -997,7 +997,7 @@ object SupabaseServices {
                 // ترتيب ثابت: الأحدث أولاً، وid كفاصل للتعادل لضمان عدم تكرار/إسقاط صفحات
                 order("created_at", Order.DESCENDING)
                 order("id", Order.DESCENDING)
-                range(offset, offset + limit - 1)
+                range(offset.toLong(), (offset + limit - 1).toLong())
             }.decodeList<ReelRow>()
         }.onFailure { Log.e(TAG, "getActiveReels failed: ${it.message}") }.getOrNull()
 

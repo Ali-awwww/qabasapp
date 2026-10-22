@@ -81,7 +81,7 @@ object VideoCacheService {
     private fun closeCacheInternal() {
         synchronized(this) {
             runCatching {
-                cachedCache?.close()
+                cachedCache?.release()
             }.onSuccess {
                 cachedCache = null
                 releasePending = false
