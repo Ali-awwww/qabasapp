@@ -274,7 +274,7 @@ fun LoginScreen(
                     }
 
                     // محاولة الدخول الموحّدة: يستدعيها زر الإدخال وزر «إعادة المحاولة» في بطاقة الخطأ
-                    val submitLogin: () -> Unit = {
+                    val submitLogin: () -> Unit = submitLogin@{
                             val trimmedInput = accountInput.trim()
                             if (trimmedInput.isBlank() || password.isBlank()) {
                                 authErrorMessage = "الرجاء إدخال البريد أو المعرّف الخاص وكلمة المرور"
