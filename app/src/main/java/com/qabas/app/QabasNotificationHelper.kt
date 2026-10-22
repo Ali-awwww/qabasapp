@@ -40,6 +40,132 @@ object QabasNotificationHelper {
 
     const val BRAND_COLOR = 0xFFD4AF37.toInt() // Qabas Gold
 
+    // ─── تجميع تنبيهات الصلاة والأذكار + منع التكرار ───
+
+    /** مفتاح التجميع: كل تنبيه إيماني يدخل تحته فيظهر شريط الإشعارات سطراً واحداً قابلاً للتوسّع */
+    const val GROUP_QABAS_ALERTS = "com.qabas.app.grouped_alerts"
+
+    /** معرّف إشعار الملخّص الثابت (أعلى من معرّفات الخدمات الثابتة فلا يتصادم) */
+    private const val SUMMARY_NOTIF_ID = 990_010
+
+    private const val EVENT_PREFS = "qabas_notification_events"
+    private const val KEY_AZAN_PREFIX = "last_azan_"
+    private const val KEY_ALERT_COUNT = "grouped_count"
+    private const val KEY_ALERT_WINDOW = "grouped_window_start"
+    private const val KEY_RECENT_LINES = "grouped_recent_lines"
+
+    /** نافذة احتساب التكديس: تنبيهات أطول من ربع ساعة تبدأ ملخّصاً جديداً */
+    private const val GROUP_WINDOW_MILLIS = 15 * 60 * 1000L
+
+    /** نافذة منع التكرار: تنبيه الورد يُلغى إن كان أذان الصلاة المقابل قد أُطلق للتو */
+    private const val AZAN_DEDUP_WINDOW_MILLIS = 15 * 60 * 1000L
+    private const val MAX_SUMMARY_LINES = 4
+
+    /** يسجّل لحظة إطلاق أذان صلاة — لتُلغى تنبيهات الورد المقابلة في نفس اللحظة */
+    fun recordAzanFired(context: Context, prayerKey: String) {
+        context.applicationContext
+            .getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_AZAN_PREFIX + prayerKey, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** هل أُطلق أذان هذه الصلاة خلال النافذة المعطاة؟ */
+    fun azanFiredRecently(
+        context: Context,
+        prayerKey: String,
+        windowMillis: Long = AZAN_DEDUP_WINDOW_MILLIS
+    ): Boolean {
+        val firedAt = context.applicationContext
+            .getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_AZAN_PREFIX + prayerKey, 0L)
+        return firedAt > 0 && System.currentTimeMillis() - firedAt < windowMillis
+    }
+
+    /**
+     * يربط الإشعار بمجموعة "تنبيهات قبس" ويحدّث الملخّص عند تجاوز تنبيه واحد،
+     * فلا يتكدّس شريط الإشعارات في خمسة صفوف مبعثر تحت اسم التطبيق.
+     */
+    fun attachAlertGroup(
+        context: Context,
+        builder: NotificationCompat.Builder,
+        channelId: String,
+        headline: String
+    ) {
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val windowStart = prefs.getLong(KEY_ALERT_WINDOW, 0L)
+        val count = if (windowStart == 0L || now - windowStart > GROUP_WINDOW_MILLIS) {
+            1
+        } else {
+            prefs.getInt(KEY_ALERT_COUNT, 0) + 1
+        }
+        val recent = (listOf(headline.trim()) + prefs.getString(KEY_RECENT_LINES, "")
+            ?.split('\n')
+            .orEmpty()
+            .filter { it.isNotBlank() })
+            .distinct()
+            .filter { it.isNotBlank() }
+            .take(MAX_SUMMARY_LINES)
+
+        prefs.edit()
+            .putLong(KEY_ALERT_WINDOW, now)
+            .putInt(KEY_ALERT_COUNT, count)
+            .putString(KEY_RECENT_LINES, recent.joinToString("\n"))
+            .apply()
+
+        builder.setGroup(GROUP_QABAS_ALERTS)
+        if (count >= 2) postGroupSummary(appContext, count, recent, channelId)
+    }
+
+    /** إشعار الملخّص الوحيد الذي يجمع التنبيهات المتكدّسة تحته */
+    private fun postGroupSummary(
+        context: Context,
+        count: Int,
+        lines: List<String>,
+        channelId: String
+    ) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "prayer_times")
+        }
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            SUMMARY_NOTIF_ID,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val inbox = NotificationCompat.InboxStyle().setSummaryText("$count تنبيهات")
+        lines.forEach { inbox.addLine(it) }
+
+        val summary = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_stat_qabas)
+            .setLargeIcon(getAppIconBitmap(context))
+            .setColor(BRAND_COLOR)
+            .setContentTitle("تنبيهات قبس")
+            .setContentText("$count تنبيهات: الصلاة والأذكار")
+            .setStyle(inbox)
+            .setNumber(count)
+            .setContentIntent(contentIntent)
+            .setGroup(GROUP_QABAS_ALERTS)
+            .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(SUMMARY_NOTIF_ID, summary)
+    }
+
+    /** آية عشوائية من مكتبة القرآن — المصدر الموحّد لإشعارات الورد */
+    fun dailyVerseLine(): String? = QuranDataProvider.surahs.flatMap { it.famousVerses }.randomOrNull()
+
+    /** فضل سورة عشوائي — المصدر الموحّد لإشعارات الفجر */
+    fun dailyVirtueLine(): String? = QuranDataProvider.surahs.mapNotNull { it.virtue }.randomOrNull()
+
     /** مخزن عدّاد المعرّفات الديناميكية الدائم (محفوظ على القرص) */
     private const val ID_PREFS = "qabas_notification_ids"
     private const val KEY_NEXT_DYNAMIC_ID = "next_dynamic_id"

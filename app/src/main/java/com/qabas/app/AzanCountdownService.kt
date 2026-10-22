@@ -58,13 +58,13 @@ class AzanCountdownService : Service() {
 
     private fun startTicking() {
         createChannel()
-        startForeground(NOTIF_ID, buildNotif("جارٍ حساب موعد الصلاة القادمة…", null))
+        startForeground(NOTIF_ID, buildNotif("مواقيت الصلاة", "جارٍ حساب الصلاة القادمة…"))
         job?.cancel()
         job = scope.launch {
             while (true) {
                 val next = findNextPrayer(applicationContext)
                 if (next == null) {
-                    updateNotif("فعّل مواقيت الصلاة من الإعدادات 🕌", null)
+                    updateNotif("مواقيت الصلاة", "فعّل مواقيت الصلاة من الإعدادات")
                     delay(60_000)
                     continue
                 }
@@ -76,8 +76,7 @@ class AzanCountdownService : Service() {
                     delay(5_000)
                     continue
                 }
-                val text = "المتبقي على ${next.prayerName}: ${formatRemaining(remaining)} ⏳"
-                updateNotif(text, next)
+                updateNotif("المتبقي على ${next.prayerName}", "${formatRemaining(remaining)} ⏳")
                 // عدّاد لحظي حقيقي: تحديث كل ثانية ليعرض الثواني بدقة
                 delay(1_000)
             }
@@ -89,12 +88,12 @@ class AzanCountdownService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun updateNotif(text: String, next: NextPrayer?) {
+    private fun updateNotif(title: String, text: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID, buildNotif(text, next))
+        nm.notify(NOTIF_ID, buildNotif(title, text))
     }
 
-    private fun buildNotif(text: String, next: NextPrayer?): android.app.Notification {
+    private fun buildNotif(title: String, text: String): android.app.Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("navigate_to", "prayer_times")
@@ -108,9 +107,10 @@ class AzanCountdownService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_qabas)
             .setColor(QabasNotificationHelper.BRAND_COLOR)
-            .setContentTitle("🕌 عدّاد الأذان")
+            .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            // صف واحد مضغوط: العدّاد يتغيّر كل ثانية فلا يليق بنص موسّع ولا بختم زمني متجدّد
+            .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

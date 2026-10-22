@@ -23,22 +23,36 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             else -> true
         }
         if (!typeEnabled) return
+
+        // منع التكرار: إن كان أذان الصلاة المقابل قد أُطلق قبل قليل، فالآية/الفضل
+        // موجودة أصلاً داخل إشعار الأذان — لا نضيف صفّاً مكرّراً في شريط الإشعارات
+        val matchingAzanKey = when (type) {
+            "fajr" -> PrayerAlarmManager.PRAYER_FAJR
+            "suhur" -> PrayerAlarmManager.PRAYER_SUHUR
+            else -> null
+        }
+        if (matchingAzanKey != null &&
+            QabasNotificationHelper.azanFiredRecently(context, matchingAzanKey)
+        ) {
+            SpiritualNotificationManager.scheduleNotification(context, type)
+            return
+        }
+
         val (title, message) = when (type) {
-            "suhur" -> {
-                "قبس السحر ✨" to (getRandomVerse(context) ?: "«أَمَّنْ هُوَ قَانِتٌ آنَاءَ اللَّيْلِ سَاجِدًا وَقَائِمًا يَحْذَرُ الْآخِرَةَ وَيَرْجُو رَحْمَةَ رَبِّهِ»")
-            }
-            "fajr" -> {
-                "نور الفجر 🌅" to (getRandomVirtue(context) ?: "«وقرآن الفجر إن قرآن الفجر كان مشهودا» - اجعل وردك الآن بداية لفتح عظيم.")
-            }
-            "morning" -> {
-                "أذكار الصباح ☀️" to "«أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ» - حصّن يومك بذكر الله."
-            }
-            "evening" -> {
-                "أذكار المساء 🌙" to "«أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ» - اختم يومك بالطمأنينة."
-            }
-            else -> {
-                "تذكير إيماني 🌿" to "«وذكر فإن الذكرى تنفع المؤمنين» - حان وقت وردك القرآني."
-            }
+            "suhur" -> "ورد السحر" to (
+                QabasNotificationHelper.dailyVerseLine()
+                    ?: "«أَمَّنْ هُوَ قَانِتٌ آنَاءَ اللَّيْلِ سَاجِدًا وَقَائِمًا يَحْذَرُ الْآخِرَةَ وَيَرْجُو رَحْمَةَ رَبِّهِ»"
+                )
+            "fajr" -> "ورد الفجر" to (
+                QabasNotificationHelper.dailyVirtueLine()
+                    ?: "أم الكتاب والسبع المثاني والشفاء النافع"
+                )
+            "morning" -> "أذكار الصباح" to
+                "«أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ»\nحصّن يومك بذكر الله."
+            "evening" -> "أذكار المساء" to
+                "«أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ»\nاختم يومك بالطمأنينة."
+            else -> "تذكير إيماني" to
+                "«وَذَكِّرْ فَإِنَّ الذِّكْرَىٰ تَنفَعُ الْمُؤْمِنِينَ»\nحان وقت وردك القرآني."
         }
 
         showNotification(context, title, message)
@@ -51,15 +65,6 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
 
         // Reschedule for next day
         SpiritualNotificationManager.scheduleNotification(context, type)
-    }
-
-    private fun getRandomVerse(context: Context): String? {
-        // Simple logic to get a random famous verse
-        return QuranDataProvider.surahs.flatMap { it.famousVerses }.randomOrNull()
-    }
-
-    private fun getRandomVirtue(context: Context): String? {
-        return QuranDataProvider.surahs.mapNotNull { it.virtue }.randomOrNull()
     }
 
     private fun showNotification(context: Context, title: String, message: String) {
@@ -102,6 +107,14 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             builder = builder,
             context = context,
             notifId = notifId
+        )
+
+        // تجميع التنبيهات الإيمانية تحت ملخّص واحد فلا تتكدّس في شريط الإشعارات
+        QabasNotificationHelper.attachAlertGroup(
+            context = context,
+            builder = builder,
+            channelId = QabasNotificationHelper.CHANNEL_SPIRITUAL,
+            headline = title
         )
 
         notificationManager.notify(notifId, builder.build())

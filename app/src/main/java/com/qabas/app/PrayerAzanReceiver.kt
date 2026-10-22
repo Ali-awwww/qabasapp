@@ -41,13 +41,25 @@ class PrayerAzanReceiver : BroadcastReceiver() {
                 "FULL_AZAN", "TAKBEER_ONLY" -> {
                     // تشغيل خدمة الأذان المباشرة
                     AzanPlaybackService.startAzan(context, voiceId, prayerName)
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName، استمع للأذان وتقبل الله طاعتكم 🕋", soundMode)
+                    showPrayerNotification(
+                        context, prayerKey, prayerName,
+                        "استمع للأذان الآن — تقبل الله صلاتكم",
+                        soundMode
+                    )
                 }
                 "NOTIFICATION_ONLY" -> {
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName حسب توقيت مدينتك 🕌", soundMode)
+                    showPrayerNotification(
+                        context, prayerKey, prayerName,
+                        "تنبيه بدخول الوقت حسب توقيت مدينتك — تقبل الله طاعتكم",
+                        soundMode
+                    )
                 }
                 "SILENT" -> {
-                    showPrayerNotification(context, prayerKey, prayerName, "حان الآن موعد $prayerName (تنبيه صامت) 🌙", soundMode)
+                    showPrayerNotification(
+                        context, prayerKey, prayerName,
+                        "تنبيه صامت بدخول الوقت",
+                        soundMode
+                    )
                 }
             }
 
@@ -114,13 +126,22 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         val isSilentMode = soundMode == "SILENT" || soundMode == "OFF" || soundMode.isBlank()
         val isStrongSound = soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY"
 
+        // سطر الورد اليومي يُضاف لنص الأذان الموسّع بدل إشعار منفصل يكرّر نفس اللحظة
+        val reminderLine = when (prayerKey) {
+            PrayerAlarmManager.PRAYER_FAJR -> QabasNotificationHelper.dailyVirtueLine()
+            PrayerAlarmManager.PRAYER_SUHUR -> QabasNotificationHelper.dailyVerseLine()
+            else -> null
+        }
+        val bigText = listOfNotNull(message, reminderLine).joinToString("\n")
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_qabas)
             .setLargeIcon(appIcon)
             .setColor(0xFFD4AF37.toInt())
-            .setContentTitle("الله أكبر • $prayerName")
+            .setContentTitle("حان الآن موعد $prayerName")
             .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setSubText("قبس")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openPendingIntent)
@@ -145,11 +166,20 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             builder.setChannelId(QabasNotificationHelper.CHANNEL_AZAN_ALARM)
         }
 
+        // تجميع التنبيهات الإيمانية تحت ملخّص واحد + تسجيل الأذان لمنع تكرار تنبيه الورد
+        QabasNotificationHelper.attachAlertGroup(
+            context = context,
+            builder = builder,
+            channelId = QabasNotificationHelper.CHANNEL_AZAN_ALARM,
+            headline = "أذان $prayerName"
+        )
+        QabasNotificationHelper.recordAzanFired(context, prayerKey)
+
         notificationManager.notify(notifId, builder.build())
 
         AppNotificationService.recordNotification(
             context = context,
-            title = "الله أكبر • $prayerName",
+            title = "حان الآن موعد $prayerName",
             message = message,
             category = AppNotificationService.CATEGORY_PRAYER
         )
