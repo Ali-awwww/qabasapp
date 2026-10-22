@@ -919,29 +919,40 @@ object UpdateManager {
     }
 
     private fun applyXdelta(binary: File, source: File, delta: File, output: File): Boolean {
-        return try {
-            val cmd = listOf(
-                binary.absolutePath,
-                "-d",
-                "-s", source.absolutePath,
-                delta.absolutePath,
-                output.absolutePath
-            )
-            Log.d(TAG, "exec: ${cmd.joinToString(" ")}")
-            val process = ProcessBuilder(cmd)
-                .redirectErrorStream(true)
-                .start()
-            val log = process.inputStream.bufferedReader().readText()
-            val code = process.waitFor()
-            if (code != 0) {
-                Log.e(TAG, "❌ xdelta3 exit=$code log=$log")
-                return false
+        val args = listOf(
+            "-d",
+            "-s", source.absolutePath,
+            delta.absolutePath,
+            output.absolutePath
+        )
+        // Android 10+ (targetSdk ≥ 29): SELinux يمنع execve المباشرة من مجلد التطبيق
+        // (قيد W^X). الحل المعتمد: تشغيل الملف عبر ملتفّ النظام الذي يحمله نيابةً عنه.
+        // Android < 10 ينجح فيه التنفيذ المباشر، والباقي عبر /system/bin/linker[64].
+        val runners = listOf(
+            listOf(binary.absolutePath),
+            listOf("/system/bin/linker64", binary.absolutePath),
+            listOf("/system/bin/linker", binary.absolutePath)
+        )
+        var lastFailure = "لم يُشغَّل"
+        for (prefix in runners) {
+            try {
+                val cmd = prefix + args
+                Log.d(TAG, "exec: ${cmd.joinToString(" ")}")
+                val process = ProcessBuilder(cmd)
+                    .redirectErrorStream(true)
+                    .start()
+                val log = process.inputStream.bufferedReader().readText()
+                val code = process.waitFor()
+                if (code == 0) return true
+                lastFailure = "exit=$code via ${prefix.first()} — ${log.take(300)}"
+                Log.w(TAG, "⚠️ xdelta3 runner failed: $lastFailure")
+            } catch (e: Exception) {
+                lastFailure = "${prefix.first()}: ${e.message}"
+                Log.w(TAG, "⚠️ applyXdelta runner threw: $lastFailure")
             }
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ applyXdelta: ${e.message}", e)
-            false
         }
+        Log.e(TAG, "❌ applyXdelta all runners failed — $lastFailure")
+        return false
     }
 
     private fun downloadFile(
