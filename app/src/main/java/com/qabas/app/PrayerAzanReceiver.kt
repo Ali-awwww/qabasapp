@@ -139,7 +139,8 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             .setLargeIcon(appIcon)
             .setColor(0xFFD4AF37.toInt())
             .setContentTitle("حان الآن موعد $prayerName")
-            .setContentText(message)
+            // نص مضغوط في الصف المطوي (يمنع القطع بـ«…») — النص الكامل يظهر في العرض الموسّع
+            .setContentText(message.substringBefore(" — "))
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setSubText("قبس")
             .setPriority(NotificationCompat.PRIORITY_MAX)

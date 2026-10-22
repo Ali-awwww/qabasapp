@@ -76,7 +76,7 @@ class AzanCountdownService : Service() {
                     delay(5_000)
                     continue
                 }
-                updateNotif("المتبقي على ${next.prayerName}", "${formatRemaining(remaining)} ⏳")
+                updateNotif("المتبقي على ${next.prayerName}", formatRemaining(remaining))
                 // عدّاد لحظي حقيقي: تحديث كل ثانية ليعرض الثواني بدقة
                 delay(1_000)
             }
@@ -108,7 +108,7 @@ class AzanCountdownService : Service() {
             .setSmallIcon(R.drawable.ic_stat_qabas)
             .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText(digitalSpan(text))
             // صف واحد مضغوط: العدّاد يتغيّر كل ثانية فلا يليق بنص موسّع ولا بختم زمني متجدّد
             .setShowWhen(false)
             .setOngoing(true)
@@ -170,7 +170,22 @@ class AzanCountdownService : Service() {
         val h = TimeUnit.MILLISECONDS.toHours(millis)
         val m = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
         val s = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
-        return if (h > 0) "%02d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+        // Locale.US: أرقام لاتينية دائماً بدل الأرقام الهندية الافتراضية في لغة الجهاز،
+        // وشكل رقمي ثابت HH:MM:SS — قراءة عدّاد إلكتروني حديث
+        return String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s)
+    }
+
+    /** خط أحادي المسافة (Monospace) للأرقام فقط — مظهر شاشة رقمية */
+    private fun digitalSpan(text: String): CharSequence {
+        val isDigital = text.isNotEmpty() && text.all { it.isDigit() || it == ':' }
+        if (!isDigital) return text
+        return android.text.SpannableString(text).apply {
+            setSpan(
+                android.text.style.TypefaceSpan("monospace"),
+                0, length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
     }
 
     override fun onDestroy() {
