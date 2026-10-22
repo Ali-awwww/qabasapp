@@ -139,7 +139,8 @@ fun ReelsScreen(
     var isKhushuMode by remember { mutableStateOf(false) }
     var showSoundscapeBar by remember { mutableStateOf(false) }
     var showTadabburCard by remember { mutableStateOf(false) }
-    var particles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
+    // عدّاد التعليقات المُضافة جالسياً بعد نشر تعليق ناجح (يدمج مع عدّاد الصف)
+    var commentBumps by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     // Immersive chrome (bottom bar) visibility: hidden on entry with a smooth slide,
     // auto-hides after 10s of inactivity, revealed by tapping the video or the handle.
@@ -878,19 +879,9 @@ fun ReelsScreen(
                                 isSaved = isSaved,
                                 showCaptions = showCaptions,
                                 likesCount = currentLikes,
+                                commentsCount = reel.commentsCount + (commentBumps[reel.id] ?: 0),
                                 isKhushuMode = isKhushuMode,
                                 onToggleKhushu = { isKhushuMode = !isKhushuMode },
-                                onReactionTriggered = { reaction ->
-                                    val newParticle = FloatingParticle(
-                                        id = System.currentTimeMillis() + (0..1000).random(),
-                                        text = "${reaction.icon} ${reaction.text}",
-                                        offsetX = (30..220).random().toFloat(),
-                                        startY = 600f
-                                    )
-                                    particles = particles + newParticle
-                                    ReelPreferencesManager.triggerHaptic(context)
-                                    Toast.makeText(context, "بارك الله فيك! ${reaction.text} (+${reaction.rewardHasanat} حسنات) 🌟", Toast.LENGTH_SHORT).show()
-                                },
                                 onLike = handleToggleLike,
                                 onSave = handleToggleSave,
                                 onComment = {
@@ -925,14 +916,6 @@ fun ReelsScreen(
                     }
                 }
                 }
-
-                // Floating Particles Layer
-                FloatingParticlesLayer(
-                    particles = particles,
-                    onParticleFinished = { pId ->
-                        particles = particles.filterNot { it.id == pId }
-                    }
-                )
 
                 // «مرصد قبس الهندسي» — collapsible geometric dock with all screen tools
                 if (!isKhushuMode) {
@@ -1236,6 +1219,9 @@ fun ReelsScreen(
         ReelCommentsBottomSheet(
             reel = reel,
             currentUserId = currentUserId,
+            onCommentPosted = {
+                commentBumps = commentBumps + (reel.id to (commentBumps[reel.id] ?: 0) + 1)
+            },
             onDismiss = { activeCommentReel = null }
         )
     }
@@ -1399,7 +1385,8 @@ fun ReelSpatialHUDOverlays(
     likesCount: Int,
     isKhushuMode: Boolean,
     onToggleKhushu: () -> Unit,
-    onReactionTriggered: (SpiritualReaction) -> Unit,
+    // العدّ الفعلي بعد التعليقات المُضافة جالسياً (الافتراضي يأخذ عدّاد الصف)
+    commentsCount: Int = reel.commentsCount,
     onLike: () -> Unit,
     onSave: () -> Unit,
     onComment: () -> Unit,
@@ -1676,7 +1663,7 @@ fun ReelSpatialHUDOverlays(
                     )
                     ReelRailButton(
                         icon = Icons.Default.Comment,
-                        label = formatCount(reel.commentsCount),
+                        label = formatCount(commentsCount),
                         tint = Color.White,
                         onClick = onComment
                     )
@@ -1870,6 +1857,7 @@ fun ReelRailButton(
 fun ReelCommentsBottomSheet(
     reel: SupabaseServices.ReelRow,
     currentUserId: String,
+    onCommentPosted: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1913,6 +1901,7 @@ fun ReelCommentsBottomSheet(
             if (inserted != null) {
                 commentsList = commentsList + inserted
                 commentText = ""
+                onCommentPosted()
             } else {
                 Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
             }
