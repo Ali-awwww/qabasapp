@@ -1,6 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -54,6 +56,8 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
+    /** هل سبب الخطأ اتصال بالشبكة؟ (يحدّد أزرار بطاقة الخطأ التفاعلية) */
+    var authErrorIsNetwork by remember { mutableStateOf(false) }
     var showUnregisteredDialog by remember { mutableStateOf(false) }
     var unregisteredTargetEmail by remember { mutableStateOf("") }
     var unregisteredTargetPassword by remember { mutableStateOf("") }
@@ -269,27 +273,278 @@ fun LoginScreen(
                         }
                     }
 
-                    // Diagnostic Error Message Banner
+                    // محاولة الدخول الموحّدة: يستدعيها زر الإدخال وزر «إعادة المحاولة» في بطاقة الخطأ
+                    val submitLogin: () -> Unit = {
+                            val trimmedInput = accountInput.trim()
+                            if (trimmedInput.isBlank() || password.isBlank()) {
+                                authErrorMessage = "الرجاء إدخال البريد أو المعرّف الخاص وكلمة المرور"
+                                authErrorIsNetwork = false
+                                Toast.makeText(context, authErrorMessage, Toast.LENGTH_SHORT).show()
+                                return@submitLogin
+                            }
+                            authErrorMessage = null
+                            authErrorIsNetwork = false
+                            isLoading = true
+                            coroutineScope.launch {
+                                // 1. فك تشفير المعرّف الخاص أو البريد
+                                val resolvedPair = UserIdentifierManager.resolveIdentifierToEmail(trimmedInput, context)
+                                if (resolvedPair == null) {
+                                    val err = "تعذر العثور على حساب مرتبط بالمعرّف '$trimmedInput'. يرجى التأكد من صحة المعرّف أو تسجيل الدخول ببريدك الإلكتروني (Gmail)."
+                                    authErrorMessage = err
+                                    authErrorIsNetwork = false
+                                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                    isLoading = false
+                                    return@launch
+                                }
+
+                                val targetEmail = resolvedPair.first
+                                val detectedCustomId = resolvedPair.second
+                                val lowerEmail = targetEmail.lowercase(java.util.Locale.ROOT)
+                                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
+                                val isRelative = prefs.getBoolean("is_relative", false)
+
+                                val diagResult = SupabaseRepository.getInstance().diagnoseSignInAttempt(targetEmail, password)
+
+                                if (diagResult.isSuccess && diagResult.hasSession) {
+                                    val externalId = diagResult.userId ?: SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+                                    var userType = if (isAdmin) "مطور" else "مجاني"
+
+                                    // حفظ أو استعادة المعرّف الخاص
+                                    var finalCustomId = if (detectedCustomId.isNotBlank()) {
+                                        UserIdentifierManager.saveCustomId(context, detectedCustomId, targetEmail)
+                                        detectedCustomId
+                                    } else {
+                                        UserIdentifierManager.getOrCreateCustomId(context, targetEmail)
+                                    }
+                                    var accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail)
+
+                                    var canonicalUserId = externalId
+                                    var effectiveLoginName = targetEmail.substringBefore('@')
+
+                                    if (SupabaseServices.isSupabaseAvailable) {
+                                        val existing = SupabaseServices.Database.ensureUser(canonicalUserId, lowerEmail, null, finalCustomId, accountNumber)
+                                        if (existing != null) {
+                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
+                                            if (existing.type.isNotBlank()) userType = existing.type
+                                            // الاسم المخزَّن هو المصدر: لا نعيد كتابته باسم البريد عند كل دخول
+                                            if (!existing.name.isNullOrBlank()) effectiveLoginName = existing.name
+                                            if (!existing.customId.isNullOrBlank()) {
+                                                finalCustomId = existing.customId
+                                                UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
+                                            }
+                                            if (!existing.accountNumber.isNullOrBlank()) {
+                                                accountNumber = existing.accountNumber
+                                                UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
+                                            }
+                                        } else {
+                                            SupabaseServices.Database.saveUser(
+                                                id = canonicalUserId,
+                                                name = effectiveLoginName,
+                                                email = targetEmail,
+                                                type = userType,
+                                                customId = finalCustomId,
+                                                accountNumber = accountNumber
+                                            )
+                                        }
+                                    }
+
+                                    // جلسة نشطة واحدة فقط: ارفض الدخول إذا كان الحساب حياً على جهاز آخر
+                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
+                                        runCatching { SupabaseServices.Auth.logout() }
+                                        authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً."
+                                        authErrorIsNetwork = false
+                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+
+                                    val finalIsAdmin = isAdmin || userType == "مطور" || userType == "خاص"
+                                    val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
+
+                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveLoginName, accountNumber)
+
+                                    LocalAccountRegistry.registerOrUpdateAccount(
+                                        context = context,
+                                        account = LocalAccountRegistry.AccountRecord(
+                                            id = targetEmail,
+                                            name = effectiveLoginName,
+                                            email = targetEmail,
+                                            customId = finalCustomId,
+                                            accountNumber = accountNumber,
+                                            type = if (finalIsDeveloper) "مطور" else userType,
+                                            status = "active"
+                                        )
+                                    )
+
+                                    prefs.edit().apply {
+                                        putBoolean("is_logged_in", true)
+                                        putBoolean("is_guest", false)
+                                        putBoolean("is_admin", finalIsAdmin)
+                                        putBoolean("is_developer", finalIsDeveloper)
+                                        putBoolean("is_premium", true)
+                                        putBoolean("is_relative", isRelative)
+                                        putString("user_id", canonicalUserId)
+                                        putString("user_email", targetEmail)
+                                        putString("user_name", effectiveLoginName)
+                                        putString("user_display_name", effectiveLoginName)
+                                        putString("user_custom_id", finalCustomId)
+                                        putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
+                                        putString("user_account_number", accountNumber)
+                                        putString("user_name_with_account", nameWithAccount)
+                                        if (rememberMe) putString("saved_login_email", trimmedInput) else remove("saved_login_email")
+                                        apply()
+                                    }
+                                    SupabaseRepository.getInstance().emitLocalAuthenticated(
+                                        email = targetEmail,
+                                        isAdmin = finalIsAdmin
+                                    )
+                                    CloudServices.syncAdminClaim(context)
+                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
+                                    Toast.makeText(
+                                        context, 
+                                        "مرحباً بك! تم التوثيق برقم الحساب: $accountNumber$firstBadge", 
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onLoginSuccess(finalIsAdmin)
+                                } else {
+                                    val cloudUser = if (SupabaseServices.isSupabaseAvailable) {
+                                        SupabaseServices.Database.getUserByEmail(lowerEmail)
+                                    } else null
+
+                                    val rawErr = diagResult.rawErrorMessage ?: ""
+                                    val isNotFound = (cloudUser == null) && (
+                                        rawErr.contains("Invalid login credentials", ignoreCase = true) ||
+                                        rawErr.contains("User not found", ignoreCase = true) ||
+                                        rawErr.contains("invalid_grant", ignoreCase = true) ||
+                                        rawErr.isBlank()
+                                    )
+
+                                    if (isNotFound && UserIdentifierManager.isEmail(targetEmail)) {
+                                        unregisteredTargetEmail = targetEmail
+                                        unregisteredTargetPassword = password
+                                        showUnregisteredDialog = true
+                                        authErrorMessage = null
+                                    } else {
+                                        val descriptiveError = diagResult.userFriendlyErrorMessage
+                                            ?: "تعذّر تسجيل الدخول حالياً. أعد المحاولة أو تحقق من اتصالك بالإنترنت."
+                                        authErrorMessage = descriptiveError
+                                        authErrorIsNetwork = diagResult.isNetworkError
+                                        android.util.Log.e("LoginScreen", "[AuthDiagnostics] Login Failed -> $descriptiveError (raw: ${diagResult.rawErrorMessage})")
+                                        Toast.makeText(context, descriptiveError, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                                isLoading = false
+                            }
+                    }
+
+                    // بطاقة الخطأ التفاعلية: رسالة عربية آمنة (بلا روابط سحابة) + أزرار مباشرة
                     if (authErrorMessage != null) {
+                        val errorTint = if (authErrorIsNetwork) Color(0xFFFFB020) else Color(0xFFFF4D4D)
                         Surface(
-                            color = Color(0xFF3E1218),
-                            border = BorderStroke(1.dp, Color(0xFFFF4D4D)),
+                            color = if (authErrorIsNetwork) Color(0xFF3A2A10) else Color(0xFF3E1218),
+                            border = BorderStroke(1.dp, errorTint),
                             shape = CutCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Error, contentDescription = null, tint = Color(0xFFFF4D4D), modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (authErrorIsNetwork) Icons.Default.WifiOff else Icons.Default.Error,
+                                        contentDescription = null,
+                                        tint = errorTint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (authErrorIsNetwork) "تعذّر الاتصال" else "تعذّر تسجيل الدخول",
+                                        color = errorTint,
+                                        fontFamily = CairoFont,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    IconButton(
+                                        onClick = { authErrorMessage = null },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "إغلاق الخطأ",
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = authErrorMessage ?: "",
-                                    color = Color.White,
+                                    color = Color.White.copy(alpha = 0.92f),
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    lineHeight = 18.sp
                                 )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = submitLogin,
+                                        modifier = Modifier.weight(1f).height(36.dp),
+                                        border = BorderStroke(1.dp, errorTint.copy(alpha = 0.7f)),
+                                        shape = CutCornerShape(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = errorTint,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "إعادة المحاولة",
+                                            color = Color.White,
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (authErrorIsNetwork) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                runCatching {
+                                                    context.startActivity(
+                                                        Intent(Settings.ACTION_WIFI_SETTINGS)
+                                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    )
+                                                }.onFailure {
+                                                    runCatching {
+                                                        context.startActivity(
+                                                            Intent(Settings.ACTION_SETTINGS)
+                                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f).height(36.dp),
+                                            border = BorderStroke(1.dp, errorTint.copy(alpha = 0.7f)),
+                                            shape = CutCornerShape(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Settings,
+                                                contentDescription = null,
+                                                tint = errorTint,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "فحص الاتصال",
+                                                color = Color.White,
+                                                fontFamily = CairoFont,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -439,164 +694,7 @@ fun LoginScreen(
 
                     // Submit Button (Geometric Solid)
                     Button(
-                        onClick = {
-                            val trimmedInput = accountInput.trim()
-                            if (trimmedInput.isBlank() || password.isBlank()) {
-                                authErrorMessage = "الرجاء إدخال البريد أو المعرّف الخاص وكلمة المرور"
-                                Toast.makeText(context, authErrorMessage, Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            authErrorMessage = null
-                            isLoading = true
-                            coroutineScope.launch {
-                                // 1. فك تشفير المعرّف الخاص أو البريد
-                                val resolvedPair = UserIdentifierManager.resolveIdentifierToEmail(trimmedInput, context)
-                                if (resolvedPair == null) {
-                                    val err = "تعذر العثور على حساب مرتبط بالمعرّف '$trimmedInput'. يرجى التأكد من صحة المعرّف أو تسجيل الدخول ببريدك الإلكتروني (Gmail)."
-                                    authErrorMessage = err
-                                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
-                                    isLoading = false
-                                    return@launch
-                                }
-
-                                val targetEmail = resolvedPair.first
-                                val detectedCustomId = resolvedPair.second
-                                val lowerEmail = targetEmail.lowercase(java.util.Locale.ROOT)
-                                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                                val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
-                                val isRelative = prefs.getBoolean("is_relative", false)
-
-                                val diagResult = SupabaseRepository.getInstance().diagnoseSignInAttempt(targetEmail, password)
-
-                                if (diagResult.isSuccess && diagResult.hasSession) {
-                                    val externalId = diagResult.userId ?: SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
-                                    var userType = if (isAdmin) "مطور" else "مجاني"
-
-                                    // حفظ أو استعادة المعرّف الخاص
-                                    var finalCustomId = if (detectedCustomId.isNotBlank()) {
-                                        UserIdentifierManager.saveCustomId(context, detectedCustomId, targetEmail)
-                                        detectedCustomId
-                                    } else {
-                                        UserIdentifierManager.getOrCreateCustomId(context, targetEmail)
-                                    }
-                                    var accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail)
-
-                                    var canonicalUserId = externalId
-                                    var effectiveLoginName = targetEmail.substringBefore('@')
-
-                                    if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(canonicalUserId, lowerEmail, null, finalCustomId, accountNumber)
-                                        if (existing != null) {
-                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
-                                            if (existing.type.isNotBlank()) userType = existing.type
-                                            // الاسم المخزَّن هو المصدر: لا نعيد كتابته باسم البريد عند كل دخول
-                                            if (!existing.name.isNullOrBlank()) effectiveLoginName = existing.name
-                                            if (!existing.customId.isNullOrBlank()) {
-                                                finalCustomId = existing.customId
-                                                UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
-                                            }
-                                            if (!existing.accountNumber.isNullOrBlank()) {
-                                                accountNumber = existing.accountNumber
-                                                UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
-                                            }
-                                        } else {
-                                            SupabaseServices.Database.saveUser(
-                                                id = canonicalUserId,
-                                                name = effectiveLoginName,
-                                                email = targetEmail,
-                                                type = userType,
-                                                customId = finalCustomId,
-                                                accountNumber = accountNumber
-                                            )
-                                        }
-                                    }
-
-                                    // جلسة نشطة واحدة فقط: ارفض الدخول إذا كان الحساب حياً على جهاز آخر
-                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
-                                        runCatching { SupabaseServices.Auth.logout() }
-                                        authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً."
-                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
-                                        isLoading = false
-                                        return@launch
-                                    }
-
-                                    val finalIsAdmin = isAdmin || userType == "مطور" || userType == "خاص"
-                                    val finalIsDeveloper = CloudServices.isOwnerAccount(lowerEmail) || userType == "مطور"
-
-                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveLoginName, accountNumber)
-
-                                    LocalAccountRegistry.registerOrUpdateAccount(
-                                        context = context,
-                                        account = LocalAccountRegistry.AccountRecord(
-                                            id = targetEmail,
-                                            name = effectiveLoginName,
-                                            email = targetEmail,
-                                            customId = finalCustomId,
-                                            accountNumber = accountNumber,
-                                            type = if (finalIsDeveloper) "مطور" else userType,
-                                            status = "active"
-                                        )
-                                    )
-
-                                    prefs.edit().apply {
-                                        putBoolean("is_logged_in", true)
-                                        putBoolean("is_guest", false)
-                                        putBoolean("is_admin", finalIsAdmin)
-                                        putBoolean("is_developer", finalIsDeveloper)
-                                        putBoolean("is_premium", true)
-                                        putBoolean("is_relative", isRelative)
-                                        putString("user_id", canonicalUserId)
-                                        putString("user_email", targetEmail)
-                                        putString("user_name", effectiveLoginName)
-                                        putString("user_display_name", effectiveLoginName)
-                                        putString("user_custom_id", finalCustomId)
-                                        putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
-                                        putString("user_account_number", accountNumber)
-                                        putString("user_name_with_account", nameWithAccount)
-                                        if (rememberMe) putString("saved_login_email", trimmedInput) else remove("saved_login_email")
-                                        apply()
-                                    }
-                                    SupabaseRepository.getInstance().emitLocalAuthenticated(
-                                        email = targetEmail,
-                                        isAdmin = finalIsAdmin
-                                    )
-                                    CloudServices.syncAdminClaim(context)
-                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
-                                    Toast.makeText(
-                                        context, 
-                                        "مرحباً بك! تم التوثيق برقم الحساب: $accountNumber$firstBadge", 
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    onLoginSuccess(finalIsAdmin)
-                                } else {
-                                    val cloudUser = if (SupabaseServices.isSupabaseAvailable) {
-                                        SupabaseServices.Database.getUserByEmail(lowerEmail)
-                                    } else null
-
-                                    val rawErr = diagResult.rawErrorMessage ?: ""
-                                    val isNotFound = (cloudUser == null) && (
-                                        rawErr.contains("Invalid login credentials", ignoreCase = true) ||
-                                        rawErr.contains("User not found", ignoreCase = true) ||
-                                        rawErr.contains("invalid_grant", ignoreCase = true) ||
-                                        rawErr.isBlank()
-                                    )
-
-                                    if (isNotFound && UserIdentifierManager.isEmail(targetEmail)) {
-                                        unregisteredTargetEmail = targetEmail
-                                        unregisteredTargetPassword = password
-                                        showUnregisteredDialog = true
-                                        authErrorMessage = null
-                                    } else {
-                                        val descriptiveError = diagResult.userFriendlyErrorMessage 
-                                            ?: "فشلت المصادقة: لم يتم العثور على جلسة سحابية مفعلة (Session Null)."
-                                        authErrorMessage = descriptiveError
-                                        android.util.Log.e("LoginScreen", "[AuthDiagnostics] Login Failed -> $descriptiveError (raw: ${diagResult.rawErrorMessage})")
-                                        Toast.makeText(context, descriptiveError, Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                                isLoading = false
-                            }
-                        },
+                        onClick = submitLogin,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
@@ -917,7 +1015,13 @@ fun LoginScreen(
                                     Toast.makeText(context, "تعذر الإنشاء التلقائي. يرجى التوجه لشاشة التسجيل.", Toast.LENGTH_LONG).show()
                                 }
                             } catch (e: Exception) {
-                                Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_LONG).show()
+                                // لا نعرض تفاصيل الاستثناء (قد تحمل رابط/مضيف السحابة) — نص آمن فقط
+                                android.util.Log.e("LoginScreen", "quick register failed: ${e.message}", e)
+                                Toast.makeText(
+                                    context,
+                                    SupabaseServices.Auth.describeAuthFailure(e).message,
+                                    Toast.LENGTH_LONG
+                                ).show()
                             } finally {
                                 isQuickRegistering = false
                             }

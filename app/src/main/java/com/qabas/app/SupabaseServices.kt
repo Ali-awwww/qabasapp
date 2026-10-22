@@ -921,7 +921,12 @@ object SupabaseServices {
 
         suspend fun diagnoseSignInAttempt(email: String, pass: String): AuthDiagnosticsResult {
             if (!isSupabaseAvailable) {
-                return AuthDiagnosticsResult(isSuccess = false, hasSession = false, rawErrorMessage = "سحابة Supabase غير مهيأة")
+                return AuthDiagnosticsResult(
+                    isSuccess = false,
+                    hasSession = false,
+                    rawErrorMessage = "سحابة Supabase غير مهيأة",
+                    friendlyErrorMessage = "الخدمات السحابية غير مهيأة في هذه النسخة. تواصل مع الدعم."
+                )
             }
             return try {
                 client?.auth?.signInWith(Email) {
@@ -937,13 +942,75 @@ object SupabaseServices {
                     rawErrorMessage = null
                 )
             } catch (e: Exception) {
+                // التفاصيل الخام (روابط/مضيفون/أكواد) تبقى في السجلات فقط — لا تُعرض للمستخدم
+                Log.e(TAG, "diagnoseSignInAttempt failed: ${e.message}", e)
+                val safe = describeAuthFailure(e)
                 AuthDiagnosticsResult(
                     isSuccess = false,
                     hasSession = false,
                     userId = null,
-                    rawErrorMessage = e.message
+                    rawErrorMessage = e.message,
+                    friendlyErrorMessage = safe.message,
+                    isNetworkError = safe.isNetwork
                 )
             }
+        }
+
+        /** نتيجة تحليل خطأ المصادقة بنسخة آمنة للعرض (بدون أي معلومات تقنية) */
+        data class SafeAuthError(val message: String, val isNetwork: Boolean)
+
+        /**
+         * يحوّل أي استثناء مصادقة إلى رسالة عربية آمنة للشاشة.
+         * لا تُعرض أبداً: الروابط، أسماء المضيفين، أكواد HTTP، أو نصوص المكتبات —
+         * كشف مضيف السحابة يكشف بنية المشروع.
+         */
+        fun describeAuthFailure(throwable: Throwable?): SafeAuthError {
+            var current = throwable
+            var depth = 0
+            while (current != null && depth < 6) {
+                val message = current.message.orEmpty()
+                when {
+                    current is java.net.UnknownHostException ||
+                        message.contains("Unable to resolve host", ignoreCase = true) ||
+                        message.contains("No address associated", ignoreCase = true) ->
+                        return SafeAuthError(
+                            "تعذّر الوصول إلى خوادم قبس. تحقق من اتصالك بالإنترنت ثم أعد المحاولة.",
+                            isNetwork = true
+                        )
+                    current is java.net.SocketTimeoutException ||
+                        message.contains("timeout", ignoreCase = true) ||
+                        message.contains("timed out", ignoreCase = true) ->
+                        return SafeAuthError(
+                            "استغرق الاتصال وقتاً طويلاً. تحقق من سرعة الشبكة وأعد المحاولة.",
+                            isNetwork = true
+                        )
+                    current is javax.net.ssl.SSLException ||
+                        message.contains("Unable to connect", ignoreCase = true) ||
+                        message.contains("failed to connect", ignoreCase = true) ||
+                        message.contains("Connection refused", ignoreCase = true) ->
+                        return SafeAuthError(
+                            "تعذّر إتمام الاتصال الآمن بالخادم. تحقق من الشبكة وأعد المحاولة.",
+                            isNetwork = true
+                        )
+                    message.contains("Invalid login credentials", ignoreCase = true) ||
+                        message.contains("invalid_grant", ignoreCase = true) ||
+                        message.contains("Invalid_credentials", ignoreCase = true) ->
+                        return SafeAuthError("بيانات الدخول غير صحيحة. راجع البريد وكلمة المرور.", isNetwork = false)
+                    message.contains("Email not confirmed", ignoreCase = true) ->
+                        return SafeAuthError("البريد الإلكتروني غير مؤكد بعد. أكّد بريدك ثم أعد المحاولة.", isNetwork = false)
+                    message.contains("already registered", ignoreCase = true) ->
+                        return SafeAuthError("هذا البريد مسجّل مسبقاً. استخدم شاشة تسجيل الدخول.", isNetwork = false)
+                    message.contains("rate limit", ignoreCase = true) ||
+                        message.contains("too many", ignoreCase = true) ->
+                        return SafeAuthError("محاولات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة.", isNetwork = false)
+                }
+                current = current.cause
+                depth++
+            }
+            return SafeAuthError(
+                "تعذّر تسجيل الدخول حالياً. أعد المحاولة أو تحقق من اتصالك بالإنترنت.",
+                isNetwork = false
+            )
         }
     }
 
@@ -1652,10 +1719,15 @@ object SupabaseServices {
         val isSuccess: Boolean = false,
         val hasSession: Boolean = false,
         val userId: String? = null,
-        val rawErrorMessage: String? = null
+        /** للسجلات والتشخيص فقط — لا يُعرض على الشاشة */
+        val rawErrorMessage: String? = null,
+        /** نص عربي آمن للعرض: بلا روابط ولا أسماء مضيفين ولا أكواد */
+        val friendlyErrorMessage: String? = null,
+        /** هل سبب الفشل اتصال بالشبكة؟ (لعرض زر فحص الاتصال) */
+        val isNetworkError: Boolean = false
     ) {
         val userFriendlyErrorMessage: String?
-            get() = rawErrorMessage
+            get() = friendlyErrorMessage
     }
 }
 
