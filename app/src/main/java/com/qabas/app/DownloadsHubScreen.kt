@@ -54,7 +54,7 @@ fun StrictBadge(
 ) {
     Surface(
         color = color.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(4.dp),
+        shape = CutCornerShape(2.dp),
         border = BorderStroke(0.6.dp, color),
         modifier = modifier
     ) {
@@ -67,6 +67,373 @@ fun StrictBadge(
             softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
+    }
+}
+
+private val SpatialDeckShape = CutCornerShape(
+    topStart = 22.dp,
+    topEnd = 6.dp,
+    bottomEnd = 22.dp,
+    bottomStart = 6.dp
+)
+private val SpatialCardShape = CutCornerShape(
+    topStart = 14.dp,
+    topEnd = 4.dp,
+    bottomEnd = 14.dp,
+    bottomStart = 4.dp
+)
+private val SpatialInsetShape = CutCornerShape(
+    topStart = 8.dp,
+    topEnd = 2.dp,
+    bottomEnd = 8.dp,
+    bottomStart = 2.dp
+)
+private val SpatialButtonShape = CutCornerShape(
+    topStart = 9.dp,
+    topEnd = 3.dp,
+    bottomEnd = 9.dp,
+    bottomStart = 3.dp
+)
+
+private enum class DownloadCategory(
+    val tabIndex: Int,
+    val label: String,
+    val icon: ImageVector,
+    val accent: Color,
+    val tabWeight: Float
+) {
+    Models(0, "نماذج GGUF", Icons.Default.Memory, Color(0xFF00E5FF), 1f),
+    Updates(1, "تحديثات التطبيق", Icons.Default.SystemUpdate, Color(0xFF10B981), 1.15f),
+    Reels(2, "الريلز", Icons.Default.SlowMotionVideo, Color(0xFFA855F7), 0.9f),
+    Media(3, "صوتيات", Icons.Default.Audiotrack, GoldPrimary, 0.85f)
+}
+
+private data class ActiveDownloadEntry(
+    val id: String,
+    val title: String,
+    val category: DownloadCategory,
+    val progress: Float,
+    val statusText: String,
+    val detailText: String = "",
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null
+)
+
+/**
+ * حاوية قيادة واحدة تجمع مؤشر التخزين ووضع المحرك وقنوات التنزيل
+ * بدل بطاقات متناثرة — بهدف إيقاع بصري هندسي واحد.
+ */
+@Composable
+private fun SpatialControlDeck(
+    metrics: StorageMetrics,
+    activeDownloads: List<ActiveDownloadEntry>,
+    isOfflineAiActive: Boolean,
+    selectedModel: OnDeviceModelInfo,
+    hasInstalledModel: Boolean,
+    onToggleOfflineAi: (Boolean) -> Unit,
+    onOpenAssistant: () -> Unit,
+    onCleanCache: () -> Unit,
+    onOpenCategory: (Int) -> Unit,
+    categoryCounts: Map<DownloadCategory, Int>,
+    visibleCategories: List<DownloadCategory>,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    isUpdateActive: Boolean,
+    isCheckingUpdate: Boolean,
+    onCheckUpdates: () -> Unit
+) {
+    Surface(
+        color = CardSurface.copy(alpha = 0.92f),
+        shape = SpatialDeckShape,
+        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.32f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 4.dp, height = 26.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(GoldPrimary, Color(0xFF00E5FF))
+                            )
+                        )
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "لوحة التحكم المركزية",
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "CONTROL DECK // STORAGE · ENGINE · CHANNELS",
+                        fontFamily = RobotoMonoFont,
+                        fontSize = 8.5.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isCheckingUpdate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .testTag("deck_update_checking"),
+                        color = Color(0xFF10B981),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else if (DownloadCategory.Updates !in visibleCategories) {
+                    IconButton(
+                        onClick = onCheckUpdates,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF10B981).copy(alpha = 0.12f))
+                            .testTag("deck_check_updates_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = "فحص التحديثات",
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                StrictBadge(text = "LIVE", color = Color(0xFF10B981))
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                GoldPrimary.copy(alpha = 0.65f),
+                                Color(0xFF00E5FF).copy(alpha = 0.35f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                SpatialStorageIndicatorWidget(
+                    metrics = metrics,
+                    onCleanCache = onCleanCache,
+                    embedded = true
+                )
+
+                if (activeDownloads.isNotEmpty()) {
+                    SpatialDeckDivider()
+                    ActiveDownloadsPanel(
+                        entries = activeDownloads,
+                        onOpenCategory = onOpenCategory
+                    )
+                }
+
+                SpatialDeckDivider()
+
+                OfflineAiModeBanner(
+                    isActive = isOfflineAiActive,
+                    selectedModel = selectedModel,
+                    hasInstalledModel = hasInstalledModel,
+                    onToggle = onToggleOfflineAi,
+                    onOpenAssistant = onOpenAssistant,
+                    embedded = true
+                )
+
+                if (visibleCategories.isNotEmpty()) {
+                    SpatialDeckDivider()
+
+                    Text(
+                        text = "قنوات التنزيل",
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+
+                    SpatialDownloadsTabsRow(
+                        selectedTab = selectedTab,
+                        onTabSelected = onTabSelected,
+                        visibleCategories = visibleCategories,
+                        categoryCounts = categoryCounts,
+                        isUpdateActive = isUpdateActive,
+                        embedded = true
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpatialDeckDivider() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(4.dp)
+                .background(Color(0xFF00E5FF).copy(alpha = 0.8f))
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.08f))
+        )
+    }
+}
+
+/**
+ * لوحة التنزيلات النشطة الموحّدة — تعرض كل عنصر قيد التنزيل مع شارة تصنيفه،
+ * وتجمع المصادر الأربعة (GGUF / التحديث / الريلز / الصوتيات) في مكان واحد.
+ */
+@Composable
+private fun ActiveDownloadsPanel(
+    entries: List<ActiveDownloadEntry>,
+    onOpenCategory: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Downloading,
+                contentDescription = null,
+                tint = Color(0xFF00E5FF),
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "التنزيلات النشطة",
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = Color.White,
+                maxLines = 1,
+                softWrap = false
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            StrictBadge(
+                text = "${entries.size}",
+                color = Color(0xFF00E5FF)
+            )
+        }
+
+        entries.forEach { entry ->
+            Surface(
+                color = entry.category.accent.copy(alpha = 0.07f),
+                shape = SpatialInsetShape,
+                border = BorderStroke(0.8.dp, entry.category.accent.copy(alpha = 0.32f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenCategory(entry.category.tabIndex) }
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StrictBadge(
+                            text = entry.category.label,
+                            color = entry.category.accent
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = entry.title,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (entry.actionLabel != null && entry.onAction != null) {
+                            val actionLabel = entry.actionLabel
+                            val action = entry.onAction
+                            TextButton(
+                                onClick = action,
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = actionLabel,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    color = entry.category.accent,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+
+                    LinearProgressIndicator(
+                        progress = { entry.progress.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(5.dp)
+                            .clip(CutCornerShape(2.dp)),
+                        color = entry.category.accent,
+                        trackColor = Color.White.copy(alpha = 0.1f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.statusText,
+                            fontFamily = CairoFont,
+                            fontSize = 9.5.sp,
+                            color = entry.category.accent,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (entry.detailText.isNotBlank()) {
+                            Text(
+                                text = entry.detailText,
+                                fontFamily = RobotoMonoFont,
+                                fontSize = 9.sp,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -94,6 +461,7 @@ fun DownloadsHubScreen(
     val downloadedReels by DownloadsHubManager.downloadedReels.collectAsState()
     val downloadedMedia by DownloadsHubManager.downloadedMedia.collectAsState()
     val activeReelDownloads by DownloadsHubManager.activeReelDownloads.collectAsState()
+    val activeMediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
     val modelDownloadState by OnDeviceModelManager.downloadState.collectAsState()
     val appUpdateDownload by DownloadsHubManager.appUpdateDownload.collectAsState()
     val isCheckingUpdate by DownloadsHubManager.isCheckingUpdate.collectAsState()
@@ -117,6 +485,142 @@ fun DownloadsHubScreen(
     var quickReelUrlInput by remember { mutableStateOf("") }
     var quickReelTitleInput by remember { mutableStateOf("") }
     var showTestInferenceDialog by remember { mutableStateOf<OnDeviceModelInfo?>(null) }
+
+    val activeModelState = modelDownloadState
+    val installedModels = OnDeviceModelManager.availableModels.filter { model ->
+        OnDeviceModelManager.isModelInstalled(context, model)
+    }
+    val activeModel = when (val state = activeModelState) {
+        is ModelDownloadState.Downloading -> OnDeviceModelManager.availableModels.find { it.id == state.modelId }
+        is ModelDownloadState.Interrupted -> OnDeviceModelManager.availableModels.find { it.id == state.modelId }
+        is ModelDownloadState.Error -> OnDeviceModelManager.availableModels.find { it.id == state.modelId }
+        else -> null
+    }
+
+    val categoryCounts = mapOf(
+        DownloadCategory.Models to (installedModels.map { it.id } + listOfNotNull(activeModel?.id)).toSet().size,
+        DownloadCategory.Updates to if (appUpdateDownload != null || isCheckingUpdate) 1 else 0,
+        DownloadCategory.Reels to (downloadedReels.map { it.id } + activeReelDownloads.keys).toSet().size,
+        DownloadCategory.Media to (downloadedMedia.map { it.id } + activeMediaDownloads.keys).toSet().size
+    )
+    val visibleCategories = DownloadCategory.entries.filter { (categoryCounts[it] ?: 0) > 0 }
+
+    LaunchedEffect(visibleCategories, selectedTab) {
+        if (visibleCategories.isNotEmpty() && visibleCategories.none { it.tabIndex == selectedTab }) {
+            selectedTab = visibleCategories.first().tabIndex
+        }
+    }
+
+    val activeDownloads = buildList {
+        activeModel?.let { model ->
+            when (val state = activeModelState) {
+                is ModelDownloadState.Downloading -> add(
+                    ActiveDownloadEntry(
+                        id = "model_${model.id}",
+                        title = model.name,
+                        category = DownloadCategory.Models,
+                        progress = state.progress,
+                        statusText = "جارٍ تنزيل النموذج",
+                        detailText = "${state.progress.coerceIn(0f, 1f).times(100).toInt()}% • " +
+                            "${StorageMetrics.formatBytes(state.downloadedBytes)} / ${StorageMetrics.formatBytes(state.totalBytes)}",
+                        actionLabel = "إلغاء",
+                        onAction = {
+                            ModelDownloadService.cancel(context)
+                            OnDeviceModelManager.cancelDownload(context, model)
+                            DownloadsHubManager.refreshStorageMetrics(context)
+                        }
+                    )
+                )
+                is ModelDownloadState.Interrupted -> {
+                    val progress = if (state.totalBytes > 0) {
+                        (state.downloadedBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f)
+                    } else 0f
+                    add(
+                        ActiveDownloadEntry(
+                            id = "model_${model.id}",
+                            title = model.name,
+                            category = DownloadCategory.Models,
+                            progress = progress,
+                            statusText = "متوقف — اضغط للاستئناف",
+                            detailText = "${StorageMetrics.formatBytes(state.downloadedBytes)} / ${StorageMetrics.formatBytes(state.totalBytes)}",
+                            actionLabel = "استئناف",
+                            onAction = { ModelDownloadService.start(context, model.id) }
+                        )
+                    )
+                }
+                is ModelDownloadState.Error -> add(
+                    ActiveDownloadEntry(
+                        id = "model_${model.id}",
+                        title = model.name,
+                        category = DownloadCategory.Models,
+                        progress = 0f,
+                        statusText = "فشل تنزيل النموذج",
+                        detailText = state.message.take(40),
+                        actionLabel = "إعادة",
+                        onAction = { ModelDownloadService.start(context, model.id) }
+                    )
+                )
+                else -> Unit
+            }
+        }
+
+        appUpdateDownload?.let { update ->
+            if (update.isDownloading || update.isError) {
+                add(
+                    ActiveDownloadEntry(
+                        id = "update_${update.versionCode}",
+                        title = "تحديث التطبيق ${update.versionName}",
+                        category = DownloadCategory.Updates,
+                        progress = update.progress,
+                        statusText = if (update.isError) "فشل تنزيل التحديث" else "جارٍ تنزيل التحديث",
+                        detailText = "${update.percentInt}% • ${update.formattedDownloaded} / ${update.formattedSize}",
+                        actionLabel = if (update.isError) "إعادة" else "إلغاء",
+                        onAction = {
+                            if (update.isError) {
+                                DownloadsHubManager.checkAndStartAutoUpdate(context, force = true)
+                            } else {
+                                DownloadsHubManager.cancelUpdateDownload(context)
+                            }
+                        }
+                    )
+                )
+            }
+        }
+
+        activeReelDownloads.values.forEach { progress ->
+            add(
+                ActiveDownloadEntry(
+                    id = "reel_${progress.reelId}",
+                    title = progress.title,
+                    category = DownloadCategory.Reels,
+                    progress = progress.progress.coerceIn(0f, 1f),
+                    statusText = if (progress.isError) "فشل تنزيل الريل" else "جارٍ تنزيل الريل",
+                    detailText = if (progress.totalBytes > 0) {
+                        "${StorageMetrics.formatBytes(progress.downloadedBytes)} / ${StorageMetrics.formatBytes(progress.totalBytes)}"
+                    } else progress.errorMessage?.take(40).orEmpty(),
+                    actionLabel = if (progress.isError) "إزالة" else "إلغاء",
+                    onAction = { DownloadsHubManager.cancelReelDownload(progress.reelId) }
+                )
+            )
+        }
+
+        activeMediaDownloads.values.forEach { progress ->
+            add(
+                ActiveDownloadEntry(
+                    id = "media_${progress.reelId}",
+                    title = progress.title,
+                    category = DownloadCategory.Media,
+                    progress = progress.progress.coerceIn(0f, 1f),
+                    statusText = if (progress.isError) "فشل تنزيل الصوت" else "جارٍ تنزيل الصوت",
+                    detailText = if (progress.totalBytes > 0) {
+                        "${StorageMetrics.formatBytes(progress.downloadedBytes)} / ${StorageMetrics.formatBytes(progress.totalBytes)}"
+                    } else progress.errorMessage?.take(40).orEmpty(),
+                    actionLabel = if (progress.isError) "إزالة" else "إلغاء",
+                    onAction = { DownloadsHubManager.cancelMediaDownload(progress.reelId) }
+                )
+            )
+        }
+    }
 
     Scaffold(
         containerColor = DeepSlate,
@@ -233,51 +737,15 @@ fun DownloadsHubScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(vertical = 12.dp)
         ) {
-            // النماذج المرئية في المركز = المنزَّلة أو قيد التنزيل فقط (الكتالوج يُدار من شاشة الوكيل)
-            val visibleModels = OnDeviceModelManager.availableModels.filter { model ->
-                OnDeviceModelManager.isModelInstalled(context, model) ||
-                    when (val state = modelDownloadState) {
-                        is ModelDownloadState.Downloading -> state.modelId == model.id
-                        is ModelDownloadState.Interrupted -> state.modelId == model.id
-                        is ModelDownloadState.Success -> state.modelId == model.id
-                        else -> false
-                    }
-            }
-
-            // 1. مؤشر ومقياس الذاكرة المحلي الفضائي (Spatial Storage HUD Indicator)
-            item(key = "storage_hud_widget") {
-                SpatialStorageIndicatorWidget(
+            // لوحة تحكم واحدة: التخزين + التنزيلات النشطة + الوضع المحلي + قنوات التنزيل
+            item(key = "spatial_control_deck") {
+                SpatialControlDeck(
                     metrics = storageMetrics,
-                    onCleanCache = { showClearCacheDialog = true }
-                )
-            }
-
-            // 2. بطاقة تنبيه التحديث المباشر النشط (Active Live Update HUD Banner)
-            val currentUpdate = appUpdateDownload
-            if (currentUpdate != null && (currentUpdate.isDownloading || currentUpdate.isCompleted)) {
-                item(key = "live_update_sticky_banner") {
-                    SpatialLiveUpdateStickyBanner(
-                        updateItem = currentUpdate,
-                        onInstall = {
-                            val ok = DownloadsHubManager.installDownloadedUpdate(context)
-                            if (!ok) Toast.makeText(context, "تعذر فتح ملف التثبيت", Toast.LENGTH_SHORT).show()
-                        },
-                        onCancel = {
-                            DownloadsHubManager.cancelUpdateDownload(context)
-                            Toast.makeText(context, "تم إلغاء تنزيل التحديث", Toast.LENGTH_SHORT).show()
-                        },
-                        onOpenTab = { selectedTab = 1 }
-                    )
-                }
-            }
-
-            // 3. بطاقة تفعيل الذكاء الاصطناعي الأوفلاين في الوكيل (Offline Switch & Status)
-            item(key = "offline_ai_switch_card") {
-                OfflineAiModeBanner(
-                    isActive = isOfflineAiActive,
+                    activeDownloads = activeDownloads,
+                    isOfflineAiActive = isOfflineAiActive,
                     selectedModel = selectedModel,
                     hasInstalledModel = OnDeviceModelManager.hasAnyInstalledModel(context),
-                    onToggle = { newState ->
+                    onToggleOfflineAi = { newState ->
                         if (newState && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
                             Toast.makeText(context, "يرجى تنزيل أحد نماذج GGUF أولاً لتفعيل الوضع المحلي!", Toast.LENGTH_LONG).show()
                         } else {
@@ -290,178 +758,184 @@ fun DownloadsHubScreen(
                             ).show()
                         }
                     },
-                    onOpenAssistant = onOpenAiAssistant
-                )
-            }
-
-            // 4. أشرطة التبويب الفضائية (Category Tabs)
-            item(key = "category_tabs") {
-                SpatialDownloadsTabsRow(
+                    onOpenAssistant = onOpenAiAssistant,
+                    onCleanCache = { showClearCacheDialog = true },
+                    onOpenCategory = { selectedTab = it },
+                    categoryCounts = categoryCounts,
+                    visibleCategories = visibleCategories,
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
-                    llmCount = visibleModels.size,
-                    updatesCount = if (appUpdateDownload != null) 1 else 0,
                     isUpdateActive = appUpdateDownload?.isDownloading == true || appUpdateDownload?.isCompleted == true,
-                    reelsCount = downloadedReels.size,
-                    mediaCount = downloadedMedia.size
+                    isCheckingUpdate = isCheckingUpdate,
+                    onCheckUpdates = {
+                        DownloadsHubManager.checkAndStartAutoUpdate(context, force = true)
+                        Toast.makeText(context, UpdateChannelFacade.checkingToast(context), Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
-            // محتويات التبويب المختار
-            when (selectedTab) {
-                0 -> {
-                    // تبويب نماذج LLM الأوفلاين (GGUF) — يعرض المنزَّل أو قيد التنزيل فقط
-                    if (visibleModels.isEmpty()) {
-                        item(key = "empty_models") {
-                            EmptyDownloadsPlaceholder(
-                                title = "لا توجد نماذج منزّلة حالياً",
-                                subtitle = "نزّل نماذج GGUF من شاشة الوكيل الذكي، وستظهر هنا فوراً للتشغيل بدون إنترنت.",
-                                actionText = "فتح الوكيل الذكي 🤖",
-                                onAction = onOpenAiAssistant
-                            )
-                        }
-                    } else {
-                        items(
-                            items = visibleModels,
-                            key = { "model_${it.id}" }
-                        ) { model ->
-                            val isInstalled = OnDeviceModelManager.isModelInstalled(context, model)
-                            val isSelected = selectedModel.id == model.id
-                            val installedSize = OnDeviceModelManager.getInstalledFileSize(context, model)
-
-                            GgufModelCard(
-                                model = model,
-                                isInstalled = isInstalled,
-                                isSelected = isSelected,
-                                installedSizeBytes = installedSize,
-                                downloadState = modelDownloadState,
-                                onDownloadClick = {
-                                    ModelDownloadService.start(context, model.id)
-                                    Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
-                                },
-                                onCancelClick = {
-                                    ModelDownloadService.cancel(context)
-                                    OnDeviceModelManager.cancelDownload(context, model)
-                                    DownloadsHubManager.refreshStorageMetrics(context)
-                                    Toast.makeText(context, "تم إلغاء تنزيل ${model.name}", Toast.LENGTH_SHORT).show()
-                                },
-                                onSelectAsDefault = {
-                                    selectedModel = model
-                                    OnDeviceModelManager.setSelectedModel(context, model.id)
-                                    Toast.makeText(context, "تم تعيين ${model.name} كنموذج افتراضي ✅", Toast.LENGTH_SHORT).show()
-                                },
-                                onDeleteClick = {
-                                    modelToDelete = model
-                                },
-                                onTestPromptClick = {
-                                    showTestInferenceDialog = model
-                                }
-                            )
-                        }
-                    }
+            // محتويات التبويب المختار — تُعرض فقط للتصنيفات غير الفارغة
+            if (visibleCategories.isEmpty()) {
+                item(key = "empty_all_downloads") {
+                    EmptyDownloadsPlaceholder(
+                        title = "لا توجد تنزيلات أو تحديثات حالياً",
+                        subtitle = "ابدأ بتنزيل نموذج GGUF أو ريل، وستظهر تصنيفاتك هنا تلقائياً مع حالة كل عنصر.",
+                        actionText = "فتح الوكيل الذكي 🤖",
+                        onAction = onOpenAiAssistant
+                    )
                 }
-                1 -> {
-                    // تبويب تحديثات التطبيق (OTA Updates)
-                    item(key = "app_updates_section") {
-                        AppUpdatesHubSection(
-                            updateItem = appUpdateDownload,
-                            isChecking = isCheckingUpdate,
-                            onCheckUpdates = {
-                                DownloadsHubManager.checkAndStartAutoUpdate(context, force = true)
-                                Toast.makeText(context, UpdateChannelFacade.checkingToast(context), Toast.LENGTH_SHORT).show()
-                            },
-                            onInstall = {
-                                val ok = DownloadsHubManager.installDownloadedUpdate(context)
-                                if (!ok) Toast.makeText(context, "تعذر فتح ملف التثبيت", Toast.LENGTH_SHORT).show()
-                            },
-                            onCancel = {
-                                DownloadsHubManager.cancelUpdateDownload(context)
-                                Toast.makeText(context, "تم إلغاء تنزيل التحديث", Toast.LENGTH_SHORT).show()
-                            },
-                            onDeleteApk = {
-                                showDeleteUpdateDialog = true
+            } else {
+                when (selectedTab) {
+                    0 -> {
+                        // تبويب نماذج LLM الأوفلاين (GGUF) — يعرض المكتمل فقط؛ النشط في اللوحة أعلاه
+                        if (installedModels.isEmpty()) {
+                            item(key = "empty_models") {
+                                EmptyDownloadsPlaceholder(
+                                    title = if (activeModel != null) "جارٍ تنزيل النموذج..." else "لا توجد نماذج منزّلة حالياً",
+                                    subtitle = if (activeModel != null) {
+                                        "تابع تقدم التنزيل وإجراءاته من لوحة التنزيلات النشطة أعلاه؛ سيظهر النموذج هنا فور اكتماله."
+                                    } else {
+                                        "نزّل نماذج GGUF من شاشة الوكيل الذكي، وستظهر هنا فوراً للتشغيل بدون إنترنت."
+                                    },
+                                    actionText = "فتح الوكيل الذكي 🤖",
+                                    onAction = onOpenAiAssistant
+                                )
                             }
-                        )
-                    }
-                }
-                2 -> {
-                    // تبويب فيديوهات الريلز
-                    item(key = "reels_header_actions") {
-                        ReelsDownloadsHeader(
-                            onOpenQuickDownload = { showQuickReelDownloadDialog = true },
-                            onBrowseReels = onOpenReels
-                        )
-                    }
+                        } else {
+                            items(
+                                items = installedModels,
+                                key = { "model_${it.id}" }
+                            ) { model ->
+                                val isSelected = selectedModel.id == model.id
+                                val installedSize = OnDeviceModelManager.getInstalledFileSize(context, model)
 
-                    // تنزيلات الريلز الجارية
-                    if (activeReelDownloads.isNotEmpty()) {
-                        items(
-                            items = activeReelDownloads.values.toList(),
-                            key = { "active_reel_${it.reelId}" }
-                        ) { progress ->
-                            ActiveReelDownloadCard(
-                                progress = progress,
+                                GgufModelCard(
+                                    model = model,
+                                    isInstalled = true,
+                                    isSelected = isSelected,
+                                    installedSizeBytes = installedSize,
+                                    downloadState = modelDownloadState,
+                                    onDownloadClick = {
+                                        ModelDownloadService.start(context, model.id)
+                                        Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onCancelClick = {
+                                        ModelDownloadService.cancel(context)
+                                        OnDeviceModelManager.cancelDownload(context, model)
+                                        DownloadsHubManager.refreshStorageMetrics(context)
+                                        Toast.makeText(context, "تم إلغاء تنزيل ${model.name}", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onSelectAsDefault = {
+                                        selectedModel = model
+                                        OnDeviceModelManager.setSelectedModel(context, model.id)
+                                        Toast.makeText(context, "تم تعيين ${model.name} كنموذج افتراضي ✅", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onDeleteClick = {
+                                        modelToDelete = model
+                                    },
+                                    onTestPromptClick = {
+                                        showTestInferenceDialog = model
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    1 -> {
+                        // تبويب تحديثات التطبيق (OTA Updates)
+                        item(key = "app_updates_section") {
+                            AppUpdatesHubSection(
+                                updateItem = appUpdateDownload,
+                                isChecking = isCheckingUpdate,
+                                onCheckUpdates = {
+                                    DownloadsHubManager.checkAndStartAutoUpdate(context, force = true)
+                                    Toast.makeText(context, UpdateChannelFacade.checkingToast(context), Toast.LENGTH_SHORT).show()
+                                },
+                                onInstall = {
+                                    val ok = DownloadsHubManager.installDownloadedUpdate(context)
+                                    if (!ok) Toast.makeText(context, "تعذر فتح ملف التثبيت", Toast.LENGTH_SHORT).show()
+                                },
                                 onCancel = {
-                                    DownloadsHubManager.cancelReelDownload(progress.reelId)
+                                    DownloadsHubManager.cancelUpdateDownload(context)
+                                    Toast.makeText(context, "تم إلغاء تنزيل التحديث", Toast.LENGTH_SHORT).show()
+                                },
+                                onDeleteApk = {
+                                    showDeleteUpdateDialog = true
                                 }
                             )
                         }
                     }
+                    2 -> {
+                        // تبويب فيديوهات الريلز — المكتمل فقط؛ النشط في اللوحة أعلاه
+                        item(key = "reels_header_actions") {
+                            ReelsDownloadsHeader(
+                                onOpenQuickDownload = { showQuickReelDownloadDialog = true },
+                                onBrowseReels = onOpenReels
+                            )
+                        }
 
-                    if (downloadedReels.isEmpty() && activeReelDownloads.isEmpty()) {
-                        item(key = "empty_reels") {
-                            EmptyDownloadsPlaceholder(
-                                title = "لا توجد فيديوهات ريلز منزّلة حالياً",
-                                subtitle = "يمكنك تنزيل أي ريل من قسم «ريلز قبس» أو إدخال رابطه المباشر لحفظه في الهاتف وتشغيله بدون إنترنت.",
-                                actionText = "استعراض خلاصات الريلز 🎬",
-                                onAction = onOpenReels
-                            )
-                        }
-                    } else {
-                        items(
-                            items = downloadedReels,
-                            key = { "saved_reel_${it.id}" }
-                        ) { reel ->
-                            DownloadedReelCard(
-                                reel = reel,
-                                onPlay = {
-                                    playVideoLocally(context, reel.localFilePath)
-                                },
-                                onShare = {
-                                    shareVideoFile(context, reel.localFilePath, reel.title)
-                                },
-                                onDelete = {
-                                    reelToDelete = reel
-                                }
-                            )
+                        if (downloadedReels.isEmpty()) {
+                            item(key = "empty_reels") {
+                                EmptyDownloadsPlaceholder(
+                                    title = if (activeReelDownloads.isNotEmpty()) "جارٍ تنزيل الريلز..." else "لا توجد فيديوهات ريلز منزّلة حالياً",
+                                    subtitle = if (activeReelDownloads.isNotEmpty()) {
+                                        "تابع التقدم من لوحة التنزيلات النشطة أعلاه؛ ستظهر الريلز هنا فور اكتمالها."
+                                    } else {
+                                        "يمكنك تنزيل أي ريل من قسم «ريلز قبس» أو إدخال رابطه المباشر لحفظه في الهاتف وتشغيله بدون إنترنت."
+                                    },
+                                    actionText = "استعراض خلاصات الريلز 🎬",
+                                    onAction = onOpenReels
+                                )
+                            }
+                        } else {
+                            items(
+                                items = downloadedReels,
+                                key = { "saved_reel_${it.id}" }
+                            ) { reel ->
+                                DownloadedReelCard(
+                                    reel = reel,
+                                    onPlay = {
+                                        playVideoLocally(context, reel.localFilePath)
+                                    },
+                                    onShare = {
+                                        shareVideoFile(context, reel.localFilePath, reel.title)
+                                    },
+                                    onDelete = {
+                                        reelToDelete = reel
+                                    }
+                                )
+                            }
                         }
                     }
-                }
-                3 -> {
-                    // تبويب الوسائط والصوتيات
-                    if (downloadedMedia.isEmpty()) {
-                        item(key = "empty_media") {
-                            EmptyDownloadsPlaceholder(
-                                title = "لا توجد ملفات صوتية أو وسائط منزلة",
-                                subtitle = "أي تلاوة قرآنية، صوتيات مرافقة، أو تصاميم يتم تنزيلها ستظهر هنا بدقة عالية وإحصائيات حجم دقيقة.",
-                                actionText = "فتح مكتبة الصوتيات 🎙️",
-                                onAction = {
-                                    Toast.makeText(context, "انتقل لمكتبة الصوتيات من القائمة الجانبية", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    } else {
-                        items(
-                            items = downloadedMedia,
-                            key = { "saved_media_${it.id}" }
-                        ) { media ->
-                            DownloadedMediaCard(
-                                media = media,
-                                onDelete = {
-                                    DownloadsHubManager.deleteDownloadedMedia(context, media.id)
-                                    Toast.makeText(context, "تم حذف المقطع", Toast.LENGTH_SHORT).show()
-                                }
-                            )
+                    3 -> {
+                        // تبويب الوسائط والصوتيات — المكتمل فقط؛ النشط في اللوحة أعلاه
+                        if (downloadedMedia.isEmpty()) {
+                            item(key = "empty_media") {
+                                EmptyDownloadsPlaceholder(
+                                    title = if (activeMediaDownloads.isNotEmpty()) "جارٍ تنزيل الصوتيات..." else "لا توجد ملفات صوتية أو وسائط منزلة",
+                                    subtitle = if (activeMediaDownloads.isNotEmpty()) {
+                                        "تابع التقدم من لوحة التنزيلات النشطة أعلاه؛ ستظهر الملفات هنا فور اكتمالها."
+                                    } else {
+                                        "أي تلاوة قرآنية، صوتيات مرافقة، أو تصاميم يتم تنزيلها ستظهر هنا بدقة عالية وإحصائيات حجم دقيقة."
+                                    },
+                                    actionText = "فتح مكتبة الصوتيات 🎙️",
+                                    onAction = {
+                                        Toast.makeText(context, "انتقل لمكتبة الصوتيات من القائمة الجانبية", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        } else {
+                            items(
+                                items = downloadedMedia,
+                                key = { "saved_media_${it.id}" }
+                            ) { media ->
+                                DownloadedMediaCard(
+                                    media = media,
+                                    onDelete = {
+                                        DownloadsHubManager.deleteDownloadedMedia(context, media.id)
+                                        Toast.makeText(context, "تم حذف المقطع", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -713,16 +1187,12 @@ fun DownloadsHubScreen(
 @Composable
 private fun SpatialStorageIndicatorWidget(
     metrics: StorageMetrics,
-    onCleanCache: () -> Unit
+    onCleanCache: () -> Unit,
+    embedded: Boolean = false
 ) {
-    Surface(
-        color = CardSurface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val content: @Composable () -> Unit = {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = if (embedded) Modifier.fillMaxWidth() else Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // العنوان ومؤشر المساحة المتاحة
@@ -822,6 +1292,18 @@ private fun SpatialStorageIndicatorWidget(
             }
         }
     }
+    if (embedded) {
+        content()
+    } else {
+        Surface(
+            color = CardSurface.copy(alpha = 0.85f),
+            shape = SpatialCardShape,
+            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            content()
+        }
+    }
 }
 
 /**
@@ -841,7 +1323,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(10.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(CutCornerShape(3.dp))
                 .background(Color.White.copy(alpha = 0.08f))
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
@@ -918,7 +1400,7 @@ private fun StorageStatPill(
 ) {
     Surface(
         color = color.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(8.dp),
+        shape = SpatialInsetShape,
         border = BorderStroke(0.6.dp, color.copy(alpha = 0.35f)),
         modifier = modifier
     ) {
@@ -956,16 +1438,23 @@ private fun OfflineAiModeBanner(
     selectedModel: OnDeviceModelInfo,
     hasInstalledModel: Boolean,
     onToggle: (Boolean) -> Unit,
-    onOpenAssistant: () -> Unit
+    onOpenAssistant: () -> Unit,
+    embedded: Boolean = false
 ) {
-    Surface(
-        color = if (isActive) Color(0xFF0F2E2E) else CardSurface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, if (isActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.15f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val content: @Composable () -> Unit = {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = if (embedded) {
+                Modifier
+                    .fillMaxWidth()
+                    .clip(SpatialInsetShape)
+                    .background(
+                        if (isActive) Color(0xFF00E5FF).copy(alpha = 0.08f)
+                        else Color.White.copy(alpha = 0.03f)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 10.dp)
+            } else {
+                Modifier.padding(14.dp)
+            },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1031,6 +1520,18 @@ private fun OfflineAiModeBanner(
             )
         }
     }
+    if (embedded) {
+        content()
+    } else {
+        Surface(
+            color = if (isActive) Color(0xFF0F2E2E) else CardSurface.copy(alpha = 0.85f),
+            shape = SpatialCardShape,
+            border = BorderStroke(1.dp, if (isActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.15f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            content()
+        }
+    }
 }
 
 /**
@@ -1040,56 +1541,42 @@ private fun OfflineAiModeBanner(
 private fun SpatialDownloadsTabsRow(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
-    llmCount: Int,
-    updatesCount: Int,
+    visibleCategories: List<DownloadCategory>,
+    categoryCounts: Map<DownloadCategory, Int>,
     isUpdateActive: Boolean,
-    reelsCount: Int,
-    mediaCount: Int
+    embedded: Boolean = false
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(CardSurface.copy(alpha = 0.6f))
-            .padding(4.dp),
+        modifier = if (embedded) {
+            Modifier
+                .fillMaxWidth()
+                .clip(SpatialInsetShape)
+                .background(CardSurface.copy(alpha = 0.45f))
+                .padding(4.dp)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .clip(SpatialCardShape)
+                .background(CardSurface.copy(alpha = 0.6f))
+                .padding(4.dp)
+        },
         horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        SpatialTabButton(
-            label = "نماذج GGUF",
-            count = "$llmCount",
-            icon = Icons.Default.Memory,
-            isSelected = selectedTab == 0,
-            activeColor = Color(0xFF00E5FF),
-            onClick = { onTabSelected(0) },
-            modifier = Modifier.weight(1f)
-        )
-        SpatialTabButton(
-            label = "تحديثات التطبيق",
-            count = if (isUpdateActive) "NEW ⚡" else "$updatesCount",
-            icon = Icons.Default.SystemUpdate,
-            isSelected = selectedTab == 1,
-            activeColor = Color(0xFF10B981),
-            onClick = { onTabSelected(1) },
-            modifier = Modifier.weight(1.15f)
-        )
-        SpatialTabButton(
-            label = "الريلز",
-            count = "$reelsCount",
-            icon = Icons.Default.SlowMotionVideo,
-            isSelected = selectedTab == 2,
-            activeColor = Color(0xFFA855F7),
-            onClick = { onTabSelected(2) },
-            modifier = Modifier.weight(0.9f)
-        )
-        SpatialTabButton(
-            label = "صوتيات",
-            count = "$mediaCount",
-            icon = Icons.Default.Audiotrack,
-            isSelected = selectedTab == 3,
-            activeColor = GoldPrimary,
-            onClick = { onTabSelected(3) },
-            modifier = Modifier.weight(0.85f)
-        )
+        visibleCategories.forEach { category ->
+            SpatialTabButton(
+                label = category.label,
+                count = if (category == DownloadCategory.Updates && isUpdateActive) {
+                    "NEW ⚡"
+                } else {
+                    "${categoryCounts[category] ?: 0}"
+                },
+                icon = category.icon,
+                isSelected = selectedTab == category.tabIndex,
+                activeColor = category.accent,
+                onClick = { onTabSelected(category.tabIndex) },
+                modifier = Modifier.weight(category.tabWeight)
+            )
+        }
     }
 }
 
@@ -1116,7 +1603,7 @@ private fun SpatialLiveUpdateStickyBanner(
 
     Surface(
         color = CardSurface.copy(alpha = 0.95f),
-        shape = RoundedCornerShape(16.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(
             1.2.dp,
             if (updateItem.isCompleted) Color(0xFF10B981)
@@ -1192,7 +1679,7 @@ private fun SpatialLiveUpdateStickyBanner(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .clip(CutCornerShape(2.dp)),
                     color = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
                     trackColor = Color.White.copy(alpha = 0.1f)
                 )
@@ -1229,7 +1716,7 @@ private fun SpatialLiveUpdateStickyBanner(
                     Button(
                         onClick = onInstall,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = SpatialInsetShape,
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Icon(
@@ -1251,7 +1738,7 @@ private fun SpatialLiveUpdateStickyBanner(
                     OutlinedButton(
                         onClick = onCancel,
                         border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = SpatialInsetShape,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -1287,7 +1774,7 @@ private fun AppUpdatesHubSection(
         // 1. بطاقة معلومات الإصدار الحالي
         Surface(
             color = CardSurface.copy(alpha = 0.85f),
-            shape = RoundedCornerShape(16.dp),
+            shape = SpatialCardShape,
             border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1329,7 +1816,7 @@ private fun AppUpdatesHubSection(
                 ) {
                     Surface(
                         color = Color.White.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = SpatialInsetShape,
                         border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
@@ -1361,7 +1848,7 @@ private fun AppUpdatesHubSection(
 
                     Surface(
                         color = Color.White.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = SpatialInsetShape,
                         border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
@@ -1405,7 +1892,7 @@ private fun AppUpdatesHubSection(
                     enabled = !isChecking,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = SpatialButtonShape
                 ) {
                     if (isChecking) {
                         CircularProgressIndicator(
@@ -1450,7 +1937,7 @@ private fun AppUpdatesHubSection(
         if (updateItem != null) {
             Surface(
                 color = CardSurface.copy(alpha = 0.9f),
-                shape = RoundedCornerShape(16.dp),
+                shape = SpatialCardShape,
                 border = BorderStroke(
                     1.dp,
                     if (updateItem.isCompleted) Color(0xFF10B981)
@@ -1504,19 +1991,28 @@ private fun AppUpdatesHubSection(
                             }
                         }
 
-                        StrictBadge(
-                            text = when {
-                                updateItem.isCompleted -> "جاهز للتثبيت ✅"
-                                updateItem.isDownloading -> "جاري التنزيل تلقائياً 🚀"
-                                updateItem.isError -> "فشل التنزيل ⚠️"
-                                else -> "تحديث متوفر"
-                            },
-                            color = when {
-                                updateItem.isCompleted -> Color(0xFF10B981)
-                                updateItem.isError -> Color(0xFFEF4444)
-                                else -> Color(0xFF00E5FF)
-                            }
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            StrictBadge(
+                                text = "تحديث",
+                                color = Color(0xFF10B981)
+                            )
+                            StrictBadge(
+                                text = when {
+                                    updateItem.isCompleted -> "جاهز للتثبيت ✅"
+                                    updateItem.isDownloading -> "جاري التنزيل تلقائياً 🚀"
+                                    updateItem.isError -> "فشل التنزيل ⚠️"
+                                    else -> "تحديث متوفر"
+                                },
+                                color = when {
+                                    updateItem.isCompleted -> Color(0xFF10B981)
+                                    updateItem.isError -> Color(0xFFEF4444)
+                                    else -> Color(0xFF00E5FF)
+                                }
+                            )
+                        }
                     }
 
                     // شريط التقدم
@@ -1526,7 +2022,7 @@ private fun AppUpdatesHubSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(9.dp)
-                                .clip(RoundedCornerShape(4.dp)),
+                                .clip(CutCornerShape(2.dp)),
                             color = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
                             trackColor = Color.White.copy(alpha = 0.1f)
                         )
@@ -1557,7 +2053,7 @@ private fun AppUpdatesHubSection(
                     if (updateItem.releaseNotes.isNotBlank()) {
                         Surface(
                             color = Color.Black.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = SpatialInsetShape,
                             border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.1f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -1590,7 +2086,7 @@ private fun AppUpdatesHubSection(
                             Button(
                                 onClick = onInstall,
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = SpatialInsetShape,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(
@@ -1612,7 +2108,7 @@ private fun AppUpdatesHubSection(
                             OutlinedButton(
                                 onClick = onDeleteApk,
                                 border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = SpatialInsetShape
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
@@ -1625,7 +2121,7 @@ private fun AppUpdatesHubSection(
                             OutlinedButton(
                                 onClick = onCancel,
                                 border = BorderStroke(0.8.dp, Color(0xFFEF4444)),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = SpatialInsetShape,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
@@ -1643,7 +2139,7 @@ private fun AppUpdatesHubSection(
             // حالة: النسخة الحالية محدثة
             Surface(
                 color = CardSurface.copy(alpha = 0.8f),
-                shape = RoundedCornerShape(16.dp),
+                shape = SpatialCardShape,
                 border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1689,7 +2185,7 @@ private fun AppUpdatesHubSection(
         // 3. كرت توضيحي لآلية التحديث التلقائي الفضائية
         Surface(
             color = Color.White.copy(alpha = 0.04f),
-            shape = RoundedCornerShape(12.dp),
+            shape = SpatialInsetShape,
             border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.1f)),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1737,7 +2233,7 @@ private fun SpatialTabButton(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
+        shape = SpatialButtonShape,
         color = if (isSelected) activeColor.copy(alpha = 0.2f) else Color.Transparent,
         border = if (isSelected) BorderStroke(1.dp, activeColor) else null,
         modifier = modifier
@@ -1809,7 +2305,7 @@ private fun GgufModelCard(
 
     Surface(
         color = CardSurface.copy(alpha = 0.9f),
-        shape = RoundedCornerShape(16.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(1.dp, borderColor),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1838,7 +2334,7 @@ private fun GgufModelCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         StrictBadge(
-                            text = "GGUF Q4_K_M",
+                            text = "GGUF",
                             color = Color(model.badgeColorHex)
                         )
                         if (model.isRecommended) {
@@ -1873,7 +2369,7 @@ private fun GgufModelCard(
                 // الحجم التخزيني
                 Surface(
                     color = Color.White.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = SpatialInsetShape,
                     border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.2f))
                 ) {
                     Text(
@@ -1926,7 +2422,7 @@ private fun GgufModelCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
+                            .clip(CutCornerShape(2.dp)),
                         color = Color(0xFF00E5FF),
                         trackColor = Color.White.copy(alpha = 0.1f)
                     )
@@ -1994,7 +2490,7 @@ private fun GgufModelCard(
                         if (!isSelected) {
                             OutlinedButton(
                                 onClick = onSelectAsDefault,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = SpatialInsetShape,
                                 border = BorderStroke(0.8.dp, GoldPrimary),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 modifier = Modifier.height(34.dp)
@@ -2038,7 +2534,7 @@ private fun GgufModelCard(
 
                     Button(
                         onClick = onDownloadClick,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = SpatialInsetShape,
                         colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                         modifier = Modifier.height(36.dp)
@@ -2063,7 +2559,7 @@ private fun ReelsDownloadsHeader(
 ) {
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(14.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2107,7 +2603,7 @@ private fun ReelsDownloadsHeader(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedButton(
                     onClick = onOpenQuickDownload,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = SpatialButtonShape,
                     border = BorderStroke(0.8.dp, Color(0xFFA855F7)),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     modifier = Modifier.height(32.dp)
@@ -2119,7 +2615,7 @@ private fun ReelsDownloadsHeader(
 
                 Button(
                     onClick = onBrowseReels,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = SpatialButtonShape,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7)),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                     modifier = Modifier.height(32.dp)
@@ -2141,7 +2637,7 @@ private fun ActiveReelDownloadCard(
 ) {
     Surface(
         color = CardSurface.copy(alpha = 0.95f),
-        shape = RoundedCornerShape(14.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(1.dp, Color(0xFFA855F7)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2178,7 +2674,7 @@ private fun DownloadedReelCard(
 ) {
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(14.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2189,12 +2685,12 @@ private fun DownloadedReelCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.weight(1f)
             ) {
                 // أيقونة الفيديو
                 Surface(
                     color = Color(0xFFA855F7).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = SpatialButtonShape,
                     border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.4f)),
                     modifier = Modifier
                         .size(44.dp)
@@ -2212,7 +2708,7 @@ private fun DownloadedReelCard(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = reel.title,
                         fontFamily = CairoFont,
@@ -2230,14 +2726,23 @@ private fun DownloadedReelCard(
                             text = reel.author,
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Text(
                             text = "• ${reel.formattedSize}",
                             fontFamily = RobotoMonoFont,
                             fontSize = 10.sp,
                             color = GoldPrimary,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        StrictBadge(
+                            text = "ريلز",
+                            color = Color(0xFFA855F7)
                         )
                     }
                 }
@@ -2280,7 +2785,7 @@ private fun DownloadedMediaCard(
 ) {
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(12.dp),
+        shape = SpatialInsetShape,
         border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.12f)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2291,7 +2796,7 @@ private fun DownloadedMediaCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.weight(1f)
             ) {
                 Icon(
                     imageVector = Icons.Default.Audiotrack,
@@ -2300,7 +2805,7 @@ private fun DownloadedMediaCard(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = media.title,
                         fontFamily = CairoFont,
@@ -2310,12 +2815,24 @@ private fun DownloadedMediaCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = "${media.subtitle} • ${media.formattedSize}",
-                        fontFamily = CairoFont,
-                        fontSize = 10.5.sp,
-                        color = TextSecondary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "${media.subtitle} • ${media.formattedSize}",
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        StrictBadge(
+                            text = "صوتيات",
+                            color = GoldPrimary
+                        )
+                    }
                 }
             }
 
@@ -2338,7 +2855,7 @@ private fun EmptyDownloadsPlaceholder(
 ) {
     Surface(
         color = CardSurface.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(16.dp),
+        shape = SpatialCardShape,
         border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.08f)),
         modifier = Modifier
             .fillMaxWidth()
@@ -2384,7 +2901,7 @@ private fun EmptyDownloadsPlaceholder(
 
             Button(
                 onClick = onAction,
-                shape = RoundedCornerShape(12.dp),
+                shape = SpatialInsetShape,
                 colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                 modifier = Modifier.padding(top = 6.dp)
             ) {
@@ -2471,7 +2988,7 @@ private fun LocalInferenceTestDialog(
                 if (outputText.isNotBlank()) {
                     Surface(
                         color = Color.Black.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = SpatialInsetShape,
                         border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.2f)),
                         modifier = Modifier
                             .fillMaxWidth()
