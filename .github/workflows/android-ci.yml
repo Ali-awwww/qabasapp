@@ -28,6 +28,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -274,6 +275,21 @@ jobs:
           fi
 
           echo "✅ APK successfully attached to release $VERSION"
+
+      - name: Trigger xdelta delta generation
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          # ملاحظة مهمة: الأحداث التي يولّدها GITHUB_TOKEN لا تشغّل وركفلوات أخرى
+          # (الاستثناء الوحيد: workflow_dispatch) — لذلك إطلاق مولّد الديلتا بـ
+          # "release: published" كان لا يعمل مع الإصدارات الآلية، ولا بدّ من التشريح الصريح هنا.
+          if gh workflow run "xdelta--updates.yml" -f target_tag="$RELEASE_TAG"; then
+            echo "✅ Dispatched xdelta generation for $RELEASE_TAG"
+          else
+            echo "⚠️ Failed to dispatch xdelta workflow — run it manually (non-fatal)"
+          fi
 
       - name: On failure — print Kotlin errors hint
         if: failure()
