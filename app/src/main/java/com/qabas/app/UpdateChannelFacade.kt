@@ -21,6 +21,17 @@ object UpdateChannelFacade {
     fun isDeveloper(context: Context): Boolean =
         runCatching { AdminGuard.isDashboardAccessAllowed(context) }.getOrDefault(false)
 
+    /**
+     * صلاحية اللوحة التقنية الداخلية (اسم المستودع، رابط API، بصمة التوقيع).
+     * تتحقق من هوية سحابية موثّقة فقط (المالك أو دور developer/owner في Supabase)،
+     * ولا تعتمد على العَلَم المحلي is_developer لأنه قابل للتعديل على الجهاز.
+     */
+    fun isVerifiedDeveloper(): Boolean =
+        runCatching {
+            AdminGuard.isCloudUserOwner() ||
+                SupabaseServices.Auth.verifiedRole.value in setOf("developer", "owner")
+        }.getOrDefault(false)
+
     // ─────────────────────────────────────────────────────────────
     // نصوص المستخدم العادي (بدون ذكر المصدر)
     // ─────────────────────────────────────────────────────────────

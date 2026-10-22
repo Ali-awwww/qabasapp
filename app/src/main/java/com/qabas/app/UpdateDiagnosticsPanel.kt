@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,36 +74,9 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
-    // الحماية: لا تُعرض إلا للمطور
-    if (!UpdateChannelFacade.isDeveloper(context)) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFEF4444).copy(alpha = 0.10f),
-            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f)),
-            modifier = modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFEF4444),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "لوحة تشخيص التحديث متاحة للمطور فقط",
-                    color = Color(0xFFEF4444),
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-            }
-        }
-        return
-    }
+    // الحماية: لا يُعرض أي شيء لغير المطوّر الموثّق سحابياً —
+    // لا اسم مستودع، ولا رابط API، ولا بصمة توقيع، ولا إشارة إلى وجود لوحة مخفية
+    if (!UpdateChannelFacade.isVerifiedDeveloper()) return
 
     var inspection by remember { mutableStateOf<UpdateManager.GitHubReleaseInspection?>(null) }
     var loading by remember { mutableStateOf(false) }

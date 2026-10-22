@@ -1246,9 +1246,9 @@ object UpdateManager {
     }
 
     fun formatSize(bytes: Long): String = when {
-        bytes < 1024 -> "${bytes}B"
-        bytes < 1024 * 1024 -> "${bytes / 1024}KB"
-        else -> "${"%.1f".format(bytes / 1024.0 / 1024.0)}MB"
+        bytes < 1024 -> "${bytes} بايت"
+        bytes < 1024 * 1024 -> "${bytes / 1024} ك.ب"
+        else -> "${"%.1f".format(bytes / 1024.0 / 1024.0)} م.ب"
     }
 
     fun formatSpeed(bytesPerSec: Long): String = "${formatSize(bytesPerSec)}/ث"

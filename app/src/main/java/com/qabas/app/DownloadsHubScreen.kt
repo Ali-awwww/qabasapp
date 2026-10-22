@@ -753,7 +753,7 @@ private fun SpatialStorageIndicatorWidget(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     StrictBadge(
-                        text = "LIVE STATS",
+                        text = "مباشر",
                         color = Color(0xFF10B981)
                     )
                 }
@@ -993,7 +993,7 @@ private fun OfflineAiModeBanner(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (isActive) "وضع الذكاء الأوفلاين: مفعّل ⚡" else "وضع السحاب (Online Cloud)",
+                            text = if (isActive) "الوضع المحلي: بدون إنترنت" else "وضع السحاب (Gemini)",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
@@ -1003,7 +1003,7 @@ private fun OfflineAiModeBanner(
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         StrictBadge(
-                            text = if (isActive) "GGUF LOCAL" else "CLOUD GEMINI",
+                            text = if (isActive) "محلي" else "سحابي",
                             color = if (isActive) Color(0xFF00E5FF) else GoldPrimary
                         )
                     }
@@ -1202,7 +1202,7 @@ private fun SpatialLiveUpdateStickyBanner(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "${updateItem.percentInt}% (${updateItem.formattedDownloaded} / ${updateItem.formattedSize})",
+                        text = "${updateItem.percentInt}% • ${updateItem.formattedDownloaded} من ${updateItem.formattedSize}",
                         fontFamily = RobotoMonoFont,
                         fontSize = 10.5.sp,
                         color = Color.White.copy(alpha = 0.85f)
@@ -1496,7 +1496,7 @@ private fun AppUpdatesHubSection(
                                     color = Color.White
                                 )
                                 Text(
-                                    text = "Build Code: ${updateItem.versionCode}",
+                                    text = "رقم البناء: ${updateItem.versionCode}",
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 10.sp,
                                     color = TextSecondary
@@ -1536,7 +1536,7 @@ private fun AppUpdatesHubSection(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "${updateItem.percentInt}% (${updateItem.formattedDownloaded} / ${updateItem.formattedSize})",
+                                text = "${updateItem.percentInt}% • تم تنزيل ${updateItem.formattedDownloaded} من ${updateItem.formattedSize}",
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
                                 color = Color.White
@@ -1914,7 +1914,7 @@ private fun GgufModelCard(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${StorageMetrics.formatBytes(state.downloadedBytes)} / ${StorageMetrics.formatBytes(state.totalBytes)} (${state.speedKbps} KB/s)",
+                            text = "${StorageMetrics.formatBytes(state.downloadedBytes)} من ${StorageMetrics.formatBytes(state.totalBytes)} • ${state.speedKbps} ك.ب/ث",
                             fontFamily = RobotoMonoFont,
                             fontSize = 10.sp,
                             color = TextSecondary
@@ -2155,7 +2155,7 @@ private fun ActiveReelDownloadCard(
                 sentBytes = progress.downloadedBytes,
                 totalBytes = progress.totalBytes,
                 isUpload = false,
-                speedText = if (progress.speedKbps > 0) "${progress.speedKbps} KB/ث" else null
+                speedText = if (progress.speedKbps > 0) "${progress.speedKbps} ك.ب/ث" else null
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onCancel) {

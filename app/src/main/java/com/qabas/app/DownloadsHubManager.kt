@@ -53,15 +53,15 @@ data class StorageMetrics(
 
     companion object {
         fun formatBytes(bytes: Long): String {
-            if (bytes <= 0) return "0 B"
+            if (bytes <= 0) return "0 بايت"
             val kb = bytes / 1024.0
             val mb = kb / 1024.0
             val gb = mb / 1024.0
             return when {
-                gb >= 1.0 -> String.format(java.util.Locale.US, "%.1f GB", gb)
-                mb >= 1.0 -> String.format(java.util.Locale.US, "%.1f MB", mb)
-                kb >= 1.0 -> String.format(java.util.Locale.US, "%.0f KB", kb)
-                else -> "$bytes B"
+                gb >= 1.0 -> String.format(java.util.Locale.US, "%.1f ج.ب", gb)
+                mb >= 1.0 -> String.format(java.util.Locale.US, "%.1f م.ب", mb)
+                kb >= 1.0 -> String.format(java.util.Locale.US, "%.0f ك.ب", kb)
+                else -> "$bytes بايت"
             }
         }
     }
@@ -92,7 +92,7 @@ data class AppUpdateDownloadItem(
 ) {
     val formattedSize: String get() = StorageMetrics.formatBytes(totalBytes)
     val formattedDownloaded: String get() = StorageMetrics.formatBytes(downloadedBytes)
-    val formattedSpeed: String get() = if (speedBytesPerSec > 0) "${StorageMetrics.formatBytes(speedBytesPerSec)}/ث" else "0 B/ث"
+    val formattedSpeed: String get() = if (speedBytesPerSec > 0) "${StorageMetrics.formatBytes(speedBytesPerSec)}/ث" else "0 ك.ب/ث"
     val percentInt: Int get() = (progress * 100).toInt().coerceIn(0, 100)
     val fileExists: Boolean get() = localApkPath?.let { File(it).exists() } ?: false
 }
