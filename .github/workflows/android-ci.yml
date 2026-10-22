@@ -53,7 +53,12 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platform-tools" "build-tools;36.0.0" "platforms;android-36"
+          # NDK 28.2.13676358 يُثبَّت صراحةً: رانر ubuntu-latest (Ubuntu 26) لم يعد يضمّه
+          # مسبقاً، ومحاولة AGP التلقائية تفشل بـ "Archive is not a ZIP archive".
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platform-tools" "build-tools;36.0.0" "platforms;android-36" \
+            "ndk;28.2.13676358"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "ndk|platforms;android-36" || true
 
       - name: Fix gradle-wrapper.jar
         run: |

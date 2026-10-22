@@ -24,6 +24,9 @@ android {
       abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
     }
   }
+  // NDK مثبَّت صراحةً لتطابق ما يتوقعه AGP 9.x في CI والبناء المحلي
+  // (رانر ubuntu-latest الجديد لا يضمّه مسبقاً، فالتثبيت التلقائي يفشل).
+  ndkVersion = "28.2.13676358"
   externalNativeBuild {
     cmake {
       path = file("src/main/cpp/CMakeLists.txt")
