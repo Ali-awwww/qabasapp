@@ -10,6 +10,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -670,7 +672,8 @@ fun DownloadsHubScreen(
                                     fontSize = 17.sp,
                                     color = Color.White,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 if (appUpdateDownload?.isDownloading == true) {
@@ -1219,7 +1222,8 @@ private fun SpatialStorageIndicatorWidget(
                         fontSize = 14.5.sp,
                         color = Color.White,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     StrictBadge(
@@ -1252,7 +1256,7 @@ private fun SpatialStorageIndicatorWidget(
             // الشريط المتعدد الملون لسعة التخزين
             MultiSegmentStorageBar(metrics = metrics)
 
-            // إحصائيات المقاييس
+            // إحصائيات المقاييس — صفّان حتى لا تُضغط البطاقات على الشاشات الضيقة
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -1264,9 +1268,27 @@ private fun SpatialStorageIndicatorWidget(
                     modifier = Modifier.weight(1f)
                 )
                 StorageStatPill(
+                    label = "إجمالي الهاتف",
+                    value = metrics.totalFormatted,
+                    color = GoldPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                StorageStatPill(
                     label = "نماذج GGUF",
                     value = metrics.llmModelsFormatted,
                     color = Color(0xFF00E5FF),
+                    modifier = Modifier.weight(1f)
+                )
+                StorageStatPill(
+                    label = "الريلز والوسائط",
+                    value = metrics.reelsFormatted,
+                    color = Color(0xFFA855F7),
                     modifier = Modifier.weight(1f)
                 )
                 if (metrics.updatesBytes > 0L) {
@@ -1274,21 +1296,9 @@ private fun SpatialStorageIndicatorWidget(
                         label = "التحديثات",
                         value = metrics.updatesFormatted,
                         color = Color(0xFFF59E0B),
-                        modifier = Modifier.weight(0.95f)
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                StorageStatPill(
-                    label = "الريلز والوسائط",
-                    value = metrics.reelsFormatted,
-                    color = Color(0xFFA855F7),
-                    modifier = Modifier.weight(1f)
-                )
-                StorageStatPill(
-                    label = "إجمالي الهاتف",
-                    value = metrics.totalFormatted,
-                    color = GoldPrimary,
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
     }
@@ -1560,22 +1570,29 @@ private fun SpatialDownloadsTabsRow(
                 .background(CardSurface.copy(alpha = 0.6f))
                 .padding(4.dp)
         },
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        visibleCategories.forEach { category ->
-            SpatialTabButton(
-                label = category.label,
-                count = if (category == DownloadCategory.Updates && isUpdateActive) {
-                    "NEW ⚡"
-                } else {
-                    "${categoryCounts[category] ?: 0}"
-                },
-                icon = category.icon,
-                isSelected = selectedTab == category.tabIndex,
-                activeColor = category.accent,
-                onClick = { onTabSelected(category.tabIndex) },
-                modifier = Modifier.weight(category.tabWeight)
-            )
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 1.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            visibleCategories.forEach { category ->
+                SpatialTabButton(
+                    label = category.label,
+                    count = if (category == DownloadCategory.Updates && isUpdateActive) {
+                        "NEW ⚡"
+                    } else {
+                        "${categoryCounts[category] ?: 0}"
+                    },
+                    icon = category.icon,
+                    isSelected = selectedTab == category.tabIndex,
+                    activeColor = category.accent,
+                    onClick = { onTabSelected(category.tabIndex) }
+                )
+            }
         }
     }
 }
@@ -2663,15 +2680,11 @@ private fun ReelsDownloadsHeader(
         border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.SlowMotionVideo,
                     contentDescription = null,
@@ -2679,7 +2692,7 @@ private fun ReelsDownloadsHeader(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "فيديوهات الريلز المنزلة",
                         fontFamily = CairoFont,
@@ -2700,17 +2713,22 @@ private fun ReelsDownloadsHeader(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedButton(
                     onClick = onOpenQuickDownload,
                     shape = SpatialButtonShape,
                     border = BorderStroke(0.8.dp, Color(0xFFA855F7)),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp)
                 ) {
                     Icon(Icons.Default.AddLink, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("رابط", fontFamily = CairoFont, fontSize = 10.5.sp, color = Color(0xFFA855F7))
+                    Text("رابط", fontFamily = CairoFont, fontSize = 10.5.sp, color = Color(0xFFA855F7), maxLines = 1)
                 }
 
                 Button(
@@ -2718,9 +2736,18 @@ private fun ReelsDownloadsHeader(
                     shape = SpatialButtonShape,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7)),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp)
                 ) {
-                    Text("استعراض 🎬", fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "استعراض 🎬",
+                        fontFamily = CairoFont,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -2778,14 +2805,13 @@ private fun DownloadedReelCard(
         border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 // أيقونة الفيديو
                 Surface(
@@ -2829,7 +2855,7 @@ private fun DownloadedReelCard(
                             color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            modifier = Modifier.weight(1f)
                         )
                         Text(
                             text = "• ${reel.formattedSize}",
@@ -2848,8 +2874,12 @@ private fun DownloadedReelCard(
                 }
             }
 
-            // أزرار التحكم
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // أزرار التحكم في صف مستقل — لا تزاحم النص
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(
                     onClick = onPlay,
                     modifier = Modifier.size(34.dp)
