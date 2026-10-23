@@ -431,7 +431,7 @@ fun ConnectorsSection(
                     } else {
                         val ok = OpenRouterService.validateKey(key)
                         val latency = System.currentTimeMillis() - startTime
-                        set("ai_defense", ok, if (ok) "محرك الذكاء الاصطناعي والمدافعة نشط ويعمل بكفاءة", latency)
+                        set("ai_defense", ok, if (ok) "محرك الذكاء الاصطناعي والمدافعة نشط ويعمل بكفاءة" else "المفتاح مرفوض أو انتهى الرصيد", latency)
                     }
                 }
                 "push_gateway" -> {
@@ -462,7 +462,7 @@ fun ConnectorsSection(
                 "realtime_chat" -> {
                     val ok = SupabaseServices.isSupabaseAvailable
                     val latency = System.currentTimeMillis() - startTime
-                    set("realtime_chat", ok, if (ok) "قنوات Realtime ونقل بيانات شات المطورين متصلة", latency)
+                    set("realtime_chat", ok, if (ok) "قنوات Realtime ونقل بيانات شات المطورين متصلة" else "يتطلب تفعيل Supabase Realtime", latency)
                 }
                 "azan_cloud" -> {
                     delay(80)
@@ -472,12 +472,12 @@ fun ConnectorsSection(
                 "feedback_reviews" -> {
                     val ok = SupabaseServices.isSupabaseAvailable
                     val latency = System.currentTimeMillis() - startTime
-                    set("feedback_reviews", ok, if (ok) "سحابة التقييمات وبلاغات الأخطاء متصلة وجاهزة", latency)
+                    set("feedback_reviews", ok, if (ok) "سحابة التقييمات وبلاغات الأخطاء متصلة وجاهزة" else "يتطلب تفعيل Supabase", latency)
                 }
                 "verified_creators" -> {
                     val ok = SupabaseServices.isSupabaseAvailable
                     val latency = System.currentTimeMillis() - startTime
-                    set("verified_creators", ok, if (ok) "سحابة الموثقين ونقاط الدوري متصلة بنجاح", latency)
+                    set("verified_creators", ok, if (ok) "سحابة الموثقين ونقاط الدوري متصلة بنجاح" else "يتطلب تفعيل Supabase", latency)
                 }
                 "higgsfield_video" -> {
                     val key = KeyVault.higgsfield
@@ -919,6 +919,9 @@ private fun CyberConnectorCard(
     onCheck: () -> Unit,
     onFix: () -> Unit
 ) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
     val statusColor = when (connector.connected) {
         true -> Color(0xFF10B981) // أخضر زمردي
         false -> Color(0xFFEF4444) // أحمر ليزري
