@@ -884,7 +884,7 @@ fun AboutUsAndVersionScreen(
                                         val info = UpdateManager.checkForUpdate(context, force = true)
                                         isCheckingUpdates = false
                                         if (info != null) {
-                                            val sizeDesc = if (info.deltaUrl != null && info.deltaSize > 0) {
+                                            val sizeDesc = if (info.deltaUsable) {
                                                 "بحجم تفاضلي ${UpdateManager.formatSize(info.deltaSize)} فقط ⚡"
                                             } else {
                                                 "بحجم ${UpdateManager.formatSize(info.apkSize)}"

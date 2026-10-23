@@ -1040,6 +1040,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         UpdateManager.onAppForeground()
+        // فحص تلقائي عند العودة للتطبيق — محكوم بمدة الفحص المختارة (ساعتان كحد أدنى)
+        runCatching { DownloadsHubManager.checkAndStartAutoUpdate(this, force = false) }
         handleNotificationNavigation(intent)
         // نية «تثبيت الآن» من الإشعار تُستهلك مرة واحدة فقط
         if (handleInstallIntent(intent)) {

@@ -1769,6 +1769,10 @@ private fun AppUpdatesHubSection(
     val context = LocalContext.current
     val currentVersionName = remember { UpdateManager.getCurrentVersionName(context) }
     val currentVersionCode = remember { UpdateManager.getCurrentVersionCode(context) }
+    var autoCheckHours by remember {
+        mutableIntStateOf(UpdateManager.getAutoCheckIntervalHours(context))
+    }
+    val lastCheckTime = remember { UpdateManager.getLastCheckTime(context) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // 1. بطاقة معلومات الإصدار الحالي
@@ -1924,6 +1928,102 @@ private fun AppUpdatesHubSection(
                             fontSize = 12.5.sp
                         )
                     }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                // الفحص التلقائي: الحد الأدنى ساعتان — المدة المختارة تُحفظ فوراً
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "الفحص التلقائي كل $autoCheckHours ساعة",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (lastCheckTime > 0L)
+                                "آخر فحص: " + android.text.format.DateUtils.getRelativeTimeSpanString(
+                                    lastCheckTime,
+                                    System.currentTimeMillis(),
+                                    android.text.format.DateUtils.MINUTE_IN_MILLIS
+                                )
+                            else "لم يُفحص بعد",
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(2, 4, 6, 12, 24).forEach { hours ->
+                            val selected = autoCheckHours == hours
+                            Surface(
+                                color = if (selected) Color(0xFF00E5FF).copy(alpha = 0.16f)
+                                    else Color.White.copy(alpha = 0.05f),
+                                shape = SpatialInsetShape,
+                                border = BorderStroke(
+                                    0.7.dp,
+                                    if (selected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(SpatialInsetShape)
+                                    .clickable {
+                                        autoCheckHours = UpdateManager.setAutoCheckIntervalHours(context, hours)
+                                        Toast.makeText(
+                                            context,
+                                            "سيتم الفحص التلقائي كل $autoCheckHours ساعة",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            ) {
+                                Text(
+                                    text = "$hours س",
+                                    fontFamily = RobotoMonoFont,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 11.sp,
+                                    color = if (selected) Color(0xFF00E5FF) else TextSecondary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "الحد الأدنى للفحص التلقائي ساعتان. الفحص اليدوي يعمل فوراً في أي وقت.",
+                        fontFamily = CairoFont,
+                        fontSize = 9.5.sp,
+                        color = TextSecondary
+                    )
                 }
             }
         }

@@ -29,7 +29,36 @@ object UpdateManager {
 
     private const val TAG = "UpdateManager"
     private const val DEFAULT_REPO = "Ali-awwww/qabasapp"
-    private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+
+    // الفحص التلقائي: ساعتان كحد أدنى مطلق، والمدة قابلة للتخصيص من مركز التنزيلات.
+    // لا يمكن لأي قيمة محفوظة أو واردة من الواجهة أن تنزل تحت الحد الأدنى.
+    const val MIN_AUTO_CHECK_INTERVAL_HOURS = 2
+    const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = 2
+    private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
+    private const val PREF_LAST_CHECK = "update_last_check"
+
+    fun getAutoCheckIntervalHours(context: Context): Int {
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        return prefs.getInt(PREF_AUTO_CHECK_INTERVAL_HOURS, DEFAULT_AUTO_CHECK_INTERVAL_HOURS)
+            .coerceAtLeast(MIN_AUTO_CHECK_INTERVAL_HOURS)
+    }
+
+    fun getAutoCheckIntervalMs(context: Context): Long =
+        getAutoCheckIntervalHours(context) * 60L * 60L * 1000L
+
+    fun setAutoCheckIntervalHours(context: Context, hours: Int): Int {
+        val clamped = hours.coerceAtLeast(MIN_AUTO_CHECK_INTERVAL_HOURS)
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putInt(PREF_AUTO_CHECK_INTERVAL_HOURS, clamped)
+            .apply()
+        return clamped
+    }
+
+    /** وقت آخر فحص ناجح أو «لا تحديث» (0 = لم يُفحص بعد). */
+    fun getLastCheckTime(context: Context): Long =
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getLong(PREF_LAST_CHECK, 0L)
 
     // توكن مسرّب متقاعد: يُرفض في كل المسارات ولا يُرسل أبداً.
     // (أبطل مفعوله من إعدادات GitHub أيضاً)
@@ -291,7 +320,12 @@ object UpdateManager {
         val deltaSize: Long,
         val apkSize: Long,
         val xdeltaUrls: Map<String, String> = emptyMap()
-    )
+    ) {
+        /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
+        val deltaUsable: Boolean
+            get() = !deltaUrl.isNullOrBlank() && deltaSize > 0L &&
+                (apkSize <= 0L || deltaSize < apkSize)
+    }
 
     data class GitHubReleaseInspection(
         val tagName: String,
@@ -330,13 +364,14 @@ object UpdateManager {
 
     suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
-            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val lastCheck = prefs.getLong("update_last_check", 0)
-            if (!force && System.currentTimeMillis() - lastCheck < CHECK_INTERVAL_MS) {
-                Log.d(TAG, "⏭️ Skipping check (last check too recent)")
+            val lastCheck = getLastCheckTime(context)
+            val intervalMs = getAutoCheckIntervalMs(context)
+            if (!force && System.currentTimeMillis() - lastCheck < intervalMs) {
+                Log.d(TAG, "⏭️ Skipping auto check (interval=${intervalMs / 3_600_000L}h)")
                 return@withContext null
             }
 
+            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val currentVersionCode = getCurrentVersionCode(context)
             val currentVersionName = getCurrentVersionName(context)
             Log.d(TAG, "🔍 Checking updates… currentCode=$currentVersionCode, currentName=$currentVersionName")
@@ -712,7 +747,7 @@ object UpdateManager {
                 val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
-                if (!forceFull && !update.deltaUrl.isNullOrBlank() && update.deltaSize > 0) {
+                if (!forceFull && update.deltaUsable) {
                     Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
                     val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {

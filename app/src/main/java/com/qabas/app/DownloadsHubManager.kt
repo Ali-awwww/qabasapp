@@ -817,7 +817,7 @@ object DownloadsHubManager {
                         )
                     } else {
                         // بدء التنزيل التلقائي فوراً
-                        val targetSize = if (update.deltaSize > 0) update.deltaSize else update.apkSize
+                        val targetSize = if (update.deltaUsable) update.deltaSize else update.apkSize
                         _appUpdateDownload.value = AppUpdateDownloadItem(
                             versionName = update.versionName,
                             versionCode = update.versionCode,
@@ -852,7 +852,7 @@ object DownloadsHubManager {
      * بدء تنزيل التحديث يدوياً
      */
     fun startUpdateDownload(context: Context, update: UpdateManager.UpdateInfo, forceFull: Boolean = false) {
-        val targetSize = if (!forceFull && update.deltaSize > 0) update.deltaSize else update.apkSize
+        val targetSize = if (!forceFull && update.deltaUsable) update.deltaSize else update.apkSize
         _appUpdateDownload.value = AppUpdateDownloadItem(
             versionName = update.versionName,
             versionCode = update.versionCode,
