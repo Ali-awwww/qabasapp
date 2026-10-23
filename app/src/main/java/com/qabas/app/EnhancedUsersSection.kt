@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
+import java.util.Calendar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,13 +32,6 @@ import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-/**
- * إدارة المستخدمين المتقدمة بنمط Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech):
- * - بحث فوري وفلترة بالرتب والحالات مع مؤشرات إحصائية دقيقة.
- * - بطاقات مستخدمين فضائية متناسقة مع تفاصيل الحساب والحالة والرتبة.
- * - تعديل الرتبة (دائم / مؤقت) مع المزامنة السحابية الفورية.
- * - إيقاف وتفعيل الحسابات وتصدير ملفات CSV مع دعم كامل للتغذية الصوتية.
- */
 @Composable
 fun EnhancedUsersSection(
     context: Context,
@@ -65,7 +60,9 @@ fun EnhancedUsersSection(
     var newUserType by remember { mutableStateOf("مجاني") }
     val coroutineScope = rememberCoroutineScope()
 
-    // فحص الرتب المؤقتة المنتهية عند فتح القسم
+    var isGeneratingHadiths by remember { mutableStateOf(false) }
+    var hadithGenProgress by remember { mutableStateOf(0) }
+
     LaunchedEffect(Unit) {
         val swept = CloudServices.Database.sweepExpiredRoles()
         if (swept > 0) {
@@ -94,7 +91,7 @@ fun EnhancedUsersSection(
             (statusFilter == "موقوف" && u.isSuspended) ||
             (statusFilter == "نشط" && !u.isSuspended)
         matchesQuery && matchesType && matchesStatus
-    }.sortedWith(compareByDescending<DevUser> { it.regDate })
+    }.sortedByDescending { it.regDate }
 
     val activeCount = devUsers.count { !it.isSuspended }
     val suspendedCount = devUsers.count { it.isSuspended }
@@ -109,7 +106,7 @@ fun EnhancedUsersSection(
         }
     }
 
-    // ---- نافذة إضافة مستخدم جديد ----
+    // Dialogs stay at top level of Composable
     if (showAddUserDialog) {
         AlertDialog(
             onDismissRequest = { showAddUserDialog = false },
@@ -241,7 +238,6 @@ fun EnhancedUsersSection(
         )
     }
 
-    // ---- نافذة تأكيد تغيير الرتبة ----
     confirmRoleUser?.let { user ->
         AlertDialog(
             onDismissRequest = { confirmRoleUser = null; confirmNewRole = null; tempRoleDays = 0 },
@@ -316,7 +312,6 @@ fun EnhancedUsersSection(
         )
     }
 
-    // ---- نافذة تأكيد الإيقاف أو التفعيل ----
     confirmSuspendUser?.let { user ->
         val willSuspend = !user.isSuspended
         AlertDialog(
@@ -392,7 +387,6 @@ fun EnhancedUsersSection(
         )
     }
 
-    // ---- نافذة تفاصيل المستخدم والخط الزمني ----
     selectedUser?.let { user ->
         val timeline = userTimeline
         AlertDialog(
@@ -492,11 +486,111 @@ fun EnhancedUsersSection(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // ---- بطاقة إدارة الأحاديث اليومية السحابية ----
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.6f)),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            color = GoldPrimary.copy(alpha = 0.1f),
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("إدارة الأحاديث اليومية السحابية", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("جدولة 365 حديثاً من الصحيحين للإرسال التلقائي", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                    }
+
+                    if (isGeneratingHadiths) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            LinearProgressIndicator(
+                                progress = { hadithGenProgress / 365f },
+                                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                                color = GoldPrimary,
+                                trackColor = Color.White.copy(alpha = 0.1f)
+                            )
+                            Text(
+                                "جارٍ التوليد والرفع سحابياً... $hadithGenProgress / 365",
+                                color = GoldPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    AppSoundManager.playActivate()
+                                    coroutineScope.launch {
+                                        isGeneratingHadiths = true
+                                        hadithGenProgress = 0
+                                        try {
+                                            val batchSize = 50
+                                            for (day in 1..365 step batchSize) {
+                                                val count = if (day + batchSize > 365) 366 - day else batchSize
+                                                val batch = DailyHadithAiGenerator.generateBatch(day, count)
+                                                if (batch.isNotEmpty()) {
+                                                    DailyHadithRepository.uploadHadiths(context, batch)
+                                                    hadithGenProgress += batch.size
+                                                } else {
+                                                    throw Exception("Batch failed at day $day")
+                                                }
+                                            }
+                                            Toast.makeText(context, "تم تجهيز 365 حديثاً سحابياً بنجاح! ✨", Toast.LENGTH_LONG).show()
+                                            AuditLogger.log(context, "hadith_cloud_init", "توليد 365 حديثاً")
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "فشل التوليد: ${e.message}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            isGeneratingHadiths = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("توليد 365 حديثاً (AI)", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            
+                            OutlinedButton(
+                                onClick = {
+                                    AppSoundManager.playClick()
+                                    coroutineScope.launch {
+                                        AppNotificationService.triggerDailyHadithNow(context, force = true)
+                                        Toast.makeText(context, "تم إرسال إشعار تجريبي بنجاح 🔔", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.height(40.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                            ) {
+                                Text("إشعار تجريبي", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             // ── بطاقة إحصائيات النظام الفضائية (Spatial HUD Stats Card) ──
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -524,7 +618,7 @@ fun EnhancedUsersSection(
                         Surface(
                             color = GoldPrimary.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
                         ) {
                             Text(
                                 "المعروض: ${filteredUsers.size}",
@@ -542,7 +636,7 @@ fun EnhancedUsersSection(
                     Surface(
                         color = if (isFirebaseConfigured) Color(0xFF1E293B) else Color(0xFF0F172A),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.8.dp, if (isFirebaseConfigured) Color(0xFFFFA000).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
+                        border = BorderStroke(0.8.dp, if (isFirebaseConfigured) Color(0xFFFFA000).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -617,7 +711,9 @@ fun EnhancedUsersSection(
                     }
                 }
             }
+        }
 
+        item {
             Spacer(modifier = Modifier.height(6.dp))
 
             // ── شريط البحث الفوري ──
@@ -726,7 +822,7 @@ fun EnhancedUsersSection(
                         }
                     },
                     modifier = Modifier.weight(1f).height(44.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Default.Download, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
@@ -741,7 +837,7 @@ fun EnhancedUsersSection(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -767,7 +863,7 @@ fun EnhancedUsersSection(
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     1.dp,
                     if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF1E293B)
                 ),
@@ -818,7 +914,7 @@ fun EnhancedUsersSection(
                                     Surface(
                                         color = Color(0xFF00E5FF).copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(4.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.3f)),
+                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.3f)),
                                         modifier = Modifier.padding(top = 2.dp)
                                     ) {
                                         Text(
@@ -837,7 +933,7 @@ fun EnhancedUsersSection(
                         Surface(
                             color = if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.15f) else Color(0xFF10B981).copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
-                            border = androidx.compose.foundation.BorderStroke(
+                            border = BorderStroke(
                                 1.dp,
                                 if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.35f) else Color(0xFF10B981).copy(alpha = 0.35f)
                             )
@@ -894,7 +990,7 @@ fun EnhancedUsersSection(
                                 selectedUser = user
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
@@ -908,7 +1004,7 @@ fun EnhancedUsersSection(
                                     roleMenuUser = user
                                 },
                                 modifier = Modifier.fillMaxWidth().height(38.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldSecondary.copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, GoldSecondary.copy(alpha = 0.5f)),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 4.dp)
                             ) {
@@ -945,7 +1041,7 @@ fun EnhancedUsersSection(
                                 confirmSuspendUser = user
                             },
                             modifier = Modifier.weight(0.9f).height(38.dp),
-                            border = androidx.compose.foundation.BorderStroke(
+                            border = BorderStroke(
                                 1.dp,
                                 if (user.isSuspended) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)
                             ),

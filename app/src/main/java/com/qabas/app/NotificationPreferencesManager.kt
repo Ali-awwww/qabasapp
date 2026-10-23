@@ -131,7 +131,7 @@ object NotificationPreferencesManager {
     val fajrTime: StateFlow<Pair<Int, Int>> = _fajrTime.asStateFlow()
 
     // توقيت الحديث اليومي (ساعة، دقيقة)
-    private val _dailyHadithTime = MutableStateFlow(Pair(8, 0))
+    private val _dailyHadithTime = MutableStateFlow(Pair(9, 0))
     val dailyHadithTime: StateFlow<Pair<Int, Int>> = _dailyHadithTime.asStateFlow()
 
     // توقيت أذكار الصباح والمساء
@@ -180,7 +180,7 @@ object NotificationPreferencesManager {
             prefs.getInt(KEY_FAJR_MINUTE, 0)
         )
         _dailyHadithTime.value = Pair(
-            prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+            prefs.getInt(KEY_DAILY_HADITH_HOUR, 9),
             prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
         )
         _morningTime.value = Pair(

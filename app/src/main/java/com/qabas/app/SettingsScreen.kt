@@ -58,7 +58,8 @@ enum class SettingsSubScreen {
     PERMISSIONS_HUB,       // Cybernetic Permissions & System Protection HUD
     CRASH_LOGS,            // Spatial Crash Guard & Diagnostics HUD
     NOTIFICATION_SETTINGS, // Full Notification & Reminders Settings HUD
-    GITHUB_XDELTA_HUB      // Direct GitHub Connection & xdelta Updates HUD
+    GITHUB_XDELTA_HUB,     // Direct GitHub Connection & xdelta Updates HUD
+    BUG_CAMERA_CONTROL     // Spatial Bug Camera Button Control HUD
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,6 +116,7 @@ fun SettingsScreen(
     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(userEmail)
     val isRelative = prefs.getBoolean("is_relative_user", false)
     val isGuest = prefs.getBoolean("is_guest", false)
+    val isLoggedInAccount = !isGuest && (prefs.getBoolean("is_logged_in", false) || CloudServices.Auth.currentUser.value != null || prefs.getString("user_email", "").orEmpty().isNotBlank())
 
     var autoPublishing by remember {
         mutableStateOf(prefs.getBoolean("auto_publish", false))
@@ -727,6 +729,18 @@ fun SettingsScreen(
                             )
                         }
 
+                        // 4.2 قسم تحكم زر الكاميرا الفضائي للبلاغات والمشاكل (يظهر للحسابات المسجلة فقط)
+                        if (isLoggedInAccount) {
+                            SettingsNavigationCard(
+                                title = Translator.tr("زر الكاميرا الفضائي للبلاغات والمشاكل"),
+                                subtitle = Translator.tr("التحكم الكامل بزر الكاميرا العائم: التفعيل، التعطيل، الشفافية، الاستقرار، وسلوك الالتقاط الفوري"),
+                                icon = Icons.Default.CameraAlt,
+                                badge = "خاص بالحسابات 📸",
+                                accentColor = Color(0xFF00E5FF),
+                                onClick = { currentSubScreen = SettingsSubScreen.BUG_CAMERA_CONTROL }
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // زر تسجيل الخروج السريع
@@ -984,6 +998,16 @@ fun SettingsScreen(
             SettingsSubScreen.GITHUB_XDELTA_HUB -> {
                 GithubXdeltaHubScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN }
+                )
+            }
+
+            // ==========================================
+            // 📸 مركز تحكم زر الكاميرا الفضائي للبلاغات والمشاكل
+            // ==========================================
+            SettingsSubScreen.BUG_CAMERA_CONTROL -> {
+                BugCameraSettingsScreen(
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN },
+                    onOpenMyReports = { showUserReportsDialog = true }
                 )
             }
         }

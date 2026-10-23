@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -56,7 +55,7 @@ object FirebaseManager {
     /**
      * الحصول على مصادقة Firebase
      */
-    fun getAuth(): FirebaseAuth = Firebase.auth
+    fun getAuth(): FirebaseAuth = FirebaseAuth.getInstance()
 
     /**
      * التحقق من تفعيل وتهيئة Firebase

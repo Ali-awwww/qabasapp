@@ -137,6 +137,9 @@ fun RatioButton(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // STEP 1: Configure App Check with launch intent before any UI or Firebase operations
+        FirebaseAppCheckHelper.configureAppCheck(this, intent)
 
         // Handle deep link: qabas://keys/import?gemini=...&groq=...
         handleDeepLink(intent)
@@ -146,6 +149,7 @@ class MainActivity : ComponentActivity() {
         UserPreferencesManager.init(this)
         AppSoundManager.init(this)
         NotificationPreferencesManager.init(this)
+        SpatialCameraPreferencesManager.init(this)
         QabasNotificationHelper.initializeChannels(this)
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -263,6 +267,7 @@ class MainActivity : ComponentActivity() {
         val currentEmail = prefs.getString("user_email", "") ?: ""
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
         val isRegisteredUser = isLoggedIn && currentEmail.isNotBlank() && currentEmail != "guest@qabas.studio"
+        val isCameraEnabled by SpatialCameraPreferencesManager.cameraEnabled.collectAsState()
 
         var showFab by remember { mutableStateOf(prefs.getBoolean("show_floating_debug_fabs", false)) }
         var showReportDialog by remember { mutableStateOf(false) }
@@ -330,7 +335,7 @@ class MainActivity : ComponentActivity() {
 
             // 🛰️ زر الكاميرا الفضائي العائم لالتقاط لقطات الشاشة وإرسالها للمطور (مزروع في جميع الشاشات وقابل للتحريك لأي زاوية)
             val isDevScreen = BugReportManager.currentScreen.contains("DEVELOPER", ignoreCase = true)
-            if (isRegisteredUser && !showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
+            if (isRegisteredUser && isCameraEnabled && !showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
                 SpatialDraggableDevCameraButton(
                     onScreenshotCaptured = { bitmap, file ->
                         screenshotBitmap = bitmap

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import com.qabas.app.ui.changelog.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,6 +113,54 @@ fun AboutUsAndVersionScreen(
     // حالة فحص التحديثات
     var isCheckingUpdates by remember { mutableStateOf(false) }
     var updateResultMsg by remember { mutableStateOf<String?>(null) }
+
+    // حالات تصفية وترتيب سجل التحديثات الذكي
+    var changelogSearchQuery by remember { mutableStateOf("") }
+    var changelogSelectedType by remember { mutableStateOf(ChangelogUpdateType.ALL) }
+    var changelogSelectedVersion by remember { mutableStateOf<String?>(null) }
+    var changelogSortOrder by remember { mutableStateOf(ChangelogSortOrder.DATE_DESC) }
+
+    val availableVersions = remember(changelogsState) {
+        changelogsState.map { it.versionName }.distinct()
+    }
+
+    val typeCounts = remember(changelogsState) {
+        val map = mutableMapOf<ChangelogUpdateType, Int>()
+        map[ChangelogUpdateType.ALL] = changelogsState.size
+        map[ChangelogUpdateType.FEATURE] = changelogsState.count { it.detectContainedTypes().contains(ChangelogUpdateType.FEATURE) }
+        map[ChangelogUpdateType.SECURITY] = changelogsState.count { it.detectContainedTypes().contains(ChangelogUpdateType.SECURITY) }
+        map[ChangelogUpdateType.BUG_FIX] = changelogsState.count { it.detectContainedTypes().contains(ChangelogUpdateType.BUG_FIX) }
+        map
+    }
+
+    val filteredChangelogs = remember(changelogsState, changelogSearchQuery, changelogSelectedType, changelogSelectedVersion, changelogSortOrder) {
+        changelogsState
+            .filter { item ->
+                val matchesVersion = changelogSelectedVersion == null || item.versionName.equals(changelogSelectedVersion, ignoreCase = true)
+                val matchesType = when (changelogSelectedType) {
+                    ChangelogUpdateType.ALL -> true
+                    else -> item.detectContainedTypes().contains(changelogSelectedType)
+                }
+                val matchesQuery = if (changelogSearchQuery.isBlank()) {
+                    true
+                } else {
+                    val q = changelogSearchQuery.trim().lowercase()
+                    item.versionName.lowercase().contains(q) ||
+                    item.versionCode.toString().contains(q) ||
+                    item.releaseDate.lowercase().contains(q) ||
+                    item.title.lowercase().contains(q) ||
+                    item.categoryBadge.lowercase().contains(q) ||
+                    item.highlights.lowercase().contains(q)
+                }
+                matchesVersion && matchesType && matchesQuery
+            }
+            .let { list ->
+                when (changelogSortOrder) {
+                    ChangelogSortOrder.DATE_DESC -> list.sortedWith(compareByDescending<ChangelogEntity> { it.versionCode }.thenByDescending { it.timestamp })
+                    ChangelogSortOrder.DATE_ASC -> list.sortedWith(compareBy<ChangelogEntity> { it.versionCode }.thenBy { it.timestamp })
+                }
+            }
+    }
 
     val officialWhatsAppGroupUrl = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2"
 
@@ -818,9 +867,51 @@ fun AboutUsAndVersionScreen(
                 }
             }
 
-            // سرد عناصر سجل التحديثات من قاعدة البيانات
-            items(changelogsState, key = { it.id }) { item ->
-                ChangelogCardItem(item = item)
+            // منصة التصفية والفرز التفاعلية بنمط HUD
+            item {
+                ChangelogFilterDock(
+                    searchQuery = changelogSearchQuery,
+                    onSearchQueryChange = { changelogSearchQuery = it },
+                    selectedType = changelogSelectedType,
+                    onTypeSelect = { changelogSelectedType = it },
+                    selectedVersion = changelogSelectedVersion,
+                    onVersionSelect = { changelogSelectedVersion = it },
+                    availableVersions = availableVersions,
+                    sortOrder = changelogSortOrder,
+                    onToggleSortOrder = {
+                        changelogSortOrder = if (changelogSortOrder == ChangelogSortOrder.DATE_DESC) {
+                            ChangelogSortOrder.DATE_ASC
+                        } else {
+                            ChangelogSortOrder.DATE_DESC
+                        }
+                    },
+                    typeCounts = typeCounts,
+                    totalMatchingCount = filteredChangelogs.size,
+                    onResetFilters = {
+                        changelogSearchQuery = ""
+                        changelogSelectedType = ChangelogUpdateType.ALL
+                        changelogSelectedVersion = null
+                        changelogSortOrder = ChangelogSortOrder.DATE_DESC
+                    }
+                )
+            }
+
+            // سرد عناصر سجل التحديثات المصفاة مع الأيقونات الديناميكية
+            if (filteredChangelogs.isEmpty()) {
+                item {
+                    ChangelogEmptyView(
+                        onReset = {
+                            changelogSearchQuery = ""
+                            changelogSelectedType = ChangelogUpdateType.ALL
+                            changelogSelectedVersion = null
+                            changelogSortOrder = ChangelogSortOrder.DATE_DESC
+                        }
+                    )
+                }
+            } else {
+                items(filteredChangelogs, key = { it.id }) { item ->
+                    EnhancedChangelogCardItem(item = item)
+                }
             }
 
             // 4️⃣ قسم تشخيص النظام وفحص التحديثات المباشر
@@ -1377,103 +1468,7 @@ fun FeedbackTypeChip(
 
 @Composable
 fun ChangelogCardItem(item: ChangelogEntity) {
-    var isExpanded by remember { mutableStateOf(item.isLatest) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .luxuryCardStyle(shapeRadius = 16.dp, borderAlpha = if (item.isLatest) 0.5f else 0.25f),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if (item.isLatest) Color(0xFF131B2D) else qabasCardSurface())
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Surface(
-                        color = if (item.isLatest) GoldPrimary else Color(0xFF1A2338),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (item.isLatest) GoldPrimary else Color(0xFF2A3650))
-                    ) {
-                        Text(
-                            text = "v${item.versionName}",
-                            color = if (item.isLatest) DeepSlate else Color.White,
-                            fontFamily = NotoSansFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.title,
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = item.releaseDate,
-                            color = qabasTextSecondary(),
-                            fontFamily = NotoSansFont,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        color = if (item.isLatest) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF1E293B),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = item.categoryBadge,
-                            color = if (item.isLatest) Color(0xFF10B981) else GoldPrimary,
-                            fontFamily = CairoFont,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            AnimatedVisibility(visible = isExpanded) {
-                Column(modifier = Modifier.padding(top = 10.dp)) {
-                    HorizontalDivider(color = Color(0xFF222D42), modifier = Modifier.padding(bottom = 8.dp))
-                    item.highlights.lines().forEach { line ->
-                        if (line.isNotBlank()) {
-                            Text(
-                                text = line,
-                                color = Color(0xFFE2E8F0),
-                                fontFamily = CairoFont,
-                                fontSize = 11.5.sp,
-                                lineHeight = 18.sp,
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    EnhancedChangelogCardItem(item = item)
 }
 
 @Composable

@@ -20,18 +20,6 @@ android {
     versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 102
     versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.3"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    ndk {
-      abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
-    }
-  }
-  // NDK مثبَّت صراحةً لتطابق ما يتوقعه AGP 9.x في CI والبناء المحلي
-  // (رانر ubuntu-latest الجديد لا يضمّه مسبقاً، فالتثبيت التلقائي يفشل).
-  ndkVersion = "28.2.13676358"
-  externalNativeBuild {
-    cmake {
-      path = file("src/main/cpp/CMakeLists.txt")
-      version = "3.22.1"
-    }
   }
 
   signingConfigs {
@@ -45,9 +33,9 @@ android {
 
   buildTypes {
     release {
-      isCrunchPngs = true
-      isMinifyEnabled = true
-      isShrinkResources = true
+      isCrunchPngs = false
+      isMinifyEnabled = false
+      isShrinkResources = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("debugConfig")
     }
@@ -158,6 +146,10 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.auth)
+  implementation(libs.firebase.ai)
+  implementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
+  implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.androidx.security.crypto)

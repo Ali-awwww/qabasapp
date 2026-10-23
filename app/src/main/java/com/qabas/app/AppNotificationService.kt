@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import kotlinx.coroutines.*
 
 object AppNotificationService {
     data class AppNotification(
@@ -92,17 +93,17 @@ object AppNotificationService {
         "قال رسول الله ﷺ: «بَيْنَ أَيُّمَ السَّبْتِ وَالْأَحَدِ» (المسفينة)",
         "قال رسول الله ﷺ: «يُهْلِكُ النَّاسُ بِهِمْ» (الطارق)",
         "قال رسول الله ﷺ: «إِنَّ اللَّهَ لَا يُظْهِرُ مَن يَشَاءُ فِي الْأَرْضِ» (المؤمنون)",
-        "قال رسول الله ﷺ: «مَنْ قُرِبَ مَنْنَا فَكُنْ فِي الْمُؤْمِنِينَ» (الفتح),
-        "قال رسول الله ﷺ: «وَرِزْقُ الْهُدْيَ لِلَّذِينَ اتَّقَوْا» (يونس),
-        "قال رسول الله ﷺ: «إِنَّ مَثَانِيَ الْقُرْآنِ لَتَجْرِي عَلَى اللَّهِ لَيْلَةَ الْقَدْرِ» (القدر),
-        "قال رسول الله ﷺ: «مَثَانِيَ الْقُرْآنِ» (القدر),
-        "قال رسول الله ﷺ: «وَفِي الْكِتَابِ مِنَ الْقُرْآنِ مَا لَمْ يَتَواضَعْ لَهُ» (الرعد),
-        "قال رسول الله ﷺ: «السَّمَاءِ وَالطَّارِقِ وَالْأَعْمَالِ» (الملك),
-        "قال رسول الله ﷺ: «إِنَّ اللهَ لَمَّا بُشِّرَ الْمُؤْمِنَ بِالْجَنَّةِ» (الحديد),
-        "قال رسول الله ﷺ: «وَلِلَّهِ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ» (الحشر),
+        "قال رسول الله ﷺ: «مَنْ قُرِبَ مَنْنَا فَكُنْ فِي الْمُؤْمِنِينَ» (الفتح)",
+        "قال رسول الله ﷺ: «وَرِزْقُ الْهُدْيَ لِلَّذِينَ اتَّقَوْا» (يونس)",
+        "قال رسول الله ﷺ: «إِنَّ مَثَانِيَ الْقُرْآنِ لَتَجْرِي عَلَى اللَّهِ لَيْلَةَ الْقَدْرِ» (القدر)",
+        "قال رسول الله ﷺ: «مَثَانِيَ الْقُرْآنِ» (القدر)",
+        "قال رسول الله ﷺ: «وَفِي الْكِتَابِ مِنَ الْقُرْآنِ مَا لَمْ يَتَواضَعْ لَهُ» (الرعد)",
+        "قال رسول الله ﷺ: «السَّمَاءِ وَالطَّارِقِ وَالْأَعْمَالِ» (الملك)",
+        "قال رسول الله ﷺ: «إِنَّ اللهَ لَمَّا بُشِّرَ الْمُؤْمِنَ بِالْجَنَّةِ» (الحديد)",
+        "قال رسول الله ﷺ: «وَلِلَّهِ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ» (الحشر)",
         "قال رسول الله ﷺ: «إِنَّمَا الْإِيمَانُ بِالإِيمَانِ بِالنِّيَّاتِ» (النصر)",
         "قال رسول الله ﷺ: «الصِّلَاحُ فِي الْإِيمَانِ» (سنن أبي داود)",
-        "قال رسول الله ﷺ: «مَنْ تَصَلَّى بِهِ الْقَبُولُ فِي الْجَنَّةِ» (النساء)
+        "قال رسول الله ﷺ: «مَنْ تَصَلَّى بِهِ الْقَبُولُ فِي الْجَنَّةِ» (النساء)"
     )
     /** مصدر الحقيقة الوحيد: إعدادات الإشعارات الموحّدة */
     fun isDailyHadithEnabled(context: Context): Boolean {
@@ -118,7 +119,7 @@ object AppNotificationService {
     fun getDailyHadithTime(context: Context): Pair<Int, Int> {
         val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         return Pair(
-            prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+            prefs.getInt(KEY_DAILY_HADITH_HOUR, 9),
             prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
         )
     }
@@ -132,24 +133,37 @@ object AppNotificationService {
         if (isDailyHadithEnabled(context)) scheduleDailyHadithAlarm(context)
     }
 
-    fun triggerDailyHadithNow(context: Context, force: Boolean = false): String {
-        val dayOfWeek = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
-        val index = when (dayOfWeek) {
-            Calendar.SUNDAY -> 0
-            Calendar.MONDAY -> 1
-            Calendar.TUESDAY -> 2
-            Calendar.WEDNESDAY -> 3
-            Calendar.THURSDAY -> 4
-            Calendar.FRIDAY -> 5
-            Calendar.SATURDAY -> 6
-            else -> 0
+    suspend fun triggerDailyHadithNow(context: Context, force: Boolean = false): String {
+        val calendar = Calendar.getInstance()
+        val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+        
+        // محاولة جلب الحديث من السحابة أولاً
+        val cloudHadith = DailyHadithRepository.getHadithForDay(context, dayOfYear)
+        
+        val hadithText = if (cloudHadith != null) {
+            "قال رسول الله ﷺ: «${cloudHadith.text}»\n— ${cloudHadith.narrator} (${cloudHadith.book})\n💡 ومضة: ${cloudHadith.benefit}"
+        } else {
+            // Fallback to local catalog if cloud fails or empty
+            val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+            val index = when (dayOfWeek) {
+                Calendar.SUNDAY -> 0
+                Calendar.MONDAY -> 1
+                Calendar.TUESDAY -> 2
+                Calendar.WEDNESDAY -> 3
+                Calendar.THURSDAY -> 4
+                Calendar.FRIDAY -> 5
+                Calendar.SATURDAY -> 6
+                else -> 0
+            }
+            HADITH_CATALOG[index % HADITH_CATALOG.size]
         }
-        val hadith = HADITH_CATALOG[index % HADITH_CATALOG.size]
-        if (!force && !isDailyHadithEnabled(context)) return hadith
+
+        if (!force && !isDailyHadithEnabled(context)) return hadithText
+        
         val title = "📖 حديث اليوم النبوي الشريف"
-        recordNotification(context, title, hadith, category = CATEGORY_HADITH)
-        postHadithSystemNotification(context, title, hadith)
-        return hadith
+        recordNotification(context, title, hadithText, category = CATEGORY_HADITH)
+        postHadithSystemNotification(context, title, hadithText)
+        return hadithText
     }
 
     fun scheduleDailyHadithAlarm(context: Context) {
@@ -452,10 +466,17 @@ object AppNotificationService {
 
 class DailyHadithReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (AppNotificationService.isDailyHadithEnabled(context)) {
-            AppNotificationService.triggerDailyHadithNow(context)
-            // 🔑 إعادة جدولة تنبيه الغد (منبه لمرة واحدة بدل التكرار غير الدقيق)
-            AppNotificationService.scheduleDailyHadithAlarm(context)
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (AppNotificationService.isDailyHadithEnabled(context)) {
+                    AppNotificationService.triggerDailyHadithNow(context)
+                    // 🔑 إعادة جدولة تنبيه الغد (منبه لمرة واحدة بدل التكرار غير الدقيق)
+                    AppNotificationService.scheduleDailyHadithAlarm(context)
+                }
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 }

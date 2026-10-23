@@ -886,7 +886,7 @@ fun CloudApiHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🔑 مفاتيح API", "⚡ المراقبة الحية (14)", "🔌 الموصلات السحابية", "🚀 تبديل النماذج والسرعة")
+    val tabs = listOf("🔑 مفاتيح API", "⚡ المراقبة الحية (14)", "🌐 مرصد نقاط السحابة والصيانة (12)", "🚀 تبديل النماذج والسرعة")
 
     DevHubScaffold(
         title = "مركز المفاتيح والربط السحابي",
@@ -3468,9 +3468,11 @@ fun NotificationsSection(context: Context) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
-                        val sentHadith = AppNotificationService.triggerDailyHadithNow(context)
-                        sentNotifications = AppNotificationService.getNotifications(context)
-                        Toast.makeText(context, "تم إرسال حديث اليوم كـ إشعار بنجاح! ✨", Toast.LENGTH_SHORT).show()
+                        notificationScope.launch {
+                            val sentHadith = AppNotificationService.triggerDailyHadithNow(context)
+                            sentNotifications = AppNotificationService.getNotifications(context)
+                            Toast.makeText(context, "تم إرسال حديث اليوم كـ إشعار بنجاح! ✨", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth().height(42.dp),
                     shape = RoundedCornerShape(8.dp),

@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -31,6 +32,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -90,31 +92,27 @@ fun SpatialDraggableDevCameraButton(
 
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
-    // Settings
-    var isCompactMode by remember { mutableStateOf(prefs.getBoolean("spatial_cam_compact_mode", false)) }
-    var isDockedMode by remember { mutableStateOf(prefs.getBoolean("spatial_cam_docked_mode", false)) }
-    var singleTapInstantSnap by remember {
-        mutableStateOf(prefs.getBoolean("spatial_cam_tap_instant_snap", false))
+    // Settings (Managed reactively by SpatialCameraPreferencesManager)
+    LaunchedEffect(Unit) {
+        SpatialCameraPreferencesManager.init(context)
     }
+    val isCompactMode by SpatialCameraPreferencesManager.compactMode.collectAsState()
+    val isDockedMode by SpatialCameraPreferencesManager.dockedMode.collectAsState()
+    val singleTapInstantSnap by SpatialCameraPreferencesManager.tapInstantSnap.collectAsState()
+    val skipWhiteFlashDelay by SpatialCameraPreferencesManager.skipWhiteFlash.collectAsState()
+    val idleAlpha by SpatialCameraPreferencesManager.idleAlpha.collectAsState()
+    val hapticEnabled by SpatialCameraPreferencesManager.hapticEnabled.collectAsState()
 
-    // Dialog state
     var showMainHubDialog by remember { mutableStateOf(false) }
     var showPreviewDialog by remember { mutableStateOf(false) }
     var showMetricsInspectorDialog by remember { mutableStateOf(false) }
     var showPrecisionDiagnosticDialog by remember { mutableStateOf(false) }
     var currentTelemetry by remember { mutableStateOf<PrecisionDiagnosticEngine.DiagnosticTelemetry?>(null) }
-
     var latestScreenshotBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var latestScreenshotFile by remember { mutableStateOf<File?>(null) }
-
     var isCapturing by remember { mutableStateOf(false) }
     var showFlashEffect by remember { mutableStateOf(false) }
-    // عدّاد تنازلي يظهر أثناء مهلة التثبيت قبل التقاط اللقطة (1 ثانية)
     var captureCountdown by remember { mutableIntStateOf(0) }
-    // تخطي الوميض الأبيض: تأخير الالتقاط ثانية واحدة حتى تستقر الواجهة
-    var skipWhiteFlashDelay by remember {
-        mutableStateOf(prefs.getBoolean("spatial_cam_skip_white_flash", true))
-    }
 
     // Animation
     val infiniteTransition = rememberInfiniteTransition(label = "DevCamTransition")
@@ -228,6 +226,9 @@ fun SpatialDraggableDevCameraButton(
         }
 
         fun handleButtonClick() {
+            if (hapticEnabled) {
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            }
             if (singleTapInstantSnap) {
                 captureScreenshot { _, _ ->
                     showPreviewDialog = true
@@ -300,11 +301,14 @@ fun SpatialDraggableDevCameraButton(
                     modifier = Modifier
                         .offset { IntOffset(dockedX.roundToInt(), clampedDockedY.roundToInt()) }
                         .size(width = 48.dp, height = 64.dp)
+                        .alpha(idleAlpha)
                         .testTag("spatial_cam_docked_pill")
                         .clickable {
+                            if (hapticEnabled) {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            }
                             AppSoundManager.playActivate()
-                            isDockedMode = false
-                            prefs.edit().putBoolean("spatial_cam_docked_mode", false).apply()
+                            SpatialCameraPreferencesManager.setDockedMode(false)
                             showMainHubDialog = true
                         },
                     contentAlignment = if (isNearRightEdge) Alignment.CenterEnd else Alignment.CenterStart
@@ -361,11 +365,15 @@ fun SpatialDraggableDevCameraButton(
                     modifier = Modifier
                         .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
                         .size(btnSizeDp)
+                        .alpha(if (isDragging) 1.0f else idleAlpha)
                         .testTag("spatial_draggable_dev_camera_button")
                         .pointerInput(containerWidthPx, containerHeightPx) {
                             detectDragGestures(
                                 onDragStart = {
                                     isDragging = true
+                                    if (hapticEnabled) {
+                                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                    }
                                     AppSoundManager.playClick()
                                 },
                                 onDragEnd = {
@@ -561,20 +569,16 @@ fun SpatialDraggableDevCameraButton(
                     onOpenMyReports()
                 },
                 onToggleCompact = { compact ->
-                    isCompactMode = compact
-                    prefs.edit().putBoolean("spatial_cam_compact_mode", compact).apply()
+                    SpatialCameraPreferencesManager.setCompactMode(compact)
                 },
                 onToggleDocked = { docked ->
-                    isDockedMode = docked
-                    prefs.edit().putBoolean("spatial_cam_docked_mode", docked).apply()
+                    SpatialCameraPreferencesManager.setDockedMode(docked)
                 },
                 onToggleInstantSnap = { instant ->
-                    singleTapInstantSnap = instant
-                    prefs.edit().putBoolean("spatial_cam_tap_instant_snap", instant).apply()
+                    SpatialCameraPreferencesManager.setTapInstantSnap(instant)
                 },
                 onToggleSkipWhiteFlash = { skip ->
-                    skipWhiteFlashDelay = skip
-                    prefs.edit().putBoolean("spatial_cam_skip_white_flash", skip).apply()
+                    SpatialCameraPreferencesManager.setSkipWhiteFlash(skip)
                 },
                 onSelectCorner = { corner -> snapToCorner(corner) }
             )

@@ -492,10 +492,11 @@ fun NotificationSettingsScreen(
                             currentHour = dailyHadithTime.first,
                             currentMinute = dailyHadithTime.second,
                             presets = listOf(
-                                Pair(6, 0),
-                                Pair(8, 0),
+                                Pair(7, 0),
+                                Pair(9, 0),
                                 Pair(12, 0),
-                                Pair(20, 0)
+                                Pair(16, 0),
+                                Pair(21, 0)
                             ),
                             onSelect = { h, m ->
                                 AppSoundManager.playClick()

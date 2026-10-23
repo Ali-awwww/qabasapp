@@ -2,14 +2,14 @@ package com.qabas.app
 
 import android.content.Context
 import android.util.Log
-import io.github.jan.supabase.Realtime
 import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -27,8 +27,8 @@ data class BroadcastRow(
 
 /**
  * بث الإشعارات عبر Supabase:
- * - insertBroadcast: يكتب صفًّا في جدول broadcasts (RLS: مطور فقط).
- * - subscribe: يفتح قناة Realtime ويعرض إشعارًا محليًّا عند وصول بث جديد.
+ * - insertBroadcast: يكتب صفًّا في جدول broadcasts.
+ * - fetchPendingBroadcasts: يجلب الإشعارات المعلقة ويعرضها.
  */
 object BroadcastCloudRepository {
     private const val TAG = "BroadcastCloud"
@@ -36,8 +36,6 @@ object BroadcastCloudRepository {
 
     private val _pendingBroadcast = MutableStateFlow<BroadcastRow?>(null)
     val pendingBroadcast: StateFlow<BroadcastRow?> = _pendingBroadcast.asStateFlow()
-
-    private var realtimeChannel: io.github.jan.supabase.realtime.RealtimeChannel? = null
 
     suspend fun insertBroadcast(
         title: String,
@@ -55,45 +53,30 @@ object BroadcastCloudRepository {
         }
     }
 
-    fun subscribe(context: Context) {
-        if (realtimeChannel != null) return
+    suspend fun checkPendingBroadcasts(context: Context) = withContext(Dispatchers.IO) {
         try {
-            val client = SupabaseServices.client ?: return
-            val channel = client.realtime.channel("broadcasts") {
+            val client = SupabaseServices.client ?: return@withContext
+            val pending = client.from(TABLE).select {
                 filter { eq("status", "pending") }
+            }.decodeList<BroadcastRow>()
+
+            for (row in pending) {
+                _pendingBroadcast.value = row
+                deliverLocalNotification(context, row)
             }
-            channel.onPostgresChanges(
-                event = io.github.jan.supabase.realtime.PostgresChangeEvent.INSERT,
-                schema = "public",
-                table = TABLE,
-                filter = io.github.jan.supabase.realtime.PostgresChangeFilter.eq("status", "pending")
-            ) { payload ->
-                try {
-                    val record = payload.record
-                    if (record != null) {
-                        val json = kotlinx.serialization.json.Json {
-                            ignoreUnknownKeys = true
-                        }
-                        val row = json.decodeFromString<BroadcastRow>(record.toString())
-                        _pendingBroadcast.value = row
-                        // عرض إشعار محلي
-                        deliverLocalNotification(context, row)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "realtime payload parse failed", e)
-                }
-            }
-            channel.subscribe()
-            realtimeChannel = channel
-            Log.d(TAG, "Realtime channel subscribed")
         } catch (e: Exception) {
-            Log.e(TAG, "subscribe failed", e)
+            Log.e(TAG, "checkPendingBroadcasts failed", e)
+        }
+    }
+
+    fun subscribe(context: Context) {
+        CoroutineScope(Dispatchers.IO).launch {
+            checkPendingBroadcasts(context)
         }
     }
 
     fun unsubscribe() {
-        realtimeChannel?.unsubscribe()
-        realtimeChannel = null
+        _pendingBroadcast.value = null
     }
 
     private fun deliverLocalNotification(context: Context, row: BroadcastRow) {
@@ -108,8 +91,9 @@ object BroadcastCloudRepository {
         }
         if (!matches) return
         AppNotificationService.sendNotification(context, row.title, row.message)
-        // تحديث الحالة إلى sent
-        markAsSent(row.id)
+        CoroutineScope(Dispatchers.IO).launch {
+            markAsSent(row.id)
+        }
     }
 
     suspend fun markAsSent(broadcastId: String) = withContext(Dispatchers.IO) {

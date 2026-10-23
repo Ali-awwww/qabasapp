@@ -11,7 +11,6 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -25,7 +24,7 @@ import kotlinx.coroutines.tasks.await
  * مستودع مصادقة Firebase وإدارة حساب المستخدم عبر Google Credential Manager
  */
 class FirebaseAuthRepository(
-    private val auth: FirebaseAuth = Firebase.auth,
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val db: FirebaseFirestore? = null
 ) {
     companion object {
@@ -33,7 +32,7 @@ class FirebaseAuthRepository(
 
         fun create(context: Context): FirebaseAuthRepository {
             val database = FirebaseManager.getFirestore(context.applicationContext)
-            return FirebaseAuthRepository(Firebase.auth, database)
+            return FirebaseAuthRepository(FirebaseAuth.getInstance(), database)
         }
     }
 
