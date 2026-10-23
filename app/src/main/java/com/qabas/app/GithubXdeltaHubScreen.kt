@@ -1059,7 +1059,7 @@ fun GithubXdeltaHubScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (info.deltaUsable) {
+                                if (updateInfoObj.deltaUsable) {
                                     Button(
                                         onClick = {
                                             isDownloading = true
