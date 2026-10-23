@@ -37,6 +37,10 @@ class QabasApplication : Application() {
         AgentPrefs.init(this)
         LocalAccountRegistry.init(this)
 
+        // تحقق من نجاح أي تثبيت سابق: إن أصبح الإصدار المثبّت أحدث، امسح
+        // السجل والحزم القديمة؛ وإن بقيت حزمة جاهزة أعد إشعار «تثبيت الآن».
+        runCatching { UpdateManager.reconcilePendingInstall(this) }
+
         // مهام بدء التشغيل: تحديث الإعدادات البعيدة + استقبال إشعارات البث السحابية + فحص التحديث
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }

@@ -260,15 +260,6 @@ object UpdateManager {
             clearPendingInstall(context)
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            !context.packageManager.canRequestPackageInstalls()
-        ) {
-            // launchInstaller يفتح شاشة المنح ويسجّل النسخة المعلّقة للاستئناف
-            launchInstaller(context, apk)
-            return
-        }
-        // تُستهلك قبل الفتح حتى لا يُعاد فتح المثبّت بعد إلغاء المستخدم له
-        clearPendingInstall(context)
         launchInstaller(context, apk)
     }
 
@@ -293,17 +284,47 @@ object UpdateManager {
             return
         }
 
-        if (permissionGranted) {
-            // تُستهلك قبل الفتح حتى لا يُعاد فتح المثبّت بعد إلغاء المستخدم له
+        launchInstaller(context, apk)
+    }
+
+    /**
+     * تنظيف حالة التثبيت عند الإقلاع:
+     * - إن أصبح الإصدار المثبّت >= النسخة المعلّقة فالتثبيت نجح → امسح السجل
+     *   واحذف ملفات التحديث القديمة.
+     * - إن بقي أقدم والحزمة سليمة → أعِد إشعار «تثبيت الآن» (لا نفتح المثبّت
+     *   من الخلفية لأن أندرويد يحجب ذلك).
+     * يعيد true إذا كانت هناك حزمة جاهزة للتثبيت فعلاً.
+     */
+    fun reconcilePendingInstall(context: Context): Boolean {
+        val pending = pendingInstall ?: restorePendingInstall(context) ?: return false
+        pendingInstall = pending
+        val installedVersionCode = getCurrentVersionCode(context)
+
+        if (installedVersionCode >= pending.versionCode) {
             clearPendingInstall(context)
-            launchInstaller(context, apk)
-        } else {
-            // أول عرض في المقدمة: افتح مسار الصلاحية مرة واحدة فقط،
-            // وبعدها لا يُعاد فتح شاشة المنح تلقائياً عند كل عودة
-            pendingInstall = pending.copy(presented = true)
-            persistPendingInstall(context, pendingInstall)
-            launchInstaller(context, apk)
+            File(context.cacheDir, "updates").listFiles()?.forEach { file ->
+                if (file.isFile) runCatching { file.delete() }
+            }
+            Log.d(
+                TAG,
+                "✅ Install reconciled: ${pending.versionName}+${pending.versionCode} " +
+                    "already installed (current=$installedVersionCode)"
+            )
+            return false
         }
+
+        val apk = getValidatedDownloadedApk(
+            context, pending.versionName, pending.versionCode, pending.apkSize
+        )
+        if (apk == null) {
+            clearPendingInstall(context)
+            return false
+        }
+
+        UpdateDownloadService.notifyInstallReady(
+            context, pending.versionName, pending.versionCode, pending.apkSize
+        )
+        return true
     }
 
     fun cancelDownload(key: String) {
@@ -423,9 +444,45 @@ object UpdateManager {
     }
 
     /**
+     * يمثّل دلتا واحدة مرفقة بالريليز مع الأساس الذي بُنيت منه.
+     * الأسماء الجديدة: qabas-<target>-from-<source>.delta
+     */
+    private data class DeltaAsset(val name: String, val url: String, val size: Long)
+
+    /**
+     * يختار الدلتا المطابقة للإصدار المثبّت حالياً بدقة.
+     * - لا يعتمد أبداً على «أول/آخر» دلتا في القائمة.
+     * - يدعم الصيغة القديمة فقط عندما يكون هناك دلتا واحدة والبناء السابق مباشرة.
+     */
+    private fun selectDeltaForInstalled(
+        deltas: List<DeltaAsset>,
+        currentVersionName: String,
+        currentVersionCode: Int,
+        targetVersionCode: Int
+    ): DeltaAsset? {
+        if (deltas.isEmpty()) return null
+        val sourceTag = "$currentVersionName+$currentVersionCode"
+        val exact = deltas.filter { delta ->
+            delta.name.contains("from-$sourceTag") ||
+                delta.name.contains("from-$currentVersionCode.") ||
+                delta.name.contains("from-$currentVersionCode-")
+        }
+        if (exact.isNotEmpty()) return exact.maxByOrNull { it.size }
+
+        val legacy = deltas.filter { !it.name.contains("-from-") }
+        if (legacy.size == 1 && currentVersionCode == targetVersionCode - 1) {
+            return legacy.first()
+        }
+        return null
+    }
+
+    private fun parseReleaseVersionCode(tag: String): Int = parseVersionCode(tag)
+
+    /**
      * فحص أحدث ريليز على GitHub Releases — القناة الرسمية للتحديث التلقائي.
-     * يرمي استثناء عند فشل الفحص نفسه (شبكة/API) ويعيد null عند «لا تحديث»،
-     * ليتيح للمُستدعي التمييز بين الحالتين.
+     * يقرأ قائمة الإصدارات (وليست /latest فقط) ويختار أعلى رقم بناء فعلي،
+     * حتى لو كان أحدث إصدار منشوراً ليس هو الأعلى أو كانت هناك إصدارات متعددة.
+     * يرمي استثناء عند فشل الفحص نفسه (شبكة/API) ويعيد null عند «لا تحديث».
      */
     private suspend fun checkGitHubLatestRelease(context: Context): UpdateInfo? = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -436,9 +493,11 @@ object UpdateManager {
         val effectiveToken = getEffectiveToken(context)
 
         val requestBuilder = Request.Builder()
-            .url("https://api.github.com/repos/$effectiveRepo/releases/latest")
+            .url("https://api.github.com/repos/$effectiveRepo/releases?per_page=20")
             .header("Accept", "application/vnd.github.v3+json")
             .header("User-Agent", "Qabas-Studio")
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
 
         if (!effectiveToken.isNullOrBlank()) {
             requestBuilder.header("Authorization", "Bearer $effectiveToken")
@@ -453,75 +512,111 @@ object UpdateManager {
         }
 
         val body = response.body?.string() ?: throw IllegalStateException("استجابة فارغة من GitHub")
-        val json = org.json.JSONObject(body)
-        val tagName = json.optString("tag_name", "")
-        val releaseNotes = json.optString("body", "")
-        val assets = json.getJSONArray("assets")
-
-        // وسم +N هو عقد قناة التحديث: رقم البناء من الوسم نفسه.
-        // الوسم البسيط بلا رقم بناء غير مدعوم (لا يمكن التحقق من الحزمة بدقة).
-        val tagHasBuildNumber = tagName.contains("+")
-        if (!tagHasBuildNumber) {
-            Log.w(TAG, "⚠️ Release tag without build number ($tagName) — unsupported, skipping")
-            prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
-            return@withContext null
-        }
-        val releaseVersionCode = parseVersionCode(tagName)
-        val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
-
-        if (tagHasBuildNumber && releaseVersionCode <= currentVersionCode) {
-            prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
-            return@withContext null
-        }
-        if (!tagHasBuildNumber && compareVersionNames(releaseVersionName, currentVersionName) <= 0) {
+        val releases = JSONArray(body)
+        if (releases.length() == 0) {
             prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
             return@withContext null
         }
 
-        var deltaUrl: String? = null
-        var deltaSize = 0L
-        var apkUrl: String? = null
-        var apkSize = 0L
-        val xdeltaUrls = mutableMapOf<String, String>()
+        data class Candidate(
+            val tagName: String,
+            val versionName: String,
+            val versionCode: Int,
+            val releaseNotes: String,
+            val apkUrl: String,
+            val apkSize: Long,
+            val deltas: List<DeltaAsset>,
+            val xdeltaUrls: Map<String, String>
+        )
 
-        for (i in 0 until assets.length()) {
-            val asset = assets.getJSONObject(i)
-            val name = asset.getString("name")
-            val url = asset.getString("browser_download_url")
-            val size = asset.getLong("size")
-            when {
-                name.endsWith(".delta") -> {
-                    deltaUrl = url; deltaSize = size
+        var best: Candidate? = null
+        for (i in 0 until releases.length()) {
+            val release = releases.optJSONObject(i) ?: continue
+            if (release.optBoolean("draft", false)) continue
+
+            val tagName = release.optString("tag_name", "")
+            // وسم +N هو عقد قناة التحديث: رقم البناء من الوسم نفسه.
+            if (!tagName.contains("+")) continue
+
+            val releaseVersionCode = parseReleaseVersionCode(tagName)
+            if (releaseVersionCode <= currentVersionCode) continue
+
+            val assets = release.optJSONArray("assets") ?: continue
+            var apkUrl: String? = null
+            var apkSize = 0L
+            val deltas = mutableListOf<DeltaAsset>()
+            val xdeltaUrls = mutableMapOf<String, String>()
+
+            for (j in 0 until assets.length()) {
+                val asset = assets.optJSONObject(j) ?: continue
+                val name = asset.optString("name")
+                val url = asset.optString("browser_download_url")
+                val size = asset.optLong("size", 0L)
+                when {
+                    name.endsWith(".delta") -> deltas += DeltaAsset(name, url, size)
+                    name.endsWith(".apk") -> {
+                        // اختيار أكبر APK (الحزمة الكاملة) لو أُرفق أكثر من ملف
+                        if (apkUrl == null || size > apkSize) {
+                            apkUrl = url
+                            apkSize = size
+                        }
+                    }
+                    name.startsWith("xdelta3-") -> xdeltaUrls[name] = url
                 }
-                name.endsWith(".apk") -> {
-                    apkUrl = url; apkSize = size
-                }
-                name.startsWith("xdelta3-") -> {
-                    xdeltaUrls[name] = url
-                }
+            }
+
+            if (apkUrl == null) continue
+
+            val candidate = Candidate(
+                tagName = tagName,
+                versionName = tagName.removePrefix("v").trim().substringBefore("+"),
+                versionCode = releaseVersionCode,
+                releaseNotes = release.optString("body", ""),
+                apkUrl = apkUrl,
+                apkSize = apkSize,
+                deltas = deltas,
+                xdeltaUrls = xdeltaUrls
+            )
+            val currentBest = best
+            if (currentBest == null || candidate.versionCode > currentBest.versionCode) {
+                best = candidate
             }
         }
 
-        if (apkUrl == null) {
-            Log.w(TAG, "⚠️ No APK in release")
+        val candidate = best
+        if (candidate == null) {
+            prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
             return@withContext null
         }
 
+        val chosenDelta = selectDeltaForInstalled(
+            candidate.deltas,
+            currentVersionName,
+            currentVersionCode,
+            candidate.versionCode
+        )
+
         prefs.edit()
             .putLong("update_last_check", System.currentTimeMillis())
-            .putInt("update_last_version_code", releaseVersionCode)
+            .putInt("update_last_version_code", candidate.versionCode)
             .apply()
 
-        Log.d(TAG, "✅ Update found: $tagName")
+        Log.d(
+            TAG,
+            "✅ Update found: ${candidate.tagName} | delta=" +
+                (chosenDelta?.name ?: "none (full APK)") +
+                " | installed=$currentVersionName+$currentVersionCode"
+        )
+
         UpdateInfo(
-            versionName = tagName.removePrefix("v").trim().substringBefore("+"),
-            versionCode = releaseVersionCode,
-            deltaUrl = deltaUrl,
-            apkUrl = apkUrl!!,
-            releaseNotes = releaseNotes,
-            deltaSize = deltaSize,
-            apkSize = apkSize,
-            xdeltaUrls = xdeltaUrls
+            versionName = candidate.versionName,
+            versionCode = candidate.versionCode,
+            deltaUrl = chosenDelta?.url,
+            apkUrl = candidate.apkUrl,
+            releaseNotes = candidate.releaseNotes,
+            deltaSize = chosenDelta?.size ?: 0L,
+            apkSize = candidate.apkSize,
+            xdeltaUrls = candidate.xdeltaUrls
         )
     }
 
@@ -754,14 +849,11 @@ object UpdateManager {
                         if (isApkValid(context, patched, update.versionCode)) {
                             withContext(Dispatchers.Main) {
                                 if (appInForeground) {
-                                    // المقدمة: اعرض واجهة التثبيت فوراً — عند غياب الصلاحية
-                                    // يُسجّل التعليق بالهوية والحجم المتوقع ويُفتح مسار
-                                    // الصلاحية مرة واحدة فقط
-                                    val permGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-                                        context.packageManager.canRequestPackageInstalls()
-                                    if (permGranted) clearPendingInstall(context)
-                                    else setPendingInstall(context, update.versionName, update.versionCode, update.apkSize)
-                                    runCatching { launchInstaller(context, patched) }
+                                    // المقدمة: سجّل النسخة ثم افتح المثبّت. تُستهلك
+                                    // النسخة فقط إذا فُتح المثبّت فعلاً، وإلا تبقى
+                                    // قابلة للاستئناف (صلاحية/فشل فتح).
+                                    setPendingInstall(context, update.versionName, update.versionCode, update.apkSize)
+                                    launchInstaller(context, patched)
                                 } else {
                                     // الخلفية: سجّل التثبيت الجاهز ليُعرض عند عودة
                                     // المستخدم (الإشعار متاح أيضاً إن لم تُرفض الإشعارات)
@@ -806,14 +898,10 @@ object UpdateManager {
                     } else {
                         withContext(Dispatchers.Main) {
                             if (appInForeground) {
-                                // المقدمة: اعرض واجهة التثبيت فوراً — عند غياب الصلاحية
-                                // يُسجّل التعليق بالهوية والحجم المتوقع ويُفتح مسار
-                                // الصلاحية مرة واحدة فقط
-                                val permGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-                                    context.packageManager.canRequestPackageInstalls()
-                                if (permGranted) clearPendingInstall(context)
-                                else setPendingInstall(context, update.versionName, update.versionCode, update.apkSize)
-                                runCatching { launchInstaller(context, apkFile) }
+                                // المقدمة: سجّل النسخة ثم افتح المثبّت. تُستهلك
+                                // النسخة فقط إذا فُتح المثبّت فعلاً.
+                                setPendingInstall(context, update.versionName, update.versionCode, update.apkSize)
+                                launchInstaller(context, apkFile)
                             } else {
                                 // الخلفية: سجّل التثبيت الجاهز ليُعرض عند عودة
                                 // المستخدم (الإشعار متاح أيضاً إن لم تُرفض الإشعارات)
@@ -1132,26 +1220,36 @@ object UpdateManager {
         }
     }
 
-    fun launchInstaller(context: Context, apkFile: File) {
+    /**
+     * يفتح مثبّت النظام لحزمة محددة.
+     * يعيد true فقط إذا فُتح المثبّت فعلاً (وتُستهلك النسخة المعلّقة عندها).
+     * عند غياب صلاحية المصادر المجهولة يفتح شاشة المنح ويسجّل النسخة
+     * للاستئناف عند العودة، ويعيد false.
+     */
+    fun launchInstaller(context: Context, apkFile: File): Boolean {
+        val archiveInfo = runCatching {
+            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+        }.getOrNull()
+        val archiveName = archiveInfo?.versionName ?: ""
+        val archiveCode = archiveInfo
+            ?.let { PackageInfoCompat.getLongVersionCode(it).toInt() } ?: -1
+
+        fun recordPending(presented: Boolean) {
+            if (archiveName.isBlank() || archiveCode <= 0) return
+            val existing = pendingInstall ?: restorePendingInstall(context)
+            val size = if (existing != null && existing.versionName == archiveName &&
+                existing.versionCode == archiveCode
+            ) existing.apkSize else 0L
+            val record = PendingInstallRecord(archiveName, archiveCode, size, presented)
+            pendingInstall = record
+            persistPendingInstall(context, record)
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!context.packageManager.canRequestPackageInstalls()) {
                 // سجّل النسخة المعلّقة من بيانات الحزمة نفسها (اسم + رقم بناء)،
-                // مع الحفاظ على الحجم المتوقع إن كانت الهوية نفسها مسجّلة مسبقاً،
                 // وعلّم «عُرض مسار الصلاحية» فوراً — شاشة المنح تُفتح مرة واحدة فقط
-                runCatching {
-                    val archive = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                    if (archive != null) {
-                        val name = archive.versionName ?: ""
-                        val code = PackageInfoCompat.getLongVersionCode(archive).toInt()
-                        val existing = pendingInstall
-                        val size = if (existing != null && existing.versionName == name &&
-                            existing.versionCode == code
-                        ) existing.apkSize else 0L
-                        val record = PendingInstallRecord(name, code, size, presented = true)
-                        pendingInstall = record
-                        persistPendingInstall(context, record)
-                    }
-                }
+                recordPending(presented = true)
                 try {
                     context.startActivity(
                         Intent(
@@ -1164,9 +1262,10 @@ object UpdateManager {
                         "فعّل «السماح من هذا المصدر» وسيُستأنف التثبيت تلقائياً",
                         android.widget.Toast.LENGTH_LONG
                     ).show()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Log.e(TAG, "Could not open unknown-sources settings: ${e.message}")
                 }
-                return
+                return false
             }
         }
         // كشف تعارض التوقيع قبل فتح المثبّت: النسخة المثبتة موقّعة بمفتاح مختلف
@@ -1176,17 +1275,36 @@ object UpdateManager {
                 "النسخة المثبتة موقّعة بمفتاح مختلف — لا يمكن التحديث فوقها، أزل النسخة القديمة يدوياً ثم ثبّت الجديدة",
                 android.widget.Toast.LENGTH_LONG
             ).show()
-            return
+            return false
         }
-        val uri = FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", apkFile
-        )
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
+
+        // سجّل أولاً حتى لا تضيع الفرصة إذا رفض النظام فتح المثبّت
+        if (pendingInstall == null && archiveName.isNotBlank() && archiveCode > 0) {
+            recordPending(presented = false)
+        }
+
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", apkFile
+            )
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            // تُستهلك قبل أن يلغيها المستخدم حتى لا يُعاد فتح المثبّت تلقائياً
+            clearPendingInstall(context)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "launchInstaller failed: ${e.message}", e)
+            android.widget.Toast.makeText(
+                context,
+                "تعذّر فتح مثبّت النظام — استخدم زر «تثبيت» من مركز التنزيلات",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            false
+        }
     }
 
     /**
