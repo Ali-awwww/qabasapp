@@ -3424,8 +3424,8 @@ fun NotificationsSection(context: Context) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -3487,8 +3487,8 @@ fun NotificationsSection(context: Context) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("إرسال إشعار عام للمستخدمين", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -3573,7 +3573,8 @@ fun NotificationsSection(context: Context) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF111111)),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(notif.title, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
