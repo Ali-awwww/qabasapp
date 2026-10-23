@@ -3563,7 +3563,7 @@ fun NotificationsSection(context: Context) {
             }
         }
 
-        Text("التنبيه يُنشر الآن ضمن قناة الإشعارات الحالية بتطبيق قبس.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+        Text("البث يعمل عبر Supabase Realtime — يصل كل الأجهزة المتصلة فوراً.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
 
         if (sentNotifications.isEmpty()) {
             Text("لا توجد إشعارات مرسلة حالياً", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp)

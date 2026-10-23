@@ -44,7 +44,7 @@ class QabasApplication : Application() {
         // مهام بدء التشغيل: تحديث الإعدادات البعيدة + استقبال إشعارات البث السحابية + فحص التحديث
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }
-            // الإشعارات locale: no cloud inbox needed
+            runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }
             // الطبيب الحي: فحص خفيف دوري (كل 6 ساعات) + علاج صامت للكاش فقط
             runCatching { DoctorMonitor.maybeRun(this@QabasApplication) }
             // فحص التحديث في الخلفية تلقائياً وبدء التنزيل فوراً إذا وجد إصدار أحدث مع إظهاره بمركز التنزيلات
