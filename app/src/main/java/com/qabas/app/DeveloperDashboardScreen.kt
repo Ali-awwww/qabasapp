@@ -3521,51 +3521,16 @@ fun NotificationsSection(context: Context) {
                     shape = RoundedCornerShape(8.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // الشريحة المستهدفة
-                Text("الشريحة المستهدفة", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                var notifTarget by remember { mutableStateOf("all") }
-                var notifDelayHours by remember { mutableStateOf(0) }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("all" to "الكل", "premium" to "المميزون", "developers" to "المطورون").forEach { (key, label) ->
-                        FilterChip(
-                            selected = notifTarget == key,
-                            onClick = { notifTarget = key },
-                            label = { Text(label, fontFamily = CairoFont, fontSize = 11.sp) }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                // موعد الإرسال
-                Text("موعد الإرسال", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(0 to "فوري", 1 to "بعد ساعة", 6 to "بعد 6 ساعات", 24 to "بعد يوم").forEach { (hours, label) ->
-                        FilterChip(
-                            selected = notifDelayHours == hours,
-                            onClick = { notifDelayHours = hours },
-                            label = { Text(label, fontFamily = CairoFont, fontSize = 11.sp) }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
                         if (notifTitle.isNotBlank() && notifMessage.isNotBlank()) {
                             val title = notifTitle
                             val message = notifMessage
-                            val target = notifTarget
-                            val sendAt = if (notifDelayHours > 0) System.currentTimeMillis() + notifDelayHours * 3600_000L else 0L
-                            // الفوري يُعرض محلياً أيضاً؛ المجدول يصل الأجهزة عند موعده فقط
-                            if (notifDelayHours == 0) {
-                                AppNotificationService.sendNotification(context, title, message)
-                                sentNotifications = AppNotificationService.getNotifications(context)
-                            }
                             notificationScope.launch {
-                                val id = RemoteNotificationsManager.sendBroadcast(context, title, message, target, sendAt)
-                                val toast = if (id != null) {
-                                    if (notifDelayHours > 0) "جُدول البث (بعد $notifDelayHours ساعة) ✅"
-                                    else "تم بث الإشعار سحابياً لجميع الأجهزة ✅"
-                                } else "فشل البث: ${RemoteNotificationsManager.lastSendResult.value}"
+                                val id = RemoteNotificationsManager.sendBroadcast(context, title, message)
+                                val toast = if (id != null) "تم إرسال الإشعار بنجاح ✅" else "فشل الإرسال: ${RemoteNotificationsManager.lastSendResult.value}"
                                 Toast.makeText(context, toast, Toast.LENGTH_LONG).show()
+                                sentNotifications = AppNotificationService.getNotifications(context)
                             }
                             notifTitle = ""
                             notifMessage = ""
@@ -3579,43 +3544,7 @@ fun NotificationsSection(context: Context) {
                 ) {
                     Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        if (notifDelayHours > 0) "جدولة الإشعار" else "إرسال الإشعار الآن",
-                        color = Color.Black, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp
-                    )
-                }
-            }
-        }
-
-        // البثّات المجدولة (لم يحن موعدها) مع إلغاء
-        val cloudBroadcasts by RemoteNotificationsManager.observeBroadcasts().collectAsState(initial = emptyList())
-        val pendingBroadcasts = cloudBroadcasts.filter { it.dueAt > System.currentTimeMillis() }
-        if (pendingBroadcasts.isNotEmpty()) {
-            Text("بثّات مجدولة (${pendingBroadcasts.size})", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            pendingBroadcasts.forEach { b ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = CardSurface),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f))
-                ) {
-                    Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(b.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(
-                                "إلى ${mapOf("all" to "الكل", "premium" to "المميزون", "developers" to "المطورون")[b.target] ?: b.target} • ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(b.dueAt))}",
-                                color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp
-                            )
-                        }
-                        TextButton(onClick = {
-                            notificationScope.launch {
-                                val ok = RemoteNotificationsManager.cancelBroadcast(b.id)
-                                Toast.makeText(context, if (ok) "أُلغي البث المجدول" else "فشل الإلغاء", Toast.LENGTH_SHORT).show()
-                            }
-                        }) {
-                            Text("إلغاء", color = Color.Red, fontFamily = CairoFont, fontSize = 12.sp)
-                        }
-                    }
+                    Text("إرسال الإشعار الآن", color = Color.Black, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }
@@ -3634,7 +3563,7 @@ fun NotificationsSection(context: Context) {
             }
         }
 
-        Text("البث السحابي يعمل عبر Firestore — يصل كل الأجهزة المتصلة مع دعم الجدولة والشرائح.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+        Text("التنبيه يُنشر الآن ضمن قناة الإشعارات الحالية بتطبيق قبس.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
 
         if (sentNotifications.isEmpty()) {
             Text("لا توجد إشعارات مرسلة حالياً", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp)
