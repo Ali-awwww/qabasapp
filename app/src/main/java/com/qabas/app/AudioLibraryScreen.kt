@@ -83,7 +83,7 @@ fun AudioLibraryScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Playback controller using background service & playlist manager
-    fun playTrack(audioUrl: String, title: String) {
+    fun playTrack(audioUrl: String, title: String, youtubeUrl: String? = null, artist: String = "قبس") {
         if (activePlayingTrack?.audioUrl == audioUrl) {
             AudioPlaybackManager.playPause(context)
             return
@@ -92,9 +92,10 @@ fun AudioLibraryScreen(
         val item = PlayableAudioTrack(
             id = audioUrl,
             title = title,
-            artist = "قبس",
+            artist = artist.ifBlank { "قبس" },
             audioUrl = audioUrl,
-            category = "صوتيات قبس"
+            category = "صوتيات قبس",
+            youtubeUrl = youtubeUrl
         )
         AudioPlaybackManager.playTrack(context, item)
     }
@@ -241,7 +242,7 @@ fun AudioLibraryScreen(
                     AudioLibrarySection(
                         activePlayingUrl = activePlayingUrl,
                         isPlaying = isPlaying,
-                        onPlayTrack = { url, title -> playTrack(url, title) },
+                        onPlayTrack = { url, title, ytUrl, author -> playTrack(url, title, ytUrl, author) },
                         onApply = { url, title -> showApplyDialog = Pair(url, title) },
                         onDownloadTrack = { url, title -> triggerDownload(url, title) },
                         heroBanner = {
@@ -421,7 +422,7 @@ fun AudioTabButton(
 fun AudioLibrarySection(
     activePlayingUrl: String?,
     isPlaying: Boolean,
-    onPlayTrack: (url: String, title: String) -> Unit,
+    onPlayTrack: (url: String, title: String, youtubeUrl: String?, author: String) -> Unit,
     onApply: (url: String, title: String) -> Unit,
     onDownloadTrack: (url: String, title: String) -> Unit = { _, _ -> },
     heroBanner: @Composable (() -> Unit)? = null
@@ -783,7 +784,7 @@ fun AudioLibrarySection(
                             ) {
                                 // Play/Pause circular button
                                 IconButton(
-                                    onClick = { onPlayTrack(track.audioUrl, track.title) },
+                                    onClick = { onPlayTrack(track.audioUrl, track.title, track.youtubeUrl, track.author) },
                                     modifier = Modifier
                                         .size(46.dp)
                                         .clip(CircleShape)
@@ -887,11 +888,40 @@ fun AudioLibrarySection(
                                     )
                                 }
 
-                                // Interactive Actions: Share, Download, Apply
+                                // Interactive Actions: YouTube, Share, Download, Apply
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    // YouTube button
+                                    OutlinedIconButton(
+                                        onClick = {
+                                            val ytUrl = if (!track.youtubeUrl.isNullOrBlank()) {
+                                                track.youtubeUrl
+                                            } else {
+                                                "https://www.youtube.com/results?search_query=${Uri.encode("${track.title} ${track.author}")}"
+                                            }
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ytUrl)).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "تعذر فتح يوتيوب", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.size(36.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFFF4444).copy(alpha = 0.6f))
+                                    ) {
+                                        Icon(
+                                            Icons.Default.OndemandVideo,
+                                            contentDescription = "مشاهدة / استماع عبر يوتيوب 📺",
+                                            tint = Color(0xFFFF4444),
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+
                                     // Share button
                                     OutlinedIconButton(
                                         onClick = { shareAudioTrack(context, track) },
@@ -1612,7 +1642,8 @@ data class LiveAudioItem(
     val audioUrl: String,
     val isAsset: Boolean = false,
     val badge: String = "قبس",
-    val author: String = ""
+    val author: String = "",
+    val youtubeUrl: String? = null
 )
 
 data class VoiceCharacter(

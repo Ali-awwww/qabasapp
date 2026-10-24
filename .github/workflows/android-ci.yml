@@ -53,12 +53,9 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          # NDK 28.2.13676358 يُثبَّت صراحةً: رانر ubuntu-latest (Ubuntu 26) لم يعد يضمّه
-          # مسبقاً، ومحاولة AGP التلقائية تفشل بـ "Archive is not a ZIP archive".
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "build-tools;36.0.0" "platforms;android-36" \
-            "ndk;28.2.13676358"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "ndk|platforms;android-36" || true
+            "platform-tools" "build-tools;36.0.0" "platforms;android-36" || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "platforms;android-36" || true
 
       - name: Fix gradle-wrapper.jar
         run: |
@@ -148,7 +145,7 @@ jobs:
             echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           elif [ ! -f "app/google-services.json" ]; then
             echo "Generating fallback google-services.json for CI build..."
-            echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiNzQ4MDQ1ODc3MzY1IiwKICAgICJwcm9qZWN0X2lkIjogImdlbi1sYW5nLWNsaWVudC0wOTM4MzY1OTAwIiwKICAgICJzdG9yYWdlX2J1Y2tldCI6ICJnZW4tbGFuZy1jbGllbnQtMDkzODM2NTkwMC5maXJlYmFzZXN0b3JhZ2UuYXBwIgogIH0sCiAgImNsaWVudCI6IFsKICAgIHsKICAgICAgImNsaWVudF9pbmZvIjogewogICAgICAgICJtb2JpbGVzZGtfYXBwX2lkIjogIjE6NzQ4MDQ1ODc3MzY1OmFuZHJvaWQ6NjA1ZWYyMGQ4NzU5MGI5ZGY4NzgzYyIsCiAgICAgICAgImFuZHJvaWRfY2xpZW50X2luZm8iOiB7CiAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogWwogICAgICAgIHsKICAgICAgICAgICJjbGllbnRfaWQiOiAiNzQ4MDQ1ODc3MzY1LWNwMWZhbjRxb3NtcnE1aDEwYjQxcm9xNGk0aWQ5b3RiLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwKICAgICAgICAgICJjbGllbnRfdHlwZSI6IDEsCiAgICAgICAgICAiYW5kcm9pZF9pbmZvIjogewogICAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiLAogICAgICAgICAgICAiY2VydGlmaWNhdGVfaGFzaCI6ICJlNGI4YTc3YzNlMjZkZTQ4Nzk5MmQ3YWIyZDVhMDQ5Y2UyZTYwYjNiIgogICAgICAgICAgfQogICAgICAgIH0KICAgICAgXSwKICAgICAgImFwaV9rZXkiOiBbCiAgICAgICAgewogICAgICAgICAgImN1cnJlbnRfa2V5IjogIkFJemFTeUNtTnpnaUl0OFA0NXRkY1daUzRNTkV5WV9NcXVzSzZ5byIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJzZXJ2aWNlcyI6IHt9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=" | base64 -d > app/google-services.json
+            echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiNzQ4MDQ1ODc3MzY1IiwKICAgICJwcm9qZWN0X2lkIjogImdlbi1sYW5nLWNsaWVudC0wOTM4MzY1OTAwIiwKICAgICJzdG9yYWdlX2J1Y2tldCI6ICJnZW4tbGFuZy1jbGllbnQtMDkzODM2NTkwMC5maXJlYmFzZXN0b3JhZ2UuYXBwIgogIH0sCiAgImNsaWVudCI6IFsKICAgIHsKICAgICAgImNsaWVudF9pbmZvIjogewogICAgICAgICJtb2JpbGVzZGtfYXBwX2lkIjogIjE6NzQ4MDQ1ODc3MzY1OmFuZHJvaWQ6NjA1ZWYyMGQ4NzU5MGI5ZGY4NzgzYyIsCiAgICAgICAgImFuZHJvaWRfY2xpZW50X2luZm8iOiB7CiAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogWwogICAgICAgIHsKICAgICAgICAgICJjbGllbnRfaWQiOiAiNzQ4MDQ1ODc3MzY1LWNwMWZhbjRxb3NtcnE1aDEwYjQxcm9xNGk0aWQ5b3RiLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwKICAgICAgICAgICJjbGllbnRfdHlwZSI6IDEsCiAgICAgICAgICAiYW5kcm9pZF9pbmZvIjogewogICAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby5xYWJhcy5reG1wenEiLAogICAgICAgICAgICAiY2VydGlmaWNhdGVfaGFzaCI6ICJlNGI4YTc3YzNlMjZkZTQ4Nzk5MmQ3YWIyZDVhMDQ5Y2UyZTYwYjNiIgogICAgICAgICAgfQogICAgICAgIH0KICAgICAgXSwKICAgICAgImFwaV9rZXkiOiBbCiAgICAgICAgewogICAgICAgICAgImN1cnJlbnRfa2V5IjogIkFJemFSeUNtTnpnaUl0OFA0NXRkY1daUzRNTkV5WV9NcXVzSzZ5byIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJzZXJ2aWNlcyI6IHt9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=" | base64 -d > app/google-services.json
           fi
           {
             echo "SUPABASE_URL=\"${SUPABASE_URL:-https://YOUR_PROJECT_REF.supabase.co}\""
@@ -176,8 +173,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          VERSION_NAME=$(grep -oP '\?: "\K[^"]+' app/build.gradle.kts | head -1)
-          BASE_CODE=$(grep -oP '\?: \K[0-9]+' app/build.gradle.kts | head -1)
+          VERSION_NAME=$(grep -oP '\?: "\K[^"]+' app/build.gradle.kts | head -1 || true)
+          BASE_CODE=$(grep -oP '\?: \K[0-9]+' app/build.gradle.kts | head -1 || true)
           VERSION_NAME=${VERSION_NAME:-1.3.3}
           BASE_CODE=${BASE_CODE:-102}
 
@@ -203,7 +200,7 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           VERSION_NAME: ${{ env.VERSION_NAME }}
           VERSION_CODE: ${{ env.VERSION_CODE }}
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -Dkotlin.daemon.jvmargs=\"-Xmx3072m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvmargs=\"-Xmx1536m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
         run: |
           ./gradlew assembleDebug \
             --stacktrace \
@@ -212,7 +209,7 @@ jobs:
             --no-build-cache \
             -PappVersionName="$VERSION_NAME" \
             -PappVersionCode="$VERSION_CODE" \
-            -Dkotlin.daemon.jvmargs="-Xmx3072m -XX:+UseG1GC"
+            -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
 
       - name: Verify APK Signature
         run: |

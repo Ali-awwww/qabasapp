@@ -1,5 +1,8 @@
 package com.qabas.app
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -170,6 +173,33 @@ fun ProAudioPlayerBar(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        // YouTube Link Button
+                        IconButton(
+                            onClick = {
+                                val ytUrl = if (!track.youtubeUrl.isNullOrBlank()) {
+                                    track.youtubeUrl!!
+                                } else {
+                                    "https://www.youtube.com/results?search_query=${Uri.encode("${track.title} ${track.artist}")}"
+                                }
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ytUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "تعذر فتح يوتيوب", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.OndemandVideo,
+                                contentDescription = "مشاهدة / استماع عبر يوتيوب 📺",
+                                tint = Color(0xFFFF4444),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
                         // Sleep Timer trigger button
                         IconButton(
                             onClick = { showSleepTimerDialog = true },

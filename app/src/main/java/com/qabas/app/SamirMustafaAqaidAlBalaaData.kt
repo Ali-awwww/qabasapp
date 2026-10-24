@@ -135,7 +135,8 @@ object SamirMustafaAqaidAlBalaaData {
                 audioUrl = lesson.audioUrl,
                 isAsset = false,
                 badge = "سلسلة عقائد البلاء",
-                author = SCHOLAR_NAME
+                author = SCHOLAR_NAME,
+                youtubeUrl = lesson.youtubeUrl
             )
         }
     }

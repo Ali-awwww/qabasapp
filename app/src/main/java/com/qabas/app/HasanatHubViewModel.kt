@@ -155,7 +155,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         PrayerTimeInfo(
             nextName = nextName,
             nextTime = nextTime,
-            countdown = String.format("%02d:%02d:%02d", h, m, s)
+            countdown = String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PrayerTimeInfo())
 

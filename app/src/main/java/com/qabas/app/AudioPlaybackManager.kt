@@ -28,7 +28,8 @@ data class PlayableAudioTrack(
     val audioUrl: String,
     val duration: String = "0:00",
     val category: String = "تلاوات قرآنية",
-    val badge: String = "سحابي"
+    val badge: String = "سحابي",
+    val youtubeUrl: String? = null
 )
 
 enum class AudioRepeatMode {
@@ -305,7 +306,12 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                         afd.close()
                     }
                     track.audioUrl.startsWith("http://") || track.audioUrl.startsWith("https://") -> {
-                        setDataSource(track.audioUrl)
+                        val headers = mapOf(
+                            "User-Agent" to ExoPlayerFactory.USER_AGENT,
+                            "Referer" to "https://www.islamweb.net/",
+                            "Accept" to "*/*"
+                        )
+                        setDataSource(applicationContext, android.net.Uri.parse(track.audioUrl), headers)
                     }
                     track.audioUrl.startsWith("/") -> {
                         val file = File(track.audioUrl)
@@ -364,7 +370,26 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                 setOnErrorListener { _, what, extra ->
                     Log.e("AudioPlaybackService", "MediaPlayer error: what=$what, extra=$extra")
                     AudioPlaybackManager.updateState(isPlaying = false)
-                    false
+                    serviceScope.launch(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            applicationContext,
+                            "تعذر البث المباشر. جارٍ التوجيه لمشاهدة الدرس عبر يوتيوب 📺...",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        val targetYt = if (!track.youtubeUrl.isNullOrBlank()) {
+                            track.youtubeUrl
+                        } else {
+                            val query = android.net.Uri.encode("${track.title} ${track.artist}")
+                            "https://www.youtube.com/results?search_query=$query"
+                        }
+                        val ytIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetYt)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try {
+                            startActivity(ytIntent)
+                        } catch (_: Exception) {}
+                    }
+                    true
                 }
 
                 prepareAsync()

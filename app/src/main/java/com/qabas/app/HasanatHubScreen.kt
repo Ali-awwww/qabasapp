@@ -383,10 +383,11 @@ fun HasanatHubScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Next Prayer
+                            // Next Prayer & Countdown Timer (Notifications Screen Style)
                             Surface(
-                                color = Color(0xFF0A0F1D).copy(alpha = 0.85f),
+                                color = Color(0xFF0A0F1D).copy(alpha = 0.9f),
                                 shape = CutCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                                border = BorderStroke(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.35f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
@@ -397,49 +398,84 @@ fun HasanatHubScreen(
                                         else onNavigate(AppState.PRAYER_TIMES)
                                     }
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .padding(10.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(34.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF0EA5E9).copy(alpha = 0.15f))
-                                                .border(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.4f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
-                                        }
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    Translator.tr("الصلاة القادمة: صلاة") + " ${Translator.tr(prayerTimeInfo.nextName)} (${prayerTimeInfo.nextTime})",
-                                                    color = Color.White,
-                                                    fontFamily = CairoFont,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Canvas(modifier = Modifier.size(7.dp)) {
-                                                    drawCircle(color = Color(0xFF10B981).copy(alpha = pulseAlpha))
-                                                }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF0EA5E9).copy(alpha = 0.15f))
+                                                    .border(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.4f), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(17.dp))
                                             }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        Translator.tr("الصلاة القادمة: صلاة") + " ${Translator.tr(prayerTimeInfo.nextName)}",
+                                                        color = Color.White,
+                                                        fontFamily = CairoFont,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Canvas(modifier = Modifier.size(7.dp)) {
+                                                        drawCircle(color = Color(0xFF10B981).copy(alpha = pulseAlpha))
+                                                    }
+                                                }
+                                                Text(
+                                                    "(${prayerTimeInfo.nextTime})",
+                                                    color = Color(0xFF38BDF8),
+                                                    fontFamily = NotoSansFont,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Countdown Timer HUD Surface (Matching Notifications Section Style)
+                                    Surface(
+                                        shape = CutCornerShape(8.dp),
+                                        color = Color.Black.copy(alpha = 0.35f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
                                             Text(
-                                                Translator.tr("متبقي على النداء:") + " ${prayerTimeInfo.countdown}",
-                                                color = Color(0xFF38BDF8),
-                                                fontFamily = NotoSansFont,
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 10.sp
+                                                text = Translator.tr("المتبقي حتى الأذان"),
+                                                fontFamily = CairoFont,
+                                                fontSize = 11.sp,
+                                                color = Color.White.copy(alpha = 0.65f)
+                                            )
+                                            Text(
+                                                text = prayerTimeInfo.countdown,
+                                                fontFamily = RobotoMonoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 22.sp,
+                                                color = Color.White,
+                                                letterSpacing = 1.sp
                                             )
                                         }
                                     }
-                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                                 }
                             }
 
