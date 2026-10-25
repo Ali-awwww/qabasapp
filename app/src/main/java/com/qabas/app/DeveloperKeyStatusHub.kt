@@ -368,6 +368,11 @@ fun DeveloperKeyStatusHub(
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ── لوحة مراقبة التكامل السحابي الحية (Firebase & Supabase) ──
+            item {
+                CloudIntegrationMonitorPanel()
+            }
+
             // بطاقة التلميتر الحية الصادقة والموجزة (Dark Luxury Glassmorphic Board)
             item {
                 Card(

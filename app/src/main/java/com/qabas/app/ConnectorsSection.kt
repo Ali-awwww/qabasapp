@@ -576,6 +576,9 @@ fun ConnectorsSection(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // ── لوحة مراقبة التكامل المزدوج (Firebase & Supabase) ──
+            CloudIntegrationMonitorPanel(showArchitectureOverview = false)
+
             // ==========================================
             // 1️⃣ لوحة التحكم السيبرانية HUD (Cyber Telemetry Matrix)
             // ==========================================
