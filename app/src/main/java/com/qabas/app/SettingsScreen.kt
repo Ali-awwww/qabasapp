@@ -71,6 +71,7 @@ fun SettingsScreen(
     onNavigateToPremiumUpgrade: () -> Unit = {},
     onNavigateToAboutUs: () -> Unit = {},
     onNavigateToRules: () -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -914,6 +915,13 @@ fun SettingsScreen(
                             icon = Icons.Default.VerifiedUser,
                             accentColor = Color(0xFF38BDF8),
                             onClick = onNavigateToAboutUs
+                        )
+                        SettingsActionCard(
+                            title = "سجل التحديثات التفصيلي",
+                            subtitle = "استعرض تاريخ تطور منظومة قبس والمزايا الجديدة",
+                            icon = Icons.Default.History,
+                            accentColor = GoldPrimary,
+                            onClick = onNavigateToHistory
                         )
                         SettingsActionCard(
                             title = "القواعد والسياسات الموحدة",

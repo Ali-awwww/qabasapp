@@ -85,9 +85,9 @@ object PatchManager {
         }
 
         // 4. تنفيذ عملية الرقعة
-        val success = UpdateManager.applyXdelta(xdeltaBinary, sourceApk, deltaFile, outputApk)
+        val result = UpdateManager.applyXdelta(xdeltaBinary, sourceApk, deltaFile, outputApk)
         
-        if (success && outputApk.exists() && outputApk.length() > 1_000_000) {
+        if (result.isSuccess && outputApk.exists() && outputApk.length() > 1_000_000) {
             // 5. التحقق من الـ APK الناتج
             if (UpdateManager.isApkValid(context, outputApk, update.versionCode)) {
                 if (outputApk.renameTo(finalApk)) {
@@ -99,8 +99,9 @@ object PatchManager {
             }
         }
 
+        val failureReason = result.exceptionOrNull()?.message ?: "خطأ غير معروف في المعالجة"
         outputApk.delete()
-        _patchState.value = PatchState.Error("فشلت معالجة ملف التحديث — جاري التحويل للتحميل الكامل")
+        _patchState.value = PatchState.Error("فشلت معالجة الرقعة: $failureReason")
         false
     }
 

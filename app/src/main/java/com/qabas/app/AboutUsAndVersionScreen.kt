@@ -80,6 +80,7 @@ https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&mlu=4&ilr=4
 @Composable
 fun AboutUsAndVersionScreen(
     onBack: () -> Unit,
+    onNavigateToHistory: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -357,6 +358,54 @@ fun AboutUsAndVersionScreen(
                                 lineHeight = 18.sp
                             )
                         }
+                    }
+                }
+            }
+
+            // 📜 سجل التغييرات الكامل (Full Detailed History Entry)
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.45f)
+                        .clickable { onNavigateToHistory() },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(GoldPrimary.copy(alpha = 0.15f))
+                                    .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.History, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "سجل التحديثات التفصيلي",
+                                    color = GoldPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    "استعرض تاريخ تطور التطبيق والمزايا الجديدة",
+                                    color = qabasTextSecondary(),
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f))
                     }
                 }
             }

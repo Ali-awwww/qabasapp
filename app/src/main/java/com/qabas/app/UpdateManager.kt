@@ -658,6 +658,86 @@ object UpdateManager {
         )
     }
 
+    suspend fun getUpdateHistory(context: Context): List<UpdateInfo> = withContext(Dispatchers.IO) {
+        try {
+            val effectiveRepo = getEffectiveRepo(context)
+            val effectiveToken = getEffectiveToken(context)
+
+            val requestBuilder = Request.Builder()
+                .url("https://api.github.com/repos/$effectiveRepo/releases?per_page=30")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "Qabas-Studio")
+
+            if (!effectiveToken.isNullOrBlank()) {
+                requestBuilder.header("Authorization", "Bearer $effectiveToken")
+            }
+
+            val response = client.newCall(requestBuilder.build()).execute()
+            if (!response.isSuccessful) return@withContext emptyList()
+
+            val body = response.body?.string() ?: return@withContext emptyList()
+            val releases = JSONArray(body)
+            val history = mutableListOf<UpdateInfo>()
+
+            for (i in 0 until releases.length()) {
+                val release = releases.optJSONObject(i) ?: continue
+                if (release.optBoolean("draft", false)) continue
+
+                val tagName = release.optString("tag_name", "")
+                val releaseVersionCode = parseReleaseVersionCode(tagName)
+                val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
+
+                val assets = release.optJSONArray("assets") ?: continue
+                var apkUrl = ""
+                var apkSize = 0L
+                val xdeltaUrls = mutableMapOf<String, String>()
+                var releaseChecksum: String? = null
+
+                for (j in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(j) ?: continue
+                    val name = asset.optString("name")
+                    val url = asset.optString("browser_download_url")
+                    val size = asset.optLong("size", 0L)
+                    when {
+                        name.endsWith(".apk") -> {
+                            if (apkUrl.isEmpty() || size > apkSize) {
+                                apkUrl = url
+                                apkSize = size
+                            }
+                        }
+                        name.startsWith("xdelta3-") -> xdeltaUrls[name] = url
+                        name.endsWith(".sha256") -> {
+                            if (name.contains("delta")) releaseChecksum = name.substringBefore(".")
+                        }
+                    }
+                }
+
+                if (apkUrl.isEmpty()) continue
+
+                val releaseNotes = release.optString("body", "")
+                val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) || 
+                             release.optString("name", "").contains("[FORCE]", ignoreCase = true)
+
+                history.add(UpdateInfo(
+                    versionName = releaseVersionName,
+                    versionCode = releaseVersionCode,
+                    deltaUrl = null, // لا نعرض الدلتا في السجل عادة
+                    apkUrl = apkUrl,
+                    releaseNotes = releaseNotes,
+                    deltaSize = 0L,
+                    apkSize = apkSize,
+                    xdeltaUrls = xdeltaUrls,
+                    isForce = isForce,
+                    checksum = releaseChecksum
+                ))
+            }
+            history.sortedByDescending { it.versionCode }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ getUpdateHistory failed: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun inspectGitHubRelease(
         context: Context,
         customRepo: String? = null,
@@ -1012,7 +1092,13 @@ object UpdateManager {
             if (patchSuccess) {
                 return UpdateManager.getDownloadedApkFile(context, update.versionName, update.versionCode)
             } else {
-                Log.w(TAG, "⚠️ PatchManager failed to apply patch")
+                val state = PatchManager.patchState.value
+                val errorMsg = if (state is PatchManager.PatchState.Error) state.message else "فشلت معالجة الرقعة"
+                Log.w(TAG, "⚠️ PatchManager failed: $errorMsg")
+                
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "فشل التحديث التفاضلي: $errorMsg", android.widget.Toast.LENGTH_LONG).show()
+                }
                 return null
             }
         } catch (e: Exception) {
@@ -1035,7 +1121,11 @@ object UpdateManager {
         val assetName = "xdelta3-$abi"
         val url = update.xdeltaUrls[assetName]
             ?: update.xdeltaUrls.entries.firstOrNull {
-                it.key.contains(abi) || (abi == "arm64-v8a" && it.key.contains("arm64"))
+                val key = it.key.lowercase()
+                key.contains(abi.lowercase()) || 
+                (abi == "arm64-v8a" && (key.contains("arm64") || key.contains("aarch64"))) ||
+                (abi == "armeabi-v7a" && (key.contains("armv7") || key.contains("armeabi"))) ||
+                (abi == "x86_64" && key.contains("amd64"))
             }?.value
 
         if (url.isNullOrBlank()) {
@@ -1070,7 +1160,7 @@ object UpdateManager {
         }
     }
 
-    internal fun applyXdelta(binary: File, source: File, delta: File, output: File): Boolean {
+    internal fun applyXdelta(binary: File, source: File, delta: File, output: File): Result<String> {
         val args = listOf(
             "-d",
             "-s", source.absolutePath,
@@ -1086,6 +1176,8 @@ object UpdateManager {
             listOf("/system/bin/linker", binary.absolutePath)
         )
         var lastFailure = "لم يُشغَّل"
+        var fullLog = ""
+        
         for (prefix in runners) {
             try {
                 val cmd = prefix + args
@@ -1093,9 +1185,13 @@ object UpdateManager {
                 val process = ProcessBuilder(cmd)
                     .redirectErrorStream(true)
                     .start()
+                
                 val log = process.inputStream.bufferedReader().readText()
+                fullLog = log
                 val code = process.waitFor()
-                if (code == 0) return true
+                
+                if (code == 0) return Result.success(log)
+                
                 lastFailure = "exit=$code via ${prefix.first()} — ${log.take(300)}"
                 Log.w(TAG, "⚠️ xdelta3 runner failed: $lastFailure")
             } catch (e: Exception) {
@@ -1103,8 +1199,9 @@ object UpdateManager {
                 Log.w(TAG, "⚠️ applyXdelta runner threw: $lastFailure")
             }
         }
+        
         Log.e(TAG, "❌ applyXdelta all runners failed — $lastFailure")
-        return false
+        return Result.failure(Exception(lastFailure + "\nLog: " + fullLog.take(200)))
     }
 
     private fun downloadFile(

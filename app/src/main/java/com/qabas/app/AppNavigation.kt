@@ -106,7 +106,8 @@ fun AppNavigation(
             AppState.AZKAR to AppState.HASANAT_HUB,
             AppState.PRAYER_TIMES to AppState.HASANAT_HUB,
             AppState.ISLAMIC_LIBRARY to AppState.HASANAT_HUB,
-            AppState.REQUEST_DETAILS to AppState.REQUEST_CHAT
+            AppState.REQUEST_DETAILS to AppState.REQUEST_CHAT,
+            AppState.UPDATE_HISTORY to AppState.ABOUT_US
         )
     }
     BackHandler(enabled = appState !in rootBackStates) {
@@ -455,13 +456,20 @@ fun AppNavigation(
                 onNavigateToPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
                 onNavigateToAboutUs = { viewModel.updateState { copy(appState = AppState.ABOUT_US) } },
                 onNavigateToRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
+                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
                 bottomBar = bottomNav
             )
         }
         AppState.ABOUT_US -> {
             AboutUsAndVersionScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
+                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
                 bottomBar = bottomNav
+            )
+        }
+        AppState.UPDATE_HISTORY -> {
+            UpdateHistoryScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.ABOUT_US) } }
             )
         }
         AppState.RULES -> {
