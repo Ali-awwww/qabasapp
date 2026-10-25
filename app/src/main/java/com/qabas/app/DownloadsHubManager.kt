@@ -789,6 +789,11 @@ object DownloadsHubManager {
                 if (update != null) {
                     Log.d(TAG, "🚀 New update detected: ${update.versionName} - starting auto download!")
                     
+                    // 🔔 إظهار نافذة التحديث HUD (للتأكد من ظهور الرسالة عند أول تشغيل)
+                    withContext(Dispatchers.Main) {
+                        UpdateManager.setPendingUpdate(update)
+                    }
+                    
                     // تحقق مما إذا كانت الحزمة منزلة وموجودة بالفعل
                     val existingApk = UpdateManager.getValidatedDownloadedApk(
                         context, update.versionName, update.versionCode, update.apkSize

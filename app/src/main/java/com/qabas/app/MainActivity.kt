@@ -192,6 +192,17 @@ class MainActivity : ComponentActivity() {
                                 PointsManager.checkAndAwardDailyLogin(this@MainActivity)
                             }
                         }
+
+                        // 🔍 فحص التحديثات عند الإقلاع
+                        launch(Dispatchers.IO) {
+                            delay(2000) // تأخير طفيف لضمان استقرار الواجهة
+                            val update = UpdateManager.checkForUpdate(this@MainActivity, force = true)
+                            if (update != null) {
+                                withContext(Dispatchers.Main) {
+                                    UpdateManager.setPendingUpdate(update)
+                                }
+                            }
+                        }
                         launch {
                             delay(2500)
                             var isFirstLoad = true
@@ -1040,6 +1051,17 @@ class MainActivity : ComponentActivity() {
         handleNotificationNavigation(intent)
         // حدّث نية النشاط حتى يعالج onResume الأحدث لا الأصلية القديمة
         setIntent(intent)
+        
+        // معالجة نية التثبيت المباشرة (إن وجد اسم ونسخة دقيقة)
+        if (intent.action == UpdateInstallReceiver.ACTION_INSTALL) {
+            val name = intent.getStringExtra(UpdateInstallReceiver.EXTRA_VERSION_NAME) ?: ""
+            val code = intent.getIntExtra(UpdateInstallReceiver.EXTRA_VERSION_CODE, -1)
+            val size = intent.getLongExtra(UpdateInstallReceiver.EXTRA_APK_SIZE, 0L)
+            if (name.isNotBlank() && code > 0) {
+                UpdateManager.setPendingInstall(this, name, code, size)
+                UpdateManager.attemptPendingInstall(this)
+            }
+        }
     }
 
     override fun onResume() {
@@ -1059,6 +1081,12 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         UpdateManager.onAppBackground()
         super.onPause()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // تنظيف حالة التحديثات القديمة وإعادة إشعار التثبيت إن كانت الحزمة جاهزة
+        UpdateManager.reconcilePendingInstall(this)
     }
 
     /**

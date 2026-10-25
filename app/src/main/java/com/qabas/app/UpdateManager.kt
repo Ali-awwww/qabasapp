@@ -536,10 +536,18 @@ object UpdateManager {
 
             val tagName = release.optString("tag_name", "")
             // وسم +N هو عقد قناة التحديث: رقم البناء من الوسم نفسه.
-            if (!tagName.contains("+")) continue
-
+            // إذا غاب، نحاول استنتاجه من اسم الإصدار
             val releaseVersionCode = parseReleaseVersionCode(tagName)
-            if (releaseVersionCode <= currentVersionCode) continue
+            val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
+
+            // نأخذ الإصدار فقط إذا كان أعلى من الحالي (برقم البناء أو الاسم)
+            val isNewer = if (tagName.contains("+")) {
+                releaseVersionCode > currentVersionCode
+            } else {
+                releaseVersionCode > currentVersionCode || compareVersionNames(releaseVersionName, currentVersionName) > 0
+            }
+
+            if (!isNewer) continue
 
             val assets = release.optJSONArray("assets") ?: continue
             var apkUrl: String? = null
@@ -556,6 +564,7 @@ object UpdateManager {
                     name.endsWith(".delta") -> deltas += DeltaAsset(name, url, size)
                     name.endsWith(".apk") -> {
                         // اختيار أكبر APK (الحزمة الكاملة) لو أُرفق أكثر من ملف
+                        // لضمان الحصول على الحزمة الشاملة لكل المعماريات
                         if (apkUrl == null || size > apkSize) {
                             apkUrl = url
                             apkSize = size
@@ -569,7 +578,7 @@ object UpdateManager {
 
             val candidate = Candidate(
                 tagName = tagName,
-                versionName = tagName.removePrefix("v").trim().substringBefore("+"),
+                versionName = releaseVersionName,
                 versionCode = releaseVersionCode,
                 releaseNotes = release.optString("body", ""),
                 apkUrl = apkUrl,
@@ -577,14 +586,20 @@ object UpdateManager {
                 deltas = deltas,
                 xdeltaUrls = xdeltaUrls
             )
+            
+            // اختيار الإصدار الأعلى رقم بناء (أو الأعلى اسماً إذا تساوى رقم البناء)
             val currentBest = best
-            if (currentBest == null || candidate.versionCode > currentBest.versionCode) {
+            if (currentBest == null || 
+                candidate.versionCode > currentBest.versionCode ||
+                (candidate.versionCode == currentBest.versionCode && compareVersionNames(candidate.versionName, currentBest.versionName) > 0)
+            ) {
                 best = candidate
             }
         }
 
         val candidate = best
         if (candidate == null) {
+            Log.d(TAG, "ℹ️ No newer version found on GitHub (current=$currentVersionName+$currentVersionCode)")
             prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
             return@withContext null
         }
@@ -603,7 +618,7 @@ object UpdateManager {
 
         Log.d(
             TAG,
-            "✅ Update found: ${candidate.tagName} | delta=" +
+            "✅ Update found: ${candidate.tagName} (${candidate.versionCode}) | delta=" +
                 (chosenDelta?.name ?: "none (full APK)") +
                 " | installed=$currentVersionName+$currentVersionCode"
         )
@@ -970,18 +985,28 @@ object UpdateManager {
 
             // xdelta يعيد بناء الحزمة الهدف بدقة: الحجم المتوقع هو حجم الـ APK
             // الكامل نفسه — أي اختلاف يعني ملفاً غير مكتمل، فلا يُروَّج لاسمه النهائي
-            val sizeOk = update.apkSize <= 0L || outApk.length() == update.apkSize
-            if (ok && outApk.exists() && outApk.length() > 1_000_000 && sizeOk) {
-                val finalApk = File(updatesDir, "qabas-${update.versionName}-${update.versionCode}-patched.apk")
-                if (finalApk.exists()) finalApk.delete()
-                if (!outApk.renameTo(finalApk)) {
-                    outApk.copyTo(finalApk, overwrite = true)
+            // ملاحظة: قد نتهاون قليلاً في الحجم إذا نجح التحقق من الـ APK نفسه
+            val actualPatchedSize = outApk.length()
+            val sizeMatches = update.apkSize <= 0L || actualPatchedSize == update.apkSize
+            
+            if (ok && outApk.exists() && actualPatchedSize > 1_000_000) {
+                if (sizeMatches && isApkValid(context, outApk, update.versionCode)) {
+                    val finalApk = File(updatesDir, "qabas-${update.versionName}-${update.versionCode}-patched.apk")
+                    if (finalApk.exists()) finalApk.delete()
+                    if (!outApk.renameTo(finalApk)) {
+                        outApk.copyTo(finalApk, overwrite = true)
+                        outApk.delete()
+                    }
+                    deltaFile.delete()
+                    Log.d(TAG, "⚡ Delta patch applied successfully: ${finalApk.name}")
+                    finalApk
+                } else {
+                    Log.w(TAG, "⚠️ Patched APK validation failed (sizeMatch=$sizeMatches, actual=$actualPatchedSize, expected=${update.apkSize})")
                     outApk.delete()
+                    null
                 }
-                deltaFile.delete()
-                finalApk
             } else {
-                if (!sizeOk) Log.w(TAG, "⚠️ Patched size mismatch (${outApk.length()} != ${update.apkSize})")
+                Log.w(TAG, "⚠️ applyXdelta failed or produced empty file (ok=$ok)")
                 outApk.delete()
                 null
             }
