@@ -63,7 +63,15 @@ object PatchManager {
         
         // 1. التحقق من سلامة ملف الدلتا
         if (!verifyChecksum(deltaFile, update.checksum)) {
-            _patchState.value = PatchState.Error("ملف التحديث تالف أو غير مكتمل")
+            val errMsg = "ملف التحديث تالف أو لا يطابق البصمة المعتمدة"
+            _patchState.value = PatchState.Error(errMsg)
+            UpdateTelemetryManager.recordFailure(
+                context = context,
+                update = update,
+                phase = "CHECKSUM_VERIFY",
+                throwable = null,
+                customMessage = "فشل التحقق من بصمة SHA-256 لملف الدلتا (${deltaFile.name})، البصمة المتوقعة: ${update.checksum}"
+            )
             return@withContext false
         }
 
@@ -80,7 +88,15 @@ object PatchManager {
         // 3. جلب محرك xdelta (Lib)
         val xdeltaBinary = ensureBinary(context, update)
         if (xdeltaBinary == null) {
-            _patchState.value = PatchState.Error("تعذر تشغيل محرك التحديث على هذا الجهاز")
+            val errMsg = "تعذر تشغيل محرك التحديث على هذا الجهاز"
+            _patchState.value = PatchState.Error(errMsg)
+            UpdateTelemetryManager.recordFailure(
+                context = context,
+                update = update,
+                phase = "BINARY_RESOLVE",
+                throwable = null,
+                customMessage = "تعذر تأمين محرك xdelta3 المناسب لمعمارية الجهاز لتطبيق التحديث"
+            )
             return@withContext false
         }
 
@@ -96,7 +112,24 @@ object PatchManager {
                     Log.d(TAG, "✅ Patch applied and verified: ${finalApk.name}")
                     return@withContext true
                 }
+            } else {
+                UpdateTelemetryManager.recordFailure(
+                    context = context,
+                    update = update,
+                    phase = "VALIDATE_PATCHED_APK",
+                    throwable = null,
+                    customMessage = "حزمة APK الناتجة بعد الرقعة غير صالحة برمجياً أو لا تطابق versionCode=${update.versionCode} (الحجم: ${outputApk.length()} بايت)"
+                )
             }
+        } else {
+            val failureReason = result.exceptionOrNull()?.message ?: "خطأ غير معروف في المعالجة"
+            UpdateTelemetryManager.recordFailure(
+                context = context,
+                update = update,
+                phase = "PATCH_APPLY",
+                throwable = result.exceptionOrNull(),
+                customMessage = "فشل تنفيذ رقعة xdelta3 على الحزمة المصدرية: $failureReason"
+            )
         }
 
         val failureReason = result.exceptionOrNull()?.message ?: "خطأ غير معروف في المعالجة"

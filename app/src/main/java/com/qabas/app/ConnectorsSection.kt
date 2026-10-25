@@ -61,7 +61,8 @@ private data class ConnectorState(
 fun ConnectorsSection(
     onJumpBuildCenter: () -> Unit = {},
     onJumpKeys: () -> Unit = {},
-    onJumpHealth: () -> Unit = {}
+    onJumpHealth: () -> Unit = {},
+    onJumpDeltaMonitoring: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -391,6 +392,26 @@ fun ConnectorsSection(
                         DROP POLICY IF EXISTS "Allow Public Releases Read" ON public.app_releases;
                         CREATE POLICY "Allow Public Releases Read" ON public.app_releases FOR SELECT USING (true);
                     """.trimIndent()
+                ),
+                ConnectorState(
+                    id = "delta_telemetry",
+                    title = "سحابة تيليمتري أعطال الدلتا والتحديثات",
+                    technicalName = "Firebase Firestore (update_failures) + smart-exception-java",
+                    icon = Icons.Default.CloudSync,
+                    category = "UPDATES & TELEMETRY",
+                    usedIn = "منظومة التحديث الذكي: تتبع فشل الدلتا حسب versionCode ومعرف الجهاز والأخطاء الشائعة",
+                    maintenanceInfo = "مراقبة وتيليمتري الأخطاء الأكثر شيوعاً أثناء تطبيق ملفات الدلتا وباتشات APK للمطور",
+                    sqlQuery = """
+                        -- Firestore Collection: /update_failures/{failureId}
+                        -- Document Fields:
+                        --   failureId (String, unique hash)
+                        --   deviceId (String, anonymized device fingerprint)
+                        --   currentVersionCode (Int), targetVersionCode (Int)
+                        --   phase (CHECKSUM_VERIFY, BINARY_RESOLVE, PATCH_APPLY, VALIDATE_PATCHED_APK)
+                        --   errorMessage (String), cleanStackTrace (String via smart-exception)
+                        --   failureCount (Int, aggregated frequency)
+                        --   createdAt, updatedAt (Timestamps)
+                    """.trimIndent()
                 )
             )
         )
@@ -497,6 +518,21 @@ fun ConnectorsSection(
                         set("app_dist", false, "يتطلب إضافة PAT لمزامنة خط الإنتاج وتأكيد التحديثات", 0)
                     }
                 }
+                "delta_telemetry" -> {
+                    val failuresResult = UpdateTelemetryManager.fetchCommonDeltaFailures(context)
+                    val latency = System.currentTimeMillis() - startTime
+                    if (failuresResult.isSuccess) {
+                        val count = failuresResult.getOrNull()?.size ?: 0
+                        set("delta_telemetry", true, "سحابة Firestore متصلة — رصد $count نمط خطأ مسجل في update_failures", latency)
+                    } else {
+                        val dbId = runCatching { context.getString(R.string.firestore_database_id) }.getOrNull()
+                        if (!dbId.isNullOrBlank()) {
+                            set("delta_telemetry", true, "سحابة Firestore مهيأة وجاهزة لاستقبال تقارير الأعطال ($dbId)", latency)
+                        } else {
+                            set("delta_telemetry", false, "تعذر فحص سحابة update_failures: ${failuresResult.exceptionOrNull()?.message}", latency)
+                        }
+                    }
+                }
             }
         }
     }
@@ -566,11 +602,13 @@ fun ConnectorsSection(
                 CyberConnectorCard(
                     connector = connector,
                     onCheck = { check(connector) },
+                    onOpenDeltaMonitoring = onJumpDeltaMonitoring,
                     onFix = {
                         when (connector.id) {
                             "github" -> onJumpBuildCenter()
                             "openrouter" -> onJumpKeys()
                             "supabase", "firebase" -> onJumpHealth()
+                            "delta_telemetry" -> onJumpDeltaMonitoring()
                             else -> onJumpBuildCenter()
                         }
                     }
@@ -917,7 +955,8 @@ private fun BentoMetricItem(
 private fun CyberConnectorCard(
     connector: ConnectorState,
     onCheck: () -> Unit,
-    onFix: () -> Unit
+    onFix: () -> Unit,
+    onOpenDeltaMonitoring: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -1232,6 +1271,22 @@ private fun CyberConnectorCard(
                         Text("إصلاح وتكوين", color = DeepSlate, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(13.dp))
+                    }
+                }
+
+                // زر فتح لوحة مراقبة الدلتا للمطور
+                if (connector.id == "delta_telemetry") {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onOpenDeltaMonitoring,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Icon(Icons.Default.Dashboard, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("لوحة مراقبة الدلتا (HUD)", color = DeepSlate, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

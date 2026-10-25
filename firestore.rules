@@ -76,6 +76,24 @@ service cloud.firestore {
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidUpdateFailure(data) {
+      return data.failureId is string && isValidId(data.failureId) &&
+             data.deviceId is string && data.deviceId.size() > 0 && data.deviceId.size() <= 128 &&
+             (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+             data.currentVersionCode is int && data.currentVersionCode >= 0 &&
+             (!('currentVersionName' in data) || (data.currentVersionName is string && data.currentVersionName.size() <= 100)) &&
+             data.targetVersionCode is int && data.targetVersionCode >= 0 &&
+             (!('targetVersionName' in data) || (data.targetVersionName is string && data.targetVersionName.size() <= 100)) &&
+             data.phase is string && data.phase.size() > 0 && data.phase.size() <= 100 &&
+             data.errorMessage is string && data.errorMessage.size() > 0 && data.errorMessage.size() <= 5000 &&
+             data.cleanStackTrace is string && data.cleanStackTrace.size() <= 10000 &&
+             (!('exceptionClass' in data) || (data.exceptionClass is string && data.exceptionClass.size() <= 200)) &&
+             (!('deviceAbi' in data) || (data.deviceAbi is string && data.deviceAbi.size() <= 50)) &&
+             data.failureCount is int && data.failureCount >= 1 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
     // 1. Users collection
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -159,6 +177,23 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if false;
       allow write: if false;
+    }
+
+    // 4. Update Failures Telemetry collection
+    match /update_failures/{failureId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isValidId(failureId) &&
+                       incoming().failureId == failureId &&
+                       incoming().keys().hasAll(['failureId', 'deviceId', 'currentVersionCode', 'targetVersionCode', 'phase', 'errorMessage', 'cleanStackTrace', 'failureCount', 'createdAt']) &&
+                       isValidUpdateFailure(incoming());
+
+      allow update: if incoming().failureId == existing().failureId &&
+                       incoming().deviceId == existing().deviceId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUpdateFailure(incoming());
+
+      allow delete: if isSignedIn();
     }
   }
 }

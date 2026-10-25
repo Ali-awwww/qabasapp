@@ -721,6 +721,8 @@ class MainActivity : ComponentActivity() {
     ) {
         val context = LocalContext.current
         val downloadProgress by UpdateManager.downloadProgress.collectAsState()
+        val showUpdateErrorDialog by UpdateTelemetryManager.showErrorDialog.collectAsState()
+        val latestFailureReport by UpdateTelemetryManager.latestFailureReport.collectAsState()
         
         Box(modifier = Modifier.fillMaxSize()) {
             content()
@@ -731,6 +733,27 @@ class MainActivity : ComponentActivity() {
                     downloadProgress = downloadProgress,
                     onDismiss = { UpdateManager.dismissUpdate() },
                     onInstall = { UpdateDownloadService.start(context, update) }
+                )
+            }
+
+            if (showUpdateErrorDialog && latestFailureReport != null) {
+                UpdateErrorReportDialog(
+                    report = latestFailureReport!!,
+                    onDismiss = { UpdateTelemetryManager.dismissErrorDialog() },
+                    onFallbackFullDownload = {
+                        UpdateTelemetryManager.dismissErrorDialog()
+                        val updateInfo = update ?: UpdateManager.pendingUpdate.value
+                        if (updateInfo != null) {
+                            UpdateDownloadService.start(context, updateInfo, forceFull = true)
+                        } else {
+                            val repo = UpdateManager.getEffectiveRepo(context)
+                            val url = "https://github.com/$repo/releases/latest"
+                            val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(browserIntent)
+                        }
+                    }
                 )
             }
         }

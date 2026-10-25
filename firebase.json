@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "ai-studio-android-qabasapp-38d61e30-40bb-4701-94ce-b52906ab8f16",
+      "database": "ai-studio-android-qabasapp-8ab14567-466e-48a2-9ed5-65722eb8607b",
       "rules": "firestore.rules"
     }
   ],

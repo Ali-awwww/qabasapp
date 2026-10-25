@@ -886,11 +886,11 @@ fun CloudApiHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🔑 مفاتيح API", "⚡ المراقبة الحية (14)", "🌐 مرصد نقاط السحابة والصيانة (12)", "🚀 تبديل النماذج والسرعة")
+    val tabs = listOf("🔑 مفاتيح API", "⚡ المراقبة الحية (14)", "🌐 مرصد نقاط السحابة والصيانة (13)", "🚀 تبديل النماذج والسرعة", "🛰️ تيليمتري الدلتا (Firestore)")
 
     DevHubScaffold(
         title = "مركز المفاتيح والربط السحابي",
-        subtitle = "إدارة المفاتيح، فحص الاستجابة، وتكامل الخدمات السحابية",
+        subtitle = "إدارة المفاتيح، فحص الاستجابة، وتكامل الخدمات السحابية ومراقبة التحديثات",
         icon = Icons.Default.VpnKey,
         accentColor = GoldPrimary,
         tabs = tabs,
@@ -906,9 +906,13 @@ fun CloudApiHubScreen(
             2 -> ConnectorsSection(
                 onJumpBuildCenter = { onNavigateSection(DashboardSection.AGENT_BUILD_HUB) },
                 onJumpKeys = { selectedTab = 0 },
-                onJumpHealth = { onNavigateSection(DashboardSection.HEALTH_DIAGNOSTICS_HUB) }
+                onJumpHealth = { onNavigateSection(DashboardSection.HEALTH_DIAGNOSTICS_HUB) },
+                onJumpDeltaMonitoring = { selectedTab = 4 }
             )
             3 -> AiModelLatencySwitcherScreen(onBack = onBack)
+            4 -> DeltaMonitoringDashboard(
+                onClose = { selectedTab = 2 }
+            )
         }
     }
 }

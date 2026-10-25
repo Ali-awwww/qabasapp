@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -327,13 +329,74 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(14.dp)
                     )
-                    Spacer(Modifier.width(5.dp))
                     Text(
                         text = "نسخ التقرير",
                         color = Color.White.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         maxLines = 1
+                    )
+                }
+            }
+
+            // ── أزرار التيليمتري السحابي ومراقبة الدلتا ──
+            var showDeltaMonitoringModal by remember { mutableStateOf(false) }
+
+            if (showDeltaMonitoringModal) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showDeltaMonitoringModal = false },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF030712).copy(alpha = 0.95f))) {
+                        DeltaMonitoringDashboard(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = { showDeltaMonitoringModal = false }
+                        )
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { showDeltaMonitoringModal = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
+                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.QueryStats, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = "مرصد أعطال الدلتا (HUD)",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val testException = java.io.IOException("خطأ تجريبي لمحاكاة فشل الدلتا: Checksum mismatch in xdelta3 block")
+                        UpdateTelemetryManager.recordFailure(
+                            context = context,
+                            update = UpdateManager.pendingUpdate.value,
+                            phase = "PATCH_APPLY_TEST",
+                            throwable = testException,
+                            customMessage = "محاكاة التقاط خطأ الدلتا وفحص تيليمتري Firestore"
+                        )
+                    },
+                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.BugReport, null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = "محاكاة خطأ (smart-ex)",
+                        color = Color(0xFFEF4444),
+                        fontFamily = CairoFont,
+                        fontSize = 10.5.sp
                     )
                 }
             }

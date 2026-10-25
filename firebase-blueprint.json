@@ -79,6 +79,29 @@
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last modification time" }
       },
       "required": ["projectId", "userId", "title", "createdAt", "updatedAt"]
+    },
+    "UpdateFailure": {
+      "title": "UpdateFailure",
+      "description": "Telemetry record of update or delta patching failure with stack trace and device metrics",
+      "type": "object",
+      "properties": {
+        "failureId": { "type": "string", "description": "Unique identifier of the failure record" },
+        "deviceId": { "type": "string", "description": "Unique device tracking identifier" },
+        "userId": { "type": "string", "description": "User identifier if authenticated" },
+        "currentVersionCode": { "type": "integer", "description": "Source/current version code on device" },
+        "currentVersionName": { "type": "string", "description": "Source/current human readable version" },
+        "targetVersionCode": { "type": "integer", "description": "Target version code attempting to apply" },
+        "targetVersionName": { "type": "string", "description": "Target human readable version name" },
+        "phase": { "type": "string", "description": "Lifecycle phase where failure occurred" },
+        "errorMessage": { "type": "string", "description": "Processed clean error message from smart-exception" },
+        "cleanStackTrace": { "type": "string", "description": "Sanitized stack trace produced by smart-exception" },
+        "exceptionClass": { "type": "string", "description": "Canonical class name of root exception" },
+        "deviceAbi": { "type": "string", "description": "Primary CPU architecture of the device" },
+        "failureCount": { "type": "integer", "description": "Frequency count of failures for this device and target version" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Time when failure was first recorded" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Time when failure was last updated" }
+      },
+      "required": ["failureId", "deviceId", "currentVersionCode", "targetVersionCode", "phase", "errorMessage", "cleanStackTrace", "failureCount", "createdAt"]
     }
   },
   "firestore": {
@@ -101,6 +124,10 @@
     "/users/{userId}/projects/{projectId}": {
       "schema": "Project",
       "description": "User video projects"
+    },
+    "/update_failures/{failureId}": {
+      "schema": "UpdateFailure",
+      "description": "Failure telemetry records for OTA and delta updates"
     }
   }
 }

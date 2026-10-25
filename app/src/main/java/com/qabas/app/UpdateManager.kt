@@ -1056,6 +1056,13 @@ object UpdateManager {
             val binary = ensureXdeltaBinary(context, update, authToken, handle)
                 ?: run {
                     Log.w(TAG, "⚠️ No xdelta3 binary available")
+                    UpdateTelemetryManager.recordFailure(
+                        context = context,
+                        update = update,
+                        phase = "BINARY_RESOLVE",
+                        throwable = null,
+                        customMessage = "تعذر توفير أو تشغيل محرك xdelta3 للمعمارية الحالية"
+                    )
                     return null
                 }
             if (handle.cancelled) return null
@@ -1067,14 +1074,42 @@ object UpdateManager {
             ) { bytes, total, speed ->
                 val pct = if (total > 0) (bytes * 100 / total).toInt().coerceIn(0, 100) else 0
                 onProgress(DownloadProgress(pct, bytes, total, Phase.DOWNLOADING_DELTA, speed))
-            } ?: return null
+            } ?: run {
+                if (!handle.cancelled) {
+                    UpdateTelemetryManager.recordFailure(
+                        context = context,
+                        update = update,
+                        phase = "DOWNLOAD_DELTA",
+                        throwable = null,
+                        customMessage = "فشل تنزيل ملف الدلتا (${formatSize(update.deltaSize)}) من المستودع"
+                    )
+                }
+                return null
+            }
 
             if (handle.cancelled) { deltaFile.delete(); return null }
-            if (deltaFile.length() < 100) return null
+            if (deltaFile.length() < 100) {
+                UpdateTelemetryManager.recordFailure(
+                    context = context,
+                    update = update,
+                    phase = "VALIDATE_DELTA_FILE",
+                    throwable = null,
+                    customMessage = "ملف الدلتا الذي تم تنزيله فارغ أو تالف (الحجم: ${deltaFile.length()} بايت)"
+                )
+                deltaFile.delete()
+                return null
+            }
 
             val sourceApk = File(context.applicationInfo.sourceDir)
             if (!sourceApk.exists()) {
                 Log.w(TAG, "⚠️ source APK missing")
+                UpdateTelemetryManager.recordFailure(
+                    context = context,
+                    update = update,
+                    phase = "LOCATE_SOURCE_APK",
+                    throwable = null,
+                    customMessage = "تعذر الوصول إلى حزمة التطبيق المصدرية المثبتة (${sourceApk.absolutePath})"
+                )
                 return null
             }
 
@@ -1103,6 +1138,13 @@ object UpdateManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ tryDeltaUpdate: ${e.message}", e)
+            UpdateTelemetryManager.recordFailure(
+                context = context,
+                update = update,
+                phase = "DELTA_PIPELINE",
+                throwable = e,
+                customMessage = "استثناء غير معالج في مسار الدلتا: ${e.message}"
+            )
             null
         }
     }

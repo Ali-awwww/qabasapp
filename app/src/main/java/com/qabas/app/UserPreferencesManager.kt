@@ -228,9 +228,7 @@ object UserPreferencesManager {
         }
     }
 
-    fun getEffectiveUserId(context: Context): String {
-        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: CloudServices.Auth.getCurrentUserId()
-        if (!authUid.isNullOrBlank()) return authUid
+    fun getDeviceId(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         var deviceId = prefs.getString("device_sync_id", null)
         if (deviceId.isNullOrBlank()) {
@@ -238,6 +236,12 @@ object UserPreferencesManager {
             prefs.edit().putString("device_sync_id", deviceId).apply()
         }
         return deviceId
+    }
+
+    fun getEffectiveUserId(context: Context): String {
+        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: CloudServices.Auth.getCurrentUserId()
+        if (!authUid.isNullOrBlank()) return authUid
+        return getDeviceId(context)
     }
 
     suspend fun syncToSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
