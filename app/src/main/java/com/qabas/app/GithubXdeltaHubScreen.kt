@@ -144,9 +144,9 @@ fun GithubXdeltaHubScreen(
         if (p != null) {
             isDownloading = true
             downloadPhaseName = when (p.phase) {
-                UpdateManager.Phase.DOWNLOADING_DELTA -> "جاري تنزيل ملف الـ Delta التفاضلي..."
-                UpdateManager.Phase.APPLYING_PATCH -> "جاري تطبيق الباتش وتوليد الـ APK محلياً..."
-                UpdateManager.Phase.DOWNLOADING_FULL -> "جاري تنزيل الـ APK الكامل..."
+                UpdateManager.Phase.DOWNLOADING_DELTA -> "جاري تحميل التحديث الصغير..."
+                UpdateManager.Phase.APPLYING_PATCH -> "جاري معالجة وتحسين ملف التحديث (Patching)..."
+                UpdateManager.Phase.DOWNLOADING_FULL -> "جاري تحميل الحزمة الكاملة..."
             }
         }
     }

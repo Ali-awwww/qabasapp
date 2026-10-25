@@ -1679,11 +1679,14 @@ private fun SpatialLiveUpdateStickyBanner(
                             )
                         }
                         Text(
-                            text = if (updateItem.isCompleted) "اكتمل التنزيل بنجاح — انقر هنا للتثبيت الفوري"
-                            else "جاري التنزيل تلقائياً في الخلفية فور اكتشاف الإصدار الجديد",
+                            text = when {
+                                updateItem.isCompleted -> "اكتمل التنزيل بنجاح — انقر هنا للتثبيت الفوري"
+                                updateItem.phase == "APPLYING_PATCH" -> "جاري معالجة وتحسين ملف التحديث (Patching)..."
+                                else -> "جاري التنزيل تلقائياً في الخلفية فور اكتشاف الإصدار الجديد"
+                            },
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
-                            color = TextSecondary
+                            color = if (updateItem.phase == "APPLYING_PATCH") GoldPrimary else TextSecondary
                         )
                     }
                 }
@@ -1711,7 +1714,7 @@ private fun SpatialLiveUpdateStickyBanner(
                         fontSize = 10.5.sp,
                         color = Color.White.copy(alpha = 0.85f)
                     )
-                    if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0) {
+                    if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0 && updateItem.phase != "APPLYING_PATCH") {
                         Text(
                             text = "السرعة: ${updateItem.formattedSpeed}",
                             fontFamily = RobotoMonoFont,
@@ -2119,12 +2122,14 @@ private fun AppUpdatesHubSection(
                             StrictBadge(
                                 text = when {
                                     updateItem.isCompleted -> "جاهز للتثبيت ✅"
+                                    updateItem.phase == "APPLYING_PATCH" -> "معالجة الرقعة ⚡"
                                     updateItem.isDownloading -> "جاري التنزيل تلقائياً 🚀"
                                     updateItem.isError -> "فشل التنزيل ⚠️"
                                     else -> "تحديث متوفر"
                                 },
                                 color = when {
                                     updateItem.isCompleted -> Color(0xFF10B981)
+                                    updateItem.phase == "APPLYING_PATCH" -> GoldPrimary
                                     updateItem.isError -> Color(0xFFEF4444)
                                     else -> Color(0xFF00E5FF)
                                 }
@@ -2149,12 +2154,15 @@ private fun AppUpdatesHubSection(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "${updateItem.percentInt}% • تم تنزيل ${updateItem.formattedDownloaded} من ${updateItem.formattedSize}",
+                                text = when (updateItem.phase) {
+                                    "APPLYING_PATCH" -> "جاري تحسين الملف واستخراج التحديث..."
+                                    else -> "${updateItem.percentInt}% • تم تنزيل ${updateItem.formattedDownloaded} من ${updateItem.formattedSize}"
+                                },
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
-                                color = Color.White
+                                color = if (updateItem.phase == "APPLYING_PATCH") GoldPrimary else Color.White
                             )
-                            if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0) {
+                            if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0 && updateItem.phase != "APPLYING_PATCH") {
                                 Text(
                                     text = "السرعة: ${updateItem.formattedSpeed}",
                                     fontFamily = RobotoMonoFont,

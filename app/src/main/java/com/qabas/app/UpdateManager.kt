@@ -167,8 +167,15 @@ object UpdateManager {
     private val _pendingUpdate = MutableStateFlow<UpdateInfo?>(null)
     val pendingUpdate: StateFlow<UpdateInfo?> = _pendingUpdate.asStateFlow()
 
-    fun dismissUpdate() { _pendingUpdate.value = null }
+    fun dismissUpdate() { 
+        _pendingUpdate.value = null 
+        isUpdateDismissedForSession = true
+    }
     fun setPendingUpdate(update: UpdateInfo?) { _pendingUpdate.value = update }
+
+    /** هل تم تجاهل التحديث في هذه الجلسة؟ (تُصفر عند إعادة التشغيل) */
+    @Volatile var isUpdateDismissedForSession: Boolean = false
+        private set
 
     private val _downloadResult = MutableStateFlow<Triple<String, Boolean, String>?>(null)
     val downloadResult: StateFlow<Triple<String, Boolean, String>?> = _downloadResult.asStateFlow()
@@ -340,7 +347,9 @@ object UpdateManager {
         val releaseNotes: String,
         val deltaSize: Long,
         val apkSize: Long,
-        val xdeltaUrls: Map<String, String> = emptyMap()
+        val xdeltaUrls: Map<String, String> = emptyMap(),
+        val isForce: Boolean = false,
+        val checksum: String? = null
     ) {
         /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
         val deltaUsable: Boolean
@@ -526,7 +535,9 @@ object UpdateManager {
             val apkUrl: String,
             val apkSize: Long,
             val deltas: List<DeltaAsset>,
-            val xdeltaUrls: Map<String, String>
+            val xdeltaUrls: Map<String, String>,
+            val isForce: Boolean = false,
+            val checksum: String? = null
         )
 
         var best: Candidate? = null
@@ -554,6 +565,7 @@ object UpdateManager {
             var apkSize = 0L
             val deltas = mutableListOf<DeltaAsset>()
             val xdeltaUrls = mutableMapOf<String, String>()
+            var releaseChecksum: String? = null
 
             for (j in 0 until assets.length()) {
                 val asset = assets.optJSONObject(j) ?: continue
@@ -563,28 +575,37 @@ object UpdateManager {
                 when {
                     name.endsWith(".delta") -> deltas += DeltaAsset(name, url, size)
                     name.endsWith(".apk") -> {
-                        // اختيار أكبر APK (الحزمة الكاملة) لو أُرفق أكثر من ملف
-                        // لضمان الحصول على الحزمة الشاملة لكل المعماريات
                         if (apkUrl == null || size > apkSize) {
                             apkUrl = url
                             apkSize = size
                         }
                     }
                     name.startsWith("xdelta3-") -> xdeltaUrls[name] = url
+                    name.endsWith(".sha256") || name.endsWith(".md5") -> {
+                        // محاولة جلب البصمة لو كانت نصية قصيرة في اسم الملف أو سنحتاج لتحميلها
+                        // للتبسيط، نفترض أن البصمة قد تكون في الوصف أو اسم الملف
+                        if (name.contains("delta")) releaseChecksum = name.substringBefore(".")
+                    }
                 }
             }
 
             if (apkUrl == null) continue
 
+            val releaseNotes = release.optString("body", "")
+            val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) || 
+                         release.optString("name", "").contains("[FORCE]", ignoreCase = true)
+
             val candidate = Candidate(
                 tagName = tagName,
                 versionName = releaseVersionName,
                 versionCode = releaseVersionCode,
-                releaseNotes = release.optString("body", ""),
+                releaseNotes = releaseNotes,
                 apkUrl = apkUrl,
                 apkSize = apkSize,
                 deltas = deltas,
-                xdeltaUrls = xdeltaUrls
+                xdeltaUrls = xdeltaUrls,
+                isForce = isForce,
+                checksum = releaseChecksum
             )
             
             // اختيار الإصدار الأعلى رقم بناء (أو الأعلى اسماً إذا تساوى رقم البناء)
@@ -631,7 +652,9 @@ object UpdateManager {
             releaseNotes = candidate.releaseNotes,
             deltaSize = chosenDelta?.size ?: 0L,
             apkSize = candidate.apkSize,
-            xdeltaUrls = candidate.xdeltaUrls
+            xdeltaUrls = candidate.xdeltaUrls,
+            isForce = candidate.isForce,
+            checksum = candidate.checksum
         )
     }
 
@@ -941,7 +964,7 @@ object UpdateManager {
         return handle
     }
 
-    private fun tryDeltaUpdate(
+    private suspend fun tryDeltaUpdate(
         context: Context,
         update: UpdateInfo,
         updatesDir: File,
@@ -979,44 +1002,25 @@ object UpdateManager {
             if (outApk.exists()) outApk.delete()
 
             onProgress(DownloadProgress(0, 0, update.deltaSize, Phase.APPLYING_PATCH, 0))
-            val ok = applyXdelta(binary, sourceApk, deltaFile, outApk)
-            if (handle.cancelled) { outApk.delete(); return null }
+            
+            // استخدام PatchManager لمعالجة الرقعة والتحقق من سلامتها
+            val patchSuccess = PatchManager.applyXdeltaPatch(context, update, deltaFile)
+            
+            if (handle.cancelled) return null
             onProgress(DownloadProgress(100, update.deltaSize, update.deltaSize, Phase.APPLYING_PATCH, 0))
 
-            // xdelta يعيد بناء الحزمة الهدف بدقة: الحجم المتوقع هو حجم الـ APK
-            // الكامل نفسه — أي اختلاف يعني ملفاً غير مكتمل، فلا يُروَّج لاسمه النهائي
-            // ملاحظة: قد نتهاون قليلاً في الحجم إذا نجح التحقق من الـ APK نفسه
-            val actualPatchedSize = outApk.length()
-            val sizeMatches = update.apkSize <= 0L || actualPatchedSize == update.apkSize
-            
-            if (ok && outApk.exists() && actualPatchedSize > 1_000_000) {
-                if (sizeMatches && isApkValid(context, outApk, update.versionCode)) {
-                    val finalApk = File(updatesDir, "qabas-${update.versionName}-${update.versionCode}-patched.apk")
-                    if (finalApk.exists()) finalApk.delete()
-                    if (!outApk.renameTo(finalApk)) {
-                        outApk.copyTo(finalApk, overwrite = true)
-                        outApk.delete()
-                    }
-                    deltaFile.delete()
-                    Log.d(TAG, "⚡ Delta patch applied successfully: ${finalApk.name}")
-                    finalApk
-                } else {
-                    Log.w(TAG, "⚠️ Patched APK validation failed (sizeMatch=$sizeMatches, actual=$actualPatchedSize, expected=${update.apkSize})")
-                    outApk.delete()
-                    null
-                }
+            if (patchSuccess) {
+                return UpdateManager.getDownloadedApkFile(context, update.versionName, update.versionCode)
             } else {
-                Log.w(TAG, "⚠️ applyXdelta failed or produced empty file (ok=$ok)")
-                outApk.delete()
-                null
+                Log.w(TAG, "⚠️ PatchManager failed to apply patch")
+                return null
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ tryDeltaUpdate: ${e.message}", e)
             null
         }
     }
-
-    private fun ensureXdeltaBinary(
+    internal fun ensureXdeltaBinary(
         context: Context,
         update: UpdateInfo,
         authToken: String?,
@@ -1066,7 +1070,7 @@ object UpdateManager {
         }
     }
 
-    private fun applyXdelta(binary: File, source: File, delta: File, output: File): Boolean {
+    internal fun applyXdelta(binary: File, source: File, delta: File, output: File): Boolean {
         val args = listOf(
             "-d",
             "-s", source.absolutePath,

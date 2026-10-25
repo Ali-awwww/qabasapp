@@ -212,7 +212,7 @@ fun SettingsScreen(
         if (updateState == null) {
             updateState = "checking..."
             runCatching {
-                val info = UpdateManager.checkForUpdate(context)
+                val info = VersionManager.checkRemoteVersion(context)
                 if (info != null) {
                     updateInfo = info
                     updateState = "found"

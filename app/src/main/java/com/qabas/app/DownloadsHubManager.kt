@@ -785,7 +785,7 @@ object DownloadsHubManager {
         scope.launch(Dispatchers.IO) {
             try {
                 Log.d(TAG, "🔍 Checking for updates via GitHub Releases for auto-download...")
-                val update = UpdateManager.checkForUpdate(context, force = force)
+                val update = VersionManager.checkRemoteVersion(context, force = force)
                 if (update != null) {
                     Log.d(TAG, "🚀 New update detected: ${update.versionName} - starting auto download!")
                     

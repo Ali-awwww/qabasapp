@@ -972,7 +972,7 @@ fun AboutUsAndVersionScreen(
                                 updateResultMsg = null
                                 coroutineScope.launch {
                                     try {
-                                        val info = UpdateManager.checkForUpdate(context, force = true)
+                                        val info = VersionManager.checkRemoteVersion(context, force = true)
                                         isCheckingUpdates = false
                                         if (info != null) {
                                             val sizeDesc = if (info.deltaUsable) {
