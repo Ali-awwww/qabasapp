@@ -936,24 +936,50 @@ fun QabasBottomNavigation(
                 val label = Translator.tr(labelKey)
                 val isSelected = currentRoute == route
                 val iconScale by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1.15f else 1.0f,
+                    targetValue = if (isSelected) 1.18f else 1.0f,
                     animationSpec = androidx.compose.animation.core.spring(
                         dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
                         stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
                     ),
                     label = "nav_icon_scale"
                 )
+                val iconTranslationY by androidx.compose.animation.core.animateDpAsState(
+                    targetValue = if (isSelected) (-2).dp else 0.dp,
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                    ),
+                    label = "nav_icon_trans_y"
+                )
 
                 NavigationBarItem(
                     modifier = Modifier.testTag(TestTags.NAV_ITEM_PREFIX + route.name),
                     icon = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .background(
+                                            brush = Brush.radialGradient(
+                                                colors = listOf(
+                                                    GoldPrimary.copy(alpha = 0.3f),
+                                                    Color.Transparent
+                                                )
+                                            ),
+                                            shape = CircleShape
+                                        )
+                                )
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = label,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .offset(y = iconTranslationY)
+                                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
+                            )
+                        }
                     },
                     label = {
                         Text(

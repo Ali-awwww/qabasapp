@@ -175,12 +175,15 @@ object AppAnimationManager {
 
         return when (animStyle) {
             AppTransitionAnimation.SPATIAL_WARP -> {
-                val enterScale = if (isStepForward) 0.90f else 1.08f
-                val exitScale = if (isStepForward) 1.08f else 0.90f
+                val enterScale = if (isStepForward) 0.88f else 1.10f
+                val exitScale = if (isStepForward) 1.10f else 0.88f
                 (scaleIn(
                     initialScale = enterScale,
-                    animationSpec = tween(duration, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(duration)))
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) + fadeIn(animationSpec = tween(duration, easing = LinearOutSlowInEasing)))
                     .togetherWith(
                         scaleOut(
                             targetScale = exitScale,
@@ -190,34 +193,46 @@ object AppAnimationManager {
             }
 
             AppTransitionAnimation.FLUID_SLIDE -> {
-                val factor = if (isStepForward) 4 else -4
+                val factor = if (isStepForward) 3 else -3
                 (slideInHorizontally(
                     initialOffsetX = { it / factor },
-                    animationSpec = tween(duration, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(duration)))
+                    animationSpec = spring(
+                        stiffness = Spring.StiffnessMediumLow,
+                        dampingRatio = Spring.DampingRatioNoBouncy
+                    )
+                ) + fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.96f, animationSpec = tween(duration)))
                     .togetherWith(
                         slideOutHorizontally(
                             targetOffsetX = { -it / factor },
                             animationSpec = tween((duration * 0.85f).toInt(), easing = FastOutSlowInEasing)
-                        ) + fadeOut(animationSpec = tween((duration * 0.75f).toInt()))
+                        ) + fadeOut(animationSpec = tween((duration * 0.75f).toInt())) +
+                                scaleOut(targetScale = 0.96f, animationSpec = tween((duration * 0.85f).toInt()))
                     ).apply { targetContentZIndex = 1f }
             }
 
             AppTransitionAnimation.CINEMATIC_FADE -> {
-                (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                        scaleIn(initialScale = 0.98f, animationSpec = tween(duration, easing = FastOutSlowInEasing)))
+                (fadeIn(animationSpec = tween(duration, easing = LinearOutSlowInEasing)) +
+                        scaleIn(
+                            initialScale = 0.95f,
+                            animationSpec = spring(stiffness = Spring.StiffnessLow)
+                        ))
                     .togetherWith(
                         fadeOut(animationSpec = tween((duration * 0.85f).toInt(), easing = FastOutSlowInEasing)) +
-                                scaleOut(targetScale = 0.98f, animationSpec = tween((duration * 0.85f).toInt(), easing = FastOutSlowInEasing))
+                                scaleOut(targetScale = 0.95f, animationSpec = tween((duration * 0.85f).toInt(), easing = FastOutSlowInEasing))
                     ).apply { targetContentZIndex = 1f }
             }
 
             AppTransitionAnimation.VERTICAL_ELEVATION -> {
-                val factor = if (isStepForward) 5 else -5
+                val factor = if (isStepForward) 4 else -4
                 (slideInVertically(
                     initialOffsetY = { it / factor },
-                    animationSpec = tween(duration, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(duration)))
+                    animationSpec = spring(
+                        stiffness = Spring.StiffnessMediumLow,
+                        dampingRatio = Spring.DampingRatioLowBouncy
+                    )
+                ) + fadeIn(animationSpec = tween(duration, easing = LinearOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.94f, animationSpec = tween(duration)))
                     .togetherWith(
                         slideOutVertically(
                             targetOffsetY = { -it / factor },
@@ -228,7 +243,7 @@ object AppAnimationManager {
 
             AppTransitionAnimation.CYBER_PULSE -> {
                 (scaleIn(
-                    initialScale = 0.84f,
+                    initialScale = 0.82f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
                         stiffness = Spring.StiffnessMedium
@@ -236,7 +251,7 @@ object AppAnimationManager {
                 ) + fadeIn(animationSpec = tween((duration * 0.7f).toInt())))
                     .togetherWith(
                         scaleOut(
-                            targetScale = 0.92f,
+                            targetScale = 0.94f,
                             animationSpec = tween((duration * 0.6f).toInt(), easing = FastOutSlowInEasing)
                         ) + fadeOut(animationSpec = tween((duration * 0.5f).toInt()))
                     ).apply { targetContentZIndex = 1f }
@@ -248,5 +263,32 @@ object AppAnimationManager {
                     .apply { targetContentZIndex = 1f }
             }
         }
+    }
+
+    /**
+     * تحوّل المكونات والقطاعات الفرعية (Sector / Tab Transition)
+     */
+    fun createSectorTransitionSpec(
+        initialSector: Int,
+        targetSector: Int
+    ): ContentTransform {
+        val isStepForward = targetSector >= initialSector
+        val duration = _currentSpeed.value.durationMs
+        val factor = if (isStepForward) 4 else -4
+        return (slideInHorizontally(
+            initialOffsetX = { it / factor },
+            animationSpec = spring(
+                stiffness = Spring.StiffnessMediumLow,
+                dampingRatio = Spring.DampingRatioNoBouncy
+            )
+        ) + fadeIn(animationSpec = tween(duration, easing = LinearOutSlowInEasing)) +
+                scaleIn(initialScale = 0.95f, animationSpec = spring(stiffness = Spring.StiffnessLow)))
+            .togetherWith(
+                slideOutHorizontally(
+                    targetOffsetX = { -it / factor },
+                    animationSpec = tween((duration * 0.8f).toInt(), easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween((duration * 0.7f).toInt())) +
+                        scaleOut(targetScale = 0.95f, animationSpec = tween((duration * 0.8f).toInt()))
+            ).apply { targetContentZIndex = 1f }
     }
 }

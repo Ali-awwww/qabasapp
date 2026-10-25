@@ -442,8 +442,10 @@ fun SpatialCommandHomeScreen(
                     AnimatedContent(
                         targetState = selectedSector,
                         transitionSpec = {
-                            fadeIn(tween(260)) + slideInHorizontally { it / 5 } togetherWith
-                                    fadeOut(tween(180)) + slideOutHorizontally { -it / 5 }
+                            AppAnimationManager.createSectorTransitionSpec(
+                                initialSector = initialState,
+                                targetSector = targetState
+                            )
                         },
                         label = "SectorContentAnimation"
                     ) { sector ->
@@ -1307,15 +1309,32 @@ private fun SpatialSectorTabs(
     ) {
         items(sectors) { (index, title, icon) ->
             val isSelected = selectedSector == index
+            val scale by animateFloatAsState(
+                targetValue = if (isSelected) 1.04f else 1.0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "sector_tab_scale"
+            )
+            val bgColor by animateColorAsState(
+                targetValue = if (isSelected) primaryColor else CardSurface,
+                animationSpec = tween(220),
+                label = "sector_bg_color"
+            )
             Surface(
                 onClick = { onSectorSelected(index) },
-                shape = CutCornerShape(8.dp),
-                color = if (isSelected) primaryColor else CardSurface,
-                border = BorderStroke(1.dp, if (isSelected) primaryColor else primaryColor.copy(alpha = 0.2f)),
-                shadowElevation = if (isSelected) 6.dp else 0.dp
+                shape = CutCornerShape(10.dp),
+                color = bgColor,
+                border = BorderStroke(
+                    1.dp,
+                    if (isSelected) primaryColor else primaryColor.copy(alpha = 0.25f)
+                ),
+                shadowElevation = if (isSelected) 8.dp else 0.dp,
+                modifier = Modifier.scale(scale)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
