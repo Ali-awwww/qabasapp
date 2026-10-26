@@ -1,0 +1,260 @@
+Initialized native services in: /opt/gradle/.gradle/native
+Initialized jansi services in: /opt/gradle/.gradle/native
+The client will now receive all logging from the daemon (pid: 66). The daemon log file: /opt/gradle/.gradle/daemon/9.3.1/daemon-66.out.log
+Starting 35th build in daemon [uptime: 1 hrs 11 mins 34.362 secs, performance: 98%, GC rate: 0.00/s, heap usage: 0% of 3.5 GiB]
+Using 4 worker leases.
+Operational build model parameters: {requiresToolingModels=false, parallelProjectExecution=true, configureOnDemand=false, configurationCache=false, configurationCacheParallelStore=false, configurationCacheParallelLoad=true, isolatedProjects=false, parallelProjectConfiguration=false, intermediateModelCache=false, parallelToolingApiActions=true, invalidateCoupledProjects=false, modelAsProjectDependency=false, resilientModelBuilding=false}
+Watching the file system is configured to be enabled if available
+Unable to list file systems to check whether they can be watched. Disabling watching. Reason: Could not query file systems: could not open mount file (errno 2: No such file or directory)
+File system watching is inactive
+Starting Build
+Settings evaluated using settings file '/app/applet/settings.gradle.kts'.
+Using local directory build cache for the root build (location = /opt/gradle/.gradle/caches/build-cache-1, remove unused entries = after 7 days).
+Projects loaded. Root project using build file '/app/applet/build.gradle.kts'.
+Included projects: [root project 'استوديو قبس', project ':app']
+
+> Configure project :
+Evaluating root project 'استوديو قبس' using build file '/app/applet/build.gradle.kts'.
+Resolved plugin [id: 'com.android.application', version: '9.1.1', apply: false]
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.compose', version: '2.0.21', apply: false]
+Resolved plugin [id: 'com.google.devtools.ksp', version: '2.0.21-1.0.28', apply: false]
+Resolved plugin [id: 'com.google.android.libraries.mapsplatform.secrets-gradle-plugin', version: '2.0.1', apply: false]
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.serialization', version: '2.0.21', apply: false]
+Resolved plugin [id: 'com.google.gms.google-services', version: '4.4.2', apply: false]
+
+> Configure project :app
+Evaluating project ':app' using build file '/app/applet/app/build.gradle.kts'.
+Resolved plugin [id: 'com.android.application', version: '9.1.1']
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.compose', version: '2.0.21']
+Resolved plugin [id: 'com.google.devtools.ksp', version: '2.0.21-1.0.28']
+Resolved plugin [id: 'com.google.android.libraries.mapsplatform.secrets-gradle-plugin', version: '2.0.1']
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.serialization', version: '2.0.21']
+Resolved plugin [id: 'com.google.gms.google-services', version: '4.4.2']
+WARNING: The option setting 'android.disallowKotlinSourceSets=false' is experimental.
+The current default is 'true'.
+Build 288c4fee-a747-431d-b654-f74bf0c6b61a is started
+Using default execution profile
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+All projects evaluated.
+Task path ':app:compileDebugKotlin' matched project ':app'
+Task name matched 'compileDebugKotlin'
+Adding -Xuse-inline-scopes-numbers Kotlin compiler flag for task :app:compileDebugKotlin
+Selected primary task 'compileDebugKotlin' from project :app
+Tasks to be executed: [task ':app:preBuild', task ':app:preDebugBuild', task ':app:generateDebugBuildConfig', task ':app:generateDebugResources', task ':app:ensureGoogleServicesJson', task ':app:processDebugGoogleServices', task ':app:packageDebugResources', task ':app:processDebugNavigationResources', task ':app:parseDebugLocalResources', task ':app:generateDebugRFile', task ':app:kspDebugKotlin', task ':app:compileDebugKotlin']
+Tasks that were excluded: []
+Resolve mutations for :app:preBuild (Thread[#1746,included builds,5,main]) started.
+:app:preBuild (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:preBuild UP-TO-DATE
+Skipping task ':app:preBuild' as it has no actions.
+Resolve mutations for :app:preDebugBuild (Thread[#1746,included builds,5,main]) started.
+:app:preDebugBuild (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:preDebugBuild UP-TO-DATE
+Skipping task ':app:preDebugBuild' as it has no actions.
+Resolve mutations for :app:generateDebugBuildConfig (Thread[#1746,included builds,5,main]) started.
+:app:generateDebugBuildConfig (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+Build cache key for task ':app:generateDebugBuildConfig' is ec4c3d444f9d54e5668b4b79eea76b64
+Skipping task ':app:generateDebugBuildConfig' as it is up-to-date.
+Resolve mutations for :app:generateDebugResources (Thread[#1746,included builds,5,main]) started.
+:app:generateDebugResources (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:generateDebugResources UP-TO-DATE
+Build cache key for task ':app:generateDebugResources' is 2fa4ba8ac659b0079e32f152f9d8328a
+Skipping task ':app:generateDebugResources' as it is up-to-date.
+Resolve mutations for :app:ensureGoogleServicesJson (Thread[#1746,included builds,5,main]) started.
+:app:ensureGoogleServicesJson (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:ensureGoogleServicesJson
+Custom actions are attached to task ':app:ensureGoogleServicesJson'.
+Caching disabled for task ':app:ensureGoogleServicesJson' because:
+  Gradle would require more information to cache this task
+Task ':app:ensureGoogleServicesJson' is not up-to-date because:
+  Task has not declared any outputs despite executing actions.
+Resolve mutations for :app:processDebugGoogleServices (Thread[#1746,included builds,5,main]) started.
+:app:processDebugGoogleServices (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:processDebugGoogleServices UP-TO-DATE
+Build cache key for task ':app:processDebugGoogleServices' is 7be08de218f9522a4b82198492acd655
+Skipping task ':app:processDebugGoogleServices' as it is up-to-date.
+Resolve mutations for :app:packageDebugResources (Thread[#1746,included builds,5,main]) started.
+:app:packageDebugResources (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:packageDebugResources UP-TO-DATE
+Build cache key for task ':app:packageDebugResources' is 5913be43e696b6fef64ecde58fea0432
+Skipping task ':app:packageDebugResources' as it is up-to-date.
+Resolve mutations for :app:processDebugNavigationResources (Thread[#1746,included builds,5,main]) started.
+:app:processDebugNavigationResources (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:processDebugNavigationResources UP-TO-DATE
+Build cache key for task ':app:processDebugNavigationResources' is 87117be1ef5e2171016ff1f4188827c2
+Skipping task ':app:processDebugNavigationResources' as it is up-to-date.
+Resolve mutations for :app:parseDebugLocalResources (Thread[#1746,included builds,5,main]) started.
+:app:parseDebugLocalResources (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:parseDebugLocalResources UP-TO-DATE
+Build cache key for task ':app:parseDebugLocalResources' is 9851d917b1ee39030357a350c45a9402
+Skipping task ':app:parseDebugLocalResources' as it is up-to-date.
+Resolve mutations for :app:generateDebugRFile (Thread[#1746,included builds,5,main]) started.
+:app:generateDebugRFile (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:generateDebugRFile UP-TO-DATE
+Build cache key for task ':app:generateDebugRFile' is edf0fe80e22203db8b929bc3667856f9
+Skipping task ':app:generateDebugRFile' as it is up-to-date.
+Resolve mutations for :app:kspDebugKotlin (Thread[#1746,included builds,5,main]) started.
+:app:kspDebugKotlin (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:kspDebugKotlin
+Registered task dependencies: app:debugCompileClasspath
+Skipping misunderstood TO dep string: androidx.compose.ui:ui-test-manifest
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: androidx.compose.ui:ui-tooling
+Skipping misunderstood TO dep string: androidx.compose.material:material-icons-core
+Skipping misunderstood TO dep string: androidx.compose.material:material-icons-extended
+Skipping misunderstood TO dep string: androidx.compose.material3:material3
+Skipping misunderstood TO dep string: androidx.compose.ui:ui
+Skipping misunderstood TO dep string: androidx.compose.ui:ui-graphics
+Skipping misunderstood TO dep string: androidx.compose.ui:ui-tooling-preview
+Skipping misunderstood TO dep string: androidx.compose.ui:ui-text-google-fonts
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: com.google.firebase:firebase-firestore
+Skipping misunderstood TO dep string: com.google.firebase:firebase-auth
+Skipping misunderstood TO dep string: com.google.firebase:firebase-ai
+Skipping misunderstood TO dep string: com.google.firebase:firebase-appcheck-debug
+Skipping misunderstood TO dep string: com.google.firebase:firebase-appcheck-playintegrity
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: io.github.jan-tennert.supabase:postgrest-kt
+Skipping misunderstood TO dep string: io.github.jan-tennert.supabase:auth-kt
+Skipping misunderstood TO dep string: io.github.jan-tennert.supabase:storage-kt
+Skipping misunderstood TO dep string: io.github.jan-tennert.supabase:functions-kt
+Starting dependency analysis
+Build cache key for task ':app:kspDebugKotlin' is 2922d424bb7ff7c13f6a1a2893cf3000
+Task ':app:kspDebugKotlin' is not up-to-date because:
+  Value of input property 'kspConfig.logLevel' has changed for task ':app:kspDebugKotlin'
+The input changes require a full rebuild for incremental task ':app:kspDebugKotlin'.
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+i: [ksp] loaded provider(s): [androidx.room.RoomKspProcessor$Provider, com.squareup.moshi.kotlin.codegen.ksp.JsonClassSymbolProcessorProvider]
+Stored cache entry for task ':app:kspDebugKotlin' with cache key 2922d424bb7ff7c13f6a1a2893cf3000
+Resolve mutations for :app:compileDebugKotlin (Thread[#1746,included builds,5,main]) started.
+:app:compileDebugKotlin (Thread[#1746,included builds,5,main]) started.
+
+> Task :app:compileDebugKotlin
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+Registered task dependencies: app:kotlinCompilerClasspath
+Starting dependency analysis
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+Registered task dependencies: app:kotlinCompilerPluginClasspath
+Starting dependency analysis
+Registered task dependencies: app:kotlinCompilerPluginClasspathDebug
+Starting dependency analysis
+Custom actions are attached to task ':app:compileDebugKotlin'.
+Build cache key for task ':app:compileDebugKotlin' is d5ee0173d548cfd2f1a99eb3decc423e
+Task ':app:compileDebugKotlin' is not up-to-date because:
+  Input property 'sources' file /app/applet/app/src/main/java/com/qabas/app/ReelsScreen.kt has changed.
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/build/generated/ksp/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/build/generated/ksp/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/build/generated/ksp/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/main/kotlin', not found
+file or directory '/app/applet/app/src/debug/java', not found
+file or directory '/app/applet/app/src/debug/kotlin', not found
+file or directory '/app/applet/app/build/generated/ksp/debug/java', not found
+Kotlin source files: /app/applet/app/src/main/java/com/qabas/app/Models.kt, /app/applet/app/src/main/java/com/qabas/app/CentralMediaBrowserScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AdminGuard.kt, /app/applet/app/src/main/java/com/qabas/app/AgentRunLog.kt, /app/applet/app/src/main/java/com/qabas/app/SahihQuizEngine.kt, /app/applet/app/src/main/java/com/qabas/app/ReelKhushuMode.kt, /app/applet/app/src/main/java/com/qabas/app/AppRequestService.kt, /app/applet/app/src/main/java/com/qabas/app/CrashBreadcrumbs.kt, /app/applet/app/src/main/java/com/qabas/app/UserIdentifierManager.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerAlarmManager.kt, /app/applet/app/src/main/java/com/qabas/app/KeyLatencyTracker.kt, /app/applet/app/src/main/java/com/qabas/app/SahabaData.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/VideoImportSection.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/InputComponents.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/ImagesImportSection.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/AudioImportSection.kt, /app/applet/app/src/main/java/com/qabas/app/ui/input/IdeaInputSection.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/components/FreeProvidersUi.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/components/AgentChatUi.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/tabs/AgentHistoryTab.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/tabs/AgentConsoleTab.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/tabs/AgentToolsTab.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/tabs/AgentRequirementsTab.kt, /app/applet/app/src/main/java/com/qabas/app/ui/agent/AgentDesign.kt, /app/applet/app/src/main/java/com/qabas/app/ui/components/ReelPlayer.kt, /app/applet/app/src/main/java/com/qabas/app/ui/components/GlassmorphicSurface.kt, /app/applet/app/src/main/java/com/qabas/app/ui/components/CloudSyncIndicator.kt, /app/applet/app/src/main/java/com/qabas/app/ui/components/NetworkHUD.kt, /app/applet/app/src/main/java/com/qabas/app/ui/components/GeometricToolsDock.kt, /app/applet/app/src/main/java/com/qabas/app/ui/geometry/GeometricDesignSystem.kt, /app/applet/app/src/main/java/com/qabas/app/ui/theme/Color.kt, /app/applet/app/src/main/java/com/qabas/app/ui/theme/Theme.kt, /app/applet/app/src/main/java/com/qabas/app/ui/theme/Type.kt, /app/applet/app/src/main/java/com/qabas/app/ui/changelog/ChangelogHubComponents.kt, /app/applet/app/src/main/java/com/qabas/app/ui/dialogs/HadithShareDialog.kt, /app/applet/app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt, /app/applet/app/src/main/java/com/qabas/app/ui/TestTags.kt, /app/applet/app/src/main/java/com/qabas/app/ReviewScreen.kt, /app/applet/app/src/main/java/com/qabas/app/VoiceStudioScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt, /app/applet/app/src/main/java/com/qabas/app/SahihReaderView.kt, /app/applet/app/src/main/java/com/qabas/app/ContentGuardScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SmartFeaturesEngine.kt, /app/applet/app/src/main/java/com/qabas/app/CreateStyleObjectScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasBrainRepository.kt, /app/applet/app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerAzanReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/AiEditorSection.kt, /app/applet/app/src/main/java/com/qabas/app/FirestoreErrorHandling.kt, /app/applet/app/src/main/java/com/qabas/app/StudioGatewayScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasApplication.kt, /app/applet/app/src/main/java/com/qabas/app/AiTools.kt, /app/applet/app/src/main/java/com/qabas/app/AdvancedEditScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentBrain.kt, /app/applet/app/src/main/java/com/qabas/app/CodingPlatformDirectory.kt, /app/applet/app/src/main/java/com/qabas/app/NotificationActionReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/YouTubeStudioScreen.kt, /app/applet/app/src/main/java/com/qabas/app/StoreScreen.kt, /app/applet/app/src/main/java/com/qabas/app/CreatorFollowManager.kt, /app/applet/app/src/main/java/com/qabas/app/RepoVaultManager.kt, /app/applet/app/src/main/java/com/qabas/app/PendingMediaBridge.kt, /app/applet/app/src/main/java/com/qabas/app/CloudIntegrationMonitorPanel.kt, /app/applet/app/src/main/java/com/qabas/app/StyleSelectionScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AppSoundManager.kt, /app/applet/app/src/main/java/com/qabas/app/ClipExtractorScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AppAnimationManager.kt, /app/applet/app/src/main/java/com/qabas/app/CenterDesignKit.kt, /app/applet/app/src/main/java/com/qabas/app/ProfileScreen.kt, /app/applet/app/src/main/java/com/qabas/app/InputScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AutoSeriesGeneratorEngine.kt, /app/applet/app/src/main/java/com/qabas/app/ContentFilterService.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialMarkup.kt, /app/applet/app/src/main/java/com/qabas/app/MultiModelAgentOrchestrator.kt, /app/applet/app/src/main/java/com/qabas/app/DirectPublisherDialog.kt, /app/applet/app/src/main/java/com/qabas/app/ReelSafetyGuardrails.kt, /app/applet/app/src/main/java/com/qabas/app/PhotoStudioScreen.kt, /app/applet/app/src/main/java/com/qabas/app/OpenRouterService.kt, /app/applet/app/src/main/java/com/qabas/app/MoneyCenterSection.kt, /app/applet/app/src/main/java/com/qabas/app/MushafPageData.kt, /app/applet/app/src/main/java/com/qabas/app/HadithSearchNormalizer.kt, /app/applet/app/src/main/java/com/qabas/app/QabasStudioSharedComponents.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateManager.kt, /app/applet/app/src/main/java/com/qabas/app/OnboardingTutorialOverlay.kt, /app/applet/app/src/main/java/com/qabas/app/QabasSolarSystemNavigation.kt, /app/applet/app/src/main/java/com/qabas/app/OnDeviceModelDownloadDialog.kt, /app/applet/app/src/main/java/com/qabas/app/BugReportsSection.kt, /app/applet/app/src/main/java/com/qabas/app/SpeedMeter.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialMarkupCanvas.kt, /app/applet/app/src/main/java/com/qabas/app/QabasNotificationHelper.kt, /app/applet/app/src/main/java/com/qabas/app/AgentDialogs.kt, /app/applet/app/src/main/java/com/qabas/app/RewardsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/MediaResource.kt, /app/applet/app/src/main/java/com/qabas/app/AudioPlayerPlaylistSheet.kt, /app/applet/app/src/main/java/com/qabas/app/FullSahihHadithRepository.kt, /app/applet/app/src/main/java/com/qabas/app/ProcessingScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SupabaseAudioSection.kt, /app/applet/app/src/main/java/com/qabas/app/AuditLogSection.kt, /app/applet/app/src/main/java/com/qabas/app/AppPermissionLauncher.kt, /app/applet/app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt, /app/applet/app/src/main/java/com/qabas/app/SmartBRollAndTransitionsComponents.kt, /app/applet/app/src/main/java/com/qabas/app/AudioPlaylistUI.kt, /app/applet/app/src/main/java/com/qabas/app/ReelSettingsSheet.kt, /app/applet/app/src/main/java/com/qabas/app/PatchManager.kt, /app/applet/app/src/main/java/com/qabas/app/CloudServices.kt, /app/applet/app/src/main/java/com/qabas/app/LlamaCppService.kt, /app/applet/app/src/main/java/com/qabas/app/EngagementAnalyticsChart.kt, /app/applet/app/src/main/java/com/qabas/app/AudioDownloadHelper.kt, /app/applet/app/src/main/java/com/qabas/app/PipelineDoctor.kt, /app/applet/app/src/main/java/com/qabas/app/InputScreenSections.kt, /app/applet/app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt, /app/applet/app/src/main/java/com/qabas/app/LocalImageAnalyzer.kt, /app/applet/app/src/main/java/com/qabas/app/SavedItemsRepository.kt, /app/applet/app/src/main/java/com/qabas/app/SpiritualBootReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/FreeStockSources.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialDevIntegrationGuideDialog.kt, /app/applet/app/src/main/java/com/qabas/app/LeagueService.kt, /app/applet/app/src/main/java/com/qabas/app/RemoteNotificationsManager.kt, /app/applet/app/src/main/java/com/qabas/app/DailyHadithRepository.kt, /app/applet/app/src/main/java/com/qabas/app/PaymentService.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarEnrichmentData.kt, /app/applet/app/src/main/java/com/qabas/app/GitHubRepoClient.kt, /app/applet/app/src/main/java/com/qabas/app/TeleprompterScreen.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt, /app/applet/app/src/main/java/com/qabas/app/LocalAgentInferenceEngine.kt, /app/applet/app/src/main/java/com/qabas/app/DesignDesignKit.kt, /app/applet/app/src/main/java/com/qabas/app/EditorModels.kt, /app/applet/app/src/main/java/com/qabas/app/ImageEditorEngine.kt, /app/applet/app/src/main/java/com/qabas/app/DoctorMonitor.kt, /app/applet/app/src/main/java/com/qabas/app/DirectorChatScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AzanCloudRepository.kt, /app/applet/app/src/main/java/com/qabas/app/QuranDataProvider.kt, /app/applet/app/src/main/java/com/qabas/app/BugReportManager.kt, /app/applet/app/src/main/java/com/qabas/app/DiagnosticsDashboardSection.kt, /app/applet/app/src/main/java/com/qabas/app/KeySyncService.kt, /app/applet/app/src/main/java/com/qabas/app/AzanPlaybackService.kt, /app/applet/app/src/main/java/com/qabas/app/OnDeviceModelManager.kt, /app/applet/app/src/main/java/com/qabas/app/PollinationsAiService.kt, /app/applet/app/src/main/java/com/qabas/app/ProductionPowerKit.kt, /app/applet/app/src/main/java/com/qabas/app/KeyPoolManager.kt, /app/applet/app/src/main/java/com/qabas/app/QabasUx.kt, /app/applet/app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialAiRemediationApprovalDialog.kt, /app/applet/app/src/main/java/com/qabas/app/GoogleAuthHelper.kt, /app/applet/app/src/main/java/com/qabas/app/PipelineActions.kt, /app/applet/app/src/main/java/com/qabas/app/EdgeTtsService.kt, /app/applet/app/src/main/java/com/qabas/app/MainActivity.kt, /app/applet/app/src/main/java/com/qabas/app/AppDiagnostics.kt, /app/applet/app/src/main/java/com/qabas/app/QuranAudioService.kt, /app/applet/app/src/main/java/com/qabas/app/ReelPreferencesManager.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialCommandHomeScreen.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateNotificationDialog.kt, /app/applet/app/src/main/java/com/qabas/app/AzkarScreen.kt, /app/applet/app/src/main/java/com/qabas/app/PlayInAppUpdate.kt, /app/applet/app/src/main/java/com/qabas/app/QabasLinkOpener.kt, /app/applet/app/src/main/java/com/qabas/app/DownloadsHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/TransactionManager.kt, /app/applet/app/src/main/java/com/qabas/app/ReelPublishScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SceneEngineMonitor.kt, /app/applet/app/src/main/java/com/qabas/app/AgentBuildVerifier.kt, /app/applet/app/src/main/java/com/qabas/app/TasteProfileScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DownloadsHubManager.kt, /app/applet/app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt, /app/applet/app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt, /app/applet/app/src/main/java/com/qabas/app/IslamicLibraryData.kt, /app/applet/app/src/main/java/com/qabas/app/AiAutonomousRemediationEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AudioRecorderHelper.kt, /app/applet/app/src/main/java/com/qabas/app/AppSelfDoctor.kt, /app/applet/app/src/main/java/com/qabas/app/AgentMissionCards.kt, /app/applet/app/src/main/java/com/qabas/app/SahabaExtendedData2.kt, /app/applet/app/src/main/java/com/qabas/app/BuildCenterSection.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarCuratedLectures.kt, /app/applet/app/src/main/java/com/qabas/app/PlatformGatewayClient.kt, /app/applet/app/src/main/java/com/qabas/app/SamirMustafaAqaidAlBalaaData.kt, /app/applet/app/src/main/java/com/qabas/app/CodeTools.kt, /app/applet/app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt, /app/applet/app/src/main/java/com/qabas/app/YouTubeStudioEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AiSmartDirectorScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SahihHadithData.kt, /app/applet/app/src/main/java/com/qabas/app/PremiumUpgradeScreen.kt, /app/applet/app/src/main/java/com/qabas/app/ApiKeysScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt, /app/applet/app/src/main/java/com/qabas/app/PointsManager.kt, /app/applet/app/src/main/java/com/qabas/app/GrowthUpgrades.kt, /app/applet/app/src/main/java/com/qabas/app/QabasRulesScreen.kt, /app/applet/app/src/main/java/com/qabas/app/Translator.kt, /app/applet/app/src/main/java/com/qabas/app/ResourceReviewScreen.kt, /app/applet/app/src/main/java/com/qabas/app/PaymentScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AccountService.kt, /app/applet/app/src/main/java/com/qabas/app/UserReportsDialog.kt, /app/applet/app/src/main/java/com/qabas/app/AppNavigator.kt, /app/applet/app/src/main/java/com/qabas/app/AccountSettingsSection.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt, /app/applet/app/src/main/java/com/qabas/app/ReelPublishManager.kt, /app/applet/app/src/main/java/com/qabas/app/SupabaseServices.kt, /app/applet/app/src/main/java/com/qabas/app/QasasStorytellerScreen.kt, /app/applet/app/src/main/java/com/qabas/app/LocalAccountRegistry.kt, /app/applet/app/src/main/java/com/qabas/app/TranscriptVideoEditorScreen.kt, /app/applet/app/src/main/java/com/qabas/app/VideoCacheService.kt, /app/applet/app/src/main/java/com/qabas/app/DoctorPulse.kt, /app/applet/app/src/main/java/com/qabas/app/AgentPrefs.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt, /app/applet/app/src/main/java/com/qabas/app/BRollEngine.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialBuildTestLabDialog.kt, /app/applet/app/src/main/java/com/qabas/app/StyleBrain.kt, /app/applet/app/src/main/java/com/qabas/app/ComprehensiveSettingsSections.kt, /app/applet/app/src/main/java/com/qabas/app/ApiKeyValidator.kt, /app/applet/app/src/main/java/com/qabas/app/UnderstandingScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AiOperatorEngine.kt, /app/applet/app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt, /app/applet/app/src/main/java/com/qabas/app/FullSahihReaderScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasCrashGuard.kt, /app/applet/app/src/main/java/com/qabas/app/ReelHistorySheet.kt, /app/applet/app/src/main/java/com/qabas/app/ConnectorsSection.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt, /app/applet/app/src/main/java/com/qabas/app/SocialStatsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/StudioMaintenanceView.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateDiagnosticsPanel.kt, /app/applet/app/src/main/java/com/qabas/app/AppPermissionsLauncher.kt, /app/applet/app/src/main/java/com/qabas/app/AppDoctorSection.kt, /app/applet/app/src/main/java/com/qabas/app/SavedItemsViewModel.kt, /app/applet/app/src/main/java/com/qabas/app/ProjectService.kt, /app/applet/app/src/main/java/com/qabas/app/VersionManager.kt, /app/applet/app/src/main/java/com/qabas/app/QabasSmartTipsBar.kt, /app/applet/app/src/main/java/com/qabas/app/DevHonestLabels.kt, /app/applet/app/src/main/java/com/qabas/app/ProductionDesignKit.kt, /app/applet/app/src/main/java/com/qabas/app/AppPermissionsHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/CentralMediaManager.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateErrorReportDialog.kt, /app/applet/app/src/main/java/com/qabas/app/MushafReaderScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SocialAccountManager.kt, /app/applet/app/src/main/java/com/qabas/app/ActiveSessionManager.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt, /app/applet/app/src/main/java/com/qabas/app/ApiDocsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/OfflineAiSettingsSection.kt, /app/applet/app/src/main/java/com/qabas/app/ReelCreatorProfileSheet.kt, /app/applet/app/src/main/java/com/qabas/app/NotificationsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SharedComponents.kt, /app/applet/app/src/main/java/com/qabas/app/VoiceStudioService.kt, /app/applet/app/src/main/java/com/qabas/app/QabasHomeScreen.kt, /app/applet/app/src/main/java/com/qabas/app/FirebaseManager.kt, /app/applet/app/src/main/java/com/qabas/app/StyleManager.kt, /app/applet/app/src/main/java/com/qabas/app/AppNavigation.kt, /app/applet/app/src/main/java/com/qabas/app/StyleBrainSection.kt, /app/applet/app/src/main/java/com/qabas/app/SupabaseConfig.kt, /app/applet/app/src/main/java/com/qabas/app/AudioPlayerManager.kt, /app/applet/app/src/main/java/com/qabas/app/SahabaExtendedData.kt, /app/applet/app/src/main/java/com/qabas/app/ReelAmbienceSoundscapeEngine.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarCardImageGenerator.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarPreferences.kt, /app/applet/app/src/main/java/com/qabas/app/NotificationSettingsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarsData.kt, /app/applet/app/src/main/java/com/qabas/app/GiftManager.kt, /app/applet/app/src/main/java/com/qabas/app/LeaderboardScreen.kt, /app/applet/app/src/main/java/com/qabas/app/CrashLogsHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DevRepoSync.kt, /app/applet/app/src/main/java/com/qabas/app/CameraCaptureScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AiGatewayAdapters.kt, /app/applet/app/src/main/java/com/qabas/app/GeminiChatCompat.kt, /app/applet/app/src/main/java/com/qabas/app/RealServices.kt, /app/applet/app/src/main/java/com/qabas/app/TransferCounters.kt, /app/applet/app/src/main/java/com/qabas/app/ReelAudioDetailsSheet.kt, /app/applet/app/src/main/java/com/qabas/app/BrainNeuralStateCard.kt, /app/applet/app/src/main/java/com/qabas/app/MoneyPrinterTurboScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentStreaming.kt, /app/applet/app/src/main/java/com/qabas/app/AzanCountdownService.kt, /app/applet/app/src/main/java/com/qabas/app/StudioProEditorScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DiagnosticScanDialog.kt, /app/applet/app/src/main/java/com/qabas/app/PerfTracker.kt, /app/applet/app/src/main/java/com/qabas/app/UserPreferencesManager.kt, /app/applet/app/src/main/java/com/qabas/app/NetworkUtils.kt, /app/applet/app/src/main/java/com/qabas/app/ReelMoreOptionsSheet.kt, /app/applet/app/src/main/java/com/qabas/app/SavedItemsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/EnterprisePortalScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DataLoadingScreen.kt, /app/applet/app/src/main/java/com/qabas/app/ReelsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasBrainViewModel.kt, /app/applet/app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/SupabaseRepository.kt, /app/applet/app/src/main/java/com/qabas/app/ResourceMediaResolver.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateHistoryScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SettingsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt, /app/applet/app/src/main/java/com/qabas/app/AboutUsAndVersionScreen.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerCitySelectionDialog.kt, /app/applet/app/src/main/java/com/qabas/app/BugReportRepository.kt, /app/applet/app/src/main/java/com/qabas/app/Database.kt, /app/applet/app/src/main/java/com/qabas/app/MontageDirector.kt, /app/applet/app/src/main/java/com/qabas/app/FirebaseAppCheckHelper.kt, /app/applet/app/src/main/java/com/qabas/app/ClientRepoTemplates.kt, /app/applet/app/src/main/java/com/qabas/app/AppRemoteConfig.kt, /app/applet/app/src/main/java/com/qabas/app/AutoThumbnailGeneratorEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AppNotificationService.kt, /app/applet/app/src/main/java/com/qabas/app/AppIdeaFormScreen.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateChannelFacade.kt, /app/applet/app/src/main/java/com/qabas/app/WorkspaceAutoSaveManager.kt, /app/applet/app/src/main/java/com/qabas/app/HiggsfieldVideoService.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt, /app/applet/app/src/main/java/com/qabas/app/BugCameraSettingsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/KokoroTtsService.kt, /app/applet/app/src/main/java/com/qabas/app/QabasStudioScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SmartStudioUpgrades.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateInstallReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/QuranTajweedScreen.kt, /app/applet/app/src/main/java/com/qabas/app/RequestChatScreen.kt, /app/applet/app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentExecutionAnimation.kt, /app/applet/app/src/main/java/com/qabas/app/ProjectsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt, /app/applet/app/src/main/java/com/qabas/app/CinematicExportScreen.kt, /app/applet/app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt, /app/applet/app/src/main/java/com/qabas/app/QabasWebConfig.kt, /app/applet/app/src/main/java/com/qabas/app/HasanatHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasLottieAnimations.kt, /app/applet/app/src/main/java/com/qabas/app/ProductionPipelineSection.kt, /app/applet/app/src/main/java/com/qabas/app/SavedItem.kt, /app/applet/app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt, /app/applet/app/src/main/java/com/qabas/app/AgentHudKit.kt, /app/applet/app/src/main/java/com/qabas/app/ProceduralBackdropEngine.kt, /app/applet/app/src/main/java/com/qabas/app/DevChatRepository.kt, /app/applet/app/src/main/java/com/qabas/app/LoginScreen.kt, /app/applet/app/src/main/java/com/qabas/app/GatewayAiService.kt, /app/applet/app/src/main/java/com/qabas/app/AudioLibraryScreen.kt, /app/applet/app/src/main/java/com/qabas/app/OperationalReadinessManager.kt, /app/applet/app/src/main/java/com/qabas/app/ApiUsageTracker.kt, /app/applet/app/src/main/java/com/qabas/app/DevChatScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AiModelLatencySwitcherScreen.kt, /app/applet/app/src/main/java/com/qabas/app/BackgroundPermissionManager.kt, /app/applet/app/src/main/java/com/qabas/app/AIAssistantScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentMission.kt, /app/applet/app/src/main/java/com/qabas/app/LocalApiServer.kt, /app/applet/app/src/main/java/com/qabas/app/CommonUiStates.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerTimesScreen.kt, /app/applet/app/src/main/java/com/qabas/app/IslamicLibraryScreen.kt, /app/applet/app/src/main/java/com/qabas/app/NotificationHelper.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerAzanBootReceiver.kt, /app/applet/app/src/main/java/com/qabas/app/FirebaseAuthRepository.kt, /app/applet/app/src/main/java/com/qabas/app/PrayerDataModels.kt, /app/applet/app/src/main/java/com/qabas/app/DeltaMonitoringDashboard.kt, /app/applet/app/src/main/java/com/qabas/app/PurchaseValidator.kt, /app/applet/app/src/main/java/com/qabas/app/ExoPlayerFactory.kt, /app/applet/app/src/main/java/com/qabas/app/TasteManager.kt, /app/applet/app/src/main/java/com/qabas/app/AudioProgressUI.kt, /app/applet/app/src/main/java/com/qabas/app/ModelDownloadService.kt, /app/applet/app/src/main/java/com/qabas/app/NetworkConnectivityObserver.kt, /app/applet/app/src/main/java/com/qabas/app/AuthScreens.kt, /app/applet/app/src/main/java/com/qabas/app/SmartPublishScheduleDialog.kt, /app/applet/app/src/main/java/com/qabas/app/AiModelRegistry.kt, /app/applet/app/src/main/java/com/qabas/app/SpiritualReactionsOverlay.kt, /app/applet/app/src/main/java/com/qabas/app/CyberneticLogo.kt, /app/applet/app/src/main/java/com/qabas/app/BuildVerificationEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AudioPlaybackManager.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarDetailScreen.kt, /app/applet/app/src/main/java/com/qabas/app/SupportContributionSection.kt, /app/applet/app/src/main/java/com/qabas/app/EnhancedUsersSection.kt, /app/applet/app/src/main/java/com/qabas/app/UnifiedMasterStudioScreen.kt, /app/applet/app/src/main/java/com/qabas/app/DashboardBackup.kt, /app/applet/app/src/main/java/com/qabas/app/OnboardingScreen.kt, /app/applet/app/src/main/java/com/qabas/app/UpdateDownloadService.kt, /app/applet/app/src/main/java/com/qabas/app/PrecisionDiagnosticEngine.kt, /app/applet/app/src/main/java/com/qabas/app/HomeScreenStyleManager.kt, /app/applet/app/src/main/java/com/qabas/app/AudioRecord.kt, /app/applet/app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt, /app/applet/app/src/main/java/com/qabas/app/AgentTeamConfigScreen.kt, /app/applet/app/src/main/java/com/qabas/app/TierManager.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialServiceDiagnosticsHub.kt, /app/applet/app/src/main/java/com/qabas/app/AnalyticsService.kt, /app/applet/app/src/main/java/com/qabas/app/AgentPatches.kt, /app/applet/app/src/main/java/com/qabas/app/ScholarCustomFacetsData.kt, /app/applet/app/src/main/java/com/qabas/app/SpiritualSafetyGuard.kt, /app/applet/app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt, /app/applet/app/src/main/java/com/qabas/app/VerificationManager.kt, /app/applet/app/src/main/java/com/qabas/app/PollinationsTextService.kt, /app/applet/app/src/main/java/com/qabas/app/BrainDecisionHistoryLog.kt, /app/applet/app/src/main/java/com/qabas/app/KeyDeepLinkHandler.kt, /app/applet/app/src/main/java/com/qabas/app/RevenueDashboard.kt, /app/applet/app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt, /app/applet/app/src/main/java/com/qabas/app/QabasApp.kt, /app/applet/app/src/main/java/com/qabas/app/QabasExitConfirmationDialog.kt, /app/applet/app/src/main/java/com/qabas/app/BillingManager.kt, /app/applet/app/src/main/java/com/qabas/app/LocalPromptPlanner.kt, /app/applet/app/src/main/java/com/qabas/app/AuditLogger.kt, /app/applet/app/src/main/java/com/qabas/app/GoogleAuthComponents.kt, /app/applet/app/src/main/java/com/qabas/app/VideoProcessor.kt, /app/applet/app/src/main/java/com/qabas/app/SpatialDraggableDevCameraButton.kt, /app/applet/app/src/main/java/com/qabas/app/ViralSeoHashtagEngine.kt, /app/applet/app/src/main/java/com/qabas/app/AzanAudioPlayer.kt, /app/applet/app/src/main/java/com/qabas/app/RequestDetailsScreen.kt, /app/applet/app/src/main/java/com/qabas/app/HealthCenterSection.kt, /app/applet/app/src/main/java/com/qabas/app/AgentModels.kt, /app/applet/app/src/main/java/com/qabas/app/HasanatHubViewModel.kt, /app/applet/app/src/main/java/com/qabas/app/CommunityReviewsSection.kt, /app/applet/app/src/main/java/com/qabas/app/DevLog.kt, /app/applet/app/src/main/java/com/qabas/app/GithubXdeltaHubScreen.kt, /app/applet/app/src/main/java/com/qabas/app/VideoEngineManager.kt, /app/applet/app/src/main/java/com/qabas/app/PhotoStudioEngine.kt, /app/applet/app/src/main/java/com/qabas/app/ApiKeyManager.kt, /app/applet/app/src/main/java/com/qabas/app/LeonardoImageService.kt, /app/applet/app/src/main/java/com/qabas/app/MuslimToolsEngine.kt, /app/applet/app/src/main/java/com/qabas/app/MuslimToolsDialogs.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/ProjectDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/TasteDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/HadithCardDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/AudioTrackDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/ReelScriptDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/SeriesDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/MemorizationDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/QuranChallengeDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/TadabburDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/WorkspaceDraftDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/ChangelogDao_Impl.kt, /app/applet/app/build/generated/ksp/debug/kotlin/com/qabas/app/AppDatabase_Impl.kt
+Java source files: /app/applet/app/build/generated/source/buildConfig/debug/com/qabas/app/BuildConfig.java
+Script source files: 
+Script file extensions: 
+Using Kotlin/JVM incremental compilation
+[KOTLIN] Kotlin compilation 'jdkHome' argument: /usr/lib/jvm/temurin-21-jdk-amd64
+Options for KOTLIN DAEMON: IncrementalCompilationOptions(super=CompilationOptions(compilerMode=INCREMENTAL_COMPILER, targetPlatform=JVM, reportCategories=[0, 3], reportSeverity=2, requestedCompilationResults=[0], kotlinScriptExtensions=[]), sourceChanges=org.jetbrains.kotlin.buildtools.api.SourcesChanges$Known@4e5212a4, classpathChanges=NoChanges, workingDir=/app/applet/app/build/kotlin/compileDebugKotlin/cacheable, multiModuleICSettings=MultiModuleICSettings(buildHistoryFile=/app/applet/app/build/kotlin/compileDebugKotlin/local-state/build-history.bin, useModuleDetection=true), icFeatures=IncrementalCompilationFeatures(usePreciseJavaTracking=true, withAbiSnapshot=false, preciseCompilationResultsBackup=true, keepIncrementalCompilationCachesInMemory=true, enableUnsafeIncrementalCompilationForMultiplatform=false, enableMonotonousIncrementalCompileSetExpansion=true), outputFiles=[/app/applet/app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes, /app/applet/app/build/kotlin/compileDebugKotlin/cacheable, /app/applet/app/build/kotlin/compileDebugKotlin/local-state])
+e: file:///app/applet/app/src/main/java/com/qabas/app/ReelsScreen.kt:1425:5 This material API is experimental and is likely to change or to be removed in the future.
+Finished executing kotlin compiler using DAEMON strategy
+Restoring task outputs to pre-compilation state
+
+> Task :app:compileDebugKotlin FAILED
+Build 288c4fee-a747-431d-b654-f74bf0c6b61a is closed
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 19s
+10 actionable tasks: 3 executed, 7 up-to-date

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -63,6 +66,7 @@ object ReelPreferencesManager {
     private const val KEY_SAVED_REELS = "reels_saved_reels_json"
     private const val KEY_LIKED_REELS = "reels_liked_reels_json"
     private const val KEY_STATS = "reels_stats_json"
+    private const val KEY_CACHED_REELS = "reels_cached_reels_json"
 
     // StateFlows for UI observation
     private val _autoplayWifiOnly = MutableStateFlow(false)
@@ -512,5 +516,36 @@ object ReelPreferencesManager {
                 totalShares = obj.optInt("shares", 0)
             )
         }.getOrDefault(ReelUserStats())
+    }
+
+    private val reelsJson = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+    }
+
+    /**
+     * حفظ قائمة الريلز في الكاش المحلي للعمل بسلاسة في حال انقطاع الإنترنت (Offline-First)
+     */
+    fun saveCachedReels(context: Context, reels: List<SupabaseServices.ReelRow>) {
+        if (reels.isEmpty()) return
+        runCatching {
+            val jsonStr = reelsJson.encodeToString(reels)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_CACHED_REELS, jsonStr)
+                .apply()
+        }
+    }
+
+    /**
+     * استرجاع قائمة الريلز المحفوظة في الكاش المحلي عند انقطاع الإنترنت
+     */
+    fun getCachedReels(context: Context): List<SupabaseServices.ReelRow> {
+        return runCatching {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val jsonStr = prefs.getString(KEY_CACHED_REELS, null) ?: return emptyList()
+            reelsJson.decodeFromString<List<SupabaseServices.ReelRow>>(jsonStr)
+        }.getOrElse { emptyList() }
     }
 }

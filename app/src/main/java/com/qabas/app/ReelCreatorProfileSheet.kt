@@ -51,6 +51,8 @@ fun ReelCreatorProfileSheet(
     onSelectReel: (String) -> Unit,
     onDismiss: () -> Unit,
     viewer: CreatorFollowManager.ViewerIdentity? = null,
+    isGuest: Boolean = false,
+    onRequireLogin: () -> Unit = {},
     onOpenMyProfile: () -> Unit = {},
     onFollowChanged: (Boolean) -> Unit = {}
 ) {
@@ -339,6 +341,10 @@ fun ReelCreatorProfileSheet(
                 } else {
                     Button(
                         onClick = {
+                            if (isGuest) {
+                                onRequireLogin()
+                                return@Button
+                            }
                             if (isUpdatingFollow) return@Button
                             val next = !isFollowing
                             isUpdatingFollow = true
