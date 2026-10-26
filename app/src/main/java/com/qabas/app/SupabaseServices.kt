@@ -650,6 +650,16 @@ object SupabaseServices {
             }.decodeList<BugReportRow>()
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
+        suspend fun getBugReportsByUser(email: String): List<BugReportRow> = runCatching {
+            val client = client ?: return emptyList()
+            client.postgrest.from("dev_bug_reports").select {
+                filter {
+                    ilike("user_email", email.trim().lowercase())
+                }
+                order("created_at", Order.DESCENDING)
+            }.decodeList<BugReportRow>()
+        }.onFailure { Log.e(TAG, "getBugReportsByUser failed: ${it.message}") }.getOrDefault(emptyList())
+
         suspend fun recordBugReport(
             userEmail: String,
             screenName: String,

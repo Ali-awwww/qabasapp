@@ -1448,6 +1448,7 @@ object AppServices {
 
     fun init(context: android.content.Context) {
         _appContext = context.applicationContext
+        BugReportRepository.init(context.applicationContext)
     }
 
     private var _giftManager: GiftManager? = null

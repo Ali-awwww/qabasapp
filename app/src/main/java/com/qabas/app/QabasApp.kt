@@ -113,6 +113,12 @@ fun QabasApp() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        AppNavigator.pendingChatInfo.collect { (email, requestId) ->
+            viewModel.updateState { copy(selectedRequestId = requestId, appState = AppState.REQUEST_CHAT) }
+        }
+    }
+
     val creationStepsOrder = remember {
         listOf(
             AppState.HOME,

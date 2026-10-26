@@ -52,6 +52,7 @@ object BugReportRepository {
         @SerialName("device_model") val deviceModel: String = "",
         @SerialName("created_at_millis") val createdAtMillis: Long = System.currentTimeMillis(),
         @SerialName("developer_reply") val developerReply: String? = null,
+        @SerialName("is_read_by_user") val isReadByUser: Boolean = true,
         @SerialName("synced_to_cloud") val syncedToCloud: Boolean = false
     ) {
         val formattedDate: String
@@ -334,6 +335,54 @@ object BugReportRepository {
     }
 
     /**
+     * جلب أحدث الردود والحالات من السحابة للمستخدم الحالي.
+     */
+    suspend fun refreshUserReports(context: Context, email: String) = withContext(Dispatchers.IO) {
+        if (!SupabaseServices.isSupabaseAvailable) return@withContext
+        try {
+            val cloudItems = SupabaseServices.Database.getBugReportsByUser(email)
+            if (cloudItems.isEmpty()) return@withContext
+
+            ensureLoaded(context)
+            val localList = _reports.value.associateBy { it.id }.toMutableMap()
+            var anyChanged = false
+
+            cloudItems.forEach { cloud ->
+                val existing = localList[cloud.id]
+                if (existing == null || existing.status != cloud.status || existing.developerReply != cloud.developerReply) {
+                    val isNewReply = existing != null && existing.developerReply != cloud.developerReply && !cloud.developerReply.isNullOrBlank()
+                    val updated = (existing ?: BugReportItem(
+                        id = cloud.id,
+                        screenName = cloud.screenName,
+                        description = cloud.description,
+                        reportType = cloud.reportType,
+                        status = cloud.status,
+                        userEmail = cloud.userEmail,
+                        appVersion = cloud.appVersion,
+                        deviceModel = cloud.deviceInfo,
+                        imageUrl = cloud.imageUrl,
+                        developerReply = cloud.developerReply,
+                        isReadByUser = true // سيتم تحديثه لاحقاً
+                    )).copy(
+                        status = cloud.status,
+                        developerReply = cloud.developerReply,
+                        syncedToCloud = true,
+                        isReadByUser = if (isNewReply) false else (existing?.isReadByUser ?: true)
+                    )
+                    localList[cloud.id] = updated
+                    anyChanged = true
+                }
+            }
+
+            if (anyChanged) {
+                saveLocalReports(context, localList.values.toList())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error refreshing user reports: ${e.message}")
+        }
+    }
+
+    /**
      * حذف بلاغ من السجل المحلي والسحابي.
      */
     suspend fun deleteReport(context: Context, reportId: String): Boolean = withContext(Dispatchers.IO) {
@@ -411,6 +460,17 @@ object BugReportRepository {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Error in background syncPendingReports: ${e.message}")
+        }
+    }
+
+    /**
+     * تمييز جميع البلاغات الحالية بأنها "قُرئت" من قبل المستخدم لإزالة شارة الإشعار.
+     */
+    suspend fun markReportsAsRead(context: Context) = withContext(Dispatchers.IO) {
+        val current = _reports.value
+        if (current.any { !it.isReadByUser }) {
+            val updated = current.map { it.copy(isReadByUser = true) }
+            saveLocalReports(context, updated)
         }
     }
 

@@ -742,6 +742,59 @@ private fun BugReportManagementDetailView(
                             ),
                             shape = RoundedCornerShape(10.dp)
                         )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // زر إرسال الرد المباشر
+                            Button(
+                                onClick = {
+                                    if (replyText.isBlank()) {
+                                        Toast.makeText(context, "يرجى كتابة رد أولاً", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    scope.launch {
+                                        val success = BugReportRepository.updateReportStatus(
+                                            context,
+                                            report.id,
+                                            report.status,
+                                            replyText
+                                        )
+                                        if (success) {
+                                            AppSoundManager.playSuccess()
+                                            Toast.makeText(context, "تم حفظ وإرسال رد المطور للمستخدم بنجاح 🚀", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("إرسال الرد 📤", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+
+                            // زر فتح المحادثة المباشرة
+                            OutlinedButton(
+                                onClick = {
+                                    AppSoundManager.playClick()
+                                    // الانتقال لشاشة المحادثة المباشرة مع تمرير البريد ومعرّف البلاغ
+                                    AppNavigator.navigateToChat(report.userEmail, report.id)
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
+                            ) {
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("فتح المحادثة 💬", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }

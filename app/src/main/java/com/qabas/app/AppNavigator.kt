@@ -45,4 +45,13 @@ object AppNavigator {
         _pendingInputText.tryEmit(text)
         _targetAppState.tryEmit(AppState.INPUT)
     }
+
+    private val _pendingChatInfo = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 4)
+    val pendingChatInfo: SharedFlow<Pair<String, String>> = _pendingChatInfo.asSharedFlow()
+
+    /** طلب فتح محادثة دعم فني لبلاغ محدد */
+    fun navigateToChat(userEmail: String, requestId: String) {
+        _pendingChatInfo.tryEmit(userEmail to requestId)
+        _targetAppState.tryEmit(AppState.REQUEST_CHAT)
+    }
 }

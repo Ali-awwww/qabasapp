@@ -678,6 +678,26 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.SPIRITUAL_STUDIO }
                         )
 
+                        // 2.5 مركز الدعم والدردشة المباشرة (Support Center) - المطلب الرابع
+                        val allReports by BugReportRepository.reports.collectAsState()
+                        val unreadReportsCount = remember(allReports) { allReports.count { !it.isReadByUser } }
+                        SettingsNavigationCard(
+                            title = "مركز الدعم والدردشة المباشرة",
+                            subtitle = "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية",
+                            icon = Icons.Default.SupportAgent,
+                            badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬",
+                            badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
+                            accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
+                            onClick = {
+                                AppSoundManager.playClick()
+                                showUserReportsDialog = true
+                                // تمييز الكل كمقروء عند فتح المركز
+                                coroutineScope.launch {
+                                    BugReportRepository.markReportsAsRead(context)
+                                }
+                            }
+                        )
+
                         // 3. مركز الإنتاج والذكاء الاحترافي (Pro Production)
                         SettingsNavigationCard(
                             title = "مركز الإنتاج والذكاء الاحترافي",
@@ -2221,6 +2241,7 @@ fun SettingsNavigationCard(
     subtitle: String,
     icon: ImageVector,
     badge: String? = null,
+    badgeColor: Color = GoldPrimary,
     accentColor: Color = GoldPrimary,
     onClick: () -> Unit
 ) {
@@ -2282,14 +2303,14 @@ fun SettingsNavigationCard(
                         if (badge != null) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                color = accentColor.copy(alpha = 0.18f),
+                                color = badgeColor.copy(alpha = 0.18f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.6f)),
+                                border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.6f)),
                                 modifier = Modifier.wrapContentWidth()
                             ) {
                                 Text(
                                     text = Translator.tr(badge),
-                                    color = accentColor,
+                                    color = badgeColor,
                                     fontFamily = CairoFont,
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,

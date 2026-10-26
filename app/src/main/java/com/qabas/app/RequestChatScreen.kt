@@ -58,7 +58,25 @@ fun RequestChatScreen(
     val isAdmin = prefs.getBoolean("is_admin", false)
     val currentUserEmail = prefs.getString("user_email", "user@example.com") ?: "user@example.com"
 
-    val request = remember { mutableStateOf(AppRequestService.getRequests(context, isDeveloper = true).find { it.id == requestId }) }
+    val isBugReportChat = requestId.startsWith("bug_", ignoreCase = true) || requestId.length > 20 // Bug report IDs are usually UUIDs
+    
+    val request = remember { 
+        mutableStateOf(
+            AppRequestService.getRequests(context, isDeveloper = true).find { it.id == requestId }
+            ?: if (isBugReportChat) {
+                // إنشاء طلب افتراضي للبلاغ لتمكين المحادثة
+                AppRequestService.AppRequest(
+                    id = requestId,
+                    userEmail = currentUserEmail,
+                    title = "دعم بلاغ: ${requestId.take(8)}...",
+                    description = "محادثة دعم فني مباشر مرتبطة ببلاغ عطل.",
+                    goal = "حل المشكلة التقنية",
+                    status = "in_progress",
+                    progress = 50
+                )
+            } else null
+        )
+    }
     val messages = remember { mutableStateOf(AppRequestService.getMessages(context, requestId)) }
     var newMessage by remember { mutableStateOf("") }
     var showTemplates by remember { mutableStateOf(false) }

@@ -79,6 +79,8 @@ fun HasanatHubScreen(
     val currentAyah by viewModel.currentAyah.collectAsState()
     val isAutoRotating by viewModel.isAutoRotating.collectAsState()
     val autoRotateProgress by viewModel.autoRotateProgress.collectAsState()
+    val activeToolDialog by viewModel.activeToolDialog.collectAsState()
+    val engine = viewModel.muslimToolsEngine
 
     // TTS for Pearl
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -206,6 +208,27 @@ fun HasanatHubScreen(
             containerColor = Color(0xFF141C2B),
             shape = CutCornerShape(16.dp)
         )
+    }
+
+    val upcomingEvents by viewModel.upcomingEvents.collectAsState()
+
+    // Muslim Tools Dialogs
+    when (activeToolDialog) {
+        "zakat" -> ZakatCalculatorDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "fasting" -> FastingTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "khatma" -> QuranKhatmaDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "hajj" -> HajjUmrahDialog(onDismiss = { viewModel.dismissToolDialog() })
+        "hijri" -> HijriCalendarDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "tasbeeh" -> SmartTasbeehDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "habits" -> HabitsTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "stats" -> WorshipAnalyticsDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        // Add placeholders or toasts for tools without complex logic yet
+        "test", "wird", "hadith", "learn", "qibla", "share", "reward" -> {
+            LaunchedEffect(activeToolDialog) {
+                Toast.makeText(context, "جاري تطوير أداة ${activeToolDialog} لتكون متاحة في التحديث القادم 🚀", Toast.LENGTH_SHORT).show()
+                viewModel.dismissToolDialog()
+            }
+        }
     }
 
     // Pulse animation
@@ -1034,6 +1057,54 @@ fun HasanatHubScreen(
                 }
             }
 
+            // Upcoming Islamic Events Banner
+            item {
+                IslamicEventsBanner(events = upcomingEvents)
+            }
+
+            // --- Muslim Tools Section (15 Tools Grid) ---
+            item {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            Translator.tr("أدوات المسلم الذكية (15 أداة)"),
+                            color = GoldPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    // Grid of 15 tools (3 columns)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        viewModel.muslimToolsList.chunked(3).forEach { rowItems ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                rowItems.forEach { item ->
+                                    MuslimToolCard(
+                                        title = item.title,
+                                        icon = item.icon,
+                                        color = item.color,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { viewModel.showToolDialog(item.id) }
+                                    )
+                                }
+                                if (rowItems.size < 3) {
+                                    repeat(3 - rowItems.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Sections
             if (filteredSections.isEmpty()) {
                 item {
@@ -1239,6 +1310,91 @@ fun HasanatListItem(item: HasanatSectionItem, onClick: () -> Unit) {
                 Text(Translator.tr(item.badgeKey), color = item.accentColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
             Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary().copy(alpha = 0.5f))
+        }
+    }
+}
+
+@Composable
+fun MuslimToolCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = qabasCardSurface().copy(alpha = 0.8f),
+        shape = CutCornerShape(12.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.15f))
+                    .border(1.dp, color.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                Translator.tr(title),
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                minLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+fun IslamicEventsBanner(events: List<MuslimToolsEngine.IslamicEvent>) {
+    Text(
+        Translator.tr("المناسبات الإسلامية القادمة"),
+        color = GoldPrimary,
+        fontFamily = CairoFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(events) { event ->
+            Surface(
+                color = Color(0xFF0F172A).copy(alpha = 0.8f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                modifier = Modifier.width(180.dp)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(GoldPrimary.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Celebration, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(event.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, maxLines = 1)
+                        Text("${event.daysRemaining} ${Translator.tr("يوم متبقي")}", color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(event.dateHijri, color = qabasTextSecondary(), fontSize = 9.sp)
+                    }
+                }
+            }
         }
     }
 }

@@ -58,8 +58,17 @@ fun UserReportsDialog(
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
+    val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
+
     LaunchedEffect(Unit) {
         BugReportRepository.loadLocalReports(context)
+        // المزامنة التلقائية الدورية أثناء فتح النافذة
+        while(true) {
+            currentUser?.email?.let { email ->
+                BugReportRepository.refreshUserReports(context, email)
+            }
+            kotlinx.coroutines.delay(15000) // كل 15 ثانية
+        }
     }
 
     val filteredReports = remember(allReports, selectedFilter) {
@@ -285,6 +294,7 @@ fun UserReportsDialog(
                         items(filteredReports, key = { it.id }) { report ->
                             UserReportCard(
                                 report = report,
+                                onDismissRequest = onDismissRequest,
                                 onPreviewImage = { imgPath ->
                                     AppSoundManager.playClick()
                                     selectedImageForPreview = imgPath
@@ -362,6 +372,7 @@ private fun UserKpiPill(label: String, value: String, valueColor: Color, modifie
 @Composable
 private fun UserReportCard(
     report: BugReportRepository.BugReportItem,
+    onDismissRequest: () -> Unit,
     onPreviewImage: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -616,6 +627,29 @@ private fun UserReportCard(
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(11.dp))
                             Text("مشاركة", color = TextSecondary, fontSize = 9.sp, fontFamily = CairoFont)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Surface(
+                        onClick = {
+                            AppSoundManager.playClick()
+                            // فتح المحادثة المباشرة المرتبطة بالبلاغ
+                            AppNavigator.navigateToChat(report.userEmail, report.id)
+                            onDismissRequest() // إغلاق النافذة لفتح المحادثة
+                        },
+                        shape = RoundedCornerShape(6.dp),
+                        color = GoldPrimary.copy(alpha = 0.15f),
+                        border = BorderStroke(0.5.dp, GoldPrimary.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Chat, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(11.dp))
+                            Text("فتح المحادثة 💬", color = GoldPrimary, fontSize = 9.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
