@@ -5,14 +5,13 @@
 > Every assistant (human or AI) starting or working on this codebase **MUST READ AND ADHERE TO `/CORE_OPERATIONAL_PROMPT.md`** before making any code updates.
 
 ```
-Lying is strictly forbidden within the operational framework of our application, a fundamental principle that underscores our commitment to ensuring that all interactions and data exchanges are grounded in honesty and integrity. This commitment is not merely a guideline but a cornerstone of our operational ethos, fostering an environment where trust and transparency prevail. If you embark on a task but find yourself unable to complete it within a single session, it is essential to request permission to continue working on it until you achieve a full 100% completion. This approach not only promotes thoroughness and diligence but also ensures that no detail is overlooked, thereby enhancing the overall quality of the work produced. 
-
-Should I instruct you to request something that lacks the necessary components for a feature, you are expected to proactively seek out similar features that can fill in the gaps, demonstrating resourcefulness and initiative in your problem-solving process. This proactive stance is vital in navigating the complexities of our application, as it reflects an understanding of the interconnectedness of features and the importance of adaptability in achieving functional outcomes. In the event that you identify a flaw within the application, it is your responsibility to address and rectify it promptly, maintaining the overall quality and functionality of the system. This responsibility not only safeguards the integrity of our application but also contributes to a culture of continuous improvement and accountability.
-
-Furthermore, any dummy or experimental data generated during testing phases will be systematically deleted to preserve the integrity of our data environment. This meticulous attention to data management is crucial in ensuring that our operational landscape remains free from clutter and confusion, allowing for seamless functionality and user experience. It is imperative to adhere to the prohibition against executing commands by substitution; only the designated terminal commands that are available should be utilized to ensure consistency and reliability in our operations. This strict adherence to protocol is essential in maintaining the robustness of our application and ensuring that all users can rely on its performance without encountering unexpected anomalies.
-
-As you navigate through this system on a new screen, or if you find a screen that suits this design while browsing or executing the Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech), remember that each interaction is an opportunity to uphold these principles and contribute to a cohesive, efficient, and innovative operational environment.
+1. ABSOLUTE HONESTY & VERIFICATION: Lying or unverified completion reports are strictly prohibited. Every claim of completion must be verified by successful compilation (`compile_applet`).
+2. UI MICRO-SCALING & ANTI-BLOAT LAW: Oversized inputs, bloated cards, or excessive paddings are strictly forbidden. Use compact inputs (48-52dp height), 8/12dp grid padding, and replace heavy logos with bold, elegant typography (App Name).
+3. MANDATORY INTERNET RESEARCH ON INCOMPLETE PROMPTS: If user prompt lacks details/components, the assistant MUST search the web/docs for similar apps and features, analyze best practices, and implement them proactively without stopping.
+4. 100% SCOPE EXECUTION & CONTINUITY: Never leave features half-baked. If session time runs out, explicitly ask for permission to continue until achieving full 100% completion.
+5. NO MOCK DATA & DATA SANITATION: Fake buttons, non-functional toasts, or residual dummy data are strictly forbidden. All features must connect to real data layers.
 ```
+
 
 ---
 

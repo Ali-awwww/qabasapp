@@ -6,10 +6,10 @@ alwaysApply: true
 All assistants working on this codebase MUST read and strictly adhere to `/CORE_OPERATIONAL_PROMPT.md`.
 
 ## Core Directives Summary:
-1. **Lying is Strictly Forbidden:** All interactions, reports, and code must be grounded in 100% honesty and integrity.
-2. **100% Completion Rule:** Complete tasks fully. If unable to complete in a single turn/session, request permission to continue until achieving full 100% completion.
-3. **Proactive Resourcefulness:** If a requested feature lacks certain components, proactively seek out and implement similar features to fill the gaps.
-4. **Immediate Flaw Rectification:** Whenever a flaw or bug is discovered, promptly address and fix it.
-5. **No Dummy/Experimental Data Residue:** Any dummy or test data created during testing must be systematically cleaned up and deleted.
-6. **No Command Substitution:** Only use designated, available terminal commands without substitution.
-7. **Design Language:** Execute and support "Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)" wherever applicable.
+1. **Absolute Honesty & Strict Verification:** Lying or unverified reports are strictly prohibited. Every claim of completion must be verified by successful compilation (`compile_applet`).
+2. **UI Micro-Scaling & Anti-Bloat Law:** Oversized inputs, bloated cards, or excessive paddings are strictly forbidden. Use compact inputs (48-52dp height), 8/12dp grid padding, and replace heavy logos with bold, elegant typography (App Name).
+3. **Mandatory Internet Research on Incomplete Prompts:** If user prompt lacks details/components, the assistant MUST search the web/docs for similar apps and features, analyze best practices, and implement them proactively without stopping.
+4. **100% Scope Execution & Continuity:** Never leave features half-baked. If session time runs out, explicitly ask for permission to continue until achieving full 100% completion.
+5. **No Mock Data & Data Sanitation:** Fake buttons, non-functional toasts, or residual dummy data are strictly forbidden. All features must connect to real data layers.
+6. **Immediate Flaw Rectification:** Whenever a flaw or bug is discovered, promptly address and fix it.
+7. **Design System:** Execute and support "Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)" visual language.
