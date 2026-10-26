@@ -308,7 +308,7 @@ fun ReelPublishScreen(
                 text = "1. اختيار مقطع الفيديو",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
+                fontSize = 14.sp,
                 color = GoldPrimary
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -477,13 +477,13 @@ fun ReelPublishScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = "2. التصنيف",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
+                fontSize = 14.sp,
                 color = GoldPrimary
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -514,13 +514,13 @@ fun ReelPublishScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = "3. تفاصيل المقطع",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
+                fontSize = 14.sp,
                 color = GoldPrimary
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -620,7 +620,7 @@ fun ReelPublishScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -641,7 +641,7 @@ fun ReelPublishScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (spiritualViolationMessage != null) "رصد مخالفة - يمنع النشر" else "الرقابة والضوابط الشرعية",
+                            text = if (spiritualViolationMessage != null) "رصد مخالفة شرعية - يمنع النشر" else "الرقابة والضوابط الشرعية",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
@@ -670,7 +670,7 @@ fun ReelPublishScreen(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "يُحظر نشر الموسيقى والمعازف فقط. المحتوى القرآني والإيماني النقي مرحّب به.",
+                            text = "يُحظر نشر أي محتوى يتضمن الموسيقى، المعازف، أو أي وجه من وجوه الذنب والإثم. مِشكاة قبس مخصصة للنقاء الإيماني فقط.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.75f),
@@ -695,7 +695,7 @@ fun ReelPublishScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "أتعهد أمام الله بأن المقطع خالٍ من الموسيقى والمعازف.",
+                            text = "أتعهد أمام الله بأن المقطع خالٍ من الموسيقى والمعازف، ومن أي وجه من وجوه الذنب والإثم.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
