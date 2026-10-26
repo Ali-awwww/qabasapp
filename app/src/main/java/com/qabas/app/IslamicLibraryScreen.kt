@@ -108,39 +108,57 @@ fun IslamicLibraryScreen(
     Scaffold(
         modifier = Modifier.testTag(TestTags.ISLAMIC_LIBRARY_SCREEN),
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+            Column {
+                TopAppBar(
+                    title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.LocalLibrary, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("المكتبة الإسلامية الجامعة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                            Column {
+                                Text("المكتبة الإسلامية الجامعة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                                Text("أمهات كتب الأئمة والسلف • قراءة ممتعة واستماع صوتي", fontFamily = CairoFont, fontSize = 10.5.sp, color = GoldSecondary.copy(alpha = 0.85f))
+                            }
                         }
-                        Text("أمهات كتب الأئمة والسلف • قراءة ممتعة، كبسولات حكمة، واستماع صوتي", fontFamily = NotoSansFont, fontSize = 11.sp, color = TextSecondary)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showProgressionDialog = true }) {
-                        Icon(Icons.Default.School, contentDescription = "سلسلة التدرج الفقهي", tint = GoldPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0F19))
-            )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "الرجوع من المكتبة الإسلامية الجامعة", tint = GoldPrimary)
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showProgressionDialog = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.School, contentDescription = "سلسلة التدرج الفقهي", tint = GoldPrimary)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasCardSurface().copy(alpha = 0.95f))
+                )
+                HorizontalDivider(
+                    color = GoldPrimary.copy(alpha = 0.35f),
+                    thickness = 1.dp
+                )
+            }
         },
         containerColor = DeepSlate
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentAlignment = Alignment.TopCenter
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // 🌟 Search & Filter Section
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -281,11 +299,11 @@ fun IslamicLibraryScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(30.dp)
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
-                                    Icon(Icons.Default.MovieCreation, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.MovieCreation, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("صناعة فيديو", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    Text("صناعة فيديو", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                 }
                             }
 
@@ -294,10 +312,10 @@ fun IslamicLibraryScreen(
                             Text(
                                 "«إضاعة الوقت أشد من الموت؛ لأن إضاعة الوقت تقطعك عن الله والدار الآخرة، والموت يقطعك عن الدنيا وأهلها».",
                                 color = TextPrimary,
-                                fontFamily = CairoFont,
+                                fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp,
-                                lineHeight = 20.sp
+                                fontSize = 15.sp,
+                                lineHeight = 24.sp
                             )
                         }
                     }
@@ -570,6 +588,7 @@ fun IslamicLibraryScreen(
             }
         }
     }
+}
 
     // Interactive Full Screen Book Reader Modal
     activeBookForReading?.let { book ->
@@ -905,7 +924,7 @@ fun InteractiveBookReaderDialog(
                                 Text(
                                     text = currentSection.content,
                                     color = TextPrimary,
-                                    fontFamily = NotoSansFont,
+                                    fontFamily = AmiriFont,
                                     fontSize = fontSizeSp.sp,
                                     lineHeight = (fontSizeSp * 1.75).sp,
                                     modifier = Modifier.padding(16.dp)

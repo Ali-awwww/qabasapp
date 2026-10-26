@@ -212,7 +212,7 @@ fun HasanatHubScreen(
 
     val upcomingEvents by viewModel.upcomingEvents.collectAsState()
 
-    // Muslim Tools Dialogs
+    // Muslim Tools Dialogs & Direct Routes
     when (activeToolDialog) {
         "zakat" -> ZakatCalculatorDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "fasting" -> FastingTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
@@ -222,10 +222,39 @@ fun HasanatHubScreen(
         "tasbeeh" -> SmartTasbeehDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "habits" -> HabitsTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "stats" -> WorshipAnalyticsDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
-        // Add placeholders or toasts for tools without complex logic yet
-        "test", "wird", "hadith", "learn", "qibla", "share", "reward" -> {
+        "qibla" -> {
             LaunchedEffect(activeToolDialog) {
-                Toast.makeText(context, "جاري تطوير أداة ${activeToolDialog} لتكون متاحة في التحديث القادم 🚀", Toast.LENGTH_SHORT).show()
+                onNavigate(AppState.PRAYER_TIMES)
+                viewModel.dismissToolDialog()
+            }
+        }
+        "wird" -> {
+            LaunchedEffect(activeToolDialog) {
+                onNavigate(AppState.QURAN_HUB)
+                viewModel.dismissToolDialog()
+            }
+        }
+        "hadith" -> {
+            LaunchedEffect(activeToolDialog) {
+                onNavigate(AppState.ISLAMIC_LIBRARY)
+                viewModel.dismissToolDialog()
+            }
+        }
+        "learn" -> {
+            LaunchedEffect(activeToolDialog) {
+                onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
+                viewModel.dismissToolDialog()
+            }
+        }
+        "share" -> {
+            LaunchedEffect(activeToolDialog) {
+                onNavigate(AppState.PHOTO_STUDIO)
+                viewModel.dismissToolDialog()
+            }
+        }
+        "reward" -> {
+            LaunchedEffect(activeToolDialog) {
+                onNavigate(AppState.REWARDS)
                 viewModel.dismissToolDialog()
             }
         }
@@ -324,22 +353,24 @@ fun HasanatHubScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = { Text(Translator.tr("ابحث في أقسام ومحتويات مشكاة الهدى..."), color = qabasTextSecondary(), fontSize = 12.sp) },
+                        placeholder = { Text(Translator.tr("ابحث في أبواب ومحتويات مشكاة الهدى..."), color = GoldSecondary.copy(alpha = 0.7f), fontSize = 12.sp, fontFamily = CairoFont) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = CutCornerShape(12.dp),
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary) },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
                                 IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = null, tint = qabasTextSecondary())
+                                    Icon(Icons.Default.Clear, contentDescription = null, tint = GoldSecondary)
                                 }
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF26334D),
-                            focusedTextColor = qabasTextPrimary(),
-                            unfocusedTextColor = qabasTextPrimary()
+                            unfocusedBorderColor = GoldPrimary.copy(alpha = 0.35f),
+                            focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.95f),
+                            unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.8f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
                         ),
                         singleLine = true
                     )
@@ -1071,7 +1102,7 @@ fun HasanatHubScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            Translator.tr("أدوات المسلم الذكية (15 أداة)"),
+                            Translator.tr("أدوات المسلم الذكية"),
                             color = GoldPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -1081,7 +1112,7 @@ fun HasanatHubScreen(
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     
-                    // Grid of 15 tools (3 columns)
+                    // Grid of tools (3 columns)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         viewModel.muslimToolsList.chunked(3).forEach { rowItems ->
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1091,7 +1122,17 @@ fun HasanatHubScreen(
                                         icon = item.icon,
                                         color = item.color,
                                         modifier = Modifier.weight(1f),
-                                        onClick = { viewModel.showToolDialog(item.id) }
+                                        onClick = {
+                                            when (item.id) {
+                                                "qibla" -> onNavigate(AppState.PRAYER_TIMES)
+                                                "wird" -> onNavigate(AppState.QURAN_HUB)
+                                                "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
+                                                "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
+                                                "share" -> onNavigate(AppState.PHOTO_STUDIO)
+                                                "reward" -> onNavigate(AppState.REWARDS)
+                                                else -> viewModel.showToolDialog(item.id)
+                                            }
+                                        }
                                     )
                                 }
                                 if (rowItems.size < 3) {

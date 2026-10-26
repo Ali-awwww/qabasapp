@@ -48,26 +48,33 @@ import java.io.File
  */
 @Composable
 fun UserReportsDialog(
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit,
+    onNavigateToLogin: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val allReports by BugReportRepository.reports.collectAsState()
 
+    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val storedEmail = prefs.getString("user_email", "") ?: ""
+    val userEmail = currentUser?.email?.ifBlank { storedEmail } ?: storedEmail
+    val isGuest = prefs.getBoolean("is_guest", false) || userEmail.contains("guest", ignoreCase = true) || storedEmail.contains("guest", ignoreCase = true) || userEmail.isBlank() || userEmail == "guest@qabas.studio"
+
     var selectedFilter by remember { mutableStateOf("ALL") }
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
-
-    LaunchedEffect(Unit) {
-        BugReportRepository.loadLocalReports(context)
-        // المزامنة التلقائية الدورية أثناء فتح النافذة
-        while(true) {
-            currentUser?.email?.let { email ->
-                BugReportRepository.refreshUserReports(context, email)
+    LaunchedEffect(isGuest) {
+        if (!isGuest) {
+            BugReportRepository.loadLocalReports(context)
+            // المزامنة التلقائية الدورية أثناء فتح النافذة
+            while (true) {
+                currentUser?.email?.let { email ->
+                    BugReportRepository.refreshUserReports(context, email)
+                }
+                kotlinx.coroutines.delay(15000) // كل 15 ثانية
             }
-            kotlinx.coroutines.delay(15000) // كل 15 ثانية
         }
     }
 
@@ -85,14 +92,114 @@ fun UserReportsDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        GlassmorphicSurface(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.90f)
-                .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(26.dp),
-            borderColor = GoldPrimary.copy(alpha = 0.55f)
-        ) {
+        if (isGuest) {
+            GlassmorphicSurface(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .padding(vertical = 24.dp),
+                shape = RoundedCornerShape(24.dp),
+                borderColor = Color(0xFFEF4444).copy(alpha = 0.55f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape)
+                            .border(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "قسم مخصص للحسابات المسجلة 🔒",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "قسم الدعم الفني ومتابعة البلاغات مخصص للحسابات المسجلة فقط.\nيرجى تسجيل الدخول بحسابك لمتابعة بلاغاتك وتلقي ردود فريق التطوير.",
+                        color = Color(0xFFCBD5E1),
+                        fontFamily = CairoFont,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                AppSoundManager.playClick()
+                                onDismissRequest()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, Color(0xFF475569)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                        ) {
+                            Text(
+                                text = "إغلاق النافذة",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        if (onNavigateToLogin != null) {
+                            Button(
+                                onClick = {
+                                    AppSoundManager.playClick()
+                                    onDismissRequest()
+                                    onNavigateToLogin()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Text(
+                                    text = "تسجيل الدخول",
+                                    color = DeepSlate,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            GlassmorphicSurface(
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .fillMaxHeight(0.90f)
+                    .padding(vertical = 12.dp),
+                shape = RoundedCornerShape(26.dp),
+                borderColor = GoldPrimary.copy(alpha = 0.55f)
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -306,6 +413,7 @@ fun UserReportsDialog(
             }
         }
     }
+}
 
     // Modal Image Preview
     if (selectedImageForPreview != null) {

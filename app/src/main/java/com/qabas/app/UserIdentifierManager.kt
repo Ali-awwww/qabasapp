@@ -338,30 +338,6 @@ object UserIdentifierManager {
     }
 
     /**
-     * توليد معرّف فريد ومضمون عدم التكرار عبر الفحص المحلي (LocalAccountRegistry) والسحابي (Supabase).
-     */
-    suspend fun generateGuaranteedUniqueCustomId(
-        context: Context,
-        seed: String?,
-        currentEmail: String? = null
-    ): String = withContext(Dispatchers.IO) {
-        var candidate = normalize(seed ?: "")
-        if (candidate.length < 3) {
-            candidate = generateUniqueId(seed)
-        }
-        var attempts = 0
-        while (attempts < 10) {
-            val check = checkCustomIdAvailability(context, candidate, currentEmail)
-            if (check is CustomIdAvailabilityResult.Available || check is CustomIdAvailabilityResult.CurrentUserOwnsIt) {
-                return@withContext candidate
-            }
-            attempts++
-            candidate = generateUniqueId(seed)
-        }
-        return@withContext "qbs_${(10000..99999).random()}"
-    }
-
-    /**
      * جلب وتثبيت رقم الحساب الحقيقي من السحابة (Supabase Cloud).
      * يضمن أن عداد الحسابات يجلب أرقام الحسابات من السحابة حصراً ولا يعتمد فقط على الذاكرة المحلية.
      */

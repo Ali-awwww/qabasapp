@@ -113,11 +113,12 @@ fun SettingsScreen(
         mutableIntStateOf(prefs.getInt("user_preset_avatar", 0))
     }
 
-    val userEmail = CloudServices.Auth.currentUser.value?.email ?: "المستخدم الحالي"
+    val storedEmail = prefs.getString("user_email", "") ?: ""
+    val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
+    val isGuest = prefs.getBoolean("is_guest", false) || userEmail.contains("guest", ignoreCase = true) || storedEmail.contains("guest", ignoreCase = true) || userEmail.isBlank() || userEmail == "guest@qabas.studio"
+    val isLoggedInAccount = !isGuest && (prefs.getBoolean("is_logged_in", false) || CloudServices.Auth.currentUser.value != null)
     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(userEmail)
     val isRelative = prefs.getBoolean("is_relative_user", false)
-    val isGuest = prefs.getBoolean("is_guest", false)
-    val isLoggedInAccount = !isGuest && (prefs.getBoolean("is_logged_in", false) || CloudServices.Auth.currentUser.value != null || prefs.getString("user_email", "").orEmpty().isNotBlank())
 
     var autoPublishing by remember {
         mutableStateOf(prefs.getBoolean("auto_publish", false))
@@ -235,6 +236,7 @@ fun SettingsScreen(
     var isDevMode by remember {
         mutableStateOf(prefs.getBoolean("is_developer", false))
     }
+    val isDeveloperAccount = isAdmin || isDevMode || AdminGuard.isDashboardAccessAllowed(context)
 
     // الحسابات الرسمية
     val canManageChannels = isAdmin || isDevMode
@@ -678,25 +680,27 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.SPIRITUAL_STUDIO }
                         )
 
-                        // 2.5 مركز الدعم والدردشة المباشرة (Support Center) - المطلب الرابع
-                        val allReports by BugReportRepository.reports.collectAsState()
-                        val unreadReportsCount = remember(allReports) { allReports.count { !it.isReadByUser } }
-                        SettingsNavigationCard(
-                            title = "مركز الدعم والدردشة المباشرة",
-                            subtitle = "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية",
-                            icon = Icons.Default.SupportAgent,
-                            badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬",
-                            badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
-                            accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
-                            onClick = {
-                                AppSoundManager.playClick()
-                                showUserReportsDialog = true
-                                // تمييز الكل كمقروء عند فتح المركز
-                                coroutineScope.launch {
-                                    BugReportRepository.markReportsAsRead(context)
+                        // 2.5 مركز الدعم والدردشة المباشرة (Support Center) - يظهر للحسابات المسجلة فقط
+                        if (isLoggedInAccount && !isGuest) {
+                            val allReports by BugReportRepository.reports.collectAsState()
+                            val unreadReportsCount = remember(allReports) { allReports.count { !it.isReadByUser } }
+                            SettingsNavigationCard(
+                                title = "مركز الدعم والدردشة المباشرة",
+                                subtitle = "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية",
+                                icon = Icons.Default.SupportAgent,
+                                badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬",
+                                badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
+                                accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
+                                onClick = {
+                                    AppSoundManager.playClick()
+                                    showUserReportsDialog = true
+                                    // تمييز الكل كمقروء عند فتح المركز
+                                    coroutineScope.launch {
+                                        BugReportRepository.markReportsAsRead(context)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
 
                         // 3. مركز الإنتاج والذكاء الاحترافي (Pro Production)
                         SettingsNavigationCard(
@@ -728,18 +732,19 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.PERMISSIONS_HUB }
                         )
 
-                        // 4. النظام، البيانات والمجتمع (System & Community)
-                        SettingsNavigationCard(
-                            title = Translator.tr("النظام والبيانات والمجتمع"),
-                            subtitle = Translator.tr("النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية"),
-                            icon = Icons.Default.SettingsSuggest,
-                            badge = "الاستدامة ⚙️",
-                            accentColor = GoldPrimary,
-                            onClick = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
-                        )
+                        // 4. النظام، البيانات والمجتمع + تحديثات xdelta المباشرة (أقسام خاصة برتبة وحسابات المطور فقط)
+                        if (isDeveloperAccount) {
+                            // 4.1 النظام والبيانات والمجتمع (System & Community)
+                            SettingsNavigationCard(
+                                title = Translator.tr("النظام والبيانات والمجتمع"),
+                                subtitle = Translator.tr("النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية"),
+                                icon = Icons.Default.SettingsSuggest,
+                                badge = "الاستدامة ⚙️",
+                                accentColor = GoldPrimary,
+                                onClick = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
+                            )
 
-                        // 4.1 اتصال GitHub المباشر وتحديثات xdelta الذكية (أداة مطوّر)
-                        if (isAdmin || isDevMode) {
+                            // 4.2 اتصال GitHub المباشر وتحديثات xdelta الذكية (أداة مطوّر)
                             SettingsNavigationCard(
                                 title = Translator.tr("تحديثات xdelta ومستودع GitHub المباشر"),
                                 subtitle = Translator.tr("اتصال مباشر بـ Ali-awwww/qabasapp، فحص إصدارات xdelta، وتثبيت تفاضلي فائق السرعة"),
@@ -751,7 +756,7 @@ fun SettingsScreen(
                         }
 
                         // 4.2 قسم تحكم زر الكاميرا الفضائي للبلاغات والمشاكل (يظهر للحسابات المسجلة فقط)
-                        if (isLoggedInAccount) {
+                        if (isLoggedInAccount && !isGuest) {
                             SettingsNavigationCard(
                                 title = Translator.tr("زر الكاميرا الفضائي للبلاغات والمشاكل"),
                                 subtitle = Translator.tr("التحكم الكامل بزر الكاميرا العائم: التفعيل، التعطيل، الشفافية، الاستقرار، وسلوك الالتقاط الفوري"),
@@ -883,13 +888,16 @@ fun SettingsScreen(
             // ⚙️ 4. النظام، البيانات والمجتمع
             // ==========================================
             SettingsSubScreen.COMMUNITY_SUPPORT -> {
-                SubScreenScaffold(
-                    title = "النظام والبيانات والمجتمع",
-                    icon = Icons.Default.SettingsSuggest,
-                    onBack = { currentSubScreen = SettingsSubScreen.MAIN },
-                    bottomBar = bottomBar
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (!isDeveloperAccount) {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                } else {
+                    SubScreenScaffold(
+                        title = "النظام والبيانات والمجتمع",
+                        icon = Icons.Default.SettingsSuggest,
+                        onBack = { currentSubScreen = SettingsSubScreen.MAIN },
+                        bottomBar = bottomBar
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
                         // ── البيانات والنسخ الاحتياطي ──
                         SettingsGroupHeader(Translator.tr("البيانات والنسخ الاحتياطي ☁️"))
@@ -974,6 +982,7 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
 
             // ==========================================
             // 🎨 شاشة معاينة نظام الألوان (Design Studio Preview)
@@ -1024,9 +1033,13 @@ fun SettingsScreen(
             // ⚡ مركز تحديثات xdelta المباشر مع GitHub
             // ==========================================
             SettingsSubScreen.GITHUB_XDELTA_HUB -> {
-                GithubXdeltaHubScreen(
-                    onBack = { currentSubScreen = SettingsSubScreen.MAIN }
-                )
+                if (!isDeveloperAccount) {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                } else {
+                    GithubXdeltaHubScreen(
+                        onBack = { currentSubScreen = SettingsSubScreen.MAIN }
+                    )
+                }
             }
 
             // ==========================================

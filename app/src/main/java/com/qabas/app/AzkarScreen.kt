@@ -32,7 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.app.Application
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -41,6 +43,8 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 enum class AzkarTimeCategory(val label: String, val icon: String) {
@@ -63,7 +67,11 @@ data class AzkarItem(
     val timeHint: String
 )
 
-class AzkarViewModel : ViewModel() {
+class AzkarViewModel(application: Application) : AndroidViewModel(application) {
+    private val prefs = application.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+    private val todayKey: String
+        get() = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
     private val _morningAzkar = MutableStateFlow<List<AzkarItem>>(emptyList())
     val morningAzkar: StateFlow<List<AzkarItem>> = _morningAzkar.asStateFlow()
 
@@ -103,6 +111,19 @@ class AzkarViewModel : ViewModel() {
 
     init {
         loadAllAzkar()
+        loadSavedProgress()
+    }
+
+    private fun loadSavedProgress() {
+        val allIds = (_morningAzkar.value + _eveningAzkar.value + _sleepAzkar.value + _wakingAzkar.value + _prayerAzkar.value + _mosqueAzkar.value).map { it.id }
+        val map = mutableMapOf<String, Int>()
+        for (id in allIds) {
+            val count = prefs.getInt("azkar_count_${todayKey}_$id", 0)
+            if (count > 0) {
+                map[id] = count
+            }
+        }
+        _progressMap.value = map
     }
 
     fun initTts(context: Context) {
@@ -128,17 +149,36 @@ class AzkarViewModel : ViewModel() {
         val current = _progressMap.value[id] ?: 0
         if (current < target) {
             val next = current + 1
-            _progressMap.value = _progressMap.value + (id to next)
+            val newMap = _progressMap.value + (id to next)
+            _progressMap.value = newMap
+            prefs.edit().putInt("azkar_count_${todayKey}_$id", next).apply()
+
+            // 🌟 Auto sync with daily spiritual progress keys
+            val morning = _morningAzkar.value
+            if (morning.isNotEmpty() && morning.all { (newMap[it.id] ?: 0) >= it.targetCount }) {
+                prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()
+            }
+            val evening = _eveningAzkar.value
+            if (evening.isNotEmpty() && evening.all { (newMap[it.id] ?: 0) >= it.targetCount }) {
+                prefs.edit().putBoolean("daily_evening_azkar_$todayKey", true).apply()
+            }
         }
     }
 
     fun resetCount(id: String) {
         _progressMap.value = _progressMap.value + (id to 0)
+        prefs.edit().remove("azkar_count_${todayKey}_$id").apply()
     }
 
     fun resetAllCounters(category: AzkarTimeCategory? = null) {
         if (category == null) {
             _progressMap.value = emptyMap()
+            val allIds = (_morningAzkar.value + _eveningAzkar.value + _sleepAzkar.value + _wakingAzkar.value + _prayerAzkar.value + _mosqueAzkar.value).map { it.id }
+            val editor = prefs.edit()
+            allIds.forEach { editor.remove("azkar_count_${todayKey}_$it") }
+            editor.remove("daily_morning_azkar_$todayKey")
+            editor.remove("daily_evening_azkar_$todayKey")
+            editor.apply()
         } else {
             val listToReset = when(category) {
                 AzkarTimeCategory.MORNING -> _morningAzkar.value
@@ -150,6 +190,14 @@ class AzkarViewModel : ViewModel() {
             }
             val idsToReset = listToReset.map { it.id }.toSet()
             _progressMap.value = _progressMap.value.filterKeys { it !in idsToReset }
+            val editor = prefs.edit()
+            idsToReset.forEach { editor.remove("azkar_count_${todayKey}_$it") }
+            if (category == AzkarTimeCategory.MORNING) {
+                editor.remove("daily_morning_azkar_$todayKey")
+            } else if (category == AzkarTimeCategory.EVENING) {
+                editor.remove("daily_evening_azkar_$todayKey")
+            }
+            editor.apply()
         }
     }
 
@@ -639,6 +687,22 @@ fun AzkarScreen(
     val prayerCompleted = prayerList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
     val mosqueCompleted = mosqueList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
 
+    val todayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+
+    // 🌟 Auto-sync Azkar completion to daily spiritual progress keys
+    LaunchedEffect(morningCompleted, morningList.size) {
+        if (morningList.isNotEmpty() && morningCompleted >= morningList.size) {
+            prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()
+        }
+    }
+
+    LaunchedEffect(eveningCompleted, eveningList.size) {
+        if (eveningList.isNotEmpty() && eveningCompleted >= eveningList.size) {
+            prefs.edit().putBoolean("daily_evening_azkar_$todayKey", true).apply()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Manuscript Texture Background (Identical to ScholarBiographiesScreen)
         AsyncImage(
@@ -660,54 +724,84 @@ fun AzkarScreen(
             containerColor = Color.Transparent,
             topBar = {
                 Column {
-                    CenterAlignedTopAppBar(
+                    TopAppBar(
                         title = {
-                            Text(
-                                "أذكار الصباح والمساء",
-                                color = OldInk,
-                                fontFamily = AmiriFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 26.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.WbSunny,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        "أذكار الصباح والمساء",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "حصن المؤمن وبركة اليوم والسكينة",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.5.sp,
+                                        color = GoldSecondary.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
                         },
                         navigationIcon = {
-                            IconButton(onClick = onBack) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(48.dp)
+                            ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "رجوع",
-                                    tint = OldInk
+                                    contentDescription = "الرجوع من شاشة أذكار الصباح والمساء",
+                                    tint = GoldPrimary
                                 )
                             }
                         },
                         actions = {
                             if (speakingId != null) {
-                                IconButton(onClick = { viewModel.stopSpeaking() }) {
+                                IconButton(
+                                    onClick = { viewModel.stopSpeaking() },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(
                                         Icons.Default.VolumeOff,
-                                        contentDescription = "إيقاف القراءة",
-                                        tint = ManuscriptGold
+                                        contentDescription = "إيقاف القراءة الصوتية للأذكار",
+                                        tint = GoldPrimary
                                     )
                                 }
                             }
                         },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = qabasCardSurface().copy(alpha = 0.95f)
+                        )
                     )
                     // Decorative Gold Divider (Zakhrafa)
                     HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 32.dp),
-                        color = ManuscriptGold.copy(alpha = 0.5f),
+                        color = GoldPrimary.copy(alpha = 0.35f),
                         thickness = 1.dp
                     )
                 }
             }
         ) { paddingValues ->
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 40.dp, start = 16.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentAlignment = Alignment.TopCenter
             ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 600.dp),
+                    contentPadding = PaddingValues(bottom = 40.dp, start = 16.dp, end = 16.dp, top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 // Header Intro & Spiritual Verse
                 item {
                     AzkarHeaderSummary(
@@ -1046,6 +1140,7 @@ fun AzkarScreen(
             }
         }
     }
+}
 }
 
 /**
@@ -1608,7 +1703,7 @@ fun AzkarManuscriptCard(
                     // Audio Speech Button
                     Surface(
                         onClick = onSpeak,
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(48.dp),
                         shape = CircleShape,
                         color = if (isSpeaking) ManuscriptGold else AntiqueParchment,
                         border = BorderStroke(1.dp, ManuscriptGold)
@@ -1618,7 +1713,7 @@ fun AzkarManuscriptCard(
                                 imageVector = if (isSpeaking) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
                                 contentDescription = "استماع للذكر",
                                 tint = if (isSpeaking) Color.White else ManuscriptGold,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
@@ -1628,7 +1723,7 @@ fun AzkarManuscriptCard(
                     // Share / Copy Button
                     Surface(
                         onClick = onShare,
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(48.dp),
                         shape = CircleShape,
                         color = AntiqueParchment,
                         border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
@@ -1638,7 +1733,7 @@ fun AzkarManuscriptCard(
                                 Icons.Default.ContentCopy,
                                 contentDescription = "نسخ الذكر",
                                 tint = OldInk.copy(alpha = 0.8f),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -1648,7 +1743,7 @@ fun AzkarManuscriptCard(
                         // Reset button
                         Surface(
                             onClick = onReset,
-                            modifier = Modifier.size(42.dp),
+                            modifier = Modifier.size(48.dp),
                             shape = CircleShape,
                             color = AntiqueParchment,
                             border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))

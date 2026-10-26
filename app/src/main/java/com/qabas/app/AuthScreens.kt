@@ -54,7 +54,6 @@ fun RegisterScreen(
 
     var name by remember { mutableStateOf(if (draftEmail.isNotBlank()) draftEmail.substringBefore('@') else "") }
     var customId by remember { mutableStateOf("") }
-    var userHasEditedCustomId by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf(draftEmail) }
     var password by remember { mutableStateOf(draftPass) }
     var confirmPassword by remember { mutableStateOf(draftPass) }
@@ -62,38 +61,13 @@ fun RegisterScreen(
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    var nextAccountNumber by remember { mutableStateOf(UserIdentifierManager.peekNextAccountNumber(context)) }
-    var isFetchingCloudSeq by remember { mutableStateOf(true) }
-
     LaunchedEffect(Unit) {
         if (draftEmail.isNotBlank()) {
             prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
         }
-        // جلب رقم الحساب المتسلسل من السحابة (getNextAccountSequenceFromCloud) مع دعم العمل محلياً أوفلاين
-        coroutineScope.launch {
-            if (SupabaseServices.isSupabaseAvailable) {
-                runCatching {
-                    val seq = SupabaseServices.Database.getNextAccountSequenceFromCloud()
-                    val formatted = "#QBS-" + String.format(java.util.Locale.ROOT, "%04d", seq)
-                    if (formatted.isNotBlank()) {
-                        nextAccountNumber = formatted
-                    }
-                }
-            }
-            isFetchingCloudSeq = false
-        }
     }
 
-    // التوليد التلقائي لاسم المستخدم (اليوزر) عند إدخال الاسم أو البريد دون الحاجة لكتابته يدوياً
-    LaunchedEffect(name, email) {
-        if (!userHasEditedCustomId && customId.isBlank()) {
-            val seed = name.ifBlank { email }
-            if (seed.isNotBlank()) {
-                customId = UserIdentifierManager.generateUniqueId(seed)
-            }
-        }
-    }
-
+    val nextAccountNumber = remember { UserIdentifierManager.peekNextAccountNumber(context) }
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
@@ -195,7 +169,7 @@ fun RegisterScreen(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = if (isFetchingCloudSeq) "جاري الربط بالسحابة..." else "توليد فوري تلقائي",
+                                        text = "توليد فوري تلقائي",
                                         color = primaryColor,
                                         fontFamily = CairoFont,
                                         fontSize = 9.sp,
@@ -221,7 +195,7 @@ fun RegisterScreen(
                                 ) {
                                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                                         Text(
-                                            text = "اسم المستخدم (توليد تلقائي)",
+                                            text = "اسم المستخدم (اليوزر)",
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontFamily = CairoFont,
                                             fontSize = 9.sp
@@ -246,7 +220,7 @@ fun RegisterScreen(
                                 ) {
                                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                                         Text(
-                                            text = "رقم الحساب المتسلسل",
+                                            text = "رقم الحساب بالتطبيق",
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontFamily = CairoFont,
                                             fontSize = 9.sp
@@ -282,24 +256,20 @@ fun RegisterScreen(
                         singleLine = true
                     )
 
-                    // Custom Identifier Field (Auto-Generated Handle / User ID)
+                    // Custom Identifier Field (Unique Handle / User ID)
                     OutlinedTextField(
                         value = customId,
-                        onValueChange = {
-                            customId = it.trim().replace(" ", "_")
-                            userHasEditedCustomId = true
-                        },
-                        label = { Text("اسم المستخدم / المعرّف (توليد تلقائي)", fontFamily = CairoFont, fontSize = 12.sp) },
-                        placeholder = { Text("توليد تلقائي برمجياً", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
+                        onValueChange = { customId = it.trim().replace(" ", "_") },
+                        label = { Text("المعرّف الخاص (User ID / Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
+                        placeholder = { Text("مثال: qbs_ahmed أو QBS-7821", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
                         leadingIcon = {
                             Icon(Icons.Default.Person, contentDescription = null, tint = primaryColor.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                         },
                         trailingIcon = {
                             IconButton(onClick = {
                                 customId = UserIdentifierManager.generateUniqueId(name.ifBlank { email })
-                                userHasEditedCustomId = true
                             }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "توليد معرّف تلقائي جديد", tint = primaryColor, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Refresh, contentDescription = "توليد معرّف تلقائي", tint = primaryColor, modifier = Modifier.size(18.dp))
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -406,15 +376,36 @@ fun RegisterScreen(
                                 return@Button
                             }
 
+                            val finalCustomId = if (customId.isNotBlank()) {
+                                UserIdentifierManager.normalize(customId)
+                            } else {
+                                // معرّف مشتق من البريد/الاسم، لا قيمة عشوائية جديدة كل مرة
+                                UserIdentifierManager.normalize(trimmedEmail.substringBefore('@').ifBlank { name })
+                                    .ifBlank {
+                                        UserIdentifierManager.normalize(
+                                            UserIdentifierManager.generateUniqueId(trimmedEmail.ifBlank { name })
+                                        )
+                                    }
+                            }
+
                             isLoading = true
                             coroutineScope.launch {
-                                // 1. توليد معرّف مضمون عدم التكرار محلياً (LocalAccountRegistry) وسحابياً (Supabase)
-                                val initialId = if (customId.isNotBlank()) UserIdentifierManager.normalize(customId) else UserIdentifierManager.normalize(trimmedEmail.substringBefore('@').ifBlank { name })
-                                val finalCustomId = UserIdentifierManager.generateGuaranteedUniqueCustomId(
+                                // 1. فحص توفر المعرّف لمنع استخدام نفس المعرّف لحسابين
+                                val checkIdResult = UserIdentifierManager.checkCustomIdAvailability(
                                     context = context,
-                                    seed = initialId,
+                                    customId = finalCustomId,
                                     currentEmail = trimmedEmail
                                 )
+                                if (checkIdResult is UserIdentifierManager.CustomIdAvailabilityResult.Taken) {
+                                    isLoading = false
+                                    Toast.makeText(context, "⚠️ المعرّف @$finalCustomId مستخدم بالفعل، يرجى اختيار معرّف فريد آخر.", Toast.LENGTH_LONG).show()
+                                    return@launch
+                                }
+                                if (checkIdResult is UserIdentifierManager.CustomIdAvailabilityResult.Invalid) {
+                                    isLoading = false
+                                    Toast.makeText(context, "⚠️ ${checkIdResult.reason}", Toast.LENGTH_LONG).show()
+                                    return@launch
+                                }
 
                                 var success = false
                                 if (SupabaseServices.isSupabaseAvailable) {
@@ -430,8 +421,7 @@ fun RegisterScreen(
                                     val isAdmin = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
                                     val userType = if (isAdmin) "مطور" else "مجاني"
                                     val userId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
-                                    
-                                    // 2. جلب رقم الحساب المتسلسل المضمون من السحابة (getNextAccountSequenceFromCloud) مع دعم أوفلاين
+                                    // جلب رقم الحساب من عداد السحابة لضمان الترقيم الموحد
                                     val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, trimmedEmail, name.trim())
 
                                     UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)

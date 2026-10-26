@@ -136,13 +136,12 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         MuslimToolItem("tasbeeh", "المسبحة الذكية", Icons.Default.Fingerprint, Color(0xFFEAB308)),
         MuslimToolItem("habits", "متابع العادات", Icons.Default.DoneAll, Color(0xFF14B8A6)),
         MuslimToolItem("stats", "إحصائيات العبادة", Icons.Default.Analytics, Color(0xFFF97316)),
-        MuslimToolItem("test", "اختبار الحفظ", Icons.Default.Quiz, Color(0xFFEC4899)),
-        MuslimToolItem("wird", "الورد اليومي", Icons.Default.FormatListBulleted, Color(0xFF06B6D4)),
-        MuslimToolItem("hadith", "متصفح الأحاديث", Icons.Default.LibraryBooks, Color(0xFF8B5CF6)),
-        MuslimToolItem("learn", "مركز التعلم", Icons.Default.Psychology, Color(0xFF10B981)),
-        MuslimToolItem("qibla", "القبلة والمساجد", Icons.Default.Navigation, Color(0xFF0EA5E9)),
+        MuslimToolItem("qibla", "القبلة والمساجد", Icons.Default.Explore, Color(0xFF0EA5E9)),
+        MuslimToolItem("wird", "الورد اليومي", Icons.Default.MenuBook, Color(0xFF06B6D4)),
+        MuslimToolItem("hadith", "متصفح الأحاديث", Icons.Default.LocalLibrary, Color(0xFF8B5CF6)),
+        MuslimToolItem("learn", "تراجم العلماء", Icons.Default.School, Color(0xFF10B981)),
         MuslimToolItem("share", "بطاقات النشر", Icons.Default.ColorLens, Color(0xFFF59E0B)),
-        MuslimToolItem("reward", "أجري بالنشر", Icons.Default.Share, Color(0xFF14B8A6))
+        MuslimToolItem("reward", "أجري بالنشر", Icons.Default.Stars, Color(0xFF14B8A6))
     )
 
     data class MuslimToolItem(val id: String, val title: String, val icon: ImageVector, val color: Color)
