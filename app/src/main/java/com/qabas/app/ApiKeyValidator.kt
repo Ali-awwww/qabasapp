@@ -64,6 +64,7 @@ object ApiKeyValidator {
             "azure" -> "Azure TTS"
             "elevenlabs" -> "ElevenLabs"
             "higgsfield" -> "Higgsfield AI"
+            "leonardo" -> "Leonardo.ai"
             "firebase" -> "Firebase"
             else -> serviceType.replaceFirstChar { it.uppercase() }
         }
@@ -573,6 +574,29 @@ object ApiKeyValidator {
                             rawError = message,
                             explanation = message,
                             suggestedFix = "ادخل إلى منصة higgsfield.ai ثم انسخ مفتاح API Key وضعه هنا."
+                        )
+                    }
+                }
+                "leonardo" -> {
+                    val (isSuccess, message) = LeonardoImageService.testConnection(context, trimmedKey)
+                    if (isSuccess) {
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Leonardo.ai متصل وسليم (Vision Engine - 200 OK)", Color(0xFF4CAF50))
+                        return@withContext KeyValidationResult(
+                            isValid = true,
+                            summary = "متصل بالسيرفر ✅ (Leonardo.ai جاهز)",
+                            errorCode = 200,
+                            explanation = "تم التحقق الفعلي من خوادم Leonardo.ai بنجاح (200 OK). محرك الصور والرسم الفائق جاهز للعمل.",
+                            suggestedFix = "المفتاح جاهز للاستخدام الفوري في استوديو الصور والمشاهد الفنية."
+                        )
+                    } else {
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Leonardo.ai: $message", Color(0xFFEF4444))
+                        return@withContext KeyValidationResult(
+                            isValid = false,
+                            summary = "غير متصل 🔴",
+                            errorCode = 401,
+                            rawError = message,
+                            explanation = message,
+                            suggestedFix = "ادخل إلى https://app.leonardo.ai/api-access ثم انسخ مفتاح API وضعه هنا."
                         )
                     }
                 }

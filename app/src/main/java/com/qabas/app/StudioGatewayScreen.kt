@@ -1,6 +1,9 @@
 package com.qabas.app
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -14,9 +17,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,17 +35,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 
 /**
  * 🛸 استوديو قبس الموحّد لصناعة المحتوى (Unified Creative Production Studio)
- * بيئة إنتاجية متكاملة تجمع كل أدوات الذكاء الاصطناعي، المونتاج الاحترافي، هندسة الصوت،
- * وتصميم البوسترات ونشر السلاسل في مركز قيادة واحد فائق السلاسة.
+ * تم تنظيم الاستوديو في 3 فئات رئيسية: فيديوهات، صور، صوت.
+ * مع دعم نظام Bring-Your-Own-Key (BYOK) للمنصات الخارجية.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,50 +71,23 @@ fun StudioGatewayScreen(
     BackHandler { onBack() }
 
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val userEmail = remember { prefs.getString("user_email", "") ?: "" }
-    val userType = remember { prefs.getString("user_type", "") ?: "" }
-    var isDeveloper by remember {
-        mutableStateOf(
-            prefs.getBoolean("is_admin", false) ||
-            CloudServices.isOwnerAccount(userEmail) ||
-            userType == "مطور" ||
-            userType == "خاص" ||
-            userType == "admin" ||
-            userType == "developer"
-        )
-    }
-
-    if (!isDeveloper) {
-        StudioMaintenanceView(
-            onBack = onBack,
-            onDeveloperAuthenticated = {
-                isDeveloper = true
-            },
-            bottomBar = bottomBar
-        )
-        return
-    }
-
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
-    // فئات الاستوديو للتصفية السريعة
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+
+    // فئات الاستوديو الموحدة (3 فئات)
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
     val categories = remember {
         listOf(
-            "🌟 الكل" to "all",
-            "✨ العمل المتقن" to "master",
-            "🗂️ مستودع الوسائط" to "media",
-            "🎬 صناعة الفيديو" to "video",
-            "🎨 التصميم والبوسترات" to "visuals",
-            "🎙️ الصوتيات والدبلجة" to "audio",
-            "🚀 النشر والانتشار" to "growth"
+            "🎬 الفيديوهات (Higgsfield)" to "video",
+            "🎨 الصور (Leonardo)" to "images",
+            "🎙️ الصوت (VoiceStudio)" to "audio"
         )
     }
 
     Scaffold(
-        containerColor = Color(0xFF030712), // Deeper dark
+        containerColor = Color(0xFF030712),
         bottomBar = bottomBar,
         topBar = {
             TopAppBar(
@@ -124,14 +106,14 @@ fun StudioGatewayScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                Translator.tr("استوديو قبس الموحّد"),
+                                "استوديو قبس الموحّد",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                "COMMAND CENTER v2.0 // SYSTEM ACTIVE",
+                                "UNIFIED STUDIO HUB // BYOK_ACTIVE",
                                 color = primaryColor.copy(alpha = 0.6f),
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
@@ -144,6 +126,11 @@ fun StudioGatewayScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showApiKeyDialog = true }) {
+                        Icon(Icons.Default.VpnKey, contentDescription = "مفاتيح الـ API", tint = primaryColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF030712).copy(alpha = 0.95f))
@@ -162,63 +149,7 @@ fun StudioGatewayScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            // HUD Developer Mode Banner (Active for developers only)
-            Surface(
-                shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
-                color = Color(0xFF0F172A).copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(primaryColor, Color(0xFF38BDF8)))),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = Translator.tr("وضع المطور نشط 👑 // ROOT_ACCESS"),
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = Translator.tr("الاستوديو معلّق للمستخدمين ومتاح لك بصفتك مطوراً"),
-                                color = primaryColor.copy(alpha = 0.85f),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                    TextButton(
-                        onClick = {
-                            isDeveloper = false
-                        }
-                    ) {
-                        Text(
-                            text = Translator.tr("معاينة كـ مستخدم 🔒"),
-                            color = Color(0xFF94A3B8),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-
-            // Hero Banner: Quick Production Launcher
+            // Hero Banner
             UnifiedHeroStudioCard(
                 onMasterStudio = onNavigateToMasterStudio,
                 onQuickVideo = onNavigateToAiStudio,
@@ -229,295 +160,667 @@ fun StudioGatewayScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Category Selector Chips
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+            // Category Selector (3 Main Hubs)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(categories.size) { index ->
+                categories.forEachIndexed { index, (label, _) ->
                     val isSelected = selectedCategoryIndex == index
-                    val (label, _) = categories[index]
                     Surface(
                         onClick = { selectedCategoryIndex = index },
+                        modifier = Modifier.weight(1f).height(42.dp),
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) primaryColor else Color(0xFF1E293B).copy(alpha = 0.4f),
-                        border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B)),
-                        modifier = Modifier.height(38.dp)
+                        border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B))
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = label,
+                                text = label.split(" ")[0], // Show only the emoji + main label for space
                                 color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
                                 fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                fontSize = 12.sp
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 11.sp
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Autonomous AI Agent Studio Feature Card
-            StudioFeatureCard(
-                title = "استوديو الوكيل الذكي (AI Studio Agent) 🛸",
-                description = "بيئة تطوير مستقلة قائمة على إعطاء الأوامر باللغة الطبيعية — يفحص الكود، يبني الميزات، ويشغل البناء السحابي تماماً كمنصة Google AI Studio.",
-                badge = "AUTONOMOUS DEV",
-                badgeColor = Color(0xFF00E5FF),
-                icon = Icons.Default.SmartToy,
-                onClick = onNavigateToAiStudioAgent
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Studio Tools Grid / List based on selected category
             val currentFilter = categories[selectedCategoryIndex].second
 
-            // Masterpiece All-in-One Pillar
-            if (currentFilter == "all" || currentFilter == "master") {
-                SectionHeader("قمرة الإنتاج المتقن الشامل", "FLAGSHIP MASTER ENGINE", "✨")
-
-                SectionHeroBanner(
-                    title = "الإنتاج المتقن الشامل",
-                    description = "نظام متكامل يدمج السيناريو، الصوت، الصور، والمونتاج في تدفق واحد فائق السرعة.",
-                    // Using generated resource
-                    imageRes = R.drawable.hud_master_engine_banner_1790878207544,
-                    fallbackEmoji = "🌟",
-                    accentColor = primaryColor
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "استوديو العمل المتقن الشامل ✦",
-                    description = "دمج فوري لكل ميزات قبس: سيناريو + تعليق صوتي فخم + رسوم 8K FLUX + كابشنز حركية + بوستر وغلاف + حزمة SEO للنشر بضغطة زر.",
-                    badge = "MASTER WORKFLOW",
-                    badgeColor = primaryColor,
-                    icon = Icons.Default.Stars,
-                    onClick = onNavigateToMasterStudio
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
+            // Render Content based on Hub
+            when (currentFilter) {
+                "video" -> {
+                    SectionHeader("صناعة ومونتاج الفيديو (Higgsfield AI)", "VIDEO_HUB", "🎬")
+                    
+                    StudioFeatureCard(
+                        title = "توليد وتحريك الفيديو (Higgsfield AI) 🛸",
+                        description = "حوّل نصوصك وصورك إلى مقاطع سينمائية دعوية بلمسة احترافية.",
+                        badge = "CINEMATIC AI",
+                        badgeColor = Color(0xFF00F2FE),
+                        icon = Icons.Default.MovieFilter,
+                        onClick = onNavigateToAiStudio
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "MoneyPrinter Turbo ⚡",
+                        description = "أتمتة إنتاج الريلز والشورتس بضغطة زر واحدة (سكربت + صوت + لقطات).",
+                        badge = "AUTOMATION",
+                        badgeColor = Color(0xFF10B981),
+                        icon = Icons.Default.Bolt,
+                        onClick = onNavigateToMoneyPrinter
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "المحرر الاحترافي (Pro Editor) ✂️",
+                        description = "تحكم كامل في التايم لاين، المونتاج، وإضافة التأثيرات السينمائية.",
+                        badge = "PRO TOOLS",
+                        badgeColor = Color(0xFF38BDF8),
+                        icon = Icons.Default.ContentCut,
+                        onClick = onNavigateToProEditor
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "استوديو يوتيوب والانتشار 📺",
+                        description = "إدارة السلاسل، عناوين SEO، وإحصائيات الوصول لجمهورك.",
+                        badge = "GROWTH",
+                        badgeColor = Color(0xFFEF4444),
+                        icon = Icons.Default.SmartDisplay,
+                        onClick = onNavigateToYouTubeStudio
+                    )
+                }
+                "images" -> {
+                    SectionHeader("استوديو الصور والتصاميم (Leonardo.ai)", "IMAGE_HUB", "🎨")
+                    
+                    StudioFeatureCard(
+                        title = "توليد الصور الاحترافية (Leonardo.ai) 🖼️",
+                        description = "توليد صور فائقة الجودة وبوسترات دعوية باستخدام محرك Leonardo Vision.",
+                        badge = "LEONARDO VISION",
+                        badgeColor = Color(0xFFF59E0B),
+                        icon = Icons.Default.Image,
+                        onClick = onNavigateToPhotoStudio
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "استوديو بطاقات الآيات والأحاديث 📜",
+                        description = "تصميم بطاقات فخمة وجاهزة للنشر للآيات والأحاديث النبوية.",
+                        badge = "HADITH ART",
+                        badgeColor = primaryColor,
+                        icon = Icons.Default.MenuBook,
+                        onClick = onNavigateToHadithStudio
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "مستودع الوسائط المركزي 📦",
+                        description = "إدارة وعرض جميع الصور والفيديوهات المولدة والمحفوظة.",
+                        badge = "STORAGE",
+                        badgeColor = Color(0xFF10B981),
+                        icon = Icons.Default.PermMedia,
+                        onClick = onNavigateToMediaBrowser
+                    )
+                }
+                "audio" -> {
+                    SectionHeader("هندسة الصوت والتعليق (VoiceStudio)", "AUDIO_HUB", "🎙️")
+                    
+                    StudioFeatureCard(
+                        title = "استوديو الأصوات والدبلجة (VoiceStudio) 🎙️",
+                        description = "توليد تعليق صوتي فخم واستنساخ النبرات بدقة عالية.",
+                        badge = "VOICE ENGINE",
+                        badgeColor = Color(0xFFEC4899),
+                        icon = Icons.Default.GraphicEq,
+                        onClick = onNavigateToVoiceStudio
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "ملقن الكاميرا الذكي (Teleprompter) 📹",
+                        description = "تصوير فيديوهاتك مع قراءة النصوص المتزامنة تلقائياً.",
+                        badge = "VIDEO PRODUCTION",
+                        badgeColor = Color(0xFF10B981),
+                        icon = Icons.Default.Videocam,
+                        onClick = onNavigateToTeleprompter
+                    )
+                }
             }
 
-            // Media Browser & Supabase Storage Pillar
-            if (currentFilter == "all" || currentFilter == "media") {
-                SectionHeader("مستودع وسائط قبس", "CENTRAL STORAGE & ASSET NEXUS", "🗂️")
+            Spacer(modifier = Modifier.height(30.dp))
 
-                SectionHeroBanner(
-                    title = "مستودع الوسائط المركزي",
-                    description = "إدارة وعرض جميع الملفات المرفوعة والمولّدة بالذكاء (صور 8K، صوتيات، فيديوهات ريلز) مع المزامنة السحابية المباشرة.",
-                    fallbackEmoji = "📦",
-                    accentColor = Color(0xFF10B981)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "مستودع الوسائط المركزي (Supabase & AI) 📦",
-                    description = "إدارة وعرض جميع الملفات المرفوعة والمولّدة بالذكاء (صور 8K، صوتيات، فيديوهات ريلز) مع المزامنة السحابية المباشرة.",
-                    badge = "CENTRAL STORAGE",
-                    badgeColor = Color(0xFF10B981),
-                    icon = Icons.Default.PermMedia,
-                    onClick = onNavigateToMediaBrowser
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
-            // 1. Video Production Section
-            if (currentFilter == "all" || currentFilter == "video") {
-                SectionHeader("أدوات صناعة ومونتاج الفيديو", "VIDEO ENGINES", "🎬")
-
-                SectionHeroBanner(
-                    title = "مصنع الفيديو الذكي",
-                    description = "أتمتة إنتاج الريلز والشورتس بضغطة زر مع المحرر التفاعلي المتقدم.",
-                    // Using generated resource
-                    imageRes = R.drawable.hud_video_factory_banner_1790878221069,
-                    fallbackEmoji = "⚡",
-                    accentColor = Color(0xFF00F2FE)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "MoneyPrinter Turbo ⚡",
-                    description = "أتمتة إنتاج الريلز والشورتس 9:16 بضغطة زر واحدة (سكربت + صوت Edge-TTS + لقطات + كابشنز حركية).",
-                    badge = "TURBO ZERO-KEY",
-                    badgeColor = Color(0xFF00F2FE),
-                    icon = Icons.Default.Bolt,
-                    onClick = onNavigateToMoneyPrinter
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                StudioFeatureCard(
-                    title = "المحرر التفاعلي والتايم لاين المتقدم ✂️",
-                    description = "تحكم متعدد المسارات، قص السكتات (AI Jump Cut)، فلاتر سينمائية، وتصدير فائق الدقة.",
-                    badge = "SPATIAL TIMELINE",
-                    badgeColor = Color(0xFF38BDF8),
-                    icon = Icons.Default.MovieFilter,
-                    onClick = onNavigateToProEditor
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                StudioFeatureCard(
-                    title = "مستنسخ الأنماط البصرية (Style Cloner) 🧬",
-                    description = "تحليل الأسلوب الإخراجي لأي فيديو ناجح وتطبيقه تلقائياً على نصوصك وأفكارك.",
-                    badge = "AI CLONER",
-                    badgeColor = Color(0xFFA855F7),
-                    icon = Icons.Default.Style,
-                    onClick = onNavigateToStyleCloner
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
-            // 2. Visuals & Posters Section
-            if (currentFilter == "all" || currentFilter == "visuals") {
-                SectionHeader("استوديو التصميم والبوسترات", "VISUAL & POSTER DESIGN", "🎨")
-
-                SectionHeroBanner(
-                    title = "التصميم والبوسترات",
-                    description = "توليد خلفيات وبوسترات فائقة الجودة بدقة 8K مع زخارف هندسية إسلامية.",
-                    fallbackEmoji = "🖼️",
-                    accentColor = Color(0xFFF59E0B)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "استوديو الصور والبوسترات (FLUX.1 8K) 🖼️",
-                    description = "توليد خلفيات وبوسترات فائقة الجودة بدون مفاتيح، تصميم أغلفة دعوية، وزخارف هندسية إسلامية.",
-                    badge = "FLUX.1 ZERO-API",
-                    badgeColor = Color(0xFFF59E0B),
-                    icon = Icons.Default.Image,
-                    onClick = onNavigateToPhotoStudio
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                StudioFeatureCard(
-                    title = "استوديو بطاقات الآيات والأحاديث 📜",
-                    description = "بطاقات حديث شريف وآيات قرآنية بتنسيق بصري فخم جاهزة للنشر على إنستغرام وتويتر.",
-                    badge = "HADITH STUDIO",
-                    badgeColor = primaryColor,
-                    icon = Icons.Default.MenuBook,
-                    onClick = onNavigateToHadithStudio
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
-            // 3. Audio & Dubbing Section
-            if (currentFilter == "all" || currentFilter == "audio") {
-                SectionHeader("هندسة الصوت والدبلجة", "VOICE & ACOUSTIC LAB", "🎙️")
-
-                SectionHeroBanner(
-                    title = "مختبر الصوتيات",
-                    description = "توليد تعليق صوتي فخم واستنساخ النبرات بدقة عالية.",
-                    // Using generated resource
-                    imageRes = R.drawable.hud_audio_lab_banner_1790878245000,
-                    fallbackEmoji = "🔊",
-                    accentColor = Color(0xFFEC4899)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "استوديو الأصوات والدبلجة (VoiceStudio) 🎙️",
-                    description = "توليد تعليق صوتي فخم بدون مفاتيح (Edge-TTS و Kokoro)، استنساخ النبرات، ودبلجة الفيديو.",
-                    badge = "VOICE ENGINE",
-                    badgeColor = Color(0xFFEC4899),
-                    icon = Icons.Default.GraphicEq,
-                    onClick = onNavigateToVoiceStudio
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                StudioFeatureCard(
-                    title = "ملقن الكاميرا الذكي (Smart Teleprompter) 📹",
-                    description = "تصوير فيديوهاتك مع قراءة النصوص المتزامنة تلقائياً مع وتيرة صوتك.",
-                    badge = "TELEPROMPTER",
-                    badgeColor = Color(0xFF10B981),
-                    icon = Icons.Default.Videocam,
-                    onClick = onNavigateToTeleprompter
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
-            // 4. Growth & Publishing Section
-            if (currentFilter == "all" || currentFilter == "growth") {
-                SectionHeader("النشر والانتشار", "GROWTH & VIRAL SEO", "🚀")
-
-                SectionHeroBanner(
-                    title = "النشر والانتشار",
-                    description = "أدوات متكاملة لتحسين محركات البحث وزيادة الوصول الدعوي.",
-                    fallbackEmoji = "📈",
-                    accentColor = Color(0xFFEF4444)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                StudioFeatureCard(
-                    title = "استوديو يوتيوب والشورتس الآلي 📺",
-                    description = "إنتاج سلاسل يومية من 30 حلقة، توليد عناوين جذابة، وسوم SEO، ومصغرات يوتيوب.",
-                    badge = "AUTO SERIES & SEO",
-                    badgeColor = Color(0xFFEF4444),
-                    icon = Icons.Default.SmartDisplay,
-                    onClick = onNavigateToYouTubeStudio
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                StudioFeatureCard(
-                    title = "لوحة إحصائيات الانتشار والأثر 📊",
-                    description = "قياس انتشار المحتوى، تحليل تفاعل الجمهور، واقتراحات استراتيجية لزيادة الوصول الدعوي.",
-                    badge = "ANALYTICS",
-                    badgeColor = Color(0xFF22C55E),
-                    icon = Icons.Default.BarChart,
-                    onClick = onNavigateToStats
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
-            // Bottom Wisdom Note
+            // Wisdom Note
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = Color(0xFF0F172A).copy(alpha = 0.6f),
                 borderColor = primaryColor.copy(alpha = 0.25f),
                 shape = CutCornerShape(12.dp)
             ) {
+                Text(
+                    text = "«تم تنظيم الاستوديو ليكون رفيقك في صناعة الأثر الدعوي المتقن»",
+                    color = TextPrimary.copy(alpha = 0.85f),
+                    fontFamily = CairoFont,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+
+        if (showApiKeyDialog) {
+            ApiKeyManagerDialog(
+                onDismiss = { showApiKeyDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
+    val primaryColor = qabasPrimary()
+    val textMutedColor = Color(0xFF94A3B8)
+    val cyanInfoColor = Color(0xFF06B6D4)
+
+    var leonardoKey by remember { mutableStateOf(ApiKeyManager.getLeonardoKey(context)) }
+    var showLeonardoKey by remember { mutableStateOf(false) }
+    var isTestingLeonardo by remember { mutableStateOf(false) }
+    var leonardoTestResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+
+    var higgsfieldKey by remember { mutableStateOf(ApiKeyManager.getHiggsfieldKey(context)) }
+    var showHiggsfieldKey by remember { mutableStateOf(false) }
+    var isTestingHiggsfield by remember { mutableStateOf(false) }
+    var higgsfieldTestResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+
+    val openUrl: (String) -> Unit = { url ->
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "تعذر فتح المتصفح: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val sanitizeKey: (String) -> String = { raw ->
+        raw.trim().removeSurrounding("\"").removeSurrounding("'").removePrefix("Bearer ").trim()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        GlassmorphicSurface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.90f)
+                .padding(vertical = 16.dp),
+            backgroundColor = Color(0xFF0B132B).copy(alpha = 0.98f),
+            borderColor = primaryColor.copy(alpha = 0.45f),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Top Header
                 Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(primaryColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(primaryColor.copy(alpha = 0.15f))
+                                .border(1.dp, primaryColor.copy(alpha = 0.4f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.VpnKey, contentDescription = null, tint = primaryColor, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "إدارة مفاتيح الـ API (BYOK)",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                "ربط مباشر مع منصات الذكاء الاصطناعي",
+                                color = textMutedColor,
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "«قيمة المرء ما يُحسنُ صنعه».. منظومة قبس تمنحك استوديو سينمائي مستقل 100% لنشر الخير والأثر المستدام.",
-                        color = TextPrimary.copy(alpha = 0.85f),
-                        fontFamily = CairoFont,
-                        fontSize = 11.5.sp,
-                        lineHeight = 17.sp,
-                        modifier = Modifier.weight(1f)
-                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // Educational / Honesty Explainer Card
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF1E293B).copy(alpha = 0.7f),
+                    borderColor = cyanInfoColor.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = cyanInfoColor,
+                            modifier = Modifier.size(18.dp).padding(top = 2.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "لماذا يتطلب المفتاح خطوات ربط مباشرة؟",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                "لحماية خصوصيتك ورصيدك، تمنع منصات الذكاء الاصطناعي العالمية أي تطبيق خارجي من استخراج المفاتيح سراً بدون تسجيلك وتفويضك. وفرنا لك أسرع مسار: اضغط «احصل على المفتاح ↗» لفتح صفحة الإنشاء فوراً، ثم اضغط «📋 لصق تلقائي» ليتم التعرف عليه وفحصه في لحظة واحدة.",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 10.5.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+
+                // ── 1. Leonardo.ai Section ──
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF131D38).copy(alpha = 0.85f),
+                    borderColor = if (leonardoKey.isNotBlank()) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🖼️", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        "Leonardo.ai (Vision XL)",
+                                        color = Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        "توليد الصور التشكيلية والبوسترات الدعوية",
+                                        color = textMutedColor,
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            // Direct Deep Link Button
+                            OutlinedButton(
+                                onClick = { openUrl("https://app.leonardo.ai/api-access") },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.7f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = primaryColor)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("احصل على المفتاح ↗", fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Action Buttons Bar
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Smart Paste Button
+                            Button(
+                                onClick = {
+                                    val text = clipboardManager.getText()?.text ?: ""
+                                    val cleaned = sanitizeKey(text)
+                                    if (cleaned.isNotBlank()) {
+                                        leonardoKey = cleaned
+                                        Toast.makeText(context, "تم استخراج ولصق المفتاح من الحافظة 📋", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "الحافظة فارغة! انسخ المفتاح من الموقع أولاً", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = null, tint = primaryColor, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("📋 لصق تلقائي", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+
+                            // Live Connection Test Button
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isTestingLeonardo = true
+                                        leonardoTestResult = LeonardoImageService.testConnection(context, leonardoKey)
+                                        isTestingLeonardo = false
+                                    }
+                                },
+                                enabled = !isTestingLeonardo && leonardoKey.isNotBlank(),
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                if (isTestingLeonardo) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = EmeraldGreen, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("⚡ فحص الاتصال", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+
+                            // Clear button
+                            if (leonardoKey.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        leonardoKey = ""
+                                        leonardoTestResult = null
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        // Text Field
+                        OutlinedTextField(
+                            value = leonardoKey,
+                            onValueChange = {
+                                leonardoKey = sanitizeKey(it)
+                                leonardoTestResult = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("الصق مفتاح Leonardo API هنا...", color = textMutedColor, fontSize = 11.sp, fontFamily = CairoFont) },
+                            visualTransformation = if (showLeonardoKey) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showLeonardoKey = !showLeonardoKey }) {
+                                    Icon(
+                                        if (showLeonardoKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f)
+                            )
+                        )
+
+                        // Live Test Feedback
+                        leonardoTestResult?.let { result ->
+                            val isOk = result.first
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isOk) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = if (isOk) EmeraldGreen else Color.Red,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    result.second,
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── 2. Higgsfield AI Section ──
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF131D38).copy(alpha = 0.85f),
+                    borderColor = if (higgsfieldKey.isNotBlank()) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🎬", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        "Higgsfield AI Studio",
+                                        color = Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        "توليد الفيديوهات السينمائية وتحريك المشاهد",
+                                        color = textMutedColor,
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            // Direct Deep Link Button
+                            OutlinedButton(
+                                onClick = { openUrl("https://cloud.higgsfield.ai") },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.7f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = primaryColor)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("احصل على المفتاح ↗", fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Action Buttons Bar
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Smart Paste Button
+                            Button(
+                                onClick = {
+                                    val text = clipboardManager.getText()?.text ?: ""
+                                    val cleaned = sanitizeKey(text)
+                                    if (cleaned.isNotBlank()) {
+                                        higgsfieldKey = cleaned
+                                        Toast.makeText(context, "تم استخراج ولصق المفتاح من الحافظة 📋", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "الحافظة فارغة! انسخ المفتاح من الموقع أولاً", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = null, tint = primaryColor, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("📋 لصق تلقائي", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+
+                            // Live Connection Test Button
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isTestingHiggsfield = true
+                                        higgsfieldTestResult = HiggsfieldVideoService.testConnection(context, higgsfieldKey)
+                                        isTestingHiggsfield = false
+                                    }
+                                },
+                                enabled = !isTestingHiggsfield && higgsfieldKey.isNotBlank(),
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                if (isTestingHiggsfield) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = EmeraldGreen, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("⚡ فحص الاتصال", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+
+                            // Clear button
+                            if (higgsfieldKey.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        higgsfieldKey = ""
+                                        higgsfieldTestResult = null
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        // Text Field
+                        OutlinedTextField(
+                            value = higgsfieldKey,
+                            onValueChange = {
+                                higgsfieldKey = sanitizeKey(it)
+                                higgsfieldTestResult = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("الصق مفتاح Higgsfield API هنا...", color = textMutedColor, fontSize = 11.sp, fontFamily = CairoFont) },
+                            visualTransformation = if (showHiggsfieldKey) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showHiggsfieldKey = !showHiggsfieldKey }) {
+                                    Icon(
+                                        if (showHiggsfieldKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f)
+                            )
+                        )
+
+                        // Live Test Feedback
+                        higgsfieldTestResult?.let { result ->
+                            val isOk = result.first
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isOk) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = if (isOk) EmeraldGreen else Color.Red,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    result.second,
+                                    color = Color.White,
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── Save & Dismiss Actions ──
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        ApiKeyManager.saveLeonardoKey(context, leonardoKey)
+                        ApiKeyManager.saveHiggsfieldKey(context, higgsfieldKey)
+                        Toast.makeText(context, "تم حفظ المفاتيح بنجاح وتفعيل المحركات ✓", Toast.LENGTH_SHORT).show()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("حفظ وإغلاق ✓", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
@@ -528,171 +831,28 @@ private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 20.dp, bottom = 12.dp),
+            .padding(top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Technical Vertical HUD Accent with Emoji
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(emoji, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(12.dp)
-                        .background(primaryColor)
-                )
-            }
-            
+            Text(emoji, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(12.dp))
-            
             Column {
                 Text(
                     text = title,
                     color = Color.White,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                    lineHeight = 15.sp
+                    fontSize = 14.sp
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "SUBSYSTEM // ACCESS_GRANTED",
-                        color = primaryColor.copy(alpha = 0.5f),
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 7.sp,
-                        letterSpacing = 0.8.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(modifier = Modifier.size(3.dp).background(primaryColor.copy(alpha = 0.3f), CircleShape))
-                }
-            }
-        }
-        
-        Surface(
-            color = Color.Transparent,
-            border = BorderStroke(0.5.dp, primaryColor.copy(alpha = 0.25f)),
-            shape = CutCornerShape(4.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(modifier = Modifier.size(4.dp).background(primaryColor.copy(alpha = 0.6f), CircleShape))
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = codeTag,
-                    color = primaryColor.copy(alpha = 0.7f),
+                    text = "STATUS // HUB_READY",
+                    color = primaryColor.copy(alpha = 0.5f),
                     fontFamily = RobotoMonoFont,
-                    fontSize = 8.sp,
+                    fontSize = 7.sp,
                     fontWeight = FontWeight.Bold
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeroBanner(
-    title: String,
-    description: String,
-    imageRes: Int? = null,
-    fallbackEmoji: String = "🛸",
-    accentColor: Color = qabasPrimary()
-) {
-    val context = LocalContext.current
-    GlassmorphicSurface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        backgroundColor = Color(0xFF0F172A).copy(alpha = 0.6f),
-        borderColor = accentColor.copy(alpha = 0.25f),
-        shape = CutCornerShape(14.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // Technical Background Pattern
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val step = 16.dp.toPx()
-                for (x in 0..size.width.toInt() step step.toInt()) {
-                    drawLine(
-                        color = accentColor.copy(alpha = 0.03f),
-                        start = Offset(x.toFloat(), 0f),
-                        end = Offset(x.toFloat(), size.height),
-                        strokeWidth = 1f
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(accentColor.copy(alpha = 0.12f))
-                        .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (imageRes != null) {
-                        Image(
-                            painter = painterResource(id = imageRes),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    } else {
-                        Text(fallbackEmoji, fontSize = 30.sp)
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Surface(
-                        color = accentColor.copy(alpha = 0.15f),
-                        shape = CutCornerShape(4.dp),
-                        border = BorderStroke(0.5.dp, accentColor.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            "SUBSYSTEM_ACTIVE",
-                            color = accentColor,
-                            fontFamily = RobotoMonoFont,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = description,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
         }
     }
@@ -712,89 +872,32 @@ private fun UnifiedHeroStudioCard(
         borderColor = primaryColor.copy(alpha = 0.35f),
         shape = CutCornerShape(16.dp)
     ) {
-        // Technical Background Grid Pattern (Simulated)
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val step = 20.dp.toPx()
-            for (x in 0..size.width.toInt() step step.toInt()) {
-                drawLine(
-                    color = primaryColor.copy(alpha = 0.03f),
-                    start = androidx.compose.ui.geometry.Offset(x.toFloat(), 0f),
-                    end = androidx.compose.ui.geometry.Offset(x.toFloat(), size.height),
-                    strokeWidth = 1f
-                )
-            }
-            for (y in 0..size.height.toInt() step step.toInt()) {
-                drawLine(
-                    color = primaryColor.copy(alpha = 0.03f),
-                    start = androidx.compose.ui.geometry.Offset(0f, y.toFloat()),
-                    end = androidx.compose.ui.geometry.Offset(size.width, y.toFloat()),
-                    strokeWidth = 1f
-                )
-            }
-        }
-
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    color = primaryColor.copy(alpha = 0.1f),
-                    shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                    border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.4f))
-                ) {
-                    Text(
-                        text = "CORE NEXUS // SYNC_ACTIVE",
-                        color = primaryColor,
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF10B981)))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "ZERO-API ENGINE",
-                        color = Color(0xFF10B981),
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
             Text(
                 text = "صناعة عمل دعوي متقن وشامل ✦",
                 color = Color.White,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 20.sp
+                fontSize = 18.sp
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "أدخل فكرتك لإنتاج الحزمة الكاملة فورياً (سيناريو + تعليق صوتي + صور 8K + كابشنز + بوستر + SEO) بضغطة زر واحدة.",
+                text = "نظام متكامل لإنتاج المحتوى الدعوي بضغطة زر واحدة (سيناريو + صوت + صور + SEO).",
                 color = Color(0xFF94A3B8),
                 fontFamily = CairoFont,
-                fontSize = 12.5.sp,
+                fontSize = 12.sp,
                 lineHeight = 18.sp
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Button(
                 onClick = onMasterStudio,
-                modifier = Modifier.fillMaxWidth().height(54.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = CutCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
             ) {
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(10.dp))
@@ -803,39 +906,8 @@ private fun UnifiedHeroStudioCard(
                     color = DeepSlate,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 13.sp
                 )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onMoneyPrinter,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = CutCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF111827).copy(alpha = 0.4f))
-                ) {
-                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF00F2FE), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("أتمتة ريلز", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                OutlinedButton(
-                    onClick = onQuickVideo,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = CutCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF111827).copy(alpha = 0.4f))
-                ) {
-                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("الاستوديو الذكي", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
             }
         }
     }
@@ -866,7 +938,7 @@ private fun StudioFeatureCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(44.dp)
                     .clip(CutCornerShape(10.dp))
                     .background(badgeColor.copy(alpha = 0.08f))
                     .border(0.8.dp, badgeColor.copy(alpha = 0.35f), CutCornerShape(10.dp)),
@@ -876,7 +948,7 @@ private fun StudioFeatureCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = badgeColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -893,44 +965,24 @@ private fun StudioFeatureCard(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        modifier = Modifier.weight(1f),
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Surface(
-                        color = badgeColor.copy(alpha = 0.1f),
-                        shape = CutCornerShape(4.dp),
-                        border = BorderStroke(0.5.dp, badgeColor.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = badge,
-                            color = badgeColor,
-                            fontFamily = RobotoMonoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 7.5.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = description,
                     color = Color(0xFF64748B),
                     fontFamily = CairoFont,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
+                    fontSize = 10.5.sp,
+                    lineHeight = 15.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-
-            Spacer(modifier = Modifier.width(10.dp))
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,

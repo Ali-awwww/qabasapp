@@ -15,10 +15,12 @@ object PhotoStudioEngine {
         imageUris: List<Uri>,
         textOverlay: String?,
         audioPath: String?,
-        outputPath: String
+        outputPath: String,
+        onProgress: ((Float, String) -> Unit)? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Starting Photo to Video generation...")
+            onProgress?.invoke(0.10f, "جاري تحضير ملفات الصور في الذاكرة المؤقتة...")
             // 1. Copy URIs to local cache files
             val cachedImages = mutableListOf<File>()
             for ((index, uri) in imageUris.withIndex()) {
@@ -35,12 +37,15 @@ object PhotoStudioEngine {
 
             if (cachedImages.isEmpty()) {
                 Log.e(TAG, "No valid images found.")
+                onProgress?.invoke(0f, "تعذر قراءة ملفات الصور")
                 return@withContext false
             }
 
             // 2. Create individual video segments with Ken Burns effect for each image
             val segmentFiles = mutableListOf<File>()
             for ((index, imgFile) in cachedImages.withIndex()) {
+                val prog = 0.15f + (0.50f * (index.toFloat() / cachedImages.size))
+                onProgress?.invoke(prog, "تحريك الصورة ${index + 1} من ${cachedImages.size} (تأثير Ken Burns 🎬)...")
                 val segFile = File(context.cacheDir, "photo_seg_$index.mp4")
                 
                 // Ken Burns effect: slight zoom in or zoom out to make images dynamic but simple
@@ -63,9 +68,11 @@ object PhotoStudioEngine {
 
             if (segmentFiles.isEmpty()) {
                 Log.e(TAG, "Failed to create any video segments.")
+                onProgress?.invoke(0f, "فشلت معالجة مقاطع الصور عبر FFmpeg")
                 return@withContext false
             }
 
+            onProgress?.invoke(0.70f, "دمج المقاطع السينمائية بتسلسل انسيابي...")
             // 3. Concatenate the segments (with crossfade transition if possible, else simple concat)
             // Using a simple concat file for robust merging
             val concatFile = File(context.cacheDir, "photo_concat.txt")
@@ -81,6 +88,7 @@ object PhotoStudioEngine {
             var success = VideoProcessor.executeCommand(generateCmd, "تجميع الفيديوهات المتحركة")
             if (!success || !baseVideoFile.exists()) {
                 Log.e(TAG, "Failed to generate base video.")
+                onProgress?.invoke(0f, "فشل دمج المقاطع")
                 return@withContext false
             }
 
@@ -88,6 +96,7 @@ object PhotoStudioEngine {
 
             // 4. Add Text Overlay if present
             if (!textOverlay.isNullOrBlank()) {
+                onProgress?.invoke(0.85f, "تركيب النصوص والطبقات الجمالية...")
                 val textVideoFile = File(context.cacheDir, "photo_text_video.mp4")
                 success = VideoProcessor.addTextOverlay(context, currentVideo, textOverlay, textVideoFile.absolutePath)
                 if (success && textVideoFile.exists()) {
@@ -97,22 +106,20 @@ object PhotoStudioEngine {
 
             // 5. Add Audio if present
             if (!audioPath.isNullOrBlank() && File(audioPath).exists()) {
+                onProgress?.invoke(0.92f, "مزامنة الصوت المحيطي والدمج النهائي...")
                 val finalVideoFile = File(outputPath)
-                // Loop audio if shorter, but we just use mergeAudioVideo which might cut or copy.
-                // We will just do a standard merge.
-                // Command to loop audio or cut it to video length:
                 val audioCmd = "-y -i \"$currentVideo\" -stream_loop -1 -i \"$audioPath\" -c:v copy -c:a aac -b:a 128k -map 0:v:0 -map 1:a:0 -shortest \"${finalVideoFile.absolutePath}\""
                 success = VideoProcessor.executeCommand(audioCmd, "إضافة الصوت للفيديو")
                 if (success && finalVideoFile.exists()) {
                     // done
                 } else {
-                    // fallback
                     File(currentVideo).copyTo(finalVideoFile, overwrite = true)
                 }
             } else {
                 File(currentVideo).copyTo(File(outputPath), overwrite = true)
             }
 
+            onProgress?.invoke(1.0f, "اكتمل إنتاج الفيديو بنجاح!")
             return@withContext true
         } catch (e: Exception) {
             Log.e(TAG, "Exception in PhotoStudioEngine", e)

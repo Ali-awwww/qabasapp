@@ -97,6 +97,7 @@ fun PhotoStudioScreen(
     var outputQuality by remember { mutableStateOf("HD") }
 
     var selectedAudioOption by remember { mutableStateOf("تلاوة هادئة") }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
 
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
@@ -243,6 +244,7 @@ fun PhotoStudioScreen(
                 onBgPresetChange = { bgPresetId = it },
                 aiBgPath = aiBgPath,
                 isGeneratingAi = isGeneratingAi,
+                aiProgressMessage = progressMessage,
                 onGenerateAi = {
                     coroutineScope.launch {
                         isGeneratingAi = true
@@ -250,7 +252,17 @@ fun PhotoStudioScreen(
                         try {
                             val topic = textBlocks.firstOrNull()?.text?.take(60) ?: "Islamic spiritual ambiance"
                             val prompt = "Cinematic luxurious Islamic background, $topic, mosque architecture, warm golden light, deep dark slate and gold, soft bokeh, 8k"
-                            val generated = AppServices.generateAiImage(prompt)
+                            
+                            // Use Leonardo if configured, else fallback
+                            val isLeonardoConfigured = ApiKeyManager.getLeonardoKey(context).isNotEmpty()
+                            val generated = if (isLeonardoConfigured) {
+                                LeonardoImageService.generateImage(context, prompt) { p, msg ->
+                                    progressMessage = msg
+                                }
+                            } else {
+                                AppServices.generateAiImage(prompt)
+                            }
+                            
                             aiBgPath = generated
                             if (generated == null) {
                                 Toast.makeText(context, "تعذّر توليد الخلفية الآن — جرّب لاحقاً", Toast.LENGTH_SHORT).show()
@@ -363,11 +375,12 @@ fun PhotoStudioScreen(
                         progressMessage = "جاري تجميع الفيديو وإضافة المؤثرات..."
                         val firstText = textBlocks.firstOrNull()?.text ?: ""
                         val success = PhotoStudioEngine.generateVideoFromImages(
-                            context,
-                            selectedImageUris,
-                            firstText.takeIf { it.isNotBlank() },
-                            audioPathToUse,
-                            outPath
+                            context = context,
+                            imageUris = selectedImageUris,
+                            textOverlay = firstText.takeIf { it.isNotBlank() },
+                            audioPath = audioPathToUse,
+                            outputPath = outPath,
+                            onProgress = { p, msg -> progressMessage = msg }
                         )
 
                         processing = false
@@ -450,7 +463,8 @@ fun PhotoStudioScreen(
                             Toast.makeText(context, "تعذر قراءة ملف الصورة.", Toast.LENGTH_SHORT).show()
                         }
                     }
-                }
+                },
+                onOpenApiKeys = { showApiKeyDialog = true }
             )
             3 -> Step3Export(
                 processing = processing,
@@ -485,6 +499,10 @@ fun PhotoStudioScreen(
                     onNavigateToAdvancedEdit(path)
                 }
             )
+        }
+
+        if (showApiKeyDialog) {
+            ApiKeyManagerDialog(onDismiss = { showApiKeyDialog = false })
         }
     }
 }
@@ -642,6 +660,7 @@ fun Step2Editor(
     onBgPresetChange: (String) -> Unit,
     aiBgPath: String?,
     isGeneratingAi: Boolean,
+    aiProgressMessage: String = "",
     onGenerateAi: () -> Unit,
     ornamentId: String,
     onOrnamentChange: (String) -> Unit,
@@ -656,7 +675,8 @@ fun Step2Editor(
     onPreviewSize: (Int, Int) -> Unit,
     onExportImage: () -> Unit,
     onExportVideo: () -> Unit,
-    onAnimateWithHiggsfield: () -> Unit = {}
+    onAnimateWithHiggsfield: () -> Unit = {},
+    onOpenApiKeys: () -> Unit = {}
 ) {
     var activeTab by remember { mutableStateOf("النص") }
     val tabs = listOf("النص", "الخلفية", "الزخرفة", "قص وضبط", "القالب", "الصوت")
@@ -915,7 +935,34 @@ fun Step2Editor(
                             }
                         }
                         "AI" -> {
-                            Text("خلفية سينمائية فائقة الدقة بالذكاء الاصطناعي (FLUX.1 مجاناً بلا مفاتيح):", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp)
+                            val context = LocalContext.current
+                            val isLeonardoConfigured = ApiKeyManager.getLeonardoKey(context).isNotEmpty()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("توليد خلفية سينمائية بالذكاء الاصطناعي:", color = TextPrimary, fontFamily = CairoFont, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        if (isLeonardoConfigured) "المحرك النشط: Leonardo.ai Vision XL (مفعّل ✓)" else "المحرك: التوليد المجاني المدمج (يمكنك ربط Leonardo)",
+                                        color = if (isLeonardoConfigured) GoldPrimary else TextSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = onOpenApiKeys,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                                ) {
+                                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("المفاتيح 🔑", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                             Button(
                                 onClick = onGenerateAi,
                                 enabled = !isGeneratingAi,
@@ -927,7 +974,14 @@ fun Step2Editor(
                                 if (isGeneratingAi) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldPrimary, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("جاري التوليد...", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                    Text(
+                                        text = aiProgressMessage.ifBlank { "جاري التوليد..." },
+                                        color = GoldPrimary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 } else {
                                     Icon(Icons.Default.Palette, contentDescription = null, tint = GoldPrimary)
                                     Spacer(modifier = Modifier.width(8.dp))

@@ -205,36 +205,8 @@ fun HomeScreen(
     }
 
     if (showExitDialog) {
-        AlertDialog(
-            onDismissRequest = { showExitDialog = false },
-            title = {
-                Text(
-                    Translator.tr("تأكيد الخروج"),
-                    color = GoldPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    Translator.tr("هل أنت متأكد أنك تريد إغلاق تطبيق قبس؟"),
-                    color = Color.White,
-                    fontFamily = CairoFont
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    (context as? android.app.Activity)?.finishAffinity()
-                }) {
-                    Text(Translator.tr("نعم"), color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text(Translator.tr("إلغاء"), color = Color.White, fontFamily = CairoFont)
-                }
-            },
-            containerColor = Color(0xFF0F172A)
+        QabasExitConfirmationDialog(
+            onDismiss = { showExitDialog = false }
         )
     }
 

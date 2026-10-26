@@ -427,6 +427,19 @@ private val ALL_SERVICES = listOf(
         placeholder = "hfld_... أو مفتاح منصة Higgsfield",
         freeFallback = "قوالب الفيديو المدمجة ومكتبة مقاطع الـ B-Roll المحلية تعمل مجاناً.",
         icon = Icons.Default.MovieFilter
+    ),
+    ServiceUiConfig(
+        id = "leonardo",
+        name = "Leonardo.ai",
+        trackerName = "Leonardo",
+        provider = "Leonardo Interactive AI",
+        prefsKey = "leonardo_api_key",
+        serviceType = "leonardo",
+        dashboardUrl = "https://app.leonardo.ai/api-access",
+        description = "المحرك السينمائي لتوليد الصور والشخصيات التشكيلية فائقة الدقة (Vision XL) وتصميم البوسترات الدعوية والخلفيات الإسلامية الفاخرة.",
+        placeholder = "مفتاح API من منصة app.leonardo.ai",
+        freeFallback = "محرك Hugging Face والمكتبة البصرية المدمجة تعمل كبديل محلي مجاناً.",
+        icon = Icons.Default.Palette
     )
 )
 

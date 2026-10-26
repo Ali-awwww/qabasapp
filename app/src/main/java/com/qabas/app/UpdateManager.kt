@@ -547,15 +547,16 @@ object UpdateManager {
 
             val tagName = release.optString("tag_name", "")
             // وسم +N هو عقد قناة التحديث: رقم البناء من الوسم نفسه.
-            // إذا غاب، نحاول استنتاجه من اسم الإصدار
+            // إذا غاب، نعتمد على مقارنة اسم الإصدار semver بدقة لمنع التفسير الخاطئ
             val releaseVersionCode = parseReleaseVersionCode(tagName)
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
-            // نأخذ الإصدار فقط إذا كان أعلى من الحالي (برقم البناء أو الاسم)
+            // نأخذ الإصدار فقط إذا كان أعلى من الحالي فعلياً
+            val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
             val isNewer = if (tagName.contains("+")) {
-                releaseVersionCode > currentVersionCode
+                releaseVersionCode > currentVersionCode || (releaseVersionCode == currentVersionCode && nameComparison > 0)
             } else {
-                releaseVersionCode > currentVersionCode || compareVersionNames(releaseVersionName, currentVersionName) > 0
+                nameComparison > 0
             }
 
             if (!isNewer) continue

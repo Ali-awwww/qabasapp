@@ -49,12 +49,17 @@ import com.qabas.app.ui.components.ReelPlayer
 import com.qabas.app.ui.components.GeometricToolsDock
 import com.qabas.app.ui.components.DockTool
 import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.AmiriFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -96,6 +101,7 @@ fun ReelsScreen(
     var allReels by remember { mutableStateOf<List<SupabaseServices.ReelRow>>(emptyList()) }
     var hiddenReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadingProgress by remember { mutableFloatStateOf(0.12f) }
     // فشل الشبكة (يُميَّز عن القائمة الفارغة فعلاً) — يعرض حالة خطأ مع إعادة محاولة
     var loadError by remember { mutableStateOf(false) }
 
@@ -268,11 +274,14 @@ fun ReelsScreen(
         scope.launch {
             isLoading = true
             loadError = false
+            loadingProgress = 0.15f
             val gen = requestGeneration.incrementAndGet()
+            loadingProgress = 0.35f
             val remoteReels = runCatching {
                 if (!ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
                     null
                 } else {
+                    loadingProgress = 0.55f
                     withTimeoutOrNull(7000L) {
                         SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = 0)
                     } ?: null
@@ -287,11 +296,13 @@ fun ReelsScreen(
             if (gen != requestGeneration.get()) return@launch
 
             if (remoteReels == null) {
+                loadingProgress = 0f
                 loadError = true
                 isLoading = false
                 return@launch
             }
 
+            loadingProgress = 0.75f
             // Strict sanitization: drops malformed URLs, clamps numerical bounds, strips control characters
             val sanitized = remoteReels.mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
             
@@ -311,6 +322,7 @@ fun ReelsScreen(
 
             val finalReels = sanitized.filterNot { isDemoOrMockReel(it) }
 
+            loadingProgress = 0.88f
             allReels = finalReels
             canLoadMore = remoteReels.size >= REELS_PAGE_SIZE
             // Populate likes & counts from real database rows
@@ -318,8 +330,12 @@ fun ReelsScreen(
                 dynamicLikeCounts[r.id] = r.likesCount
                 likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
             }
+            loadingProgress = 0.98f
             lastWatchedReelId = null
             watchSeconds.clear()
+            delay(120)
+            loadingProgress = 1.0f
+            delay(100)
             isLoading = false
 
             // مزامنة المحفوظات السحابية للمستخدم المصادق
@@ -474,21 +490,10 @@ fun ReelsScreen(
                     .background(Color.Black)
             ) {
                 if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "جاري الاتصال بمجتمع قبس الإيماني...",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontFamily = CairoFont,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
+                    ReelsInteractiveLoadingView(
+                        progress = loadingProgress,
+                        onRetry = { loadReels() }
+                    )
                 } else if (loadError && allReels.isEmpty()) {
                     // فشل التحميل (يُميَّز عن لا نتائج): إعادة محاولة صريحة
                     Box(
@@ -2121,5 +2126,203 @@ private fun formatRelativeTime(iso: String?): String {
         minutes < 43200L -> "منذ ${minutes / 10080} أسبوع"
         minutes < 525600L -> "منذ ${minutes / 43200} شهر"
         else -> "منذ ${minutes / 525600} سنة"
+    }
+}
+
+/**
+ * 🌌 شاشة التحميل الإلكترونية الحديثة بنظام HUD الرقمي
+ * متصلة بالنسبة المئوية الفعلية للتحميل مع تصميم كوانتي نيون أنيق.
+ */
+@Composable
+fun ReelsInteractiveLoadingView(
+    progress: Float,
+    onRetry: () -> Unit
+) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(400, easing = FastOutSlowInEasing),
+        label = "electronicProgressAnim"
+    )
+
+    val percentInt = (animatedProgress * 100).toInt()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "hudPulse")
+    val scannerAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart),
+        label = "scannerAngle"
+    )
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "glowPulse"
+    )
+
+    var waitTimerSeconds by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            waitTimerSeconds++
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            // ── 1. دائرة الـ HUD الإلكترونية المتصلة بالنسبة المئوية الحقيقية ──
+            Box(
+                modifier = Modifier.size(136.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // هالة ضوئية خلفية نيون
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .scale(glowPulse)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(Color(0xFF00E5FF).copy(alpha = 0.22f), Color.Transparent)
+                            ),
+                            CircleShape
+                        )
+                )
+
+                // مسار الحلقة الخلفية
+                Canvas(modifier = Modifier.size(120.dp)) {
+                    drawCircle(
+                        color = Color(0xFF1E293B).copy(alpha = 0.5f),
+                        style = Stroke(width = 4.dp.toPx())
+                    )
+                }
+
+                // قوس النسبة المئوية الفعلي (Progress Arc)
+                Canvas(modifier = Modifier.size(120.dp)) {
+                    val sweep = animatedProgress * 360f
+                    if (sweep > 0f) {
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                listOf(
+                                    Color(0xFF00E5FF),
+                                    GoldPrimary,
+                                    Color(0xFF10B981),
+                                    Color(0xFF00E5FF)
+                                )
+                            ),
+                            startAngle = -90f,
+                            sweepAngle = sweep,
+                            useCenter = false,
+                            style = Stroke(
+                                width = 5.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        )
+                    }
+                }
+
+                // شعاع المسح الإلكتروني
+                Canvas(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .rotate(scannerAngle)
+                ) {
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color(0xFF00E5FF).copy(alpha = 0.35f)
+                            )
+                        ),
+                        startAngle = 0f,
+                        sweepAngle = 45f,
+                        useCenter = true
+                    )
+                }
+
+                // النسبة المئوية في المنتصف بأسلوب رقمي إلكتروني حديث
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "$percentInt%",
+                        color = Color(0xFF00E5FF),
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 26.sp,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "LIVE // SYNC",
+                        color = GoldPrimary.copy(alpha = 0.85f),
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp,
+                        letterSpacing = 1.5.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ── 2. العبارة النصية المطلوبة بدقة: جاري التحميل... ──
+            Text(
+                text = "جاري التحميل...",
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // ── 3. شريط إلكتروني أفقي يعكس النسبة بدقة ──
+            Box(
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF1E293B))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedProgress)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF00E5FF), GoldPrimary)
+                            )
+                        )
+                )
+            }
+
+            // زر إعادة المحاولة في حال تأخر الاتصال
+            if (waitTimerSeconds >= 5) {
+                Spacer(modifier = Modifier.height(18.dp))
+                TextButton(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF00E5FF))
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "إعادة المحاولة 🔄",
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
     }
 }

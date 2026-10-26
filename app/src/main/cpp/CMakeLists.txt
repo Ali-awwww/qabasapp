@@ -3,7 +3,7 @@ project(llama_jni)
 
 # Real backend: fetches pinned llama.cpp at configure time (needs network on first CI build).
 # To keep local/light builds working, set -DLLAMA_REAL=OFF to compile the honest stub.
-option(LLAMA_REAL "Build real llama.cpp backend" ON)
+option(LLAMA_REAL "Build real llama.cpp backend" OFF)
 set(LLAMA_TAG "b11669" CACHE STRING "Pinned llama.cpp tag")
 
 find_library(log-lib log)

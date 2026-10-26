@@ -39,28 +39,17 @@ object HiggsfieldVideoService {
      * التحقق مما إذا كان مفتاح Higgsfield متوفراً ومضبوطاً في إعدادات التطبيق.
      */
     fun isConfigured(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val apiKey = prefs.getString(KEY_HIGGSFIELD_API_KEY, "")?.trim() ?: ""
-        val keyId = prefs.getString(KEY_HIGGSFIELD_KEY_ID, "")?.trim() ?: ""
-        val keySecret = prefs.getString(KEY_HIGGSFIELD_KEY_SECRET, "")?.trim() ?: ""
-        return apiKey.isNotEmpty() || (keyId.isNotEmpty() && keySecret.isNotEmpty())
+        val apiKey = ApiKeyManager.getHiggsfieldKey(context)
+        return apiKey.isNotEmpty()
     }
 
     /**
      * استرجاع ترويسة المصادقة المعتمدة لـ Higgsfield
      */
     fun getAuthHeader(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val apiKey = prefs.getString(KEY_HIGGSFIELD_API_KEY, "")?.trim() ?: ""
+        val apiKey = ApiKeyManager.getHiggsfieldKey(context)
         if (apiKey.isNotEmpty()) {
             return if (apiKey.startsWith("Bearer ", ignoreCase = true)) apiKey else "Bearer $apiKey"
-        }
-        val keyId = prefs.getString(KEY_HIGGSFIELD_KEY_ID, "")?.trim() ?: ""
-        val keySecret = prefs.getString(KEY_HIGGSFIELD_KEY_SECRET, "")?.trim() ?: ""
-        if (keyId.isNotEmpty() && keySecret.isNotEmpty()) {
-            val credentials = "$keyId:$keySecret"
-            val encoded = Base64.encodeToString(credentials.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-            return "Basic $encoded"
         }
         return ""
     }

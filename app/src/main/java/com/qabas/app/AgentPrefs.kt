@@ -47,6 +47,7 @@ object AgentPrefs {
         HUGGINGFACE_KEY, OPENCODE_KEY,
         "azure_speech_key", "azure_speech_region", "elevenlabs_key",
         "pexels_key", "pixabay_key", "coverr_key", "higgsfield_api_key",
+        "leonardo_api_key",
         "supabase_anon_key", "api_server_key",
         GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO,
         ACTIVE_MISSION_JSON, TEAM_CONFIG_JSON

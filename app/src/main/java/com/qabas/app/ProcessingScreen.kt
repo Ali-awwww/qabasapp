@@ -740,10 +740,10 @@ private fun ProcessingScreenUI(
         ) {
             ProcessingProgressRing(progress, scenesProcessed, totalScenes)
             Spacer(modifier = Modifier.height(16.dp))
+            ProcessingStagePipeline(currentStage = currentStage, progress = progress)
+            Spacer(modifier = Modifier.height(16.dp))
             BreatheIn(0) { ProcessingDetailsText(statusText, progress, elapsedSeconds, currentStage) }
-            Spacer(modifier = Modifier.height(14.dp))
-            BreatheIn(1) { ProcessingStagePipeline(currentStage, progress) }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // شريط تقدم فاخر — هوية قبس
             Card(
@@ -1038,7 +1038,8 @@ private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
                         fontFamily = CairoFont,
                         fontWeight = if (active || done) FontWeight.Bold else FontWeight.Normal,
                         textAlign = TextAlign.Center,
-                        maxLines = 1
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

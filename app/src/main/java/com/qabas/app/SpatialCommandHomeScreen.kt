@@ -180,41 +180,8 @@ fun SpatialCommandHomeScreen(
     }
 
     if (showExitDialog) {
-        AlertDialog(
-            onDismissRequest = { showExitDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = Color(0xFFEF4444))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(Translator.tr("إيقاف تشغيل مصفوفة قبس"), color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Text(Translator.tr("هل تود إغلاق مركز القيادة وتطبيق قبس ستوديو؟"), color = TextPrimary, fontFamily = CairoFont, fontSize = 13.5.sp)
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val activity = context.findHostActivity()
-                        if (activity != null) {
-                            activity.finishAffinity()
-                        } else {
-                            (context as? Activity)?.finish()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                    shape = CutCornerShape(8.dp)
-                ) {
-                    Text(Translator.tr("إغلاق التطبيق 🛑"), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text(Translator.tr("إلغاء"), color = TextSecondary, fontFamily = CairoFont)
-                }
-            },
-            containerColor = CardSurface,
-            shape = CutCornerShape(12.dp)
+        QabasExitConfirmationDialog(
+            onDismiss = { showExitDialog = false }
         )
     }
 

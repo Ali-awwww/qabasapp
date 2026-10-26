@@ -781,6 +781,17 @@ object DownloadsHubManager {
         val currentDownload = _appUpdateDownload.value
         if (currentDownload != null && currentDownload.isDownloading) return
 
+        // تخطي التنزيل التلقائي في بيئة المعاينة (Preview / Emulator / Debug) ما لم يطلبه المستخدم يدوياً
+        val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic") ||
+                android.os.Build.MODEL.contains("google_sdk") ||
+                android.os.Build.MODEL.contains("Emulator") ||
+                android.os.Build.HARDWARE.contains("goldfish") ||
+                android.os.Build.HARDWARE.contains("ranchu")
+        if (!force && (BuildConfig.DEBUG || isEmulator)) {
+            Log.d(TAG, "⏭️ تخطي التنزيل التلقائي للتحديث في بيئة المعاينة والتطوير (Preview/Emulator/Debug)")
+            return
+        }
+
         _isCheckingUpdate.value = true
         scope.launch(Dispatchers.IO) {
             try {

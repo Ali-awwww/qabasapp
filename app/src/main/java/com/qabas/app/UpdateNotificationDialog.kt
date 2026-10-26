@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
@@ -74,27 +75,44 @@ fun UpdateNotificationDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Header with pulsing indicator
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = pulse) else GoldPrimary.copy(alpha = pulse))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        if (update.isForce) "// تحديث إجباري مطلوب" else "// تحديث النظام متاح",
-                        color = if (update.isForce) Color(0xFFEF4444) else GoldPrimary.copy(alpha = 0.9f),
-                        fontSize = 10.sp,
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp
-                    )
+                // Header with pulsing indicator & dismiss icon
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = pulse) else GoldPrimary.copy(alpha = pulse))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            if (update.isForce) "// تحديث إجباري مطلوب" else "// تحديث النظام متاح",
+                            color = if (update.isForce) Color(0xFFEF4444) else GoldPrimary.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontFamily = RobotoMonoFont,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                    }
+
+                    if (canDismiss) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "إغلاق النافذة",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Icon Box
@@ -168,7 +186,12 @@ fun UpdateNotificationDialog(
 
                 // Progress Indicator
                 if (downloadProgress != null || patchState !is PatchManager.PatchState.Idle) {
-                    UpdateProgressSection(downloadProgress, patchState)
+                    UpdateProgressSection(
+                        progress = downloadProgress,
+                        patchState = patchState,
+                        canDismiss = canDismiss,
+                        onDismiss = onDismiss
+                    )
                 } else {
                     // Action Buttons
                     Row(
@@ -249,7 +272,9 @@ fun UpdateNotificationDialog(
 @Composable
 fun UpdateProgressSection(
     progress: UpdateManager.DownloadProgress?,
-    patchState: PatchManager.PatchState
+    patchState: PatchManager.PatchState,
+    canDismiss: Boolean = true,
+    onDismiss: () -> Unit = {}
 ) {
     val phaseLabel = when {
         patchState is PatchManager.PatchState.Verifying -> "جاري التحقق من سلامة الملف..."
@@ -345,6 +370,27 @@ fun UpdateProgressSection(
                 fontFamily = CairoFont,
                 modifier = Modifier.align(Alignment.End)
             )
+        }
+
+        if (canDismiss) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(
+                        "إخفاء والمتابعة في الخلفية ✕",
+                        color = GoldPrimary.copy(alpha = 0.85f),
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }
