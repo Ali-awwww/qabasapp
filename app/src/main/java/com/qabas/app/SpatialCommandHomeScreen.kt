@@ -129,6 +129,16 @@ fun SpatialCommandHomeScreen(
     var selectedCity by remember { mutableStateOf(PrayerCalculationHelper.getSavedCity(context)) }
     var showCityDialog by remember { mutableStateOf(false) }
 
+    // التحديد التلقائي للموقع عند فتح الشاشة في حال توفر الصلاحية
+    LaunchedEffect(Unit) {
+        if (AppLocationManager.hasLocationPermission(context)) {
+            val detected = AppLocationManager.detectCurrentLocation(context)
+            if (detected != null) {
+                selectedCity = detected
+            }
+        }
+    }
+
     // حساب مواقيت الصلاة الحقيقية والوقت المتبقي
     var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {

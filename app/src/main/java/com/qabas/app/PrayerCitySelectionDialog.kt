@@ -1,6 +1,10 @@
 package com.qabas.app
 
+import android.Manifest
 import android.content.Context
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.launch
 
 /**
  * نافذة تفاعلية راقية لاختيار الدولة والمدينة لتحديد مواقيت الصلاة والقبلة
@@ -39,8 +44,32 @@ fun PrayerCitySelectionDialog(
     onCitySelected: (CityLocation) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var selectedCountryFilter by remember { mutableStateOf("الكل") }
+    var isDetectingLocation by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            isDetectingLocation = true
+            coroutineScope.launch {
+                val detected = AppLocationManager.detectCurrentLocation(context, forceRefresh = true)
+                isDetectingLocation = false
+                if (detected != null) {
+                    Toast.makeText(context, "تم تحديد موقعك تلقائياً: ${detected.nameAr} 📍", Toast.LENGTH_LONG).show()
+                    onCitySelected(detected)
+                } else {
+                    Toast.makeText(context, "تعذر الجلب الفوري للموقع عبر GPS، تأكد من تشغيل الموقع", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            Toast.makeText(context, "صلاحية الموقع مطلوبة لتحديد مدينتك تلقائياً", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val allCountries = remember {
         listOf("الكل") + PrayerCalculationHelper.popularCities.map { it.countryAr }.distinct().sorted()
@@ -118,6 +147,52 @@ fun PrayerCitySelectionDialog(
 
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
+                        }
+                    }
+                }
+
+                // Auto Detect Location Button
+                Surface(
+                    onClick = {
+                        if (AppLocationManager.hasLocationPermission(context)) {
+                            isDetectingLocation = true
+                            coroutineScope.launch {
+                                val detected = AppLocationManager.detectCurrentLocation(context, forceRefresh = true)
+                                isDetectingLocation = false
+                                if (detected != null) {
+                                    Toast.makeText(context, "تم تحديد موقعك تلقائياً: ${detected.nameAr} 📍", Toast.LENGTH_LONG).show()
+                                    onCitySelected(detected)
+                                } else {
+                                    Toast.makeText(context, "تعذر الجلب الفوري للموقع عبر GPS", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF102A43),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (isDetectingLocation) {
+                            CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("جاري تحديد موقعك عبر GPS...", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.MyLocation, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("تحديد موقعي الجغرافي تلقائياً 📍", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

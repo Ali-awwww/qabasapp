@@ -89,12 +89,40 @@ object PrayerCalculationHelper {
     fun getSavedCity(context: android.content.Context): CityLocation {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
         val savedName = prefs.getString("selected_prayer_city_name", "مكة المكرمة") ?: "مكة المكرمة"
-        return popularCities.find { it.nameAr == savedName || it.nameEn.equals(savedName, ignoreCase = true) } ?: popularCities[0]
+        val popularMatch = popularCities.find { it.nameAr == savedName || it.nameEn.equals(savedName, ignoreCase = true) }
+        if (popularMatch != null) return popularMatch
+
+        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", android.content.Context.MODE_PRIVATE)
+        val lat = prayerPrefs.getFloat("detected_lat", 0f).toDouble()
+        val lng = prayerPrefs.getFloat("detected_lng", 0f).toDouble()
+        val country = prayerPrefs.getString("detected_country_name", "موقعي الحالي") ?: "موقعي الحالي"
+        if (lat != 0.0 && lng != 0.0) {
+            val tzOffset = (java.util.TimeZone.getDefault().rawOffset / (1000.0 * 60.0 * 60.0))
+            return CityLocation(
+                nameAr = savedName,
+                nameEn = savedName,
+                countryAr = country,
+                latitude = lat,
+                longitude = lng,
+                timeZoneOffsetHours = tzOffset,
+                defaultMethod = CalculationMethod.UMM_AL_QURA
+            )
+        }
+        return popularCities[0]
     }
 
     fun saveCity(context: android.content.Context, city: CityLocation) {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("selected_prayer_city_name", city.nameAr).apply()
+
+        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", android.content.Context.MODE_PRIVATE)
+        prayerPrefs.edit().apply {
+            putString("selected_prayer_city_name", city.nameAr)
+            putFloat("detected_lat", city.latitude.toFloat())
+            putFloat("detected_lng", city.longitude.toFloat())
+            putString("detected_country_name", city.countryAr)
+            apply()
+        }
     }
 
     private const val KAABA_LAT = 21.422487
