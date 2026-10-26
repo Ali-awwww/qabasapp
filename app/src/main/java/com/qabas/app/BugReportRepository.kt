@@ -335,6 +335,40 @@ object BugReportRepository {
     }
 
     /**
+     * استرجاع بلاغ بواسطة معرفه مباشرة من الذاكرة المحلية.
+     */
+    fun getReportById(reportId: String): BugReportItem? {
+        return _reports.value.find { it.id == reportId }
+    }
+
+    /**
+     * البحث عن بلاغ محلياً أو سحابياً من Supabase لضمان ربطه بالمحادثة.
+     */
+    suspend fun findReport(context: Context, reportId: String): BugReportItem? = withContext(Dispatchers.IO) {
+        ensureLoaded(context)
+        _reports.value.find { it.id == reportId } ?: runCatching {
+            if (SupabaseServices.isSupabaseAvailable) {
+                SupabaseServices.Database.getAllBugReports().find { it.id == reportId }?.let { c ->
+                    BugReportItem(
+                        id = c.id,
+                        screenName = c.screenName,
+                        description = c.description,
+                        reportType = c.reportType,
+                        status = c.status,
+                        userEmail = c.userEmail,
+                        localImagePath = null,
+                        imageUrl = c.imageUrl.takeIf { it.isNotBlank() },
+                        appVersion = c.appVersion,
+                        deviceModel = c.deviceInfo,
+                        developerReply = c.developerReply,
+                        syncedToCloud = true
+                    )
+                }
+            } else null
+        }.getOrNull()
+    }
+
+    /**
      * جلب أحدث الردود والحالات من السحابة للمستخدم الحالي.
      */
     suspend fun refreshUserReports(context: Context, email: String) = withContext(Dispatchers.IO) {

@@ -804,36 +804,59 @@ private fun BugReportManagementDetailView(
 
         // أزرار تغيير الحالة
         Text("تحديث حالة البلاغ وحفظ الرد:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val statuses = listOf(
-                "open" to ("🔴 قيد المراجعة" to Color(0xFFEF4444)),
-                "in_progress" to ("🟡 جاري الإصلاح" to Color(0xFF38BDF8)),
-                "resolved" to ("🟢 تم الحل" to Color(0xFF10B981))
+                Triple("open", "قيد المراجعة", Color(0xFFEF4444)),
+                Triple("in_progress", "جاري الإصلاح", Color(0xFF00E5FF)),
+                Triple("resolved", "تم الحل", Color(0xFF10B981))
             )
 
-            statuses.forEach { (statusKey, pair) ->
-                val (title, color) = pair
+            statuses.forEach { (statusKey, title, color) ->
                 val isSelected = report.status == statusKey
                 Button(
                     onClick = { onStatusUpdate(statusKey, replyText.takeIf { it.isNotBlank() }) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 46.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSelected) color else CardSurface
+                        containerColor = if (isSelected) color.copy(alpha = 0.25f) else Color(0xFF1E293B).copy(alpha = 0.6f),
+                        contentColor = if (isSelected) color else Color.White
                     ),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isSelected) color else Color.White.copy(alpha = 0.1f))
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(
+                        width = if (isSelected) 1.8.dp else 1.dp,
+                        color = if (isSelected) color else Color.White.copy(alpha = 0.12f)
+                    ),
+                    elevation = if (isSelected) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else ButtonDefaults.buttonElevation(0.dp)
                 ) {
-                    Text(
-                        title,
-                        fontSize = 10.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) DeepSlate else Color.White
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) color else color.copy(alpha = 0.45f))
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = title,
+                            fontSize = 11.sp,
+                            fontFamily = CairoFont,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                            color = if (isSelected) color else Color.White.copy(alpha = 0.85f),
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }

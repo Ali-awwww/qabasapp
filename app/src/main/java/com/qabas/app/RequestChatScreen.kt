@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -59,20 +60,21 @@ fun RequestChatScreen(
     val currentUserEmail = prefs.getString("user_email", "user@example.com") ?: "user@example.com"
 
     val isBugReportChat = requestId.startsWith("bug_", ignoreCase = true) || requestId.length > 20 // Bug report IDs are usually UUIDs
+    var linkedBugReport by remember { mutableStateOf<BugReportRepository.BugReportItem?>(null) }
     
     val request = remember { 
         mutableStateOf(
             AppRequestService.getRequests(context, isDeveloper = true).find { it.id == requestId }
             ?: if (isBugReportChat) {
-                // إنشاء طلب افتراضي للبلاغ لتمكين المحادثة
+                val report = BugReportRepository.getReportById(requestId)
                 AppRequestService.AppRequest(
                     id = requestId,
-                    userEmail = currentUserEmail,
-                    title = "دعم بلاغ: ${requestId.take(8)}...",
-                    description = "محادثة دعم فني مباشر مرتبطة ببلاغ عطل.",
+                    userEmail = report?.userEmail?.takeIf { it.isNotBlank() } ?: currentUserEmail,
+                    title = report?.let { "بلاغ: ${it.screenName}" } ?: "دعم بلاغ: ${requestId.take(8)}...",
+                    description = report?.description ?: "محادثة دعم فني مباشر مرتبطة ببلاغ عطل.",
                     goal = "حل المشكلة التقنية",
-                    status = "in_progress",
-                    progress = 50
+                    status = report?.status ?: "in_progress",
+                    progress = if (report?.status == "resolved") 100 else 50
                 )
             } else null
         )
@@ -85,12 +87,34 @@ fun RequestChatScreen(
     // AI Prompt loading for developer
     var isLoadingPrompts by remember { mutableStateOf(false) }
 
-    // تحديث حي كل 3 ثوانٍ — رسائل الطرف الآخر تظهر دون خروج
+    // جلب بيانات البلاغ وتحديث المحادثة حياً كل 3 ثوانٍ
     LaunchedEffect(requestId) {
+        // جلب فوري للبلاغ المرتبط لضمان عرض بيانات صاحب البلاغ الحقيقية
+        val report = BugReportRepository.findReport(context, requestId)
+        if (report != null) {
+            linkedBugReport = report
+            if (request.value == null || request.value?.userEmail == currentUserEmail) {
+                request.value = AppRequestService.AppRequest(
+                    id = requestId,
+                    userEmail = report.userEmail,
+                    title = "بلاغ: ${report.screenName}",
+                    description = report.description,
+                    goal = "حل المشكلة التقنية",
+                    status = report.status,
+                    progress = if (report.status == "resolved") 100 else 50
+                )
+            }
+        }
         while (isActive) {
             delay(3000)
             messages.value = AppRequestService.getMessages(context, requestId)
-            request.value = AppRequestService.getRequests(context, isDeveloper = true).find { it.id == requestId }
+            val updatedReq = AppRequestService.getRequests(context, isDeveloper = true).find { it.id == requestId }
+            if (updatedReq != null) {
+                request.value = updatedReq
+            }
+            if (linkedBugReport == null) {
+                linkedBugReport = BugReportRepository.findReport(context, requestId)
+            }
         }
     }
 
@@ -102,8 +126,31 @@ fun RequestChatScreen(
     }
 
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val otherName = if (isAdmin) (request.value?.userEmail ?: "العميل") else "فريق قبس 🛠️"
-    val otherInitial = otherName.trim().firstOrNull()?.toString() ?: "؟"
+
+    // تحديد البريد واسم العميل الفعلي بدقة من البلاغ أو الطلب
+    val clientEmail = remember(linkedBugReport, request.value) {
+        linkedBugReport?.userEmail?.takeIf { it.isNotBlank() && it != "anonymous" }
+            ?: request.value?.userEmail?.takeIf { it.isNotBlank() && it != "anonymous" }
+            ?: ""
+    }
+
+    val clientDisplayName = remember(clientEmail, linkedBugReport) {
+        when {
+            clientEmail.contains("@") -> clientEmail.substringBefore("@")
+            clientEmail.isNotBlank() -> clientEmail
+            linkedBugReport != null -> "صاحب بلاغ ${linkedBugReport?.screenName ?: ""}"
+            else -> "مستخدم قبس"
+        }
+    }
+
+    val otherInitial = remember(isAdmin, clientDisplayName, clientEmail) {
+        if (isAdmin) {
+            val textToPick = if (clientDisplayName.isNotBlank()) clientDisplayName else clientEmail
+            textToPick.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "👤"
+        } else {
+            "🛠️"
+        }
+    }
 
     fun send(text: String) {
         val clean = text.trim()
@@ -131,32 +178,80 @@ fun RequestChatScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.size(40.dp).clip(CircleShape)
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
                                 .background(GoldPrimary.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                otherInitial, color = GoldPrimary,
-                                fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp
+                                otherInitial,
+                                color = GoldPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
+                            // العنوان الرئيسي: اسم وبريد المستخدم الفعلي بوضوح للمسؤول
                             Text(
-                                if (isAdmin) (request.value?.title ?: "محادثة التطبيق") else "فريق قبس 🛠️",
-                                fontFamily = CairoFont, fontWeight = FontWeight.Bold,
-                                color = Color.White, fontSize = 15.sp, maxLines = 1
-                            )
-                            Text(
-                                request.value?.let {
-                                    when (it.status) {
-                                        "completed" -> "مكتمل ✅ • ${it.progress}٪"
-                                        "in_progress" -> "قيد التنفيذ ⚙️ • ${it.progress}٪"
-                                        else -> "قيد المراجعة 🆕"
+                                text = if (isAdmin) {
+                                    if (clientEmail.isNotBlank() && clientDisplayName != clientEmail) {
+                                        "$clientDisplayName ($clientEmail)"
+                                    } else if (clientEmail.isNotBlank()) {
+                                        clientEmail
+                                    } else {
+                                        request.value?.title ?: "محادثة الدعم الفني"
                                     }
-                                } ?: "متصل",
-                                fontFamily = NotoSansFont, color = Color(0xFF8696A0), fontSize = 11.sp
+                                } else {
+                                    "فريق قبس 🛠️"
+                                },
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 14.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            // السطر الفرعي: مؤشر الاتصال بجوار الحالة وتفاصيل البلاغ
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF10B981))
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (isAdmin) {
+                                        buildString {
+                                            append("متصل الآن • ")
+                                            if (linkedBugReport != null) {
+                                                val r = linkedBugReport!!
+                                                append("بلاغ: ${r.screenName} (${r.statusLabel})")
+                                            } else if (request.value != null) {
+                                                val req = request.value!!
+                                                append(when (req.status) {
+                                                    "completed" -> "مكتمل ✅ • ${req.progress}٪"
+                                                    "in_progress" -> "قيد التنفيذ ⚙️ • ${req.progress}٪"
+                                                    else -> "قيد المراجعة 🆕"
+                                                })
+                                            } else {
+                                                append("دعم مباشر")
+                                            }
+                                        }
+                                    } else {
+                                        "متصل الآن • الدعم الفني المباشر"
+                                    },
+                                    fontFamily = CairoFont,
+                                    color = Color(0xFF8696A0),
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 },
