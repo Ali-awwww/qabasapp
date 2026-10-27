@@ -670,7 +670,7 @@ fun ReelPublishScreen(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "يُحظر نشر أي محتوى يتضمن الموسيقى، المعازف، أو أي وجه من وجوه الذنب والإثم. مِشكاة قبس مخصصة للنقاء الإيماني فقط.",
+                            text = "يُحظر نشر أي محتوى يتضمن الموسيقى، المعازف، أو أي وجه من وجوه الذنب والإثم. مِشكاة قبس مخصصة للنقاء الإيماني والشرعي فقط.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.75f),
@@ -695,7 +695,7 @@ fun ReelPublishScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "أتعهد أمام الله بأن المقطع خالٍ من الموسيقى والمعازف، ومن أي وجه من وجوه الذنب والإثم.",
+                            text = "أتعهد أمام الله بأن المقطع خالٍ من الموسيقى والمعازف، ومن أي وجه من وجوه الذنب والإثم أو ما يخالف شرع الله.",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,

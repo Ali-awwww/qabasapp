@@ -1228,13 +1228,25 @@ fun HasanatHubScreen(
                                     rowItems.forEach { item ->
                                         when (item) {
                                             is HasanatSectionItem -> {
-                                                HasanatGridItem(item, modifier = Modifier.weight(1f)) {
+                                                UnifiedHasanatGridItem(
+                                                    title = item.titleKey,
+                                                    subtitle = item.badgeKey,
+                                                    icon = item.icon,
+                                                    color = item.accentColor,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
                                                     if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
                                                     else onNavigate(item.route)
                                                 }
                                             }
                                             is HasanatHubViewModel.MuslimToolItem -> {
-                                                HasanatToolGridItem(item, modifier = Modifier.weight(1f)) {
+                                                UnifiedHasanatGridItem(
+                                                    title = item.title,
+                                                    subtitle = "أداة ذكية مفعّلة",
+                                                    icon = item.icon,
+                                                    color = item.color,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
                                                     if (listenMode) speakText(item.title, "tool_title")
                                                     else {
                                                         when (item.id) {
@@ -1262,13 +1274,25 @@ fun HasanatHubScreen(
                     items(combinedItems) { item ->
                         when (item) {
                             is HasanatSectionItem -> {
-                                HasanatListItem(item) {
+                                UnifiedHasanatListItem(
+                                    title = item.titleKey,
+                                    subtitle = item.subtitleKey,
+                                    badge = item.badgeKey,
+                                    icon = item.icon,
+                                    color = item.accentColor
+                                ) {
                                     if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
                                     else onNavigate(item.route)
                                 }
                             }
                             is HasanatHubViewModel.MuslimToolItem -> {
-                                HasanatToolListItem(item) {
+                                UnifiedHasanatListItem(
+                                    title = item.title,
+                                    subtitle = "أداة ذكية ميسرة للعبادات",
+                                    badge = "مفعلة بالكامل",
+                                    icon = item.icon,
+                                    color = item.color
+                                ) {
                                     if (listenMode) speakText(item.title, "tool_title")
                                     else {
                                         when (item.id) {
@@ -1399,115 +1423,118 @@ fun QuickMishkatMetric(icon: ImageVector, label: String, value: String, accent: 
 }
 
 @Composable
-fun HasanatGridItem(item: HasanatSectionItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun UnifiedHasanatGridItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = modifier.height(160.dp).clickable {
-            AppSoundManager.playClick()
-            onClick()
-        },
+        modifier = modifier
+            .height(160.dp)
+            .clickable {
+                AppSoundManager.playClick()
+                onClick()
+            },
         shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.8f)),
-        border = BorderStroke(1.dp, item.accentColor.copy(alpha = 0.3f))
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Box(
-                modifier = Modifier.size(40.dp).background(item.accentColor.copy(alpha = 0.15f), CutCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(item.icon, contentDescription = null, tint = item.accentColor, modifier = Modifier.size(24.dp))
-            }
-            Column {
-                Text(Translator.tr(item.titleKey), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont, maxLines = 2)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(Translator.tr(item.badgeKey), color = item.accentColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF1E293B).copy(alpha = 0.8f), Color(0xFF0F172A).copy(alpha = 0.9f))
+                    )
+                )
+                .padding(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(color.copy(alpha = 0.15f), CutCornerShape(8.dp))
+                        .border(1.dp, color.copy(alpha = 0.35f), CutCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+                }
+                Column {
+                    Text(
+                        text = Translator.tr(title),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        fontFamily = CairoFont,
+                        maxLines = 2,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = Translator.tr(subtitle),
+                        color = color.copy(alpha = 0.85f),
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CairoFont
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun HasanatListItem(item: HasanatSectionItem, onClick: () -> Unit) {
+fun UnifiedHasanatListItem(
+    title: String,
+    subtitle: String,
+    badge: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable {
-            AppSoundManager.playClick()
-            onClick()
-        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                AppSoundManager.playClick()
+                onClick()
+            },
         shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.8f)),
-        border = BorderStroke(1.dp, item.accentColor.copy(alpha = 0.2f))
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f))
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).background(item.accentColor.copy(alpha = 0.15f), CutCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(item.icon, contentDescription = null, tint = item.accentColor, modifier = Modifier.size(28.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF1E293B).copy(alpha = 0.7f), Color(0xFF0F172A).copy(alpha = 0.8f))
+                    )
+                )
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(color.copy(alpha = 0.15f), CutCornerShape(10.dp))
+                        .border(1.dp, color.copy(alpha = 0.3f), CutCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(Translator.tr(title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
+                    Text(Translator.tr(subtitle), color = qabasTextSecondary(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(Translator.tr(badge), color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary().copy(alpha = 0.5f))
             }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(Translator.tr(item.titleKey), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
-                Text(Translator.tr(item.subtitleKey), color = qabasTextSecondary(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(Translator.tr(item.badgeKey), color = item.accentColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary().copy(alpha = 0.5f))
-        }
-    }
-}
-
-@Composable
-fun HasanatToolGridItem(item: HasanatHubViewModel.MuslimToolItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        modifier = modifier.height(160.dp).clickable {
-            AppSoundManager.playClick()
-            onClick()
-        },
-        shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.8f)),
-        border = BorderStroke(1.dp, item.color.copy(alpha = 0.3f))
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Box(
-                modifier = Modifier.size(40.dp).background(item.color.copy(alpha = 0.15f), CutCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(item.icon, contentDescription = null, tint = item.color, modifier = Modifier.size(24.dp))
-            }
-            Column {
-                Text(Translator.tr(item.title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont, maxLines = 2)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(Translator.tr("أداة ذكية مدمجة"), color = item.color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-fun HasanatToolListItem(item: HasanatHubViewModel.MuslimToolItem, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable {
-            AppSoundManager.playClick()
-            onClick()
-        },
-        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.8f)),
-        border = BorderStroke(1.dp, item.color.copy(alpha = 0.2f))
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).background(item.color.copy(alpha = 0.15f), CutCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(item.icon, contentDescription = null, tint = item.color, modifier = Modifier.size(28.dp))
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(Translator.tr(item.title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
-                Text(Translator.tr("أداة ذكية مدمجة تيسر لك العبادات اليومية"), color = qabasTextSecondary(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(Translator.tr("مفعلة بالكامل"), color = item.color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary().copy(alpha = 0.5f))
         }
     }
 }
@@ -1520,8 +1547,14 @@ fun MuslimToolCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    // Deprecated in favor of HasanatToolGridItem for unified look
-    HasanatToolGridItem(HasanatHubViewModel.MuslimToolItem("", title, icon, color), modifier, onClick)
+    UnifiedHasanatGridItem(
+        title = title,
+        subtitle = "",
+        icon = icon,
+        color = color,
+        modifier = modifier,
+        onClick = onClick
+    )
 }
 
 @Composable

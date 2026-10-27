@@ -128,12 +128,12 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     val muslimToolsList = listOf(
+        MuslimToolItem("qibla", "القبلة والمساجد", Icons.Default.Explore, Color(0xFF0EA5E9)),
         MuslimToolItem("zakat", "حاسبة الزكاة", Icons.Default.Payments, Color(0xFF10B981)),
         MuslimToolItem("fasting", "قضاء رمضان", Icons.Default.NightsStay, Color(0xFFF59E0B)),
         MuslimToolItem("khatma", "مخطط الختمة", Icons.Default.AutoStories, Color(0xFF0EA5E9)),
         MuslimToolItem("hajj", "الحج والعمرة", Icons.Default.DirectionsWalk, Color(0xFF8B5CF6)),
         MuslimToolItem("hijri", "التقويم الهجري", Icons.Default.Event, Color(0xFFEC4899)),
-        MuslimToolItem("tasbeeh", "المسبحة الذكية", Icons.Default.Fingerprint, Color(0xFFEAB308)),
         MuslimToolItem("habits", "متابع العادات", Icons.Default.DoneAll, Color(0xFF14B8A6)),
         MuslimToolItem("stats", "إحصائيات العبادة", Icons.Default.Analytics, Color(0xFFF97316)),
         MuslimToolItem("share", "بطاقات النشر", Icons.Default.ColorLens, Color(0xFFF59E0B)),
