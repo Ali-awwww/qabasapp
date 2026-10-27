@@ -115,8 +115,8 @@ fun SettingsScreen(
 
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
-    val isGuest = prefs.getBoolean("is_guest", false) || userEmail.contains("guest", ignoreCase = true) || storedEmail.contains("guest", ignoreCase = true) || userEmail.isBlank() || userEmail == "guest@qabas.studio"
-    val isLoggedInAccount = !isGuest && (prefs.getBoolean("is_logged_in", false) || CloudServices.Auth.currentUser.value != null)
+    val isGuest = FirebaseAuthRepository.isGuest(context)
+    val isLoggedInAccount = FirebaseAuthRepository.isAuthenticatedUser(context)
     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(userEmail)
     val isRelative = prefs.getBoolean("is_relative_user", false)
 
@@ -576,7 +576,9 @@ fun SettingsScreen(
                                         )
 
                                         // المعرّف الخاص الفريد مع زر النسخ الفوري
-                                        val customId = remember { UserIdentifierManager.getCustomId(context) }
+                                        val customId = remember(userEmail, isGuest) {
+                                            if (isGuest) "guest" else UserIdentifierManager.getCustomId(context, userEmail)
+                                        }
                                         Surface(
                                             color = Color(0xFF00E5FF).copy(alpha = 0.12f),
                                             shape = RoundedCornerShape(6.dp),

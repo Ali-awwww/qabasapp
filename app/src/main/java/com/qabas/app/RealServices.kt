@@ -107,6 +107,15 @@ object RealGeminiService {
         
     
     suspend fun analyzeIdea(idea: String): IdeaAnalysis = withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+        try {
+            val fbResult = FirebaseAiService.analyzeIdea(idea)
+            SystemLogsManager.addLog("INFO", "تم تحليل الفكرة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            return@withContext fbResult
+        } catch (e: Exception) {
+            android.util.Log.w("RealGeminiService", "Firebase AI Logic idea analysis attempt, falling back: ${e.message}")
+        }
+
         val apiKey = KeyVault.gemini
         val fallbackResult = buildDefaultIdeaAnalysis(idea)
         
@@ -160,7 +169,7 @@ object RealGeminiService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 
@@ -259,7 +268,7 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -322,7 +331,7 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -423,6 +432,18 @@ object RealGeminiService {
         }
 
         suspend fun tryGemini(): List<Scene>? {
+            // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+            try {
+                val fbScenes = FirebaseAiService.generateScriptScenes(idea, styleDescription, contentType, contentTone)
+                if (fbScenes.size >= 2) {
+                    SceneEngineMonitor.report("Gemini 3.8 Flash")
+                    SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini 3.8 Flash (Firebase AI Logic) أنتج ${fbScenes.size} مشاهد ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+                    return fbScenes
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("RealServices", "Firebase AI Logic scenes generation attempt, falling back: ${e.message}")
+            }
+
             val geminiKey = KeyVault.gemini
             if (geminiKey.isNotEmpty() && geminiKey != "YOUR_GEMINI_API_KEY") {
                 val scenes = tryGeminiScenes(geminiKey, prompt)
@@ -488,7 +509,7 @@ object RealGeminiService {
                     put("generationConfig", JSONObject().apply { put("responseMimeType", "application/json") })
                 }
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                     .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                     .build()
                 val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(request).execute() }
@@ -754,7 +775,7 @@ object RealGeminiService {
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             
             val httpRequest = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 
@@ -931,9 +952,21 @@ object RealMediaLibraryService {
         messages: List<Pair<Boolean, String>>,
         customSystemInstruction: String? = null
     ): String = withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+        try {
+            val systemPrompt = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
+            val fbReply = FirebaseAiService.chat(messages, systemPrompt)
+            if (fbReply.isNotBlank()) {
+                SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+                return@withContext fbReply
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("RealServices", "Firebase AI chat attempt, trying fallback: ${e.message}")
+        }
+
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
-            return@withContext "عذراً، مفتاح Gemini غير متوفر. يرجى إضافته من الإعدادات."
+            return@withContext "عذراً، تعذر إتمام الرد بالذكاء الاصطناعي حالياً."
         }
         
         return@withContext NetworkUtils.safeApiCallWithRetry(
@@ -967,7 +1000,7 @@ object RealMediaLibraryService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 

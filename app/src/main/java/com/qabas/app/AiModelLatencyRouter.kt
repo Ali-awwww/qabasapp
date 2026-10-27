@@ -249,6 +249,27 @@ object AiModelLatencyRouter {
     }
 
     private fun pingGemini(): ModelBenchmarkResult {
+        // 1. Try Firebase AI Logic (Gemini 3.8 Flash via App Check)
+        try {
+            val startTime = System.currentTimeMillis()
+            val text = kotlinx.coroutines.runBlocking {
+                FirebaseAiService.generateText("ping: قل كلمة واحدة: جاهز")
+            }
+            val latency = System.currentTimeMillis() - startTime
+            if (text.isNotBlank()) {
+                return ModelBenchmarkResult(
+                    id = "gemini",
+                    name = "Gemini 3.8 Flash (AI Logic)",
+                    provider = "Google AI Studio",
+                    modelSpec = "gemini-3.8-flash",
+                    latencyMs = latency,
+                    isSuccess = true,
+                    message = "متصل مباشرة عبر Firebase AI Logic",
+                    previewOutput = text.trim()
+                )
+            }
+        } catch (_: Exception) { }
+
         val keys = KeyPoolManager.orderedKeys("gemini_key", KeyVault.gemini)
         var last: ModelBenchmarkResult? = null
         for (k in keys) {

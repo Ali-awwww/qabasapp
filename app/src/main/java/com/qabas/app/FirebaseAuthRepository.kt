@@ -34,10 +34,90 @@ class FirebaseAuthRepository(
             val database = FirebaseManager.getFirestore(context.applicationContext)
             return FirebaseAuthRepository(FirebaseAuth.getInstance(), database)
         }
+
+        /**
+         * التحقق الصارم من وجود مستخدم مسجل فعلياً (Authenticated User).
+         * يفحص مصادقة Firebase ومصادقة الجلسة النشطة للتأكد من عدم منع المستخدمين المسجلين.
+         */
+        fun isAuthenticatedUser(context: Context? = null): Boolean {
+            val authInstance = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+            val fbUser = authInstance?.currentUser
+            if (fbUser != null && !fbUser.isAnonymous) {
+                val email = fbUser.email?.trim().orEmpty()
+                if (!email.contains("guest", ignoreCase = true) && (email.isNotBlank() || fbUser.uid.isNotBlank())) {
+                    return true
+                }
+            }
+
+            if (context != null) {
+                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                val email = prefs.getString("user_email", "")?.trim().orEmpty()
+                val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                val isGuestPref = prefs.getBoolean("is_guest", false)
+                val isDev = prefs.getBoolean("is_developer", false) ||
+                    prefs.getBoolean("is_admin", false) ||
+                    CloudServices.isOwnerAccount(email) ||
+                    ReelPublishManager.isDeveloperUser(context, email)
+
+                if (isDev) return true
+                if (isGuestPref) return false
+                return isLoggedIn && email.isNotBlank() && !email.contains("guest", ignoreCase = true) && email.contains("@") && email != "guest@qabas.studio"
+            }
+            return false
+        }
+
+        /**
+         * التحقق هل المستخدم الحالي ضيف.
+         * يعيد false فوراً لأي مستخدم مسجل أو مطور، ويعيد true فقط للضيف الفعلي غير المسجل.
+         */
+        fun isGuest(context: Context? = null): Boolean = !isAuthenticatedUser(context)
+
+        /**
+         * جلب المعرف الفعلي للمستخدم المصادق
+         */
+        fun getEffectiveUserId(context: Context? = null): String? {
+            val authInstance = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+            val fbUser = authInstance?.currentUser
+            if (fbUser != null && !fbUser.isAnonymous) {
+                return fbUser.uid
+            }
+            if (context != null) {
+                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                val uid = prefs.getString("user_id", null)?.takeIf { it.isNotBlank() && !it.contains("guest") }
+                val email = prefs.getString("user_email", null)?.takeIf { it.isNotBlank() && !it.contains("guest") }
+                return uid ?: email
+            }
+            return null
+        }
+
+        /**
+         * جلب البريد الفعلي للمستخدم المصادق
+         */
+        fun getEffectiveEmail(context: Context? = null): String? {
+            val authInstance = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+            val fbUser = authInstance?.currentUser
+            if (fbUser != null && !fbUser.isAnonymous && !fbUser.email.isNullOrBlank()) {
+                return fbUser.email
+            }
+            if (context != null) {
+                val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                return prefs.getString("user_email", null)?.takeIf { it.isNotBlank() && !it.contains("guest") }
+            }
+            return null
+        }
     }
 
     val currentUser: FirebaseUser?
         get() = auth.currentUser
+
+    val isAuthenticated: Boolean
+        get() = auth.currentUser != null && !auth.currentUser!!.isAnonymous
+
+    fun isAuthenticatedUser(context: Context? = null): Boolean =
+        Companion.isAuthenticatedUser(context)
+
+    fun isGuest(context: Context? = null): Boolean =
+        Companion.isGuest(context)
 
     /**
      * تدفق يراقب حالة المصادقة في الوقت الحقيقي

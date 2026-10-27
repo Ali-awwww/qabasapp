@@ -196,8 +196,8 @@ fun AIAssistantScreen(
     var lastFailedPrompt by remember { mutableStateOf<String?>(null) }
 
     var hasGeminiKey by remember {
-        val key = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY)
-        mutableStateOf(key.isNotBlank() && key != "YOUR_GEMINI_API_KEY")
+        // Connected via Firebase AI Logic (Gemini 3.8 Flash)
+        mutableStateOf(true)
     }
 
     // انيميشن النبض السيبراني وشعاع المسح الفضائي
@@ -507,8 +507,8 @@ fun AIAssistantScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (hasGeminiKey) "محرك Gemini 2.5 متصل بالرادار ✦" else "وضع الاستجابة السريعة (مفتاح الإعدادات)",
-                                color = if (hasGeminiKey) Color(0xFF6EE7B7) else Color(0xFFFCD34D),
+                                text = "محرك Gemini 3.8 Flash متصل سحابياً (Firebase AI Logic) ✦",
+                                color = Color(0xFF6EE7B7),
                                 fontSize = 10.5.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold

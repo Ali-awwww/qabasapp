@@ -353,15 +353,23 @@ fun ReelsScreen(
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
-    val currentUserId = SupabaseServices.Auth.getCurrentUserId() ?: currentUserEmail
-    val isGuest = remember(currentUserEmail) {
-        currentUserEmail.contains("guest") || SupabaseServices.Auth.getCurrentUserId() == null
-    }
-    var showGuestLoginPrompt by remember { mutableStateOf(false) }
+    val currentUserId = prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
+        ?: FirebaseAuthRepository.getEffectiveUserId(context)
+        ?: SupabaseServices.Auth.getCurrentUserId()
+        ?: currentUserEmail
 
     val isDeveloper = remember(currentUserEmail) {
-        ReelPublishManager.isDeveloperUser(context, currentUserEmail)
+        ReelPublishManager.isDeveloperUser(context, currentUserEmail) ||
+        prefs.getBoolean("is_developer", false) ||
+        prefs.getBoolean("is_admin", false) ||
+        CloudServices.isOwnerAccount(currentUserEmail)
     }
+
+    // 🛡️ فحص دقيق للجلسة في Firebase Auth والتطبيق لمنع الضيف فقط وليس الحسابات المسجلة
+    val isGuest = remember(currentUserEmail, isDeveloper) {
+        FirebaseAuthRepository.isGuest(context)
+    }
+    var showGuestLoginPrompt by remember { mutableStateOf(false) }
 
     /**
      * 🛡️ Guest Interaction Gatekeeper
@@ -393,8 +401,8 @@ fun ReelsScreen(
             category = selectedCategory,
             durationSec = secs
         )
-        val authId = SupabaseServices.Auth.getCurrentUserId()
-        if (authId != null) {
+        val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
+        if (authId != null && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
                 runCatching { SupabaseServices.Profiles.recordReelWatch(rid, authId, secs) }
             }
@@ -875,7 +883,7 @@ fun ReelsScreen(
                                     )
 
                                     scope.launch {
-                                        val authId = SupabaseServices.Auth.getCurrentUserId()
+                                        val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
                                         val ok = authId != null && runCatching {
                                             withTimeoutOrNull(5000L) {
                                                 if (newLikedState) {
@@ -927,7 +935,7 @@ fun ReelsScreen(
                                 ).show()
 
                                 // مزامنة سحابية للمستخدم المصادق — مع تراجع فوري عند الفشل
-                                val authId = SupabaseServices.Auth.getCurrentUserId()
+                                val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
                                 if (authId != null) {
                                     // الحالة السحابية تحاكي الحالة المحلية النهائية
                                     val nowCloudSaved = nowLocalSaved

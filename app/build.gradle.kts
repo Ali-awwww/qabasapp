@@ -87,20 +87,20 @@ tasks.register("ensureGoogleServicesJson") {
                 """
                 {
                   "project_info": {
-                    "project_number": "748045877365",
-                    "project_id": "gen-lang-client-0938365900",
-                    "storage_bucket": "gen-lang-client-0938365900.firebasestorage.app"
+                    "project_number": "297110176795",
+                    "project_id": "gen-lang-client-0140553990",
+                    "storage_bucket": "gen-lang-client-0140553990.firebasestorage.app"
                   },
                   "client": [
                     {
                       "client_info": {
-                        "mobilesdk_app_id": "1:748045877365:android:605ef20d87590b9df8783c",
+                        "mobilesdk_app_id": "1:297110176795:android:931a343801fb2e9979e4be",
                         "android_client_info": {
                           "package_name": "com.aistudio.qabas.kxmpzq"
                         }
                       },
                       "oauth_client": [],
-                      "api_key": [{ "current_key": "AIzaSyCmNzgiIt8P45tdcWZS4MNEyY_MqusK6yo" }],
+                      "api_key": [{ "current_key": "AIzaSyDyb2FmTOcx9eNi5gwT4x4oAknpXRZfca8" }],
                       "services": {}
                     }
                   ],

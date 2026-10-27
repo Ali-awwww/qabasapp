@@ -400,32 +400,42 @@ object UserIdentifierManager {
         if (!cleanEmail.isNullOrBlank()) {
             // المعرّف مربوط بالبريد أولاً: لا نعيد معرّف حساب آخر مسجّل على نفس الجهاز
             val perEmail = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
-            if (!perEmail.isNullOrBlank()) return normalize(perEmail)
+            if (!perEmail.isNullOrBlank() && !perEmail.equals("guest", ignoreCase = true) && !perEmail.equals("ضيف", ignoreCase = true)) {
+                return normalize(perEmail)
+            }
         }
         val savedId = prefs.getString(KEY_CUSTOM_ID, null)
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val sessionEmail = cleanEmail ?: prefs.getString("user_email", null)
+        val sessionEmail = cleanEmail ?: prefs.getString("user_email", null)?.trim()?.lowercase(Locale.ROOT)
+        val isGuestSession = sessionEmail.isNullOrBlank() || sessionEmail.contains("guest") || sessionEmail == "guest@qabas.studio"
+        val isSavedIdGuest = savedId.equals("guest", ignoreCase = true) || savedId.equals("ضيف", ignoreCase = true)
 
-        if (!savedId.isNullOrBlank() && (isLoggedIn || !sessionEmail.isNullOrBlank())) {
-            if (cleanEmail.isNullOrBlank()) return savedId
+        if (!savedId.isNullOrBlank() && (!isSavedIdGuest || isGuestSession) && (isLoggedIn || !sessionEmail.isNullOrBlank())) {
+            if (cleanEmail.isNullOrBlank() && !isSavedIdGuest) return savedId
             val ownerEmail = prefs.getString(KEY_MAP_PREFIX + normalize(savedId), null)
                 ?.trim()?.lowercase(Locale.ROOT)
-            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) return savedId
+            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) {
+                if (!isSavedIdGuest || isGuestSession) return savedId
+            }
         }
 
         // فحص بديل من user_tag القديم فقط إذا كان هناك جلسة نشطة
         if (isLoggedIn || !sessionEmail.isNullOrBlank()) {
-            val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
-            if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user") {
-                val normalized = normalize(oldTag)
-                prefs.edit().putString(KEY_CUSTOM_ID, normalized).apply()
-                return normalized
-            }
+            if (!isGuestSession) {
+                val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
+                if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user" && !oldTag.equals("guest", ignoreCase = true) && !oldTag.equals("ضيف", ignoreCase = true)) {
+                    val normalized = normalize(oldTag)
+                    prefs.edit().putString(KEY_CUSTOM_ID, normalized).apply()
+                    return normalized
+                }
 
-            val name = prefs.getString("user_name", null)
-            val newId = generateUniqueId(name ?: sessionEmail)
-            saveCustomId(context, newId, sessionEmail)
-            return newId
+                val name = prefs.getString("user_name", null)
+                val newId = generateUniqueId(name ?: sessionEmail)
+                saveCustomId(context, newId, sessionEmail)
+                return newId
+            } else {
+                return "guest"
+            }
         }
 
         // المستخدم غير مسجل ولا توجد جلسة: الحقل فارغ تماماً ولا يولد اسماً عشوائياً

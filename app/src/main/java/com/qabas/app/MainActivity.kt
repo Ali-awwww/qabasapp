@@ -290,9 +290,8 @@ class MainActivity : ComponentActivity() {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val currentEmail = prefs.getString("user_email", "") ?: ""
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val isGuestPref = prefs.getBoolean("is_guest", false)
-        val isGuestUser = isGuestPref || currentEmail.isBlank() || currentEmail.contains("guest", ignoreCase = true) || currentEmail == "guest@qabas.studio"
-        val isRegisteredUser = isLoggedIn && !isGuestUser && currentEmail.isNotBlank()
+        val isGuestUser = FirebaseAuthRepository.isGuest(context)
+        val isRegisteredUser = FirebaseAuthRepository.isAuthenticatedUser(context)
         val isCameraEnabled by SpatialCameraPreferencesManager.cameraEnabled.collectAsState()
 
         var showFab by remember { mutableStateOf(prefs.getBoolean("show_floating_debug_fabs", false)) }

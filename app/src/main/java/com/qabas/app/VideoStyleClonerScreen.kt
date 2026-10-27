@@ -292,10 +292,19 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
     """.trimIndent()
 
     try {
+        // Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+        try {
+            val fbText = FirebaseAiService.generateText(prompt)
+            if (fbText.isNotBlank()) {
+                val clean = fbText.replace("```json", "").replace("```", "").trim()
+                return@withContext parseJsonToAnalysis(clean)
+            }
+        } catch (_: Exception) { }
+
         if (apiKey.isNotBlank() && provider != DetectedProvider.NONE) {
             when (provider) {
                 DetectedProvider.GEMINI -> {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey"
                     val jsonBody = JSONObject().apply {
                         put("contents", JSONArray().put(JSONObject().apply {
                             put("parts", JSONArray().put(JSONObject().apply { put("text", prompt) }))

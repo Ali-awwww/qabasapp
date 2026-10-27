@@ -354,6 +354,12 @@ fun DirectorChatScreen(
 
 private suspend fun geminiChat(context: android.content.Context, prompt: String): String? =
     withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash via App Check)
+        try {
+            val fbText = FirebaseAiService.generateText(prompt)
+            if (fbText.isNotBlank()) return@withContext fbText
+        } catch (_: Exception) { }
+
         val key = KeyVault.gemini
         if (key.isBlank()) return@withContext null
         try {
