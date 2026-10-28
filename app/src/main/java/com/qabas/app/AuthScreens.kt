@@ -1,7 +1,9 @@
 package com.qabas.app
 
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
+import io.github.jan.supabase.auth.auth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -711,25 +713,52 @@ fun ForgotPasswordScreen(
                                     isLoading = true
                                     coroutineScope.launch {
                                         val trimmedEmail = email.trim().lowercase(java.util.Locale.ROOT)
+                                        val trimmedCode = verificationCode.trim()
                                         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
-                                        // Update password in Supabase if available
+                                        var updateSuccess = false
+                                        var errorMessage: String? = null
+
                                         if (SupabaseServices.isSupabaseAvailable) {
-                                            runCatching {
-                                                SupabaseServices.Auth.updatePassword(trimmedPass)
+                                            try {
+                                                val client = SupabaseConfig.client
+                                                if (trimmedCode.isNotBlank()) {
+                                                    client.auth.verifyEmailOtp(
+                                                        type = io.github.jan.supabase.auth.OtpType.Email.RECOVERY,
+                                                        email = trimmedEmail,
+                                                        token = trimmedCode
+                                                    )
+                                                }
+                                                client.auth.updateUser {
+                                                    password = trimmedPass
+                                                }
+                                                updateSuccess = true
+                                            } catch (e: Exception) {
+                                                Log.e("ForgotPassword", "Password reset failed", e)
+                                                errorMessage = e.localizedMessage ?: "فشل التحقق من رمز الاستعادة أو تحديث كلمة المرور في الخادم"
+                                            }
+                                        } else {
+                                            val registeredAcc = LocalAccountRegistry.findByEmail(context, trimmedEmail)
+                                            if (registeredAcc != null) {
+                                                updateSuccess = true
+                                            } else {
+                                                errorMessage = "البريد الإلكتروني المدخل غير مسجل في النظام"
                                             }
                                         }
 
-                                        // Update local preferences and saved login email
-                                        prefs.edit().apply {
-                                            putString("saved_login_email", trimmedEmail)
-                                            remove("saved_login_password")
-                                            apply()
-                                        }
-
-                                        Toast.makeText(context, "تم تعيين كلمة المرور الجديدة بنجاح!", Toast.LENGTH_SHORT).show()
-                                        isResetComplete = true
                                         isLoading = false
+
+                                        if (updateSuccess) {
+                                            prefs.edit().apply {
+                                                putString("saved_login_email", trimmedEmail)
+                                                remove("saved_login_password")
+                                                apply()
+                                            }
+                                            Toast.makeText(context, "تم تعيين كلمة المرور الجديدة بنجاح! ✓", Toast.LENGTH_SHORT).show()
+                                            isResetComplete = true
+                                        } else {
+                                            Toast.makeText(context, errorMessage ?: "فشل تعيين كلمة المرور ⚠️", Toast.LENGTH_LONG).show()
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(52.dp),

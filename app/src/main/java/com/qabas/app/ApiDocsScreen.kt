@@ -40,8 +40,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 
 /**
@@ -74,10 +81,10 @@ fun ApiDocsScreen(
 
     BackHandler(onBack = onBack)
 
-    val currentApiKey = remember {
-        prefs.getString("user_api_key", null) ?: "qbs_live_sec_${System.currentTimeMillis().toString().takeLast(8)}"
+    var currentApiKey by remember {
+        mutableStateOf(prefs.getString("user_api_key", null) ?: "")
     }
-    val baseUrl = "http://127.0.0.1:8080/api"
+    val baseUrl = "https://api.qabas.studio/v1"
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = listOf("نقاط النهاية 📑", "المختبر التفاعلي ⚡", "أمثلة الأكواد 💻", "المصادقة والأمان 🔐")
@@ -381,12 +388,55 @@ fun ApiDocsScreen(
                                 isSendingRequest = true
                                 responseOutput = null
                                 val startTime = System.currentTimeMillis()
-                                delay(350) // محاكاة المعالجة المباشرة
-                                responseLatencyMs = System.currentTimeMillis() - startTime
-                                isSendingRequest = false
-                                responseStatusCode = 200
-                                responseOutput = selectedPlaygroundEndpoint.responseBodySample
-                                Toast.makeText(context, "تم استلام الرد بنجاح (200 OK) ✓", Toast.LENGTH_SHORT).show()
+                                try {
+                                    val (code, body) = withContext(Dispatchers.IO) {
+                                        val client = OkHttpClient.Builder()
+                                            .connectTimeout(5, TimeUnit.SECONDS)
+                                            .readTimeout(8, TimeUnit.SECONDS)
+                                            .build()
+
+                                        val targetUrl = "$baseUrl${selectedPlaygroundEndpoint.path}"
+                                        val reqBuilder = Request.Builder().url(targetUrl)
+
+                                        if (currentApiKey.isNotBlank()) {
+                                            reqBuilder.addHeader("Authorization", "Bearer $currentApiKey")
+                                        }
+
+                                        if (selectedPlaygroundEndpoint.method.equals("POST", ignoreCase = true) ||
+                                            selectedPlaygroundEndpoint.method.equals("PUT", ignoreCase = true)
+                                        ) {
+                                            val mediaType = "application/json; charset=utf-8".toMediaType()
+                                            val bodyData = playgroundPayloadInput.ifBlank { "{}" }.toRequestBody(mediaType)
+                                            reqBuilder.method(selectedPlaygroundEndpoint.method, bodyData)
+                                        } else {
+                                            reqBuilder.get()
+                                        }
+
+                                        val response = client.newCall(reqBuilder.build()).execute()
+                                        val respCode = response.code
+                                        val respStr = response.body?.string().orEmpty()
+                                        Pair(respCode, respStr)
+                                    }
+
+                                    responseLatencyMs = System.currentTimeMillis() - startTime
+                                    responseStatusCode = code
+                                    responseOutput = body.ifBlank { "(استجابة فارغة من خادم قبس)" }
+                                    Toast.makeText(context, "تم استلام الرد الفعلي (كود $code) ✓", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    responseLatencyMs = System.currentTimeMillis() - startTime
+                                    responseStatusCode = 503
+                                    responseOutput = """
+                                        {
+                                          "error": "CONNECTION_FAILED",
+                                          "target": "$baseUrl${selectedPlaygroundEndpoint.path}",
+                                          "message": "تعذر الاتصال بخادم واجهة برمجة التطبيقات الفعلي.",
+                                          "exception": "${e.localizedMessage ?: e.javaClass.simpleName}"
+                                        }
+                                    """.trimIndent()
+                                    Toast.makeText(context, "تعذر الوصول لنقطة النهاية: الخادم غير متاح حالياً ⚠️", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    isSendingRequest = false
+                                }
                             }
                         }
                     )
@@ -398,7 +448,7 @@ fun ApiDocsScreen(
                         selectedLang = selectedSnippetLang,
                         onLangChange = { selectedSnippetLang = it },
                         baseUrl = baseUrl,
-                        apiKey = currentApiKey
+                        apiKey = currentApiKey.ifBlank { "<YOUR_API_KEY>" }
                     )
                 }
                 3 -> {
@@ -406,9 +456,19 @@ fun ApiDocsScreen(
                     SecurityAndAuthTab(
                         apiKey = currentApiKey,
                         baseUrl = baseUrl,
+                        onGenerateKey = {
+                            val newKey = "qbs_live_" + java.util.UUID.randomUUID().toString().replace("-", "").take(24)
+                            prefs.edit().putString("user_api_key", newKey).apply()
+                            currentApiKey = newKey
+                            Toast.makeText(context, "تم توليد مفتاح API جديد وحفظه بنجاح 🔑", Toast.LENGTH_SHORT).show()
+                        },
                         onCopyKey = {
-                            clipboardManager.setText(AnnotatedString(currentApiKey))
-                            Toast.makeText(context, "تم نسخ مفتاح API للحافظة 📋", Toast.LENGTH_SHORT).show()
+                            if (currentApiKey.isNotBlank()) {
+                                clipboardManager.setText(AnnotatedString(currentApiKey))
+                                Toast.makeText(context, "تم نسخ مفتاح API للحافظة 📋", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "يرجى توليد مفتاح API أولاً ⚠️", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                 }
@@ -1107,6 +1167,7 @@ console.log(data);
 private fun SecurityAndAuthTab(
     apiKey: String,
     baseUrl: String,
+    onGenerateKey: () -> Unit,
     onCopyKey: () -> Unit
 ) {
     LazyColumn(
@@ -1149,17 +1210,38 @@ private fun SecurityAndAuthTab(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Authorization: Bearer $apiKey",
-                                color = Color(0xFF38BDF8),
+                                text = if (apiKey.isNotBlank()) "Authorization: Bearer $apiKey" else "Authorization: Bearer <لم_يتم_توليد_مفتاح_بعد>",
+                                color = if (apiKey.isNotBlank()) Color(0xFF38BDF8) else Color(0xFF94A3B8),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
-                            IconButton(onClick = onCopyKey, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            if (apiKey.isNotBlank()) {
+                                IconButton(onClick = onCopyKey, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                }
                             }
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onGenerateKey,
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(38.dp)
+                        ) {
+                            Icon(Icons.Default.VpnKey, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (apiKey.isBlank()) "توليد مفتاح وصول جديد 🔑" else "إعادة إصدار المفتاح 🔄",
+                                color = DeepSlate,
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 

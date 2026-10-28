@@ -82,6 +82,12 @@ fun ReelPublishScreen(
     var uploadTotalBytes by remember { mutableStateOf(0L) }
     var uploadSpeedBps by remember { mutableStateOf(0L) }
     var uploadEtaSeconds by remember { mutableStateOf(0L) }
+    
+    // New Advanced States
+    var publishAt by remember { mutableStateOf<String?>(null) }
+    var expiryAt by remember { mutableStateOf<String?>(null) }
+    var quality by remember { mutableStateOf("high") }
+    var isAnalyzing by remember { mutableStateOf(false) }
 
     val categories = listOf("قرآن كريم", "أحاديث نبوية", "وعظة إيمانية")
 
@@ -383,6 +389,36 @@ fun ReelPublishScreen(
                                 fontSize = 10.5.sp,
                                 color = Color.White.copy(alpha = 0.5f)
                             )
+                            
+                            // 🤖 زر تحليل الفيديو بالذكاء الاصطناعي
+                            Button(
+                                onClick = {
+                                    isAnalyzing = true
+                                    scope.launch {
+                                        val analysis = ReelPublishManager.analyzeVideoWithAI(context, selectedVideoUri!!)
+                                        if (analysis != null) {
+                                            title = analysis.first
+                                            description = analysis.second
+                                            Toast.makeText(context, "تم توليد العنوان والوصف بذكاء! ✨", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "تعذر تحليل المقطع حالياً", Toast.LENGTH_SHORT).show()
+                                        }
+                                        isAnalyzing = false
+                                    }
+                                },
+                                enabled = !isAnalyzing,
+                                modifier = Modifier.padding(top = 6.dp).height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.15f))
+                            ) {
+                                if (isAnalyzing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("تحليل وتفريغ AI", fontFamily = CairoFont, fontSize = 10.sp, color = GoldPrimary)
+                                }
+                            }
                         }
                         IconButton(
                             onClick = {
@@ -631,6 +667,40 @@ fun ReelPublishScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.05f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("جودة الفيديو (وضع الأثر)", fontFamily = CairoFont, fontSize = 12.sp, color = Color.White)
+                        Row {
+                            TextButton(onClick = { quality = "low" }, colors = ButtonDefaults.textButtonColors(contentColor = if (quality == "low") GoldPrimary else Color.Gray)) { Text("منخفضة") }
+                            TextButton(onClick = { quality = "high" }, colors = ButtonDefaults.textButtonColors(contentColor = if (quality == "high") GoldPrimary else Color.Gray)) { Text("عالية") }
+                        }
+                    }
+                }
+                
+                // Scheduling Placeholder
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.05f),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth().clickable { /* Show Picker */ }
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Event, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("جدولة النشر: ${publishAt ?: "الآن"}", fontFamily = CairoFont, fontSize = 12.sp, color = Color.White)
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
@@ -828,6 +898,9 @@ fun ReelPublishScreen(
                                     category = selectedCategory,
                                     isFeaturedByDev = isFeaturedByDev,
                                     isSilentSeed = isSilentSeed,
+                                    publishAt = publishAt,
+                                    expiryAt = expiryAt,
+                                    quality = quality,
                                     onProgressUpdate = { progressText ->
                                         publishProgressText = progressText
                                     },

@@ -2,9 +2,17 @@ package com.qabas.app
 
 import android.content.Context
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import android.util.Log
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.ai.type.Schema
+import com.qabas.app.SupabaseServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -234,6 +242,9 @@ object ReelPublishManager {
         category: String,
         isFeaturedByDev: Boolean = false,
         isSilentSeed: Boolean = false,
+        publishAt: String? = null,
+        expiryAt: String? = null,
+        quality: String = "high",
         userAvatar: String? = null,
         onProgressUpdate: (String) -> Unit = {},
         onBytesProgress: (sentBytes: Long, totalBytes: Long, phase: UploadPhase) -> Unit = { _, _, _ -> }
@@ -357,7 +368,10 @@ object ReelPublishManager {
                 thumbnailUrl = finalThumbUrl,
                 tags = finalTags,
                 userName = userName,
-                userAvatar = resolvedAvatar
+                userAvatar = resolvedAvatar,
+                publishAt = publishAt,
+                expiryAt = expiryAt,
+                quality = quality
             )
         }.getOrNull()
 
@@ -449,10 +463,54 @@ object ReelPublishManager {
     }
 
     /**
-     * [صلاحية خاصة للمطور] تفعيل / حظر مقطع من الظهور للعامة
+     * تحليل الفيديو باستخدام Gemini لاستخراج عنوان ووصف تلقائي
      */
-    suspend fun toggleReelActiveAsDev(context: Context, email: String?, reelId: String, isActive: Boolean): Boolean {
-        if (!isDeveloperUser(context, email)) return false
-        return SupabaseServices.Profiles.toggleReelActive(reelId, isActive)
+    suspend fun analyzeVideoWithAI(context: Context, videoUri: Uri): Pair<String, String>? = withContext(Dispatchers.IO) {
+        runCatching {
+            val model = Firebase.ai.generativeModel(
+                modelName = "gemini-3.8-flash",
+                generationConfig = generationConfig {
+                    responseMimeType = "application/json"
+                    responseSchema = Schema.obj(
+                        properties = mapOf(
+                            "title" to Schema.string(description = "Suggested title for the religious/spiritual video"),
+                            "description" to Schema.string(description = "Brief spiritual description or Quranic verse extraction")
+                        )
+                    )
+                }
+            )
+
+            // استخراج لقطة من البداية للتحليل
+            val bitmap = extractFrameAt(context, videoUri, 1000) ?: return@runCatching null
+            
+            val response = withTimeoutOrNull(30_000L) {
+                model.generateContent(
+                    content {
+                        image(bitmap)
+                        text("حلل هذا المقطع الديني واستخرج له عنواناً مناسباً ووصفاً قصيراً (أو الآية التي تُتلى فيه إن وجدت). أجب باللغة العربية حصراً وبصيغة JSON.")
+                    }
+                )
+            }
+            
+            val jsonText = response?.text ?: return@runCatching null
+            val json = org.json.JSONObject(jsonText)
+            Pair(json.getString("title"), json.getString("description"))
+        }.onFailure { Log.e(TAG, "AI analysis failed: ${it.message}") }.getOrNull()
+    }
+
+    /**
+     * استخراج لقطة من الفيديو عند وقت معين (بالميلي ثانية)
+     */
+    fun extractFrameAt(context: Context, videoUri: Uri, timeMs: Long): android.graphics.Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, videoUri)
+            retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        } catch (e: Exception) {
+            Log.e(TAG, "Frame extraction failed: ${e.message}")
+            null
+        } finally {
+            try { retriever.release() } catch (e: Exception) {}
+        }
     }
 }

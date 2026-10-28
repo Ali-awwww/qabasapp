@@ -1099,7 +1099,11 @@ object SupabaseServices {
             thumbnailUrl: String?,
             tags: List<String>,
             userName: String = "صانع محتوى",
-            userAvatar: String? = null
+            userAvatar: String? = null,
+            publishAt: String? = null,
+            expiryAt: String? = null,
+            quality: String = "high",
+            aiAnalysis: String? = null
         ): ReelRow? = runCatching {
             val client = client ?: return null
             val row = ReelRow(
@@ -1112,6 +1116,10 @@ object SupabaseServices {
                 videoUrl = videoUrl,
                 thumbnailUrl = thumbnailUrl,
                 tags = tags,
+                publishAt = publishAt ?: java.time.Instant.now().toString(),
+                expiryAt = expiryAt,
+                quality = quality,
+                aiAnalysis = aiAnalysis,
                 createdAt = java.time.Instant.now().toString()
             )
             // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل
@@ -1672,6 +1680,10 @@ object SupabaseServices {
         @SerialName("shares_count") val sharesCount: Int = 0,
         @SerialName("views_count") val viewsCount: Int = 0,
         @SerialName("is_active") val isActive: Boolean = true,
+        @SerialName("publish_at") val publishAt: String? = null,
+        @SerialName("expiry_at") val expiryAt: String? = null,
+        @SerialName("quality") val quality: String = "high",
+        @SerialName("ai_analysis") val aiAnalysis: String? = null,
         @SerialName("created_at") val createdAt: String? = null
     )
 

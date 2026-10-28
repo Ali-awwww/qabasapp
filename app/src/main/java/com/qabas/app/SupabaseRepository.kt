@@ -32,6 +32,7 @@ import kotlinx.serialization.json.JsonPrimitive
 sealed class AuthState {
     object Loading : AuthState()
     object Unauthenticated : AuthState()
+    data class Guest(val displayName: String = "ضيف قبس") : AuthState()
     data class Authenticated(
         val userRow: SupabaseServices.UserRow,
         val session: UserSession? = null,
@@ -93,7 +94,7 @@ class SupabaseRepository(
     }
 
     /**
-     * Explicitly sets the reactive auth state to Authenticated for local, guest, or fallback sessions.
+     * Explicitly sets the reactive auth state to Authenticated for local or fallback authenticated sessions.
      */
     fun emitLocalAuthenticated(email: String, name: String? = null, isAdmin: Boolean = false) {
         val uid = getCurrentUserId() ?: email.lowercase(java.util.Locale.ROOT)
@@ -109,11 +110,22 @@ class SupabaseRepository(
         )
     }
 
+    /**
+     * Explicitly sets the reactive auth state to Guest Mode (unauthenticated browsing session).
+     */
+    fun emitGuestMode(displayName: String = "ضيف قبس") {
+        _authState.value = AuthState.Guest(displayName)
+    }
+
     private fun checkLocalAuthFallback() {
         val context = AppServices.appContext
         val prefs = runCatching { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }.getOrNull()
+        val isGuest = prefs?.getBoolean("is_guest", false) ?: false
         val isLoggedInLocal = prefs?.getBoolean("is_logged_in", false) ?: false
-        if (isLoggedInLocal) {
+        if (isGuest) {
+            val name = prefs?.getString("user_name", "ضيف قبس") ?: "ضيف قبس"
+            emitGuestMode(name)
+        } else if (isLoggedInLocal) {
             val email = prefs?.getString("user_email", "") ?: "user@qabas.app"
             val name = prefs?.getString("user_name", "") ?: email.substringBefore("@")
             val isAdmin = prefs?.getBoolean("is_admin", false) ?: false

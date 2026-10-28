@@ -42,6 +42,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -49,8 +52,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 🛸 مركز التحكم السيبراني للأذونات وحماية النظام
@@ -163,16 +168,91 @@ fun AppPermissionsHubScreen(
         label = "radar_rot"
     )
 
-    // Waveform simulation when mic is tested
+    // Real hardware microphone capture and RMS signal level testing (No fake simulation)
     LaunchedEffect(isTestingMic) {
         if (isTestingMic) {
-            for (i in 1..20) {
-                testWaveformLevel = (0.2f + (0.8f * kotlin.random.Random.nextFloat()))
-                delay(120)
+            val hasPerm = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasPerm) {
+                isTestingMic = false
+                testWaveformLevel = 0f
+                Toast.makeText(context, "إذن الميكروفون غير ممنوح، يرجى تفعيله أولاً ⚠️", Toast.LENGTH_SHORT).show()
+                return@LaunchedEffect
             }
+
+            var maxAmplitude = 0f
+            var sampleSuccess = false
+
+            withContext(Dispatchers.IO) {
+                val sampleRate = 16000
+                val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+                val minBufSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+                if (minBufSize > 0) {
+                    var audioRecord: AudioRecord? = null
+                    try {
+                        audioRecord = AudioRecord(
+                            MediaRecorder.AudioSource.MIC,
+                            sampleRate,
+                            channelConfig,
+                            audioFormat,
+                            minBufSize * 2
+                        )
+
+                        if (audioRecord.state == AudioRecord.STATE_INITIALIZED) {
+                            audioRecord.startRecording()
+                            val buffer = ShortArray(minBufSize)
+
+                            // Sample real hardware buffers for 20 frames (~2.4s)
+                            for (step in 1..20) {
+                                val readCount = audioRecord.read(buffer, 0, buffer.size)
+                                if (readCount > 0) {
+                                    var sumSquare = 0.0
+                                    for (i in 0 until readCount) {
+                                        val sample = buffer[i].toDouble()
+                                        sumSquare += sample * sample
+                                    }
+                                    val rms = kotlin.math.sqrt(sumSquare / readCount).toFloat()
+                                    val normalizedLevel = (rms / 6000f).coerceIn(0.05f, 1.0f)
+                                    if (normalizedLevel > maxAmplitude) maxAmplitude = normalizedLevel
+                                    withContext(Dispatchers.Main) {
+                                        testWaveformLevel = normalizedLevel
+                                    }
+                                    sampleSuccess = true
+                                }
+                                delay(120)
+                            }
+                            audioRecord.stop()
+                        }
+                    } catch (e: SecurityException) {
+                        sampleSuccess = false
+                    } catch (e: Exception) {
+                        sampleSuccess = false
+                    } finally {
+                        try {
+                            audioRecord?.release()
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+
             isTestingMic = false
             testWaveformLevel = 0f
-            Toast.makeText(context, "تم اختبار استجابة الميكروفون بنجاح 🎙️", Toast.LENGTH_SHORT).show()
+
+            if (sampleSuccess) {
+                val percent = (maxAmplitude * 100).toInt()
+                Toast.makeText(
+                    context,
+                    "تم التحقق من استجابة الميكروفون الفعلي بنجاح 🎙️ (مستوى الإشارة: $percent%)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(context, "تعذر تشغيل الميكروفون أو العتاد مستخدم من تطبيق آخر ⚠️", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

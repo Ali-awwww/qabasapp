@@ -118,7 +118,8 @@ object ReelSafetyGuardrails {
 
     /**
      * التحقق الصارم من رابط الفيديو:
-     * يُشترط أن يكون بروتوكول https:// أو http:// صالح وغير قابل للحقن
+     * يُشترط أن يكون مشفراً عبر بروتوكول https:// حصراً (يُمنع http غير المشفر منعاً باتاً لمنع هجمات MiTM والتنصت)
+     * أو مسار موارد أندرويد محلي موثوق (android.resource / asset).
      */
     fun isValidSecureVideoUrl(url: String): Boolean {
         if (url.isBlank()) return false
@@ -126,8 +127,8 @@ object ReelSafetyGuardrails {
             val uri = Uri.parse(url)
             val scheme = uri.scheme?.lowercase()
             val host = uri.host
-            (scheme == "https" || scheme == "http" || scheme == "android.resource" || scheme == "asset") &&
-                (scheme != "https" && scheme != "http" || !host.isNullOrBlank()) &&
+            (scheme == "https" || scheme == "android.resource" || scheme == "asset") &&
+                (scheme != "https" || !host.isNullOrBlank()) &&
                 !url.contains("javascript:", ignoreCase = true) &&
                 !url.contains("file://", ignoreCase = true) &&
                 !url.contains("<script", ignoreCase = true)
@@ -135,14 +136,15 @@ object ReelSafetyGuardrails {
     }
 
     /**
-     * التحقق من سلامة رابط الصورة المصغرة
+     * التحقق من سلامة رابط الصورة المصغرة:
+     * يشترط أن يكون مشفراً عبر https:// حصراً ومضافاً لمضيف صالح.
      */
     fun isValidImageUrl(url: String): Boolean {
         if (url.isBlank()) return false
         return runCatching {
             val uri = Uri.parse(url)
             val scheme = uri.scheme?.lowercase()
-            (scheme == "https" || scheme == "http") && !uri.host.isNullOrBlank()
+            scheme == "https" && !uri.host.isNullOrBlank()
         }.getOrDefault(false)
     }
 

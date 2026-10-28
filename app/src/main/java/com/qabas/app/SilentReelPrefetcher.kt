@@ -22,7 +22,10 @@ object SilentReelPrefetcher {
         val downloadedBytes: Long = 0,
         val totalBytes: Long = 0,
         val speedBps: Long = 0,
-        val storagePath: String = ""
+        val storagePath: String = "",
+        val lastMessage: String = "Idle",
+        val downloadedCount: Int = 0,
+        val totalStorageSize: Long = 0
     )
 
     private val _syncState = MutableStateFlow(PrefetchState())
@@ -36,28 +39,52 @@ object SilentReelPrefetcher {
         
         syncJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
-                try {
-                    performSync(context)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Sync loop error: ${e.message}")
-                }
-                // فحص كل 15 دقيقة (أو حسب الحاجة)
+                performSync(context)
+                // فحص كل 15 دقيقة
                 delay(15 * 60 * 1000)
             }
         }
     }
 
+    /** إجبار المزامنة الآن */
+    fun forceSync(context: Context) {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope.launch {
+            performSync(context)
+        }
+    }
+
     private suspend fun performSync(context: Context) {
-        val remoteSeeds = SupabaseServices.Profiles.getSilentSeedReels() ?: return
-        if (remoteSeeds.isEmpty()) return
+        _syncState.value = _syncState.value.copy(
+            lastMessage = "Checking Cloud...",
+            downloadedCount = SilentReelStorageManager.getDownloadedCount(context),
+            totalStorageSize = SilentReelStorageManager.getTotalStorageSize(context)
+        )
+        
+        val remoteSeeds = SupabaseServices.Profiles.getSilentSeedReels() ?: run {
+            _syncState.value = _syncState.value.copy(lastMessage = "Cloud Fetch Failed")
+            return
+        }
+        
+        if (remoteSeeds.isEmpty()) {
+            _syncState.value = _syncState.value.copy(lastMessage = "No Silent Seeds Found")
+            return
+        }
 
         val downloaded = SilentReelStorageManager.getDownloadedReels(context).toMutableList()
         val toDownload = remoteSeeds.filter { !SilentReelStorageManager.isReelDownloaded(context, it.id) }
 
         if (toDownload.isEmpty()) {
-            _syncState.value = PrefetchState(isSyncing = false, storagePath = context.filesDir.absolutePath)
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false, 
+                lastMessage = "All Synced (${remoteSeeds.size} reels)",
+                downloadedCount = remoteSeeds.size,
+                totalStorageSize = SilentReelStorageManager.getTotalStorageSize(context)
+            )
             return
         }
+
+        _syncState.value = _syncState.value.copy(lastMessage = "Syncing ${toDownload.size} new reels...")
 
         toDownload.forEach { reel ->
             downloadVideo(context, reel)
@@ -65,7 +92,12 @@ object SilentReelPrefetcher {
             SilentReelStorageManager.saveReelMetadata(context, downloaded)
         }
         
-        _syncState.value = PrefetchState(isSyncing = false, storagePath = context.filesDir.absolutePath)
+        _syncState.value = _syncState.value.copy(
+            isSyncing = false, 
+            lastMessage = "Sync Complete",
+            downloadedCount = SilentReelStorageManager.getDownloadedCount(context),
+            totalStorageSize = SilentReelStorageManager.getTotalStorageSize(context)
+        )
     }
 
     private suspend fun downloadVideo(context: Context, reel: ReelRow) {

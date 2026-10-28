@@ -486,26 +486,54 @@ object DownloadsHubManager {
             ))
 
             try {
-                // إذا كان الرابط محلياً أو assets، نسخه مباشرة
+                // فحص أمني: منع تضمين الملفات المحلية العشوائية (LFI / Path Traversal)
                 if (videoUrl.startsWith("file://") || videoUrl.startsWith("/")) {
-                    val src = File(videoUrl.removePrefix("file://"))
-                    if (src.exists()) {
-                        src.copyTo(destFile, overwrite = true)
-                        val item = DownloadedReelItem(
-                            id = reelId,
-                            title = title,
-                            author = author,
-                            videoUrl = videoUrl,
-                            localFilePath = destFile.absolutePath,
-                            thumbnailUrl = thumbnailUrl,
-                            fileSizeBytes = destFile.length()
-                        )
-                        addDownloadedReel(context, item)
-                        _activeReelDownloads.value = _activeReelDownloads.value - reelId
-                        refreshStorageMetrics(context)
-                        withContext(Dispatchers.Main) { onComplete?.invoke(true) }
+                    val rawPath = videoUrl.removePrefix("file://")
+                    val src = File(rawPath)
+                    val canonicalSrc = runCatching { src.canonicalFile }.getOrNull()
+
+                    // قائمة المجلدات المسموح بنسخ الريلز منها حصراً (مجلدات التطبيق الداخلية الآمنة)
+                    val allowedDirs = listOf(
+                        File(context.filesDir, "published_reels").canonicalFile,
+                        File(context.filesDir, "silent_reels").canonicalFile,
+                        getReelsDirectory(context).canonicalFile,
+                        context.cacheDir.canonicalFile
+                    )
+
+                    val isWhitelisted = canonicalSrc != null && allowedDirs.any { allowed ->
+                        canonicalSrc.path.startsWith(allowed.path + File.separator) || canonicalSrc.path == allowed.path
+                    }
+
+                    if (!isWhitelisted || canonicalSrc == null || !canonicalSrc.exists()) {
+                        val err = "تم رفض المسار: مسار محلي غير مصرح به أمنياً."
+                        updateDownloadError(reelId, title, err)
+                        withContext(Dispatchers.Main) { onComplete?.invoke(false) }
                         return@launch
                     }
+
+                    canonicalSrc.copyTo(destFile, overwrite = true)
+                    val item = DownloadedReelItem(
+                        id = reelId,
+                        title = title,
+                        author = author,
+                        videoUrl = videoUrl,
+                        localFilePath = destFile.absolutePath,
+                        thumbnailUrl = thumbnailUrl,
+                        fileSizeBytes = destFile.length()
+                    )
+                    addDownloadedReel(context, item)
+                    _activeReelDownloads.value = _activeReelDownloads.value - reelId
+                    refreshStorageMetrics(context)
+                    withContext(Dispatchers.Main) { onComplete?.invoke(true) }
+                    return@launch
+                }
+
+                // الروابط الشبكية: يُشترط أن تبدأ بـ https:// حصراً لضمان التشفير والنقل الآمن
+                if (!videoUrl.startsWith("https://", ignoreCase = true)) {
+                    val err = "تم حظر الرابط: يُشترط استخدام رابط مشفر وآمن (HTTPS)."
+                    updateDownloadError(reelId, title, err)
+                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
+                    return@launch
                 }
 
                 val request = Request.Builder().url(videoUrl).build()

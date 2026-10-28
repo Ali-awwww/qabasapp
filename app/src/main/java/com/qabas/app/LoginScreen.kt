@@ -898,7 +898,7 @@ fun LoginScreen(
                 onClick = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit().apply {
-                        putBoolean("is_logged_in", true)
+                        putBoolean("is_logged_in", false) // Guest mode is strictly unauthenticated
                         putBoolean("is_guest", true)
                         putBoolean("is_admin", false)
                         putBoolean("is_developer", false)
@@ -911,14 +911,10 @@ fun LoginScreen(
                         remove("user_name_with_account")
                         apply()
                     }
-                    SupabaseRepository.getInstance().emitLocalAuthenticated(
-                        email = "guest@qabas.studio",
-                        name = "ضيف قبس",
-                        isAdmin = false
-                    )
+                    SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
                     Toast.makeText(
                         context,
-                        "تم الدخول كضيف 👤. زر البلاغات البرمجية ومحادثة المطور محجوبان ومخصصان للحسابات الموثقة.",
+                        "تم الدخول كضيف 👤. وضع الضيف محدود الصلاحيات ومخصص للتصفح فقط بدون جلسة موثقة.",
                         Toast.LENGTH_LONG
                     ).show()
                     onLoginSuccess(false)
@@ -985,9 +981,11 @@ fun LoginScreen(
                     onNavigateToRegister()
                 },
                 onQuickRegister = {
-                    val passToUse = unregisteredTargetPassword.ifBlank { "Qabas#2026" }
-                    if (passToUse.length < 6) {
-                        Toast.makeText(context, "كلمة المرور يجب أن تكون 6 خانات على الأقل للإنشاء السريع أو انتقل لشاشة التسجيل", Toast.LENGTH_LONG).show()
+                    val passToUse = unregisteredTargetPassword.trim()
+                    if (passToUse.isBlank()) {
+                        Toast.makeText(context, "يرجى كتابة كلمة مرور جديدة لحسابك، أو الانتقال لشاشة التسجيل الكاملة ⚠️", Toast.LENGTH_LONG).show()
+                    } else if (passToUse.length < 8) {
+                        Toast.makeText(context, "يجب أن تتكون كلمة المرور من 8 خانات على الأقل لضمان أمان الحساب", Toast.LENGTH_LONG).show()
                     } else {
                         isQuickRegistering = true
                         coroutineScope.launch {

@@ -11,7 +11,10 @@ import java.net.Socket
 
 class LocalApiServer(
     private val context: Context,
-    private val apiKeyProvider: () -> String = { "QABAS_API_KEY_123" }
+    private val apiKeyProvider: () -> String = {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getString("user_api_key", null) ?: ""
+    }
 ) {
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
@@ -22,7 +25,9 @@ class LocalApiServer(
         isRunning = true
         scope.launch {
             try {
-                serverSocket = ServerSocket(port)
+                // Bind exclusively to 127.0.0.1 (Loopback) to prevent exposing API to local network/Wi-Fi
+                val loopback = java.net.InetAddress.getByName("127.0.0.1")
+                serverSocket = ServerSocket(port, 50, loopback)
                 while (isRunning) {
                     val socket = serverSocket?.accept()
                     socket?.let { handleClient(it) }
@@ -42,6 +47,12 @@ class LocalApiServer(
     private fun handleClient(socket: Socket) {
         scope.launch(Dispatchers.IO) {
             try {
+                // Ensure connection is coming strictly from localhost
+                if (!socket.inetAddress.isLoopbackAddress) {
+                    socket.close()
+                    return@launch
+                }
+
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
                 val writer = OutputStreamWriter(socket.getOutputStream())
 
@@ -65,8 +76,9 @@ class LocalApiServer(
                     }
                 }
 
-                if (authHeader != "Bearer ${apiKeyProvider()}") {
-                    sendResponse(writer, 401, JSONObject().put("error", "Unauthorized: Invalid API Key").toString())
+                val expectedKey = apiKeyProvider().trim()
+                if (expectedKey.isBlank() || authHeader != "Bearer $expectedKey") {
+                    sendResponse(writer, 401, JSONObject().put("error", "Unauthorized: Valid API Key required").toString())
                     return@launch
                 }
 

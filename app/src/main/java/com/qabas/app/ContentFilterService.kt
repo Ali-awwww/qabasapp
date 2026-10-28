@@ -62,28 +62,24 @@ object ContentFilterService {
 
         val lower = trimmed.lowercase()
 
-        // 0. Fast-pass: clear Islamic / Quranic / Prophetic content is always APPROPRIATE
-        val islamicSafeSignals = listOf(
-            "الله", "رسول", "النبي", "صلى الله", "صلوا عليه", "ملائكته", "يصلون على",
-            "القرآن", "آية", "سورة", "حديث", "الصلاة", "الدعاء", "استغفار",
-            "إن الله", "يا أيها الذين آمنوا", "سبحان", "الحمد لله", "لا إله إلا",
-            "بسم الله", "آمين", "اللهم", "رضي الله"
-        )
-        if (islamicSafeSignals.any { lower.contains(it) }) {
-            val positiveCount = positiveIslamicKeywords.count { lower.contains(it.lowercase()) }
-            return ContentInspectionResult(
-                verdict = GuardVerdict.APPROPRIATE,
-                score = (90 + (positiveCount * 2)).coerceAtMost(100),
-                title = "محتوى إسلامي مناسب ومجاز",
-                reason = "نص دعوي/قرآني/نبوي منضبط ومناسب للإنتاج والنشر.",
-                warnings = emptyList(),
-                suggestions = listOf("أضف خطافاً سريعاً في أول 3 ثوان لجذب انتباه المشاهد."),
-                improvedScript = trimmed
-            )
+        // Helper to normalize Arabic diacritics and letters for robust matching
+        fun normalizeArabic(input: String): String {
+            return input
+                .replace(Regex("[\u064B-\u065F\u0670]"), "") // Remove tashkeel / diacritics
+                .replace("ـ", "") // Remove tatweel
+                .replace(Regex("[إأآ]"), "ا")
+                .replace("ة", "ه")
+                .replace("ى", "ي")
+                .lowercase()
         }
 
-        // 1. Check for severe violations (REJECTED)
-        val matchedForbidden = explicitForbidden.filter { lower.contains(it.lowercase()) }
+        val normalized = normalizeArabic(trimmed)
+
+        // 1. Mandatory Security Check: Check for severe violations (REJECTED) FIRST
+        // This prevents malicious/profane text containing Islamic terms from bypassing security.
+        val matchedForbidden = explicitForbidden.filter { 
+            lower.contains(it.lowercase()) || normalized.contains(normalizeArabic(it)) 
+        }
         if (matchedForbidden.isNotEmpty()) {
             return ContentInspectionResult(
                 verdict = GuardVerdict.REJECTED,
@@ -97,7 +93,9 @@ object ContentFilterService {
         }
 
         // 2. Check for suspicious / superstitious / aggressive patterns (NEEDS_REVIEW)
-        val matchedReview = reviewTriggers.filter { lower.contains(it.lowercase()) }
+        val matchedReview = reviewTriggers.filter { 
+            lower.contains(it.lowercase()) || normalized.contains(normalizeArabic(it)) 
+        }
         if (matchedReview.isNotEmpty()) {
             return ContentInspectionResult(
                 verdict = GuardVerdict.NEEDS_REVIEW,
@@ -114,20 +112,30 @@ object ContentFilterService {
             )
         }
 
-        // 3. Positive evaluation (APPROPRIATE)
-        val positiveCount = positiveIslamicKeywords.count { lower.contains(it.lowercase()) }
-        val score = (85 + (positiveCount * 3)).coerceAtMost(100)
+        // 3. Positive Islamic safe signals & keywords evaluation (APPROPRIATE)
+        // Evaluated ONLY AFTER confirming the text is completely free of violations and review triggers.
+        val islamicSafeSignals = listOf(
+            "الله", "رسول", "النبي", "صلى الله", "صلوا عليه", "ملائكته", "يصلون على",
+            "القرآن", "آية", "سورة", "حديث", "الصلاة", "الدعاء", "استغفار",
+            "إن الله", "يا أيها الذين آمنوا", "سبحان", "الحمد لله", "لا إله إلا",
+            "بسم الله", "آمين", "اللهم", "رضي الله"
+        )
+        val hasIslamicSignals = islamicSafeSignals.any { lower.contains(it) || normalized.contains(normalizeArabic(it)) }
+        val positiveCount = positiveIslamicKeywords.count { lower.contains(it.lowercase()) || normalized.contains(normalizeArabic(it)) }
+
+        val score = if (hasIslamicSignals) {
+            (90 + (positiveCount * 2)).coerceAtMost(100)
+        } else {
+            (85 + (positiveCount * 3)).coerceAtMost(100)
+        }
 
         return ContentInspectionResult(
             verdict = GuardVerdict.APPROPRIATE,
             score = score,
-            title = "محتوى مناسب ومطابق للمعايير الدعوية",
-            reason = "النص منضبط وخالٍ من المحاذير، ومناسب للإنتاج والنشر في المنصات الإسلامية.",
+            title = if (hasIslamicSignals) "محتوى إسلامي مناسب ومجاز" else "محتوى مناسب ومطابق للمعايير الدعوية",
+            reason = if (hasIslamicSignals) "نص دعوي/قرآني/نبوي منضبط ومناسب للإنتاج والنشر." else "النص منضبط وخالٍ من المحاذير، ومناسب للإنتاج والنشر في المنصات الإسلامية.",
             warnings = emptyList(),
-            suggestions = listOf(
-                "احرص على إتقان الإلقاء الصوتي واختيار لقطات مرئية معبرة وذات جودة عالية.",
-                "أضف خطافاً سريعاً في أول 3 ثوان لجذب انتباه المشاهد."
-            ),
+            suggestions = listOf("أضف خطافاً سريعاً في أول 3 ثوان لجذب انتباه المشاهد."),
             improvedScript = trimmed
         )
     }

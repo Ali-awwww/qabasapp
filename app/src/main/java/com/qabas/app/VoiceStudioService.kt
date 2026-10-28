@@ -82,7 +82,7 @@ object VoiceStudioService {
     private const val TAG = "VoiceStudioService"
     const val PREFS_KEY_SERVER_URL = "voice_studio_server_url"
     const val PREFS_KEY_CLONED_VOICES = "voice_studio_cloned_profiles"
-    const val DEFAULT_SERVER_URL = "http://10.0.2.2:8000" // المنفذ القياسي لخادم VoiceStudio
+    const val DEFAULT_SERVER_URL = "https://voice.qabas.studio" // المنفذ القياسي المشفر لخادم VoiceStudio
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)

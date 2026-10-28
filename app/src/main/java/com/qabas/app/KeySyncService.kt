@@ -15,11 +15,16 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
 
 object KeySyncService {
@@ -49,25 +54,45 @@ object KeySyncService {
         "pexels_key", "pixabay_key"
     )
 
-    private fun getOrCreateMasterKey(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var key = prefs.getString(ENCRYPTION_KEY_PREF, null)
-        if (key == null) {
-            key = buildString {
-                val random = java.security.SecureRandom()
-                val bytes = ByteArray(16)
-                random.nextBytes(bytes)
-                bytes.forEach { append("%02x".format(it)) }
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val KEY_ALIAS = "qabas_keysync_master_v2"
+
+    private fun getOrCreateSecretKey(context: Context): SecretKey {
+        return try {
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+            if (!keyStore.containsAlias(KEY_ALIAS)) {
+                val keyGen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+                val spec = KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+                keyGen.init(spec)
+                keyGen.generateKey()
+            } else {
+                val entry = keyStore.getEntry(KEY_ALIAS, null) as KeyStore.SecretKeyEntry
+                entry.secretKey
             }
-            prefs.edit().putString(ENCRYPTION_KEY_PREF, key).apply()
+        } catch (e: Exception) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            var salt = prefs.getString("key_sync_salt", null)
+            if (salt == null) {
+                val bytes = ByteArray(32)
+                SecureRandom().nextBytes(bytes)
+                salt = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                prefs.edit().putString("key_sync_salt", salt).apply()
+            }
+            val keyBytes = MessageDigest.getInstance("SHA-256").digest(salt.toByteArray(Charsets.UTF_8))
+            SecretKeySpec(keyBytes, "AES")
         }
-        return key
     }
 
-    private fun encrypt(value: String, masterKey: String): String {
+    private fun encrypt(value: String, context: Context): String? {
         return try {
-            val keyBytes = masterKey.toByteArray(Charsets.UTF_8).copyOf(16)
-            val secretKey = SecretKeySpec(keyBytes, "AES")
+            val secretKey = getOrCreateSecretKey(context)
             val iv = ByteArray(GCM_IV_LENGTH_BYTES)
             SecureRandom().nextBytes(iv)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -77,40 +102,30 @@ object KeySyncService {
             val payload = iv + ciphertext
             Base64.encodeToString(payload, Base64.NO_WRAP)
         } catch (e: Exception) {
-            Log.w(TAG, "Encrypt failed, using plain base64", e)
-            Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            Log.e(TAG, "Encrypt failed; refusing plaintext fallback", e)
+            null
         }
     }
 
-    private fun decrypt(encrypted: String, masterKey: String): String {
+    private fun decrypt(encrypted: String, context: Context): String {
         return try {
-            val keyBytes = masterKey.toByteArray(Charsets.UTF_8).copyOf(16)
-            val secretKey = SecretKeySpec(keyBytes, "AES")
+            val secretKey = getOrCreateSecretKey(context)
             val decoded = Base64.decode(encrypted, Base64.NO_WRAP)
 
-            // Preferred format: [12-byte IV][ciphertext+tag]
             if (decoded.size > GCM_IV_LENGTH_BYTES) {
-                try {
-                    val iv = decoded.copyOfRange(0, GCM_IV_LENGTH_BYTES)
-                    val ciphertext = decoded.copyOfRange(GCM_IV_LENGTH_BYTES, decoded.size)
-                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                    val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
-                    cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
-                    val decrypted = cipher.doFinal(ciphertext)
-                    return String(decrypted, Charsets.UTF_8)
-                } catch (_: Exception) {
-                    // Not a valid AES/GCM payload — fall through to the pre-GCM base64 format.
-                }
+                val iv = decoded.copyOfRange(0, GCM_IV_LENGTH_BYTES)
+                val ciphertext = decoded.copyOfRange(GCM_IV_LENGTH_BYTES, decoded.size)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
+                val decrypted = cipher.doFinal(ciphertext)
+                String(decrypted, Charsets.UTF_8)
+            } else {
+                ""
             }
-
-            // Legacy AES/ECB fallback removed: ECB is a weak cipher mode and carries
-            // no integrity protection (CodeQL: java/weak-cryptographic-algorithm).
-            throw IllegalStateException("Unsupported ciphertext format")
         } catch (e: Exception) {
-            Log.w(TAG, "Decrypt failed, trying plain base64", e)
-            try {
-                String(Base64.decode(encrypted, Base64.NO_WRAP), Charsets.UTF_8)
-            } catch (_: Exception) { "" }
+            Log.e(TAG, "Decrypt failed", e)
+            ""
         }
     }
 
@@ -133,7 +148,6 @@ object KeySyncService {
         scope.launch {
             try {
                 val keyPrefs = AgentPrefs.instance(context)
-                val masterKey = getOrCreateMasterKey(context)
                 val userId = getUserId(context)
                 val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                     .format(java.util.Date())
@@ -141,12 +155,15 @@ object KeySyncService {
                 val keysToSync = KEY_FIELDS.mapNotNull { field ->
                     val value = keyPrefs.getString(field, "") ?: ""
                     if (value.isNotBlank() && !value.startsWith("your_")) {
-                        mapOf(
-                            "user_id" to userId,
-                            "service" to field,
-                            "encrypted_value" to encrypt(value, masterKey),
-                            "updated_at" to timestamp
-                        )
+                        val enc = encrypt(value, context)
+                        if (enc != null) {
+                            mapOf(
+                                "user_id" to userId,
+                                "service" to field,
+                                "encrypted_value" to enc,
+                                "updated_at" to timestamp
+                            )
+                        } else null
                     } else null
                 }
 
@@ -188,7 +205,6 @@ object KeySyncService {
         scope.launch {
             try {
                 val keyPrefs = AgentPrefs.instance(context)
-                val masterKey = getOrCreateMasterKey(context)
                 val userId = getUserId(context)
 
                 val result = SupabaseConfig.client.from(SYNC_TABLE).select {
@@ -204,7 +220,7 @@ object KeySyncService {
                 var imported = 0
                 val editor = keyPrefs.edit()
                 result.forEach { synced ->
-                    val decrypted = decrypt(synced.encrypted_value, masterKey)
+                    val decrypted = decrypt(synced.encrypted_value, context)
                     if (decrypted.isNotBlank() && synced.service in KEY_FIELDS) {
                         editor.putString(synced.service, decrypted)
                         imported++

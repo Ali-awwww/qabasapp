@@ -529,3 +529,32 @@ CREATE POLICY "Allow public update on storage objects" ON storage.objects FOR UP
 
 DROP POLICY IF EXISTS "Allow public delete on storage objects" ON storage.objects;
 CREATE POLICY "Allow public delete on storage objects" ON storage.objects FOR DELETE USING (true);
+
+-- ==============================================================================
+-- 9. جدول مفاتيح API المشفرة للمزامنة (user_api_keys)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.user_api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    service TEXT NOT NULL,
+    encrypted_value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    UNIQUE(user_id, service)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_lookup ON public.user_api_keys (user_id, service);
+
+ALTER TABLE public.user_api_keys ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own api keys" ON public.user_api_keys;
+CREATE POLICY "Users can read own api keys"
+    ON public.user_api_keys
+    FOR SELECT
+    USING (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''));
+
+DROP POLICY IF EXISTS "Users can insert or update own api keys" ON public.user_api_keys;
+CREATE POLICY "Users can insert or update own api keys"
+    ON public.user_api_keys
+    FOR ALL
+    USING (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''))
+    WITH CHECK (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''));

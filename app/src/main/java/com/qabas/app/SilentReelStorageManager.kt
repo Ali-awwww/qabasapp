@@ -74,6 +74,11 @@ object SilentReelStorageManager {
     fun getTotalStorageSize(context: Context): Long {
         return getSilentDir(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
+
+    /** عدد المقاطع المحملة */
+    fun getDownloadedCount(context: Context): Int {
+        return getSilentDir(context).listFiles { _, name -> name.endsWith(".mp4") }?.size ?: 0
+    }
     
     /** حذف مقطع معين */
     fun deleteReel(context: Context, reelId: String) {
@@ -82,6 +87,14 @@ object SilentReelStorageManager {
             if (file.exists()) file.delete()
             val current = getDownloadedReels(context).filterNot { it.id == reelId }
             saveReelMetadata(context, current)
+        }
+    }
+
+    /** تفريغ كل محتويات وضع الأثر */
+    fun clearAllSilentReels(context: Context) {
+        runCatching {
+            getSilentDir(context).deleteRecursively()
+            getSilentDir(context).mkdirs()
         }
     }
 }

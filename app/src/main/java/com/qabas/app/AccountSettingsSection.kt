@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -234,17 +235,23 @@ fun AccountSettingsSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("الرتبة الإدارية", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("تحديد ما إذا كان الحساب الحالي لديه صلاحيات إدارية.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("الرتبة الإدارية والتحقق", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("الصلاحيات الإدارية مرتبطة حصرياً ببيانات الاعتماد السحابية الموثقة.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
-            Switch(
-                checked = isAdmin,
-                onCheckedChange = {
-                    isAdmin = it
-                    prefs.edit().putBoolean("is_admin", it).apply()
-                },
-                colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldSecondary)
-            )
+            Surface(
+                color = if (isAdmin) GoldPrimary.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, if (isAdmin) GoldPrimary else Color.White.copy(alpha = 0.2f))
+            ) {
+                Text(
+                    text = if (isAdmin) "مسؤول (Admin) 🛡️" else "مستخدم قياسي 👤",
+                    color = if (isAdmin) GoldPrimary else Color.White.copy(alpha = 0.8f),
+                    fontFamily = TajawalFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
         }
 
         // Sync with Firebase custom claim
