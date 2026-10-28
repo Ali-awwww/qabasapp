@@ -1114,7 +1114,14 @@ object SupabaseServices {
                     eq("id", reelId)
                 }
             }
-            true
+            // تحقق أن الحذف أثّر فعلاً: DELETE قد ينجح (204) دون حذف أي صف (RLS/معرّف غير موجود)
+            val remaining = client.postgrest.from("reels").select {
+                filter {
+                    eq("id", reelId)
+                }
+                limit(1)
+            }.decodeList<ReelRow>()
+            remaining.isEmpty()
         }.onFailure { Log.e(TAG, "deleteReel failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun toggleReelActive(reelId: String, isActive: Boolean): Boolean = runCatching {
