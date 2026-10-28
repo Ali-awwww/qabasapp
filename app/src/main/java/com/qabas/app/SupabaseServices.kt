@@ -1414,7 +1414,8 @@ object SupabaseServices {
                     return@runCatching null
                 }
                 val base = SupabaseConfig.url.trimEnd('/')
-                val anon = KeyVault.supabaseAnonKey
+                // نفس مفتاح عميل PostgREST/Storage — يمنع انفصال مصدري المفاتيح عن بعضهما
+                val anon = SupabaseConfig.key
                 if (anon.isBlank()) {
                     Log.e(TAG, "uploadFileWithProgress: blank anon key")
                     return@runCatching null
