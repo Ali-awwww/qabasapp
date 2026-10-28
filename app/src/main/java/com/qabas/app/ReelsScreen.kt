@@ -417,8 +417,10 @@ fun ReelsScreen(
             loadingProgress = 0.15f
             val gen = requestGeneration.incrementAndGet()
             loadingProgress = 0.35f
+            val remoteAttempted = ReelSafetyGuardrails.isSupabaseCallsAllowed() &&
+                    SupabaseServices.isSupabaseAvailable
             val remoteReels = runCatching {
-                if (!ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+                if (!remoteAttempted) {
                     null
                 } else {
                     loadingProgress = 0.55f
@@ -431,6 +433,12 @@ fun ReelsScreen(
             }.onFailure {
                 ReelSafetyGuardrails.recordNetworkFailure()
             }.getOrNull()
+
+            // فشل حقيقي: طُلب من السحابة لكن لم تصل نتيجة — يُميَّز عن الوضع غير المتصل المخطط
+            val fetchFailed = remoteReels == null && remoteAttempted
+            if (fetchFailed) {
+                ReelSafetyGuardrails.recordNetworkFailure()
+            }
 
             // إسقاط الاستجابات المتقادمة: طلب أحدث بدأ قبل اكتمال هذا
             if (gen != requestGeneration.get()) return@launch
@@ -458,8 +466,18 @@ fun ReelsScreen(
                         AUTHENTIC_STARTER_REELS
                     }
                 }
+            } else if (fetchFailed) {
+                // فشل الاتصال بالسيرفر: كاش إن وجد، وإلا حالة خطأ صريحة مع إعادة محاولة
+                val cached = ReelPreferencesManager.getCachedReels(context)
+                if (cached.isNotEmpty()) {
+                    isOfflineMode = true
+                    cached
+                } else {
+                    isOfflineMode = false
+                    emptyList()
+                }
             } else {
-                // فشل الاتصال بالسيرفر أو انقطاع الإنترنت -> جلب الكاش المحلي
+                // لم يُطلب من السحابة (وضع عدم الاتصال المخطط) -> جلب الكاش المحلي
                 val cached = ReelPreferencesManager.getCachedReels(context)
                 if (cached.isNotEmpty()) {
                     isOfflineMode = true
@@ -485,7 +503,8 @@ fun ReelsScreen(
             loadingProgress = 1.0f
             delay(100)
             isLoading = false
-            loadError = false
+            // حالة الخطأ تُضبط الآن فعلياً: فشل الجلب دون كاش يعرض واجهة إعادة المحاولة
+            loadError = fetchFailed
 
             // مزامنة المحفوظات السحابية للمستخدم المصادق
             val authId = SupabaseServices.Auth.getCurrentUserId()
