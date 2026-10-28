@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
 
@@ -176,10 +178,51 @@ fun ProfileScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            avatarUriString = uri.toString()
-            selectedPresetAvatar = -1
-            prefs.edit().putString("user_avatar_uri", uri.toString()).putInt("user_avatar_preset", -1).apply()
-            Toast.makeText(context, "تم تحديث الصورة الشخصية بنجاح 📸", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                // قراءة الصورة ونسخها محلياً — إذن content:// مؤقت ويُفقد بعد إعادة التشغيل
+                val bytes = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    }.getOrNull()
+                }
+                if (bytes == null) {
+                    Toast.makeText(context, "تعذر قراءة الصورة المختارة 📸", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: "image/jpeg"
+                val localFile = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val f = File(context.filesDir, "user_avatar_permanent.jpg")
+                        FileOutputStream(f).use { it.write(bytes) }
+                        f
+                    }.getOrNull()
+                }
+                // رفع سحابي: رابط عام دائم يظهر للمستخدمين الآخرين (ريلز/تعليقات/المتابعون)
+                val cloudUrl = if (SupabaseServices.isSupabaseAvailable && localFile != null) {
+                    val uploaderId = runCatching {
+                        SupabaseServices.Auth.getCurrentUserId() ?: userEmail
+                    }.getOrNull() ?: userEmail
+                    withContext(Dispatchers.IO) {
+                        SupabaseServices.Storage.uploadFileWithProgress(
+                            bucketName = "avatars",
+                            path = "user_avatars/${uploaderId.ifBlank { "local" }}/avatar_${System.currentTimeMillis()}.jpg",
+                            file = localFile,
+                            contentType = if (mime.startsWith("image/")) "image/jpeg" else mime
+                        )
+                    }
+                } else null
+
+                // الأولوية للرابط السحابي، وإلا النسخة المحلية الدائمة، وإلا رابط النظام المؤقت
+                val finalUri = cloudUrl ?: localFile?.toURI()?.toString() ?: uri.toString()
+                avatarUriString = finalUri
+                selectedPresetAvatar = -1
+                prefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
+                if (cloudUrl != null) {
+                    Toast.makeText(context, "تم تحديث الصورة الشخصية ومزامنتها مع السحابة 📸", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "تم تحديث الصورة الشخصية محلياً 📸", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
