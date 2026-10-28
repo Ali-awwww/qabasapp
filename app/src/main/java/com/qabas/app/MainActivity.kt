@@ -145,6 +145,7 @@ class MainActivity : ComponentActivity() {
         handleDeepLink(intent)
 
         ThemeManager.init(this)
+        AiModelRegistry.init(this)
         HomeScreenStyleManager.init(this)
         UserPreferencesManager.init(this)
         AppSoundManager.init(this)

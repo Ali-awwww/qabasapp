@@ -3,6 +3,8 @@ package com.qabas.app
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -103,6 +105,13 @@ object AiModelRegistry {
     private const val PREFS_NAME = "qabas_ai_registry_prefs"
     private const val KEY_MODELS = "registered_models_v2"
     private const val KEY_ACTIVE_MODEL_ID = "active_ai_model_id"
+
+    private val _activeModelIdFlow = MutableStateFlow("")
+    val activeModelIdFlow = _activeModelIdFlow.asStateFlow()
+
+    fun init(context: Context) {
+        _activeModelIdFlow.value = getActiveModelId(context)
+    }
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -242,6 +251,7 @@ object AiModelRegistry {
     fun setActiveModel(context: Context, modelId: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_ACTIVE_MODEL_ID, modelId).apply()
+        _activeModelIdFlow.value = modelId
     }
 
     /**

@@ -660,20 +660,7 @@ fun ReelPublishScreen(
                             color = if (spiritualViolationMessage != null) Color(0xFFEF4444) else Color(0xFF10B981)
                         )
                         Spacer(modifier = Modifier.weight(1f))
-                        Surface(
-                            color = Color(0xFF064E3B).copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
-                        ) {
-                            Text(
-                                "Gemini 3.8 Flash (Firebase AI Logic) ✦",
-                                color = Color(0xFF6EE7B7),
-                                fontSize = 9.sp,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
+                        com.qabas.app.ui.components.ModelIndicator()
                     }
                     if (spiritualViolationMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
