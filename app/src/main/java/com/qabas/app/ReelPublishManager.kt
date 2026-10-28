@@ -233,6 +233,7 @@ object ReelPublishManager {
         thumbnailBytes: ByteArray?,
         category: String,
         isFeaturedByDev: Boolean = false,
+        isSilentSeed: Boolean = false,
         userAvatar: String? = null,
         onProgressUpdate: (String) -> Unit = {},
         onBytesProgress: (sentBytes: Long, totalBytes: Long, phase: UploadPhase) -> Unit = { _, _, _ -> }
@@ -330,6 +331,9 @@ object ReelPublishManager {
             finalTags.add("موثق_مطور")
             if (isFeaturedByDev) {
                 finalTags.add("مميز_مثبت")
+            }
+            if (isSilentSeed) {
+                finalTags.add("silent_seed")
             }
         }
 

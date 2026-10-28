@@ -1078,6 +1078,19 @@ object SupabaseServices {
             }.decodeList<ReelRow>()
         }.onFailure { Log.e(TAG, "getActiveReels failed: ${it.message}") }.getOrNull()
 
+        /** جلب الفيديوهات المخصصة لوضع الأثر (المحقونة صامتاً) */
+        suspend fun getSilentSeedReels(): List<ReelRow>? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("reels").select {
+                filter {
+                    eq("is_active", true)
+                    // البحث في قائمة الأوسمة عن الوسم المعتمد
+                    cs("tags", listOf("silent_seed"))
+                }
+                order("created_at", Order.DESCENDING)
+            }.decodeList<ReelRow>()
+        }.onFailure { Log.e(TAG, "getSilentSeedReels failed: ${it.message}") }.getOrNull()
+
         suspend fun saveReel(
             userId: String,
             title: String,

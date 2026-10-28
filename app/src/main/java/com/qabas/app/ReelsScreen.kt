@@ -56,6 +56,9 @@ import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
+import com.qabas.app.SilentReelPrefetcher
+import com.qabas.app.SilentReelStorageManager
+import com.qabas.app.ui.components.SilentSyncDevFloatingHud
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.StrokeCap
@@ -175,6 +178,7 @@ fun ReelsScreen(
     var loadError by remember { mutableStateOf(false) }
     // وضع تصفح المحفوظات محلياً عند انقطاع الإنترنت (Offline-First)
     var isOfflineMode by remember { mutableStateOf(false) }
+    var isAlAtharMode by remember { mutableStateOf(false) }
 
     // ترقيم صفحات: تحميل المزيد عند الاقتراب من نهاية القائمة (بدون كتلة إنزال تقليدي)
     var canLoadMore by remember { mutableStateOf(true) }
@@ -237,6 +241,11 @@ fun ReelsScreen(
 
     // Geometric tools dock (all screen tools consolidated in one collapsible drawer)
     var dockExpanded by remember { mutableStateOf(false) }
+    // ⚡ محرك الجلب المسبق الصامت (لوضع الأثر)
+    LaunchedEffect(Unit) {
+        SilentReelPrefetcher.startSync(context, scope)
+    }
+
     LaunchedEffect(dockExpanded) {
         if (dockExpanded) {
             delay(12_000)
@@ -393,13 +402,13 @@ fun ReelsScreen(
                 ReelSafetyGuardrails.recordNetworkFailure()
             }.getOrNull()
 
-            // فشل حقيقي: طُلب من السحابة لكن لم تصل نتيجة — يُميَّز عن الوضع غير المتصل المخطط
+            // فشل حقيقي: طُلب من السحابة لكن لم تصل نتيجة
             val fetchFailed = remoteReels == null && remoteAttempted
             if (fetchFailed) {
                 ReelSafetyGuardrails.recordNetworkFailure()
             }
 
-            // إسقاط الاستجابات المتقادمة: طلب أحدث بدأ قبل اكتمال هذا
+            // إسقاط الاستجابات المتقادمة
             if (gen != requestGeneration.get()) return@launch
 
             val effectiveReels = if (!remoteReels.isNullOrEmpty()) {
@@ -411,11 +420,10 @@ fun ReelsScreen(
                 val filtered = sanitized.filterNot { isRemoteMockReel(it) }
                 if (filtered.isNotEmpty()) {
                     isOfflineMode = false
-                    // حفظ الكاش المحلي فور نجاح الجلب السحابي
+                    isAlAtharMode = false
                     ReelPreferencesManager.saveCachedReels(context, filtered)
                     filtered
                 } else {
-                    // في حال عدم توفر مقاطع صالحة عن بُعد، محاولة استرجاع الكاش المحلي
                     val cached = ReelPreferencesManager.getCachedReels(context)
                     if (cached.isNotEmpty()) {
                         isOfflineMode = true
@@ -426,31 +434,46 @@ fun ReelsScreen(
                     }
                 }
             } else if (fetchFailed) {
-                // فشل الاتصال بالسيرفر: كاش إن وجد، وإلا حالة خطأ صريحة مع إعادة محاولة
-                val cached = ReelPreferencesManager.getCachedReels(context)
-                if (cached.isNotEmpty()) {
+                val silentReels = SilentReelStorageManager.getDownloadedReels(context)
+                if (silentReels.isNotEmpty()) {
                     isOfflineMode = true
-                    cached
+                    isAlAtharMode = true
+                    silentReels
                 } else {
-                    isOfflineMode = false
-                    emptyList()
+                    val cached = ReelPreferencesManager.getCachedReels(context)
+                    if (cached.isNotEmpty()) {
+                        isOfflineMode = true
+                        isAlAtharMode = false
+                        cached
+                    } else {
+                        isOfflineMode = false
+                        isAlAtharMode = false
+                        emptyList()
+                    }
                 }
             } else {
-                // لم يُطلب من السحابة (وضع عدم الاتصال المخطط) -> جلب الكاش المحلي
-                val cached = ReelPreferencesManager.getCachedReels(context)
-                if (cached.isNotEmpty()) {
+                val silentReels = SilentReelStorageManager.getDownloadedReels(context)
+                if (silentReels.isNotEmpty()) {
                     isOfflineMode = true
-                    cached
+                    isAlAtharMode = true
+                    silentReels
                 } else {
-                    isOfflineMode = false
-                    AUTHENTIC_STARTER_REELS
+                    val cached = ReelPreferencesManager.getCachedReels(context)
+                    if (cached.isNotEmpty()) {
+                        isOfflineMode = true
+                        isAlAtharMode = false
+                        cached
+                    } else {
+                        isOfflineMode = false
+                        isAlAtharMode = false
+                        AUTHENTIC_STARTER_REELS
+                    }
                 }
             }
 
             loadingProgress = 0.88f
             allReels = effectiveReels
             canLoadMore = (remoteReels?.size ?: 0) >= REELS_PAGE_SIZE
-            // Populate likes & counts
             allReels.forEach { r ->
                 dynamicLikeCounts[r.id] = r.likesCount
                 likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
@@ -462,10 +485,8 @@ fun ReelsScreen(
             loadingProgress = 1.0f
             delay(100)
             isLoading = false
-            // حالة الخطأ تُضبط الآن فعلياً: فشل الجلب دون كاش يعرض واجهة إعادة المحاولة
             loadError = fetchFailed
 
-            // مزامنة المحفوظات السحابية للمستخدم المصادق
             val authId = SupabaseServices.Auth.getCurrentUserId()
             if (authId != null) {
                 runCatching {
@@ -622,6 +643,9 @@ fun ReelsScreen(
                     .fillMaxSize()
                     .background(Color.Black)
             ) {
+                // 🛠️ HUD المزامنة الصامتة للمطور
+                SilentSyncDevFloatingHud(isDeveloper = isDeveloper)
+
                 if (isLoading) {
                     ReelsInteractiveLoadingView(
                         progress = loadingProgress,
@@ -1286,7 +1310,7 @@ fun ReelsScreen(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                                     ) {
                                         Text(
-                                            text = "📡 أنت تتصفح المحفوظات المخزنة محلياً (وضع غير متصل)",
+                                            text = if (isAlAtharMode) "« وضع الأثر ✦ نفحات من وحي السكينة دون اتصال »" else "📡 أنت تتصفح المحفوظات المخزنة محلياً (وضع غير متصل)",
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 11.5.sp,

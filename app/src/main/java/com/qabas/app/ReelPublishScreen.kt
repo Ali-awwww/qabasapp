@@ -62,6 +62,7 @@ fun ReelPublishScreen(
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("قرآن كريم") }
     var isFeaturedByDev by remember { mutableStateOf(false) }
+    var isSilentSeed by remember { mutableStateOf(false) }
 
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoThumbnailFile by remember { mutableStateOf<File?>(null) }
@@ -630,6 +631,51 @@ fun ReelPublishScreen(
                         )
                     }
                 }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isSilentSeed = !isSilentSeed }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "فيديو صامت (لوضع الأثر) ✦ نشر مسبق للأوفلاين",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "حقن المقطع صامتاً في أجهزة جميع المستخدمين لتشغيله عند انقطاع الإنترنت.",
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isSilentSeed,
+                            onCheckedChange = { isSilentSeed = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = DeepSlate,
+                                checkedTrackColor = GoldPrimary
+                            )
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -781,6 +827,7 @@ fun ReelPublishScreen(
                                     thumbnailBytes = selectedVideoThumbnailBytes,
                                     category = selectedCategory,
                                     isFeaturedByDev = isFeaturedByDev,
+                                    isSilentSeed = isSilentSeed,
                                     onProgressUpdate = { progressText ->
                                         publishProgressText = progressText
                                     },
