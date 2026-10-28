@@ -1087,8 +1087,8 @@ object SupabaseServices {
             tags: List<String>,
             userName: String = "صانع محتوى",
             userAvatar: String? = null
-        ): Boolean = runCatching {
-            val client = client ?: return false
+        ): ReelRow? = runCatching {
+            val client = client ?: return null
             val row = ReelRow(
                 id = UUID.randomUUID().toString(),
                 userId = userId,
@@ -1101,9 +1101,11 @@ object SupabaseServices {
                 tags = tags,
                 createdAt = java.time.Instant.now().toString()
             )
-            client.postgrest.from("reels").insert(row)
-            true
-        }.onFailure { Log.e(TAG, "saveReel failed: ${it.message}") }.getOrDefault(false)
+            // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل
+            client.postgrest.from("reels").insert(row) {
+                select()
+            }.decodeSingleOrNull<ReelRow>()
+        }.onFailure { Log.e(TAG, "saveReel failed: ${it.message}") }.getOrNull()
 
         suspend fun deleteReel(reelId: String): Boolean = runCatching {
             val client = client ?: return false

@@ -343,7 +343,8 @@ object ReelPublishManager {
             }.getOrNull()
             ?: runCatching { FirebaseManager.getAuth().currentUser?.photoUrl?.toString() }.getOrNull()
 
-        val saveOk = runCatching {
+        // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل المحلي
+        val savedReel = runCatching {
             SupabaseServices.Profiles.saveReel(
                 userId = userId,
                 title = cleanTitle,
@@ -354,24 +355,26 @@ object ReelPublishManager {
                 userName = userName,
                 userAvatar = resolvedAvatar
             )
-        }.getOrDefault(false)
+        }.getOrNull()
 
-        if (!saveOk) {
+        if (savedReel == null) {
             Log.e(TAG, "Publish failed at SAVE_ROW: reels insert rejected")
             return@withContext PublishResult.Failed(
                 PublishStage.SAVE_ROW,
                 "رُفض إدراج الصف في جدول reels (RLS/شبكة/أعمدة) — راجع Logcat بوسم ReelPublish"
             )
         }
-        val success = true
+
+        // المعرّف الحقيقي من قاعدة البيانات — لا معرّف محلي وهمي بعده
+        val realReelId = savedReel.id
 
         // احتساب النشر ضمن مهام التوثيق
         runCatching { VerificationManager.recordReelPublished(context) }
 
-        // حفظ المقطع أيضاً في السجل المحلي للمستخدم
+        // حفظ المقطع أيضاً في السجل المحلي للمستخدم بمعرّفه الحقيقي
         ReelPreferencesManager.recordWatch(
             context = context,
-            reelId = "pub_${System.currentTimeMillis()}",
+            reelId = realReelId,
             title = cleanTitle,
             userName = userName,
             userAvatar = resolvedAvatar,
@@ -380,10 +383,10 @@ object ReelPublishManager {
             durationSec = 10
         )
 
-        if (success) {
+        run {
             val pubPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val currentMyReels = pubPrefs.getStringSet("my_published_reel_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
-            currentMyReels.add("pub_${System.currentTimeMillis()}")
+            currentMyReels.add(realReelId)
             pubPrefs.edit().putStringSet("my_published_reel_ids", currentMyReels).apply()
 
             if (!isDev) {
