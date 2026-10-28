@@ -738,12 +738,8 @@ fun ForgotPasswordScreen(
                                                 errorMessage = e.localizedMessage ?: "فشل التحقق من رمز الاستعادة أو تحديث كلمة المرور في الخادم"
                                             }
                                         } else {
-                                            val registeredAcc = LocalAccountRegistry.findByEmail(context, trimmedEmail)
-                                            if (registeredAcc != null) {
-                                                updateSuccess = true
-                                            } else {
-                                                errorMessage = "البريد الإلكتروني المدخل غير مسجل في النظام"
-                                            }
+                                            // Fixing Vulnerability: Remove fake success for local accounts
+                                            errorMessage = "خدمة استعادة كلمة المرور تتطلب اتصالاً بخادم قبس السحابي. يرجى التحقق من الاتصال."
                                         }
 
                                         isLoading = false

@@ -125,9 +125,15 @@ object ReelSafetyGuardrails {
         if (url.isBlank()) return false
         return runCatching {
             val uri = Uri.parse(url)
-            val scheme = uri.scheme?.lowercase()
+            val scheme = uri.scheme?.lowercase() ?: ""
             val host = uri.host
-            (scheme == "https" || scheme == "android.resource" || scheme == "asset") &&
+
+            // Strict enforcement of HTTPS for remote content
+            // Local resources (android.resource, asset) are allowed as they are bundled with the APK
+            val isSecureScheme = (scheme == "https" || scheme == "android.resource" || scheme == "asset")
+            val isNotHttp = (scheme != "http") 
+
+            isSecureScheme && isNotHttp &&
                 (scheme != "https" || !host.isNullOrBlank()) &&
                 !url.contains("javascript:", ignoreCase = true) &&
                 !url.contains("file://", ignoreCase = true) &&

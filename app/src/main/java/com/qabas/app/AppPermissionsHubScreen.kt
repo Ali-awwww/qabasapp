@@ -243,11 +243,19 @@ fun AppPermissionsHubScreen(
             isTestingMic = false
             testWaveformLevel = 0f
 
-            if (sampleSuccess) {
+            // التحقق من وجود إشارة حقيقية لضمان نجاح الاختبار فعلياً (منع النجاح العشوائي/الصامت)
+            val minThreshold = 0.15f
+            if (sampleSuccess && maxAmplitude >= minThreshold) {
                 val percent = (maxAmplitude * 100).toInt()
                 Toast.makeText(
                     context,
                     "تم التحقق من استجابة الميكروفون الفعلي بنجاح 🎙️ (مستوى الإشارة: $percent%)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else if (sampleSuccess) {
+                Toast.makeText(
+                    context,
+                    "تم رصد الميكروفون ولكن الإشارة ضعيفة جداً أو صامتة 🔇. يرجى التحدث بوضوح.",
                     Toast.LENGTH_SHORT
                 ).show()
             } else {

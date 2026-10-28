@@ -147,7 +147,7 @@ object ReelPublishManager {
     }
 
     /**
-     * تدقيق وفحص محتوى المقطع قبل الإرسال بالرقابة الشرعية الصارمة
+     * تدقيق وفحص محتوى المقطع قبل الإرسال بالرقابة الشرعية الصارمة والقيود الزمنية
      */
     fun validateContent(
         title: String,
@@ -155,13 +155,25 @@ object ReelPublishManager {
         category: String,
         videoUriOrUrl: String,
         hasAcceptedPledge: Boolean,
-        isDeveloper: Boolean
+        isDeveloper: Boolean,
+        durationSeconds: Int = 0
     ): ValidationResult {
         // 1. التعهد الشرعي الإلزامي
         if (!hasAcceptedPledge) {
             return ValidationResult.Invalid(
                 reason = "يجب تأكيد التعهد الشرعي بأن المقطع خالٍ تماماً من الموسيقى والمعازف قبل النشر."
             )
+        }
+
+        // 2. التحقق من مدة الفيديو (Fixing Vulnerability 2)
+        if (durationSeconds > 0) {
+            val maxAllowed = if (isDeveloper) MAX_DEVELOPER_VIDEO_SECONDS else MAX_REGULAR_VIDEO_SECONDS
+            if (durationSeconds > maxAllowed) {
+                val limitLabel = if (isDeveloper) "10 دقائق" else "90 ثانية"
+                return ValidationResult.Invalid(
+                    reason = "مدة المقطع (${durationSeconds} ثانية) تتجاوز الحد المسموح لك (${limitLabel})."
+                )
+            }
         }
 
         val cleanTitle = title.trim()
@@ -177,7 +189,7 @@ object ReelPublishManager {
             return ValidationResult.Invalid("يرجى اختيار مقطع فيديو من المعرض أو تحديد مقطع إيماني.")
         }
 
-        // 2. فحص الرقابة الشرعية الشامل ضد الموسيقى والآثام والمعاصي
+        // 3. فحص الرقابة الشرعية الشامل ضد الموسيقى والآثام والمعاصي
         val auditResult = SpiritualSafetyGuard.performSpiritualAudit(
             title = cleanTitle,
             description = description,

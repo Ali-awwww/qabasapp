@@ -871,7 +871,8 @@ fun ReelPublishScreen(
                         category = selectedCategory,
                         videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
                         hasAcceptedPledge = hasAcceptedPledge,
-                        isDeveloper = isDeveloper
+                        isDeveloper = isDeveloper,
+                        durationSeconds = (selectedVideoDurationMs / 1000).toInt()
                     )
                     when (validation) {
                         is ReelPublishManager.ValidationResult.Invalid -> {

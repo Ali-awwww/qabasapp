@@ -222,26 +222,8 @@ fun PremiumUpgradeScreen(
                     if (activity != null) {
                         billingManager.launchBillingFlow(
                             activity = activity,
-                            productId = selectedPlan,
-                            onFallbackSuccess = {
-                                // Fallback when running in emulator or test environment without Play Store login
-                                coroutineScope.launch {
-                                    kotlinx.coroutines.delay(1200)
-                                    accountService.isPremium = true
-                                    isProcessing = false
-                                    Toast.makeText(context, Translator.tr("تم الاشتراك بنجاح! 🎉"), Toast.LENGTH_SHORT).show()
-                                    onUpgraded()
-                                }
-                            }
+                            productId = selectedPlan
                         )
-                    } else {
-                        coroutineScope.launch {
-                            kotlinx.coroutines.delay(1000)
-                            accountService.isPremium = true
-                            isProcessing = false
-                            Toast.makeText(context, Translator.tr("تمت الترقية بنجاح!"), Toast.LENGTH_SHORT).show()
-                            onUpgraded()
-                        }
                     }
                 },
                 modifier = Modifier

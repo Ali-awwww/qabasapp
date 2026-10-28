@@ -157,22 +157,7 @@ fun StoreScreen(onBack: () -> Unit) {
                             if (activity != null) {
                                 billingManager.launchBillingFlow(
                                     activity = activity,
-                                    productId = item.id,
-                                    onFallbackSuccess = {
-                                        val purchasedItem = storeItems.find { it.id == item.id }
-                                        if (purchasedItem != null) {
-                                            if (purchasedItem.type == StoreItemType.COINS) {
-                                                val newBalance = accountService.walletBalance + purchasedItem.amount
-                                                accountService.walletBalance = newBalance
-                                                balance = newBalance
-                                            } else {
-                                                accountService.isPremium = true
-                                                isUserPremium = true
-                                            }
-                                            android.widget.Toast.makeText(context, "تمت عملية الشراء بنجاح! 🎉", android.widget.Toast.LENGTH_LONG).show()
-                                        }
-                                        resetPurchaseState()
-                                    }
+                                    productId = item.id
                                 )
                                 android.widget.Toast.makeText(context, "جارٍ فتح نافذة الدفع…", android.widget.Toast.LENGTH_SHORT).show()
                             } else {

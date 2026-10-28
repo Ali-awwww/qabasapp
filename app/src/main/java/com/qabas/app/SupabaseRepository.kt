@@ -25,6 +25,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 
 /**
  * Reactive Authentication State representing the user's current session status.
@@ -347,6 +350,47 @@ class SupabaseRepository(
             Unit
         }.onFailure { e ->
             _authState.value = AuthState.Unauthenticated
+        }
+    }
+
+    /**
+     * Registers or updates a user-specific API key for a service (e.g., 'gemini', 'qabas_api').
+     * The key is stored in the 'user_api_keys' table in Supabase.
+     */
+    suspend fun registerApiKey(service: String, key: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val userId = getCurrentUserId() ?: return@withContext false
+            val row = mapOf(
+                "user_id" to userId,
+                "service" to service,
+                "encrypted_value" to key,
+                "updated_at" to java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", java.util.Locale.ROOT).format(java.util.Date())
+            )
+            client.postgrest.from("user_api_keys").upsert(row) {
+                onConflict = "user_id,service"
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register API key: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Fetches the user's API keys from the cloud.
+     */
+    suspend fun fetchApiKeys(): List<Map<String, String>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val userId = getCurrentUserId() ?: return@withContext emptyList()
+            client.postgrest.from("user_api_keys").select {
+                filter {
+                    eq("user_id", userId)
+                }
+            }
+            emptyList()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch API keys: ${e.message}")
+            emptyList()
         }
     }
 

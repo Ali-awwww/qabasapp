@@ -251,19 +251,22 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
 
     fun launchBillingFlow(
         activity: Activity,
-        productId: String,
-        onFallbackSuccess: (() -> Unit)? = null
+        productId: String
     ) {
         if (!billingClient.isReady) {
-            Log.w(TAG, "BillingClient is not ready. Invoking fallback if available.")
-            onFallbackSuccess?.invoke()
+            Log.w(TAG, "BillingClient is not ready.")
+            scope.launch(Dispatchers.Main) {
+                onPurchaseError?.invoke("خدمة الدفع غير جاهزة حالياً، يرجى التأكد من اتصال الإنترنت وتسجيل الدخول في Google Play")
+            }
             return
         }
 
         val productDetails = _products.value[productId]
         if (productDetails == null) {
-            Log.w(TAG, "Product $productId not found in Google Play products. Invoking fallback flow for testing.")
-            onFallbackSuccess?.invoke()
+            Log.w(TAG, "Product $productId not found in Google Play products.")
+            scope.launch(Dispatchers.Main) {
+                onPurchaseError?.invoke("المنتج غير متوفر حالياً في متجر Google Play")
+            }
             return
         }
 
@@ -286,7 +289,9 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
         val response = billingClient.launchBillingFlow(activity, billingFlowParams)
         if (response.responseCode != BillingClient.BillingResponseCode.OK) {
             Log.e(TAG, "launchBillingFlow failed: code=${response.responseCode} msg=${response.debugMessage}")
-            onFallbackSuccess?.invoke()
+            scope.launch(Dispatchers.Main) {
+                onPurchaseError?.invoke(response.debugMessage.ifEmpty { "فشل بدء عملية الشراء (كود: ${response.responseCode})" })
+            }
         }
     }
 

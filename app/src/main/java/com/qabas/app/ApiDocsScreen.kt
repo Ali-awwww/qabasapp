@@ -457,10 +457,17 @@ fun ApiDocsScreen(
                         apiKey = currentApiKey,
                         baseUrl = baseUrl,
                         onGenerateKey = {
-                            val newKey = "qbs_live_" + java.util.UUID.randomUUID().toString().replace("-", "").take(24)
-                            prefs.edit().putString("user_api_key", newKey).apply()
-                            currentApiKey = newKey
-                            Toast.makeText(context, "تم توليد مفتاح API جديد وحفظه بنجاح 🔑", Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                val newKey = "qbs_live_" + java.util.UUID.randomUUID().toString().replace("-", "").take(24)
+                                val success = SupabaseRepository.getInstance().registerApiKey("qabas_api", newKey)
+                                if (success) {
+                                    prefs.edit().putString("user_api_key", newKey).apply()
+                                    currentApiKey = newKey
+                                    Toast.makeText(context, "تم توليد مفتاح API ومزامنته مع السحابة بنجاح 🔑✅", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "فشل مزامنة مفتاح API مع السحابة، يرجى المحاولة لاحقاً ⚠️", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         },
                         onCopyKey = {
                             if (currentApiKey.isNotBlank()) {

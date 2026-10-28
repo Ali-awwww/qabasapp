@@ -68,8 +68,12 @@ object ContentFilterService {
                 .replace(Regex("[\u064B-\u065F\u0670]"), "") // Remove tashkeel / diacritics
                 .replace("ـ", "") // Remove tatweel
                 .replace(Regex("[إأآ]"), "ا")
-                .replace("ة", "ه")
-                .replace("ى", "ي")
+                .replace(Regex("[ى]"), "ي")
+                .replace(Regex("[ة]"), "ه")
+                .replace(Regex("[ؤ]"), "و")
+                .replace(Regex("[ئ]"), "ي")
+                .replace(Regex("\\s+"), " ") // Normalize whitespace
+                .trim()
                 .lowercase()
         }
 
@@ -85,7 +89,7 @@ object ContentFilterService {
                 verdict = GuardVerdict.REJECTED,
                 score = 15,
                 title = "مخالفة صريحة للضوابط الأخلاقية والدعوية",
-                reason = "يحتوي النص على كلمات أو دلالات غير لائقة تتنافى مع رسالة المحتوى الإسلامي الهادف (${matchedForbidden.take(2).joinToString("، ")}).",
+                reason = "يحتوي النص على كلمات أو دلالات غير لائقة تتنافى مع رسالة المحتوى الإسلامي الهادف.",
                 warnings = matchedForbidden.map { "تم رصد لفظ محظور: $it" },
                 suggestions = listOf("إعادة صياغة الفكرة بالكامل باستخدام أسلوب لائق ورسالة دعوية إيجابية."),
                 improvedScript = null
@@ -112,8 +116,9 @@ object ContentFilterService {
             )
         }
 
-        // 3. Positive Islamic safe signals & keywords evaluation (APPROPRIATE)
-        // Evaluated ONLY AFTER confirming the text is completely free of violations and review triggers.
+        // 3. Evaluation (No more "Fast-Pass" to APPROPRIATE)
+        // Even if Islamic keywords are present, we remain in NEEDS_REVIEW by default in quick inspection
+        // to ensure the context is safe and correct through AI inspection.
         val islamicSafeSignals = listOf(
             "الله", "رسول", "النبي", "صلى الله", "صلوا عليه", "ملائكته", "يصلون على",
             "القرآن", "آية", "سورة", "حديث", "الصلاة", "الدعاء", "استغفار",
@@ -123,19 +128,16 @@ object ContentFilterService {
         val hasIslamicSignals = islamicSafeSignals.any { lower.contains(it) || normalized.contains(normalizeArabic(it)) }
         val positiveCount = positiveIslamicKeywords.count { lower.contains(it.lowercase()) || normalized.contains(normalizeArabic(it)) }
 
-        val score = if (hasIslamicSignals) {
-            (90 + (positiveCount * 2)).coerceAtMost(100)
-        } else {
-            (85 + (positiveCount * 3)).coerceAtMost(100)
-        }
+        val baseScore = if (hasIslamicSignals) 80 else 70
+        val finalScore = (baseScore + (positiveCount * 2)).coerceAtMost(95)
 
         return ContentInspectionResult(
-            verdict = GuardVerdict.APPROPRIATE,
-            score = score,
-            title = if (hasIslamicSignals) "محتوى إسلامي مناسب ومجاز" else "محتوى مناسب ومطابق للمعايير الدعوية",
-            reason = if (hasIslamicSignals) "نص دعوي/قرآني/نبوي منضبط ومناسب للإنتاج والنشر." else "النص منضبط وخالٍ من المحاذير، ومناسب للإنتاج والنشر في المنصات الإسلامية.",
+            verdict = GuardVerdict.NEEDS_REVIEW,
+            score = finalScore,
+            title = if (hasIslamicSignals) "محتوى إسلامي أولي - يتطلب فحصاً معمقاً" else "محتوى قيد المراجعة الأولية",
+            reason = "تم التحقق من الكلمات المفتاحية بنجاح، ولكن يجب إجراء فحص الذكاء الاصطناعي للتأكد من سلامة السياق والمعنى.",
             warnings = emptyList(),
-            suggestions = listOf("أضف خطافاً سريعاً في أول 3 ثوان لجذب انتباه المشاهد."),
+            suggestions = listOf("استخدم زر 'الفحص العميق' للتأكد من موافقة المحتوى للمعايير الشرعية والدعوية."),
             improvedScript = trimmed
         )
     }

@@ -423,14 +423,8 @@ fun DeveloperUnlockDialog(
         val userEmail = prefs.getString("user_email", "") ?: ""
 
         // Validate developer credentials:
-        // Supports dev pins (2026, 9999, qabas, admin) or registered owner account
-        if (
-            trimmed == "2026" ||
-            trimmed.equals("qabas", ignoreCase = true) ||
-            trimmed.equals("admin", ignoreCase = true) ||
-            trimmed == "9999" ||
-            CloudServices.isOwnerAccount(userEmail)
-        ) {
+        // Restricted ONLY to registered owner accounts via CloudServices
+        if (CloudServices.isOwnerAccount(userEmail)) {
             prefs.edit().apply {
                 putBoolean("is_admin", true)
                 putString("user_type", "مطور")

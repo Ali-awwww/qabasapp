@@ -893,7 +893,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Guest Entry Option (Compact)
+            // Guest Entry Option (Compact & Secure)
             OutlinedButton(
                 onClick = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -904,17 +904,19 @@ fun LoginScreen(
                         putBoolean("is_developer", false)
                         putString("user_email", "guest@qabas.studio")
                         putString("user_name", "ضيف قبس")
-                        putString("user_display_name", "ضيف قبس")
+                        putString("user_display_name", "زائر مؤقت")
                         putString("user_custom_id", "guest")
                         putString("user_tag", "@guest")
-                        remove("user_account_number")
-                        remove("user_name_with_account")
+                        // Clear any potential sensitive leftovers
+                        remove("auth_token")
+                        remove("refresh_token")
+                        remove("user_api_key")
                         apply()
                     }
                     SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
                     Toast.makeText(
                         context,
-                        "تم الدخول كضيف 👤. وضع الضيف محدود الصلاحيات ومخصص للتصفح فقط بدون جلسة موثقة.",
+                        "تم الدخول كضيف 👤. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
                         Toast.LENGTH_LONG
                     ).show()
                     onLoginSuccess(false)
