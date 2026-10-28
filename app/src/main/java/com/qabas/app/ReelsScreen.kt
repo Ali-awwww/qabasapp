@@ -222,6 +222,8 @@ fun ReelsScreen(
     // ترقيم صفحات: تحميل المزيد عند الاقتراب من نهاية القائمة (بدون كتلة إنزال تقليدي)
     var canLoadMore by remember { mutableStateOf(true) }
     var isLoadingMore by remember { mutableStateOf(false) }
+    // إزاحة الخادم الفعلية: عدد الصفوف الخام المجلوبة عن بُعد — مستقلة عن القائمة المعروضة المفلترة
+    var remoteOffset by remember { mutableStateOf(0) }
     val requestGeneration = remember { java.util.concurrent.atomic.AtomicInteger(0) }
 
     // المحفوظات السحابية (reel_bookmarks) — تُزامن حالة «محفوظ» عبر أجهزة المستخدم
@@ -528,7 +530,7 @@ fun ReelsScreen(
             val gen = requestGeneration.incrementAndGet()
             val nextPage = runCatching {
                 withTimeoutOrNull(7000L) {
-                    SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = allReels.size)
+                    SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = remoteOffset)
                 } ?: null
             }.onSuccess { ReelSafetyGuardrails.recordNetworkSuccess() }
                 .onFailure { ReelSafetyGuardrails.recordNetworkFailure() }
@@ -538,6 +540,9 @@ fun ReelsScreen(
             // إسقاط الاستجابات المتقادمة (طلب أحدث أثناء جلب هذه)
             if (gen != requestGeneration.get()) return@launch
             if (nextPage == null) return@launch // فشل صامت للتحميل الزائد: القائمة الحالية تبقى
+
+            // تقدم الإزاحة بعدد الصفوف الخام المجلبة فعلاً من الخادم
+            remoteOffset += nextPage.size
 
             val newOnes = nextPage.mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
                 .filter { r -> allReels.none { it.id == r.id } }
