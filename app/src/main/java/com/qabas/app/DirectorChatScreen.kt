@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -226,7 +227,26 @@ fun DirectorChatScreen(
         containerColor = DeepSlate,
         topBar = {
             TopAppBar(
-                title = { Text("غرفة المخرج", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("غرفة المخرج", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Surface(
+                            color = Color(0xFF064E3B).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                "Gemini 3.8 Flash (Firebase AI Logic) ✦",
+                                color = Color(0xFF6EE7B7),
+                                fontSize = 9.sp,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color.White)

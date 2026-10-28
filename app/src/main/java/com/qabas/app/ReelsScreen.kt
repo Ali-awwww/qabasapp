@@ -366,7 +366,8 @@ fun ReelsScreen(
     }
 
     // 🛡️ فحص دقيق للجلسة في Firebase Auth والتطبيق لمنع الضيف فقط وليس الحسابات المسجلة
-    val isGuest = remember(currentUserEmail, isDeveloper) {
+    val fbUser by FirebaseAuthRepository.create(context).authStateFlow().collectAsState(initial = FirebaseAuthRepository.create(context).currentUser)
+    val isGuest = remember(fbUser, isDeveloper) {
         FirebaseAuthRepository.isGuest(context)
     }
     var showGuestLoginPrompt by remember { mutableStateOf(false) }

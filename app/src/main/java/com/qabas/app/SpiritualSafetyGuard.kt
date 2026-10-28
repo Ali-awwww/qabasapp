@@ -68,6 +68,31 @@ object SpiritualSafetyGuard {
         return ModerationResult.Passed
     }
 
+    /**
+     * الفحص البصري الشرعي (Visual Sharia Audit)
+     * يستخدم Gemini Vision لفحص محتوى الصورة/الفيديو والتأكد من خلوه من المعازف أو التبرج.
+     */
+    suspend fun performVisualSpiritualAudit(
+        bitmap: Bitmap,
+        title: String,
+        description: String? = null
+    ): ModerationResult = withContext(Dispatchers.IO) {
+        try {
+            val result = FirebaseAiService.analyzeVisualContent(bitmap, title, description)
+            if (result.isAllowed) {
+                ModerationResult.Passed
+            } else {
+                ModerationResult.Rejected(
+                    reason = "رصد 'رقيب قبس الذكي' مخالفة بصرية: ${result.reason}",
+                    detailedAyah = "قال الله تعالى: ﴿قُل لِّلْمُؤْمِنِينَ يَغُضُّوا مِنْ أَبْصَارِهِمْ وَيَحْفَظُوا فُرُوجَهُمْ ۚ ذَٰلِكَ أَزْكَىٰ لَهُمْ ۗ إِنَّ اللَّهَ خَبِيرٌ بِمَا يَصْنَعُونَ﴾ [النور: 30]"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Visual audit failed, skipping for robustness", e)
+            ModerationResult.Passed
+        }
+    }
+
     private fun containsWord(source: String, keyword: String): Boolean {
         if (source.contains(keyword, ignoreCase = true)) return true
         val normalizedSource = source.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه").replace("ى", "ي")

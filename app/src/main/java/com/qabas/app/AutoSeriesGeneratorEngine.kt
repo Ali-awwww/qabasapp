@@ -872,7 +872,7 @@ suspend fun generateSeriesOutline(
 """.trimIndent()
 
     try {
-        val response = RealMediaLibraryService.chatWithAssistant(listOf(Pair(true, prompt)), null)
+        val response = FirebaseAiService.generateText(prompt)
         val cleanJson = response.replace("```json", "").replace("```", "").trim()
         val startIndex = cleanJson.indexOf('[')
         val endIndex = cleanJson.lastIndexOf(']')

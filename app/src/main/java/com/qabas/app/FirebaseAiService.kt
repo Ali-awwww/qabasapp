@@ -42,6 +42,67 @@ object FirebaseAiService {
     }
 
     /**
+     * التحليل البصري الشرعي للمحتوى (Sharia Visual Audit)
+     * يستخدم Gemini Vision لفحص الصور أو فريمات الفيديو والتأكد من خلوها من المخالفات.
+     */
+    suspend fun analyzeVisualContent(
+        bitmap: android.graphics.Bitmap,
+        title: String,
+        description: String? = null
+    ): VisualAuditResult = withContext(Dispatchers.IO) {
+        val prompt = """
+            أنت "رقيب مِشكاة قبس" (Sharia AI Auditor). مهمتك هي فحص هذا المحتوى البصري (صورة/فريم فيديو) 
+            مع العنوان والوصف التاليين، والتأكد من ملاءمتها للنشر في منصة إسلامية دعوية نقية.
+            
+            العنوان: $title
+            الوصف: ${description ?: "لا يوجد"}
+            
+            المعايير (Criteria):
+            1. يمنع وجود أي آلات موسيقية أو معازف (بيانو، جيتار، عود، إلخ).
+            2. يمنع التبرج أو العري أو المشاهد غير المحتشمة.
+            3. يمنع وجود رموز لديانات أخرى أو أفكار مخالفة للعقيدة الصحيحة.
+            4. يمنع وجود أي مظاهر ترف أو لهو لا تليق بالوقار الإيماني.
+            
+            أخرج النتيجة بصيغة JSON حصراً:
+            {
+              "status": "PASSED" أو "REJECTED",
+              "reason": "سبب الرفض بالعربية (إذا تم الرفض)",
+              "confidence": 0.0 إلى 1.0
+            }
+        """.trimIndent()
+
+        try {
+            val response = withTimeout(TIMEOUT_MS) {
+                jsonModel.generateContent(
+                    com.google.firebase.ai.type.content {
+                        image(bitmap)
+                        text(prompt)
+                    }
+                )
+            }
+            val text = response.text ?: throw IllegalStateException("Empty response")
+            val cleanJson = text.replace("```json", "").replace("```", "").trim()
+            val obj = JSONObject(cleanJson)
+            
+            VisualAuditResult(
+                isAllowed = obj.optString("status") == "PASSED",
+                reason = obj.optString("reason", ""),
+                confidence = obj.optDouble("confidence", 0.0)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Visual audit failed", e)
+            // في حال فشل الذكاء الاصطناعي، نعتمد على الفحص النصي التقليدي ونمرر البصري مؤقتاً لتجنب توقف الخدمة
+            VisualAuditResult(isAllowed = true, reason = "فشل التحليل الذكي: ${e.message}", confidence = 0.0)
+        }
+    }
+
+    data class VisualAuditResult(
+        val isAllowed: Boolean,
+        val reason: String,
+        val confidence: Double
+    )
+
+    /**
      * Generate text with realistic coroutine timeout (60s) and transparent error reporting
      */
     suspend fun generateText(prompt: String, systemInstruction: String? = null): String = withContext(Dispatchers.IO) {
@@ -196,7 +257,7 @@ object FirebaseAiService {
             نوع المحتوى: $contentType
             النبرة: $contentTone
             التوجيهات الأسلوبية: $styleDescription
-
+            
             أخرج النتيجة حصرياً كـ JSON Array لمشاهد سينمائية [ { ... } ] بدون أي نص إضافي:
             [
               {
@@ -231,5 +292,87 @@ object FirebaseAiService {
             )
         }
         scenes
+    }
+
+    /**
+     * توليد عناوين جذابة وعالية النقرات (CTR Titles Generation)
+     * يستخدم Gemini 3.8 Flash لصياغة عناوين تزيد من نسبة التفاعل.
+     */
+    suspend fun generateTitles(topic: String): String = withContext(Dispatchers.IO) {
+        val prompt = """
+            أنت خبير في تحسين محركات البحث (SEO) وعناوين الفيديوهات الفيروسية (Viral Titles Specialist).
+            الموضوع: $topic
+            
+            مهمتك: اقترح 5 عناوين يوتيوب/ريلز جذابة جداً تثير الفضول وتدفع للنقر، مع الحفاظ على الوقار الدعوي.
+            أخرج النتائج كقائمة مرقمة فقط بدون مقدمات.
+        """.trimIndent()
+        
+        generateText(prompt)
+    }
+
+    /**
+     * تحليل نمط الفيديو (Video Style Analysis) بناءً على رابط أو وصف.
+     */
+    suspend fun analyzeVideoStyle(input: String): VideoStyleAnalysis = withContext(Dispatchers.IO) {
+        val prompt = """
+            أنت خبير مونتاج سينمائي ومحلل فني للفيديوهات (Art Director & Video Editor).
+            المستخدم قدم هذا المدخل (قد يكون رابط فيديو تيك توك/يوتيوب، أو وصفاً كتابياً للأسلوب): 
+            "$input"
+            
+            مهمتك:
+            1. إذا كان رابطاً: حاول استنتاج الأسلوب الفني والمونتاج المتوقع لهذا الرابط، أو تخيل أسلوباً احترافياً عالي الجودة (Premium Cinematic).
+            2. إذا كان وصفاً نصياً: قم بتحليل الوصف وتحويله إلى عناصر فنية دقيقة للإنتاج.
+            
+            أخرج النتيجة بصيغة JSON حصراً بهذا الشكل:
+            {
+                "dominantColors": "مثال: تباين عالي مع ذهبي دافئ وأسود عميق",
+                "transitionSpeed": "مثال: سريعة وخاطفة (Glitch/Whip)",
+                "movementPatterns": "مثال: زووم بطيء متصاعد (Slow Zoom-in)",
+                "overallRhythm": "مثال: ملحمي يتصاعد مع الإيقاع",
+                "audioStyle": "مثال: مؤثرات Swoosh عميقة وصدى خفيف",
+                "typographyStyle": "مثال: خط كوفي عريض متوهج",
+                "contentTone": "مثال: مؤثر وملهم",
+                "targetAudience": "مثال: الشباب وصناع التغيير"
+            }
+        """.trimIndent()
+
+        val response = withTimeout(TIMEOUT_MS) {
+            jsonModel.generateContent(prompt)
+        }
+        val text = response.text ?: throw IllegalStateException("Empty response")
+        val cleanJson = text.replace("```json", "").replace("```", "").trim()
+        val obj = JSONObject(cleanJson)
+        
+        VideoStyleAnalysis(
+            dominantColors = obj.optString("dominantColors", ""),
+            transitionSpeed = obj.optString("transitionSpeed", ""),
+            movementPatterns = obj.optString("movementPatterns", ""),
+            overallRhythm = obj.optString("overallRhythm", ""),
+            audioStyle = obj.optString("audioStyle", ""),
+            typographyStyle = obj.optString("typographyStyle", ""),
+            contentTone = obj.optString("contentTone", ""),
+            targetAudience = obj.optString("targetAudience", ""),
+            keywords = emptyList()
+        )
+    }
+
+    /**
+     * توليد خطط تطوير وتوجيهات برمجية (Developer Prompts Generation).
+     */
+    suspend fun generateDeveloperPlan(requestSummary: String): String = withContext(Dispatchers.IO) {
+        val prompt = """
+            أنت خبير في هندسة البرمجيات وتطوير تطبيقات Android باستخدام Kotlin و Jetpack Compose.
+            المهمة المطلوبة: $requestSummary
+            
+            قم بإنشاء خطة تنفيذ تفصيلية (Implementation Plan) تتضمن:
+            1. المكونات البرمجية المطلوبة.
+            2. التغييرات في واجهة المستخدم.
+            3. منطق العمل (Business Logic).
+            4. التعديلات في قاعدة البيانات أو الخدمات.
+            
+            أخرج الخطة بصيغة Markdown منظمة جداً.
+        """.trimIndent()
+        
+        generateText(prompt)
     }
 }

@@ -40,20 +40,23 @@ class FirebaseAuthRepository(
          * يفحص مصادقة Firebase ومصادقة الجلسة النشطة للتأكد من عدم منع المستخدمين المسجلين.
          */
         fun isAuthenticatedUser(context: Context? = null): Boolean {
+            // 1. الأولوية القصوى لـ Firebase Auth (المصدر الحقيقي للحقيقة)
             val authInstance = runCatching { FirebaseAuth.getInstance() }.getOrNull()
             val fbUser = authInstance?.currentUser
-            if (fbUser != null && !fbUser.isAnonymous) {
-                val email = fbUser.email?.trim().orEmpty()
-                if (!email.contains("guest", ignoreCase = true) && (email.isNotBlank() || fbUser.uid.isNotBlank())) {
-                    return true
-                }
+            
+            if (fbUser != null) {
+                // إذا كان المستخدم مصادقاً وليس مجهولاً، فهو مستخدم حقيقي
+                if (!fbUser.isAnonymous) return true
             }
 
+            // 2. الفحص الاحتياطي عبر التفضيلات (Preferences) في حال تأخر مزامنة Firebase أو العمل بدون حساب سحابي
             if (context != null) {
                 val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                 val email = prefs.getString("user_email", "")?.trim().orEmpty()
                 val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                 val isGuestPref = prefs.getBoolean("is_guest", false)
+                
+                // المطورون والمسؤولون دائماً لديهم صلاحيات كاملة
                 val isDev = prefs.getBoolean("is_developer", false) ||
                     prefs.getBoolean("is_admin", false) ||
                     CloudServices.isOwnerAccount(email) ||
@@ -61,7 +64,11 @@ class FirebaseAuthRepository(
 
                 if (isDev) return true
                 if (isGuestPref) return false
-                return isLoggedIn && email.isNotBlank() && !email.contains("guest", ignoreCase = true) && email.contains("@") && email != "guest@qabas.studio"
+                
+                // إذا كان مسجلاً ببريد حقيقي (وليس بريد الضيف الافتراضي)
+                return isLoggedIn && email.isNotBlank() && 
+                       email.contains("@") && 
+                       email != "guest@qabas.studio"
             }
             return false
         }

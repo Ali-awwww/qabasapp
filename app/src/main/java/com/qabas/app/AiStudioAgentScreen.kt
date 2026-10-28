@@ -50,7 +50,7 @@ import java.util.UUID
 
 /** قائمة النماذج المتاحة لكل مزود — مصدر واحد يمنع إرسال نموذج مزودٍ إلى مزود آخر */
 private fun agentModelsFor(provider: DetectedProvider): List<String> = when (provider) {
-    DetectedProvider.GEMINI -> listOf("gemini-3.5-flash", "gemini-3.5-pro")
+    DetectedProvider.GEMINI -> listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-pro")
     DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
     DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
     DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
@@ -229,7 +229,7 @@ fun AiStudioAgentScreen(
                 latencyMs = 0L,
                 statusDetail = "جاري الفحص المباشر...",
                 keySource = KeySource.NONE,
-                modelName = "gemini-3.5-flash"
+                modelName = "gemini-3.8-flash"
             )
         )
     }
@@ -349,6 +349,21 @@ fun AiStudioAgentScreen(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        Surface(
+                            color = Color(0xFF064E3B).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                "Gemini 3.8 Flash (Firebase AI Logic) ✦",
+                                color = Color(0xFF6EE7B7),
+                                fontSize = 8.sp,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                         IconButton(
                             onClick = { showSettings = true },
                             modifier = Modifier

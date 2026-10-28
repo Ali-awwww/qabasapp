@@ -100,24 +100,36 @@ fun ReelPublishScreen(
         }
     }
 
-    LaunchedEffect(title, description, selectedCategory) {
+    LaunchedEffect(title, description, selectedCategory, selectedVideoThumbnailFile) {
         if (title.isNotBlank() || !description.isNullOrBlank()) {
-            val audit = SpiritualSafetyGuard.performSpiritualAudit(
+            val textAudit = SpiritualSafetyGuard.performSpiritualAudit(
                 title = title,
                 description = description,
                 tags = listOf(selectedCategory),
                 category = selectedCategory
             )
-            when (audit) {
-                is SpiritualSafetyGuard.ModerationResult.Rejected -> {
-                    spiritualViolationMessage = audit.reason
-                    spiritualViolationAyah = audit.detailedAyah
-                }
-                is SpiritualSafetyGuard.ModerationResult.Passed -> {
-                    spiritualViolationMessage = null
-                    spiritualViolationAyah = null
+            if (textAudit is SpiritualSafetyGuard.ModerationResult.Rejected) {
+                spiritualViolationMessage = textAudit.reason
+                spiritualViolationAyah = textAudit.detailedAyah
+                return@LaunchedEffect
+            }
+
+            // إذا تم اختيار فيديو، نقوم بالفحص البصري أيضاً
+            val thumb = selectedVideoThumbnailFile
+            if (thumb != null && thumb.exists()) {
+                val bitmap = android.graphics.BitmapFactory.decodeFile(thumb.absolutePath)
+                if (bitmap != null) {
+                    val visualAudit = SpiritualSafetyGuard.performVisualSpiritualAudit(bitmap, title, description)
+                    if (visualAudit is SpiritualSafetyGuard.ModerationResult.Rejected) {
+                        spiritualViolationMessage = visualAudit.reason
+                        spiritualViolationAyah = visualAudit.detailedAyah
+                        return@LaunchedEffect
+                    }
                 }
             }
+
+            spiritualViolationMessage = null
+            spiritualViolationAyah = null
         } else {
             spiritualViolationMessage = null
             spiritualViolationAyah = null
@@ -647,6 +659,21 @@ fun ReelPublishScreen(
                             fontSize = 13.sp,
                             color = if (spiritualViolationMessage != null) Color(0xFFEF4444) else Color(0xFF10B981)
                         )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Surface(
+                            color = Color(0xFF064E3B).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                "Gemini 3.8 Flash (Firebase AI Logic) ✦",
+                                color = Color(0xFF6EE7B7),
+                                fontSize = 9.sp,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                     if (spiritualViolationMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))

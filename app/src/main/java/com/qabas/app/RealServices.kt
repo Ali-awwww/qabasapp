@@ -286,6 +286,36 @@ object RealGeminiService {
     }
 
     suspend fun analyzeVideoStyle(url: String): VideoStyleAnalysis = withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+        try {
+            val fbResult = FirebaseAiService.analyzeVideoStyle(url)
+            SystemLogsManager.addLog("INFO", "تم تحليل نمط الفيديو بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            
+            // Map FirebaseAiService.VideoStyleAnalysis to RealServices.VideoStyleAnalysis
+            val analysisResult = VideoStyleAnalysis(
+                dominantColors = fbResult.dominantColors,
+                transitionSpeed = fbResult.transitionSpeed,
+                movementPatterns = fbResult.movementPatterns,
+                overallRhythm = fbResult.overallRhythm,
+                audioStyle = fbResult.audioStyle,
+                typographyStyle = fbResult.typographyStyle,
+                contentTone = fbResult.contentTone,
+                targetAudience = fbResult.targetAudience,
+                keywords = emptyList()
+            )
+
+            // Learn from this reference video
+            try {
+                TasteManager.registerPreference(AppServices.appContext, "STYLE", analysisResult.dominantColors, 2)
+                TasteManager.registerPreference(AppServices.appContext, "PACING", analysisResult.transitionSpeed, 2)
+                TasteManager.registerPreference(AppServices.appContext, "AUDIO", analysisResult.audioStyle, 2)
+            } catch(e: Exception) {}
+
+            return@withContext analysisResult
+        } catch (e: Exception) {
+            android.util.Log.w("RealGeminiService", "Firebase AI Logic video style analysis attempt, falling back: ${e.message}")
+        }
+
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
             return@withContext VideoStyleAnalysis(detectedStyle = "تأكد من إعداد مفتاح API.")
@@ -730,6 +760,15 @@ object RealGeminiService {
     }
 
     suspend fun generateDeveloperPrompts(request: AppRequestService.AppRequest): String = withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
+        try {
+            val fbPlan = FirebaseAiService.generateDeveloperPlan(request.description)
+            SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            return@withContext fbPlan
+        } catch (e: Exception) {
+            android.util.Log.w("RealGeminiService", "Firebase AI Logic developer plan attempt, falling back: ${e.message}")
+        }
+
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
             // بلا Gemini: جرّب OpenRouter المجاني (مع تجاوز المسبح) ثم المخطط المحلي

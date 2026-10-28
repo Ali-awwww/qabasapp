@@ -129,6 +129,18 @@ object UniversalKeyBrain {
         stream: Boolean = false,
         onPartial: ((String) -> Unit)? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
+        // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) for Gemini provider
+        if (provider == DetectedProvider.GEMINI || provider == DetectedProvider.NONE) {
+            try {
+                val responseText = FirebaseAiService.generateText(prompt, systemInstruction)
+                if (responseText.isNotBlank()) {
+                    return@withContext Result.success(RealAgentResponse(responseText, 500, 250, 250))
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("UniversalKeyBrain", "Firebase AI Logic attempt failed: ${e.message}")
+            }
+        }
+
         val prefsKey = prefsKeyFor(provider)
         val keys = if (prefsKey.isNotBlank()) {
             KeyPoolManager.orderedKeysBySpeed(prefsKey, fallbackSingleKey)

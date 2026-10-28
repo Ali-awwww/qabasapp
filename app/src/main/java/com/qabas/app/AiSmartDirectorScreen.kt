@@ -2,6 +2,7 @@ package com.qabas.app
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -121,15 +122,18 @@ fun AiSmartDirectorScreen(
                         Text(Translator.tr("المخرج الذكي والعقل"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
+                            color = Color(0xFF064E3B).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
                         ) {
-                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("STYLEBRAIN", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
+                            Text(
+                                "Gemini 3.8 Flash (Firebase AI Logic) ✦",
+                                color = Color(0xFF6EE7B7),
+                                fontSize = 9.sp,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
                     }
                 },
