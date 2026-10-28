@@ -92,12 +92,15 @@ fun AppPermissionsHubScreen(
     // Live permission states
     var isBatteryIgnored by remember { mutableStateOf(BackgroundPermissionManager.isBatteryOptimizationIgnored(context)) }
     var canExactAlarm by remember { mutableStateOf(BackgroundPermissionManager.canScheduleExactAlarms(context)) }
-    var isNotificationGranted by remember { mutableStateOf(BackgroundPermissionManager.areNotificationsEnabled(context)) }
+    var canFullScreen by remember { mutableStateOf(BackgroundPermissionManager.canUseFullScreenIntent(context)) }
     var isMicGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
     var isCameraGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    var isNotificationGranted by remember {
+        mutableStateOf(BackgroundPermissionManager.areNotificationsEnabled(context))
     }
 
     var isDiagnosticRunning by remember { mutableStateOf(false) }
@@ -109,6 +112,7 @@ fun AppPermissionsHubScreen(
         isBatteryIgnored = BackgroundPermissionManager.isBatteryOptimizationIgnored(context)
         canExactAlarm = BackgroundPermissionManager.canScheduleExactAlarms(context)
         isNotificationGranted = BackgroundPermissionManager.areNotificationsEnabled(context)
+        canFullScreen = BackgroundPermissionManager.canUseFullScreenIntent(context)
         isMicGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         isCameraGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
@@ -143,8 +147,8 @@ fun AppPermissionsHubScreen(
     }
 
     // Calculate system readiness score
-    val totalCount = 5
-    val grantedCount = listOf(isBatteryIgnored, canExactAlarm, isNotificationGranted, isMicGranted, isCameraGranted).count { it }
+    val totalCount = 6
+    val grantedCount = listOf(isBatteryIgnored, canExactAlarm, isNotificationGranted, isMicGranted, isCameraGranted, canFullScreen).count { it }
     val readinessPercentage = (grantedCount * 100) / totalCount
 
     // Pulsing cybernetic animation for the radar HUD
@@ -509,6 +513,24 @@ fun AppPermissionsHubScreen(
                         }
                     }
                 )
+
+                // 4.5. إذن الأذان بملء الشاشة (Android 14+)
+                if (Build.VERSION.SDK_INT >= 34) {
+                    CyberPermissionCard(
+                        title = "الأذان بملء الشاشة",
+                        code = "USE_FULL_SCREEN_INTENT • HUD_OVERLAY",
+                        subsystem = "محرك واجهة الأذان فوق القفل",
+                        desc = "السماح للأذان بفتح واجهة التنبيه مباشرة فوق شاشة القفل عند دخول الوقت لضمان التنبيه الفوري.",
+                        impact = "بدونه قد يكتفي النظام بإرسال إشعار صامت أو بسيط دون فتح الواجهة.",
+                        icon = Icons.Default.Screenshot,
+                        isGranted = canFullScreen,
+                        accentColor = Color(0xFFF43F5E),
+                        actionLabel = if (canFullScreen) "مفعل وجاهز ✓" else "منح الإذن ⚡",
+                        onAction = {
+                            BackgroundPermissionManager.requestFullScreenIntentPermission(context)
+                        }
+                    )
+                }
 
                 // 5. استثناء توفير البطارية (خلفية دون قيود)
                 CyberPermissionCard(

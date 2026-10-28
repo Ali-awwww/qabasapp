@@ -43,6 +43,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.qabas.app.ui.agent.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -104,83 +105,56 @@ internal fun AgentChatOverlayDialog(
                         )
                     )
             ) {
-                // Top Header Bar
+                // Top Header Bar: Icon + Name + Status + Buttons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color(0xFF0C192E))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Agent Identity & Status
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
-                                .background(specialization.color.copy(alpha = 0.2f))
-                                .border(1.dp, specialization.color, CircleShape),
+                                .background(specialization.color.copy(alpha = 0.15f))
+                                .border(1.dp, specialization.color.copy(alpha = 0.4f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 specialization.icon,
                                 contentDescription = null,
                                 tint = specialization.color,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                         Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "محادثة الوكيل المباشرة 🤖💬",
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    color = specialization.color.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(0.8.dp, specialization.color)
-                                ) {
-                                    Text(
-                                        text = specialization.badge,
-                                        color = specialization.color,
-                                        fontFamily = CairoFont,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isRunning) {
-                                                if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981)
-                                            } else Color(0xFF64748B)
-                                        )
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = if (isRunning) {
-                                        if (isPaused) "موقوف مؤقتاً ⏸️" else "نشط ويعالج المهام ⚡"
-                                    } else "جاهز للاستلام 💬",
-                                    color = Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontSize = 12.sp
-                                )
-                            }
+                            Text(
+                                text = "الوكيل الذكي",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            AgentStatusChip(
+                                kind = if (isRunning) {
+                                    if (isPaused) AgentStatusKind.NEEDS_ACTION else AgentStatusKind.RUNNING
+                                } else AgentStatusKind.READY,
+                                text = if (isRunning) {
+                                    if (isPaused) "موقف مؤقتاً" else "يعالج المهام"
+                                } else "جاهز للعمل",
+                                modifier = Modifier.height(24.dp)
+                            )
                         }
                     }
 
+                    // Control Actions
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -189,41 +163,41 @@ internal fun AgentChatOverlayDialog(
                             IconButton(
                                 onClick = { if (isPaused) onResume() else onPause() },
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(32.dp)
                                     .background(Color(0xFF15263F), CircleShape)
                             ) {
                                 Icon(
                                     imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                                     contentDescription = "Pause/Resume",
-                                    tint = if (isPaused) Color(0xFF10B981) else Color(0xFFA855F7),
-                                    modifier = Modifier.size(18.dp)
+                                    tint = if (isPaused) AgentDesign.Success else AgentDesign.Secondary,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                             IconButton(
                                 onClick = onStop,
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .background(Color(0xFF33141E), CircleShape)
+                                    .size(32.dp)
+                                    .background(AgentDesign.Danger.copy(alpha = 0.15f), CircleShape)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Stop,
-                                    contentDescription = "Stop Agent",
-                                    tint = Color(0xFFEF4444),
-                                    modifier = Modifier.size(18.dp)
+                                    contentDescription = "Stop",
+                                    tint = AgentDesign.Danger,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
                         IconButton(
                             onClick = onDismiss,
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(32.dp)
                                 .background(Color(0xFF1E293B), CircleShape)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "إغلاق",
+                                contentDescription = "Close",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -279,34 +253,39 @@ internal fun AgentChatOverlayDialog(
 
                 HorizontalDivider(color = Color(0xFF1E293B))
 
-                // Quick Prompts
+                // Quick Prompts Redesign
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "أضف زر مشاركة فوري مع اهتزاز لمسي ⚡",
-                        "افحص الكود وتأكد من البنية النحوية 🧪",
-                        "شغّل صياد الأخطاء وترقيع الانهيار 🩺",
-                        "اربط التغييرات مع فرع GitHub الجديد 🐙"
+                        "أضف زر مشاركة ⚡",
+                        "افحص الكود 🧪",
+                        "صياد الأخطاء 🩺",
+                        "مزامنة GitHub 🐙"
                     )
                     quickPrompts.forEach { prompt ->
                         Surface(
                             onClick = { inputText = prompt },
-                            color = Color(0xFF132238),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f))
+                            color = AgentDesign.Primary.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(AgentDesign.RadiusSm),
+                            border = BorderStroke(1.dp, AgentDesign.Primary.copy(alpha = 0.25f))
                         ) {
-                            Text(
-                                text = prompt,
-                                color = Color(0xFF93C5FD),
-                                fontFamily = CairoFont,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = prompt,
+                                    color = AgentDesign.Primary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
@@ -453,44 +432,12 @@ internal fun ChatMessageBubble(message: AgentChatMessage) {
 
                     message.diff?.let { diff ->
                         Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            color = Color(0xFF050B14),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "📁 ${diff.filePath}",
-                                        color = Color(0xFF7DD3FC),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "+${diff.additions} / -${diff.deletions}",
-                                        color = Color(0xFF34D399),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                                if (diff.diffText.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = diff.diffText.take(300),
-                                        color = Color(0xFFCBD5E1),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        maxLines = 6,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
+                        AgentDiffCard(
+                            filePath = diff.filePath,
+                            additions = diff.additions,
+                            deletions = diff.deletions,
+                            diffText = diff.diffText
+                        )
                     }
                 }
             }

@@ -41,6 +41,7 @@ import com.qabas.app.ui.agent.AgentStatusKind
 import com.qabas.app.ui.agent.AgentNeonCard
 import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.components.GlassmorphicSurface
+import com.qabas.app.ui.agent.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -893,20 +894,81 @@ fun AiStudioAgentScreen(
     if (showModelPicker) {
         val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
         val models = agentModelsFor(provider)
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showModelPicker = false },
-            title = { Text("اختر النموذج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(Modifier.fillMaxWidth()) {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            AgentNeonCard(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .padding(16.dp),
+                accent = AgentDesign.Primary,
+                shape = RoundedCornerShape(AgentDesign.RadiusLg)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "اختر نموذج الذكاء",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "اختر المحرك الأنسب للمهمة الحالية",
+                        color = AgentDesign.TextSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    
                     models.forEach { m ->
-                        Text(text = m, color = Color.White, fontFamily = CairoFont, modifier = Modifier.fillMaxWidth().padding(14.dp).clickable { selectedModel = m; showModelPicker = false }.background(if (selectedModel == m) Color(0xFF22D3EE).copy(alpha = 0.15f) else Color.Transparent))
+                        val isSelected = selectedModel == m
+                        Surface(
+                            onClick = { selectedModel = m; showModelPicker = false },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(AgentDesign.RadiusSm),
+                            color = if (isSelected) AgentDesign.Primary.copy(alpha = 0.12f) else Color.Transparent,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) AgentDesign.Primary.copy(alpha = 0.5f) else AgentDesign.Hairline
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) AgentDesign.Primary else AgentDesign.TextTertiary)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = m,
+                                    color = if (isSelected) Color.White else AgentDesign.TextSecondary,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
                     }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    AgentNeonButton(
+                        text = "إغلاق",
+                        onClick = { showModelPicker = false },
+                        accent = AgentDesign.Secondary,
+                        icon = Icons.Default.Close,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-            },
-            dismissButton = { TextButton(onClick = { showModelPicker = false }) { Text("إغلاق", color = Color(0xFF22D3EE), fontFamily = CairoFont) } },
-            confirmButton = {},
-            containerColor = Color(0xFF0B1220)
-        )
+            }
+        }
     }
     if (showExitConfirmation) {
         AlertDialog(

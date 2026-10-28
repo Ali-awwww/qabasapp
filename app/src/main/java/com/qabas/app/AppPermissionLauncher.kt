@@ -67,6 +67,7 @@ fun AppStartupPermissionHandler(
     var isBatteryIgnored by remember { mutableStateOf(BackgroundPermissionManager.isBatteryOptimizationIgnored(context)) }
     var canExactAlarm by remember { mutableStateOf(BackgroundPermissionManager.canScheduleExactAlarms(context)) }
     var isNotificationGranted by remember { mutableStateOf(BackgroundPermissionManager.areNotificationsEnabled(context)) }
+    var canFullScreen by remember { mutableStateOf(BackgroundPermissionManager.canUseFullScreenIntent(context)) }
     var isMicGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
@@ -78,6 +79,7 @@ fun AppStartupPermissionHandler(
         isBatteryIgnored = BackgroundPermissionManager.isBatteryOptimizationIgnored(context)
         canExactAlarm = BackgroundPermissionManager.canScheduleExactAlarms(context)
         isNotificationGranted = BackgroundPermissionManager.areNotificationsEnabled(context)
+        canFullScreen = BackgroundPermissionManager.canUseFullScreenIntent(context)
         isMicGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         isCameraGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
@@ -127,7 +129,7 @@ fun AppStartupPermissionHandler(
         if (!hasRequestedInitially) {
             requestRuntimePermissions()
         } else {
-            val anyVitalMissing = !isBatteryIgnored || !canExactAlarm || !isNotificationGranted
+            val anyVitalMissing = !isBatteryIgnored || !canExactAlarm || !isNotificationGranted || !canFullScreen
             if (anyVitalMissing && !prefs.getBoolean("bg_permission_dismissed", false)) {
                 showPermissionDialog = true
             }
@@ -139,6 +141,7 @@ fun AppStartupPermissionHandler(
             isBatteryIgnored = isBatteryIgnored,
             canExactAlarm = canExactAlarm,
             isNotificationGranted = isNotificationGranted,
+            canFullScreen = canFullScreen,
             isMicGranted = isMicGranted,
             isCameraGranted = isCameraGranted,
             onDismiss = {
@@ -161,6 +164,10 @@ fun AppStartupPermissionHandler(
                 }
                 refreshStates()
             },
+            onRequestFullScreen = {
+                BackgroundPermissionManager.requestFullScreenIntentPermission(context)
+                refreshStates()
+            },
             onRequestMic = {
                 permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
                 refreshStates()
@@ -179,6 +186,9 @@ fun AppStartupPermissionHandler(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canExactAlarm) {
                     BackgroundPermissionManager.requestScheduleExactAlarm(context)
                 }
+                if (Build.VERSION.SDK_INT >= 34 && !canFullScreen) {
+                    BackgroundPermissionManager.requestFullScreenIntentPermission(context)
+                }
                 BackgroundPermissionManager.refreshBackgroundSchedulers(context)
                 Toast.makeText(context, "تم تفعيل درع حماية الأذان واستوديو الإنتاج 🚀", Toast.LENGTH_SHORT).show()
                 showPermissionDialog = false
@@ -196,12 +206,14 @@ fun BackgroundPermissionsDialog(
     isBatteryIgnored: Boolean,
     canExactAlarm: Boolean,
     isNotificationGranted: Boolean,
+    canFullScreen: Boolean = true,
     isMicGranted: Boolean = true,
     isCameraGranted: Boolean = true,
     onDismiss: () -> Unit,
     onRequestBattery: () -> Unit,
     onRequestExactAlarm: () -> Unit,
     onRequestNotifications: () -> Unit,
+    onRequestFullScreen: () -> Unit = {},
     onRequestMic: () -> Unit = {},
     onRequestCamera: () -> Unit = {},
     onOpenFullHub: () -> Unit = {},
@@ -351,7 +363,19 @@ fun BackgroundPermissionsDialog(
                         )
                     }
 
-                    // 4. ميكروفون استوديو الصوتيات إن كان معطلاً
+                    // 4. إذن الأذان بملء الشاشة (Android 14+)
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        PermissionStatusCard(
+                            icon = Icons.Default.Screenshot,
+                            title = "الأذان فوق شاشة القفل",
+                            desc = "لعرض واجهة الأذان مباشرة فور دخول وقت الصلاة",
+                            isGranted = canFullScreen,
+                            accentColor = Color(0xFFF43F5E),
+                            onAction = onRequestFullScreen
+                        )
+                    }
+
+                    // 5. ميكروفون استوديو الصوتيات إن كان معطلاً
                     if (!isMicGranted) {
                         PermissionStatusCard(
                             icon = Icons.Default.Mic,

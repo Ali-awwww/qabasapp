@@ -142,7 +142,11 @@ class AzanPlaybackService : Service() {
         wakeLock?.acquire(300000L) // 5 minutes max
 
         val notification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
-        startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34)
+            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
 
         // 🔑 احتياطي: جرب ملفًا محليًا محفوظًا قبل البث المباشر
         val localFile = java.io.File(getExternalFilesDir(null), "azan_${voiceId}.mp3")

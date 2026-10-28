@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassEmpty
 import com.qabas.app.ui.theme.CairoFont
@@ -98,16 +99,100 @@ object AgentDesign {
 fun AgentNeonCard(
     modifier: Modifier = Modifier,
     accent: Color = AgentDesign.Primary,
+    shape: RoundedCornerShape = RoundedCornerShape(AgentDesign.RadiusMd),
     content: @Composable () -> Unit
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(AgentDesign.RadiusMd)),
-        shape = RoundedCornerShape(AgentDesign.RadiusMd),
+            .border(1.dp, accent.copy(alpha = 0.28f), shape),
+        shape = shape,
         color = AgentDesign.SurfaceBase.copy(alpha = 0.92f)
     ) {
         Column(Modifier.padding(AgentDesign.SpaceLg)) { content() }
+    }
+}
+
+/** بطاقة عرض التغييرات البرمجية (Diff) بتصميم منفصل ونظيف. */
+@Composable
+fun AgentDiffCard(
+    filePath: String,
+    additions: Int,
+    deletions: Int,
+    diffText: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, AgentDesign.Primary.copy(alpha = 0.35f), RoundedCornerShape(AgentDesign.RadiusSm)),
+        shape = RoundedCornerShape(AgentDesign.RadiusSm),
+        color = Color(0xFF060912)
+    ) {
+        Column(Modifier.padding(AgentDesign.SpaceMd)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Code,
+                        contentDescription = null,
+                        tint = AgentDesign.Primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(AgentDesign.SpaceSm))
+                    Text(
+                        text = filePath,
+                        color = AgentDesign.TextPrimary,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                Row {
+                    if (additions > 0) {
+                        Text(
+                            text = "+$additions",
+                            color = AgentDesign.Success,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(AgentDesign.SpaceSm))
+                    }
+                    if (deletions > 0) {
+                        Text(
+                            text = "-$deletions",
+                            color = AgentDesign.Danger,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            if (diffText.isNotBlank()) {
+                Spacer(Modifier.height(AgentDesign.SpaceSm))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                        .padding(AgentDesign.SpaceSm)
+                ) {
+                    Text(
+                        text = diffText.take(500),
+                        color = AgentDesign.TextSecondary,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+        }
     }
 }
 

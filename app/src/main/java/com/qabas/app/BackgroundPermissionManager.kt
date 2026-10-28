@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.app.NotificationManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import java.util.Locale
@@ -59,12 +60,26 @@ object BackgroundPermissionManager {
     }
 
     /**
+     * هل يمتلك التطبيق إذن عرض الإشعارات بملء الشاشة (Full-Screen Intent)؟
+     * (مهم جداً لرفع الأذان فوق شاشة القفل في أندرويد 14+)
+     */
+    fun canUseFullScreenIntent(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            manager?.canUseFullScreenIntent() ?: true
+        } else {
+            true
+        }
+    }
+
+    /**
      * التحقق الشامل: هل كل أذونات العمل بالخلفية والأذان ممنوحة بنجاح؟
      */
     fun isAllBackgroundPermissionsGranted(context: Context): Boolean {
         return isBatteryOptimizationIgnored(context) &&
                 canScheduleExactAlarms(context) &&
-                areNotificationsEnabled(context)
+                areNotificationsEnabled(context) &&
+                canUseFullScreenIntent(context)
     }
 
     /**
@@ -115,6 +130,27 @@ object BackgroundPermissionManager {
             }
         }
     }
+    /**
+     * طلب إذن عرض الإشعارات بملء الشاشة (Android 14+)
+     */
+    fun requestFullScreenIntentPermission(context: Context) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                if (!canUseFullScreenIntent(context)) {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } else {
+                    Toast.makeText(context, "إذن الأذان بملء الشاشة مفعّل بالفعل ✅", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                openAppSettings(context)
+            }
+        }
+    }
+
 
     /**
      * فتح إعدادات إشعارات التطبيق
