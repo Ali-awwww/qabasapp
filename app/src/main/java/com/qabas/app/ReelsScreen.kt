@@ -101,13 +101,14 @@ private fun formatRelativeTime(iso: String?): String {
  */
 private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
     SupabaseServices.ReelRow(
-        id = "qabas_quran_raad_28",
+        id = "qabas_quran_recitation_starter",
         userId = "qabas_reciter_1",
         userName = "تلاوات خاشعة 🌿",
         userAvatar = "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&q=80",
         title = "﴿الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ﴾ 🌿 تلاوة خاشعة وسكينة",
         description = "تلاوة قرآنية مباركة تأخذ القلب إلى آفاق الطمأنينة والسكينة في رحاب كلام الله تبارك وتعالى.",
-        videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-hands-holding-an-open-quran-42286-large.mp4",
+        // مستضاف في سحابة قبس نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
+        videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80",
         tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر"),
         likesCount = 1420,
@@ -116,64 +117,20 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
         createdAt = "2025-01-01T12:00:00Z"
     ),
     SupabaseServices.ReelRow(
-        id = "qabas_makkah_illumination",
+        id = "qabas_faith_lecture_starter",
         userId = "qabas_reciter_2",
-        userName = "قبس الحرمين الشريفين 🕋",
-        userAvatar = "https://images.unsplash.com/photo-1564769625905-50e93615e769?w=200&q=80",
-        title = "المسجد الحرام والأنوار الذهبية 🕋 نفحات من مهبط الوحي وبيت الله العتيق",
-        description = "مشهد إيماني مهيب للمسجد الحرام والكعبة المشرفة تحت الأضواء الكريمة وسكينة الطائفين.",
-        videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-mosque-illuminated-at-night-42284-large.mp4",
-        thumbnailUrl = "https://images.unsplash.com/photo-1564769625905-50e93615e769?w=200&q=80",
-        tags = listOf("مساجد", "مكة", "الحرم", "الكعبة", "طواف"),
-        likesCount = 3890,
-        commentsCount = 210,
-        sharesCount = 980,
-        createdAt = "2025-01-02T15:30:00Z"
-    ),
-    SupabaseServices.ReelRow(
-        id = "qabas_cosmic_creation",
-        userId = "qabas_reciter_3",
-        userName = "مرصد التدبر القرآني 🌌",
-        userAvatar = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=200&q=80",
-        title = "﴿وَالسَّمَاءِ وَمَا بَنَاهَا﴾ 🌌 عظمة الصانع في بديع خلق الكون والنجوم",
-        description = "تدبر في آيات الله الكونية، وسجود الليل وتأمل عظمة الخالق سبحانه وتعالى في اتساع المجرات.",
-        videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-starry-sky-time-lapse-4008-large.mp4",
-        thumbnailUrl = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=600&q=80",
-        tags = listOf("تدبر", "كون", "سماء", "إعجاز", "خلق"),
-        likesCount = 2750,
-        commentsCount = 148,
-        sharesCount = 540,
-        createdAt = "2025-01-03T18:00:00Z"
-    ),
-    SupabaseServices.ReelRow(
-        id = "qabas_madinah_blessings",
-        userId = "qabas_reciter_4",
-        userName = "أنوار المدينة المنورة 🌿",
-        userAvatar = "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=200&q=80",
-        title = "المسجد النبوي الشريف 🌿 سلام على الحبيب المصطفى وطيبة الطيبة",
-        description = "روحانية مآذن وقباب المسجد النبوي في المدينة المنورة طابت بذكر النبي الهادي الأمين ﷺ.",
-        videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-view-of-a-mosque-dome-and-minaret-42285-large.mp4",
-        thumbnailUrl = "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=600&q=80",
-        tags = listOf("المدينة", "المسجد_النبوي", "حديث", "سنة", "نبينا"),
-        likesCount = 4620,
-        commentsCount = 375,
-        sharesCount = 1250,
-        createdAt = "2025-01-04T08:00:00Z"
-    ),
-    SupabaseServices.ReelRow(
-        id = "qabas_andalus_wisdom",
-        userId = "qabas_reciter_5",
-        userName = "مشكاة الحكمة والتراث 📜",
+        userName = "مشكاة الحكمة والموعظة 📜",
         userAvatar = "https://images.unsplash.com/photo-1548013146-72479768bada?w=200&q=80",
-        title = "﴿ادْعُ إِلَىٰ سَبِيلِ رَبِّكَ بِالْحِكْمَةِ﴾ ✨ فضل العلم وعمارة الأرض",
-        description = "وقفات إيمانية حول الحكمة والموعظة الحسنة وعمارة القلوب بالإيمان واليقين وطلب العلم النافع.",
-        videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-intricate-details-of-a-mosque-interior-42287-large.mp4",
+        title = "هادم اللذات 📜 وقفة صادقة مع الآخرة وزوال الدنيا",
+        description = "موعظة مؤثرة تدق أبواب القلوب: تذكير بزوال الدنيا وسرعة الرحيل إلى الله سبحانه وتعالى.",
+        // مستضاف في سحابة قبس نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
+        videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80",
-        tags = listOf("قصص", "حكمة", "دعوة", "علم", "تراث"),
-        likesCount = 1980,
-        commentsCount = 92,
-        sharesCount = 285,
-        createdAt = "2025-01-05T10:15:00Z"
+        tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب"),
+        likesCount = 2210,
+        commentsCount = 130,
+        sharesCount = 470,
+        createdAt = "2025-01-02T15:30:00Z"
     )
 )
 
