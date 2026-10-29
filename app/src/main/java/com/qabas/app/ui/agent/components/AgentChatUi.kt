@@ -66,10 +66,16 @@ internal fun AgentChatOverlayDialog(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
-    specialization: AgentSpecialization
+    specialization: AgentSpecialization,
+    onNewChat: () -> Unit = {},
+    onSwitchSession: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    var showSessionsMenu by remember { mutableStateOf(false) }
+    val sessions by AgentChatSessionManager.sessions.collectAsState()
+    val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
 
     LaunchedEffect(messages.size, isThinking) {
         if (messages.isNotEmpty()) {
@@ -162,11 +168,98 @@ internal fun AgentChatOverlayDialog(
                         }
                     }
 
-                    // Right: Actions (Stop/Pause/Close)
+                    // Right: Actions (New Chat, Sessions Menu, Stop/Pause/Close)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        // زر جلسة جديدة
+                        IconButton(
+                            onClick = onNewChat,
+                            modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF0F261C))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AddComment,
+                                contentDescription = "محادثة جديدة",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+
+                        // زر قائمة الجلسات السابقة
+                        Box {
+                            IconButton(
+                                onClick = { showSessionsMenu = true },
+                                modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF131D2E))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = "السجل",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showSessionsMenu,
+                                onDismissRequest = { showSessionsMenu = false },
+                                modifier = Modifier
+                                    .background(Color(0xFF0B1424))
+                                    .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(8.dp))
+                            ) {
+                                Text(
+                                    text = "جلسات المحادثة السابقة",
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                                HorizontalDivider(color = Color(0xFF1E2D4A))
+
+                                if (sessions.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("لا توجد محادثات سابقة", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont) },
+                                        onClick = { showSessionsMenu = false }
+                                    )
+                                } else {
+                                    sessions.take(8).forEach { session ->
+                                        val isCurrent = session.id == activeSessionId
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(
+                                                        text = session.title,
+                                                        color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontFamily = CairoFont,
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = "${session.messageCount} رسائل",
+                                                        color = Color(0xFF64748B),
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                showSessionsMenu = false
+                                                onSwitchSession(session.id)
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.ChatBubbleOutline,
+                                                    contentDescription = null,
+                                                    tint = if (isCurrent) Color(0xFF10B981) else Color(0xFF64748B),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         if (isRunning) {
                             IconButton(
                                 onClick = { if (isPaused) onResume() else onPause() },
@@ -272,10 +365,16 @@ internal fun AgentChatOverlayDialog(
                     )
                     items(quickPrompts) { (prompt, icon) ->
                         Surface(
-                            onClick = { inputText = prompt },
-                            color = AgentDesign.Primary.copy(alpha = 0.05f),
+                            onClick = {
+                                if (!isThinking && (!isRunning || isPaused)) {
+                                    onSendMessage(prompt)
+                                } else {
+                                    inputText = prompt
+                                }
+                            },
+                            color = AgentDesign.Primary.copy(alpha = 0.08f),
                             shape = RoundedCornerShape(AgentDesign.RadiusSm),
-                            border = BorderStroke(1.dp, AgentDesign.Primary.copy(alpha = 0.2f))
+                            border = BorderStroke(1.dp, AgentDesign.Primary.copy(alpha = 0.35f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -287,8 +386,8 @@ internal fun AgentChatOverlayDialog(
                                     text = prompt,
                                     color = AgentDesign.TextPrimary,
                                     fontFamily = CairoFont,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }

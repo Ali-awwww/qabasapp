@@ -125,34 +125,39 @@ internal fun AgentKernelSettingsCard(context: Context) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
-                        null to "⚡ تلقائي (حسب المفتاح)",
-                        "anthropic/claude-sonnet-4.5" to "🧠 Claude Sonnet 4.5",
-                        "gemini-2.0-flash" to "💎 Gemini 2.0 Flash",
-                        "llama-3.3-70b-versatile" to "⚡ Groq Llama 70B",
-                        "poolside/laguna-s-2.1:free" to "🦙 Laguna Code Free",
-                        "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free"
+                        null to "⚡ تلقائي الذكي (Auto)",
+                        "gemini-3.8-flash" to "💎 Gemini 3.8 Flash (سريع ودقيق)",
+                        "llama-3.3-70b-versatile" to "⚡ Groq Llama 3.3 70B (فائق السرعة)",
+                        "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free (مجاني ومفتوح)"
                     ).forEach { (id, label) ->
                         val isSelected = model == id
                         Surface(
-                            color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF060B16),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E2D4A)),
-                            modifier = Modifier.clickable {
-                                model = id
-                                prefs.edit().putString(AgentPrefs.MODEL, id ?: "").apply()
-                            }
+                            color = if (isSelected) Color(0xFF10B981).copy(alpha = 0.18f) else Color(0xFF091220),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFF10B981) else Color(0xFF1E2D4A)),
+                            modifier = Modifier
+                                .defaultMinSize(minHeight = 48.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    model = id
+                                    prefs.edit().putString(AgentPrefs.MODEL, id ?: "").apply()
+                                }
                         ) {
-                            Text(
-                                label,
-                                color = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
-                                fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
+                            Box(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    label,
+                                    color = if (isSelected) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    fontFamily = CairoFont,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.5.sp
+                                )
+                            }
                         }
                     }
                 }

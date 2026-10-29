@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
@@ -40,6 +41,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.qabas.app.ui.theme.CairoFont
 
 /**
@@ -114,7 +117,7 @@ fun AgentNeonCard(
     }
 }
 
-/** بطاقة عرض التغييرات البرمجية (Diff) بتصميم منفصل ونظيف. */
+/** بطاقة عرض التغييرات البرمجية (Diff) بتصميم منفصل وقابل للطي بنقرة واحدة. */
 @Composable
 fun AgentDiffCard(
     filePath: String,
@@ -123,6 +126,8 @@ fun AgentDiffCard(
     diffText: String,
     modifier: Modifier = Modifier
 ) {
+    var isExpanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -132,7 +137,11 @@ fun AgentDiffCard(
     ) {
         Column(Modifier.padding(AgentDesign.SpaceMd)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -141,56 +150,86 @@ fun AgentDiffCard(
                         imageVector = androidx.compose.material.icons.Icons.Default.Code,
                         contentDescription = null,
                         tint = AgentDesign.Primary,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(AgentDesign.SpaceSm))
                     Text(
                         text = filePath,
                         color = AgentDesign.TextPrimary,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-                Row {
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     if (additions > 0) {
-                        Text(
-                            text = "+$additions",
-                            color = AgentDesign.Success,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.width(AgentDesign.SpaceSm))
+                        Surface(
+                            color = AgentDesign.Success.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.8.dp, AgentDesign.Success.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "+$additions",
+                                color = AgentDesign.Success,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
                     }
                     if (deletions > 0) {
-                        Text(
-                            text = "-$deletions",
-                            color = AgentDesign.Danger,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Surface(
+                            color = AgentDesign.Danger.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.8.dp, AgentDesign.Danger.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "-$deletions",
+                                color = AgentDesign.Danger,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
                     }
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "طي" else "توسيع",
+                        tint = AgentDesign.TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
-            if (diffText.isNotBlank()) {
-                Spacer(Modifier.height(AgentDesign.SpaceSm))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                        .padding(AgentDesign.SpaceSm)
-                ) {
-                    Text(
-                        text = diffText.take(500),
-                        color = AgentDesign.TextSecondary,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp
-                    )
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isExpanded && diffText.isNotBlank(),
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            ) {
+                Column {
+                    Spacer(Modifier.height(AgentDesign.SpaceSm))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .border(0.8.dp, Color(0xFF1E2D4A), RoundedCornerShape(6.dp))
+                            .padding(AgentDesign.SpaceSm)
+                    ) {
+                        Text(
+                            text = diffText.take(2000),
+                            color = Color(0xFF93C5FD),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
                 }
             }
         }

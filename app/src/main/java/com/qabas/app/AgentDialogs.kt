@@ -34,8 +34,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -800,53 +803,642 @@ fun CodingPlatformCard(
 }
 
 /**
- * حوار مستودع GitHub والفرع المستهدف
+ * حوار إدارة وتبديل مستودعات GitHub والتحكم بالصلاحيات
  */
 @Composable
 fun RepoSetupDialog(
     context: Context,
     activeRepo: RepoVaultEntry?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRepoChanged: (RepoVaultEntry) -> Unit = {}
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+
+    var repos by remember {
+        mutableStateOf(RepoVaultManager.getRepositories(context))
+    }
+    var currentActiveId by remember {
+        mutableStateOf(RepoVaultManager.getActiveRepoId(context) ?: activeRepo?.id ?: "")
+    }
+    val currentActiveRepo = remember(repos, currentActiveId) {
+        repos.find { it.id == currentActiveId } ?: activeRepo ?: repos.firstOrNull()
+    }
+
+    var showAddSection by remember { mutableStateOf(false) }
+    var inputRepoUrl by remember { mutableStateOf("") }
+    var inputToken by remember { mutableStateOf("") }
+    var inputBranch by remember { mutableStateOf("main") }
+    var showTokenText by remember { mutableStateOf(false) }
+
+    var isTestingConnection by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var testSuccess by remember { mutableStateOf<Boolean?>(null) }
+
+    fun testConnection(entry: RepoVaultEntry) {
+        if (entry.owner.isBlank() || entry.repo.isBlank()) {
+            testSuccess = false
+            testResult = "بيانات المستودع غير مكتملة."
+            return
+        }
+        isTestingConnection = true
+        testSuccess = null
+        testResult = "جاري فحص الاتصال وقراءة بيانات المستودع..."
+        scope.launch(Dispatchers.IO) {
+            val client = GitHubRepoClient(entry.owner, entry.repo, entry.token)
+            val branches = client.getBranches()
+            val authUser = client.getAuthUser()
+            withContext(Dispatchers.Main) {
+                isTestingConnection = false
+                if (branches != null) {
+                    testSuccess = true
+                    testResult = "الاتصال ناجح! (${branches.size} فروع)${if (!authUser.isNullOrBlank()) " | الحساب: $authUser" else ""}"
+                } else {
+                    testSuccess = false
+                    testResult = if (entry.token.isBlank()) {
+                        "المستودع خاص أو غير متاح. يرجى توفير رمز GitHub PAT."
+                    } else {
+                        "فشل الاتصال: يرجى التحقق من اسم المستودع وصلاحيات الرمز (PAT)."
+                    }
+                }
+            }
+        }
+    }
+
+    fun handleSwitchRepo(entry: RepoVaultEntry) {
+        val target = RepoVaultManager.setActiveRepo(context, entry.id)
+        currentActiveId = entry.id
+        testResult = null
+        testSuccess = null
+        target?.let { onRepoChanged(it) }
+        Toast.makeText(context, "تم تفعيل المستودع: ${entry.displayName} ⚡", Toast.LENGTH_SHORT).show()
+    }
+
+    fun handleAddRepo() {
+        val parsed = RepoVaultManager.parseRepoUrl(inputRepoUrl)
+        if (parsed == null) {
+            Toast.makeText(context, "يرجى كتابة رابط المستودع أو صيغة: owner/repo", Toast.LENGTH_LONG).show()
+            return
+        }
+        val newEntry = RepoVaultEntry(
+            id = UUID.randomUUID().toString(),
+            owner = parsed.first,
+            repo = parsed.second,
+            token = inputToken.trim(),
+            defaultBranch = inputBranch.trim().ifBlank { "main" },
+            customName = parsed.second
+        )
+        val updated = RepoVaultManager.addOrUpdateRepo(context, newEntry, setAsActive = true)
+        repos = updated
+        currentActiveId = newEntry.id
+        onRepoChanged(newEntry)
+        inputRepoUrl = ""
+        inputToken = ""
+        showAddSection = false
+        Toast.makeText(context, "تمت إضافة المستودع وتفعيله 🚀", Toast.LENGTH_SHORT).show()
+        testConnection(newEntry)
+    }
+
+    fun handleDeleteRepo(id: String) {
+        val updated = RepoVaultManager.deleteRepo(context, id)
+        repos = updated
+        currentActiveId = RepoVaultManager.getActiveRepoId(context) ?: ""
+        testResult = null
+        testSuccess = null
+        Toast.makeText(context, "تم حذف المستودع من القائمة 🗑️", Toast.LENGTH_SHORT).show()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         GlassmorphicSurface(
-            modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFF0F172A),
-            borderColor = Color(0xFFE5B842).copy(alpha = 0.5f)
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f),
+            backgroundColor = Color(0xFF070D18),
+            borderColor = Color(0xFF10B981).copy(alpha = 0.5f)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "🐙 مستودع GitHub المتصل بالوكيل",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                                .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🐙", fontSize = 16.sp)
+                        }
+                        Column {
+                            Text(
+                                text = "مستودعات GitHub المتصلة",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontFamily = CairoFont
+                            )
+                            Text(
+                                text = "التبديل بين المشاريع وطلب صلاحيات البناء",
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8),
+                                fontFamily = CairoFont
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "إغلاق",
+                            tint = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "المستودع النشط: ${activeRepo?.fullName ?: "Ali-awwww/qabasapp"}",
-                    fontSize = 12.sp,
-                    color = Color(0xFFE5B842),
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "الفرع الافتراضي: ${activeRepo?.defaultBranch ?: "main"}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF94A3B8)
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "يتم إرسال أوامر الوكيل والبناء السحابي عبر GitHub Actions مباشرة إلى هذا المستودع.",
-                    fontSize = 11.sp,
-                    color = Color(0xFFCBD5E1),
-                    lineHeight = 16.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+
+                // Scrollable Content
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Card 1: One-Click Smart GitHub Scopes Request
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF0F261C),
+                                        Color(0xFF091811)
+                                    )
+                                )
+                            )
+                            .border(1.dp, Color(0xFF10B981).copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("⚡", fontSize = 14.sp)
+                                Text(
+                                    text = "توليد مفتاح الصلاحيات بنقرة واحدة (GitHub PAT)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF10B981),
+                                    fontFamily = CairoFont
+                                )
+                            }
+                            Text(
+                                text = "يفتح صفحة GitHub مع الصلاحيات المطلوبة للوكيل والبناء (repo, workflow, write:packages, read:user) محددة مسبقاً وتلقائياً دون الحاجة لتحديدها يدوياً.",
+                                fontSize = 10.sp,
+                                color = Color(0xFFCBD5E1),
+                                lineHeight = 14.sp,
+                                fontFamily = CairoFont
+                            )
+                            Button(
+                                onClick = {
+                                    val tokenUrl = "https://github.com/settings/tokens/new?description=Qabas+Studio+DevOps+Agent&scopes=repo,workflow,write:packages,read:user"
+                                    try {
+                                        uriHandler.openUri(tokenUrl)
+                                        Toast.makeText(context, "جاري فتح GitHub لإنشاء الرمز بالصلاحيات 🐙", Toast.LENGTH_SHORT).show()
+                                    } catch (_: Exception) {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(tokenUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981),
+                                    contentColor = Color(0xFF050B14)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "فتح وتوليد الصلاحيات على GitHub ↗️",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CairoFont
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Card 2: Active Repo Card
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF0C192E))
+                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "المستودع النشط حالياً",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = CairoFont
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "نشط ⚡",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF10B981),
+                                        fontFamily = CairoFont
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = currentActiveRepo?.fullName ?: "Ali-awwww/qabasapp",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8),
+                                fontFamily = FontFamily.Monospace
+                            )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = "الفرع: ${currentActiveRepo?.defaultBranch ?: "main"}",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = CairoFont
+                                )
+                                Text(
+                                    text = if (!currentActiveRepo?.token.isNullOrBlank()) "🔒 مفتاح PAT متصل" else "⚠️ بدون مفتاح PAT",
+                                    fontSize = 10.sp,
+                                    color = if (!currentActiveRepo?.token.isNullOrBlank()) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    fontFamily = CairoFont
+                                )
+                            }
+
+                            // Connection Test Button & Status
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        currentActiveRepo?.let { testConnection(it) }
+                                    },
+                                    enabled = !isTestingConnection,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1E293B),
+                                        contentColor = Color(0xFF38BDF8)
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    if (isTestingConnection) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = if (isTestingConnection) "جاري الفحص..." else "اختبار الاتصال ⚡",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CairoFont
+                                    )
+                                }
+
+                                if (testResult != null) {
+                                    Text(
+                                        text = testResult ?: "",
+                                        fontSize = 9.sp,
+                                        color = when (testSuccess) {
+                                            true -> Color(0xFF10B981)
+                                            false -> Color(0xFFEF4444)
+                                            else -> Color(0xFF94A3B8)
+                                        },
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                        fontFamily = CairoFont
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Section 3: Saved Repositories List
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "المستودعات المحفوظة للتبديل السريع (${repos.size})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontFamily = CairoFont
+                        )
+                        TextButton(
+                            onClick = { showAddSection = !showAddSection },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showAddSection) Icons.Default.ExpandLess else Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (showAddSection) "إلغاء" else "إضافة مستودع",
+                                fontSize = 10.sp,
+                                color = Color(0xFF38BDF8),
+                                fontFamily = CairoFont
+                            )
+                        }
+                    }
+
+                    // Add Repo Form (Collapsible)
+                    AnimatedVisibility(visible = showAddSection) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F1B2F))
+                                .border(1.dp, Color(0xFF2563EB).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "إضافة مستودع جديد للخزانة",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF60A5FA),
+                                    fontFamily = CairoFont
+                                )
+
+                                OutlinedTextField(
+                                    value = inputRepoUrl,
+                                    onValueChange = { inputRepoUrl = it },
+                                    label = { Text("رابط المستودع أو owner/repo", fontSize = 10.sp) },
+                                    placeholder = { Text("مثال: username/my-repo", fontSize = 10.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF38BDF8),
+                                        unfocusedBorderColor = Color(0xFF1E2D4A),
+                                        focusedLabelColor = Color(0xFF38BDF8),
+                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                    )
+                                )
+
+                                OutlinedTextField(
+                                    value = inputToken,
+                                    onValueChange = { inputToken = it },
+                                    label = { Text("مفتاح الوصول (GitHub PAT)", fontSize = 10.sp) },
+                                    placeholder = { Text("ghp_...", fontSize = 10.sp) },
+                                    singleLine = true,
+                                    visualTransformation = if (showTokenText) VisualTransformation.None else PasswordVisualTransformation(),
+                                    trailingIcon = {
+                                        IconButton(onClick = { showTokenText = !showTokenText }) {
+                                            Icon(
+                                                imageVector = if (showTokenText) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = null,
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF38BDF8),
+                                        unfocusedBorderColor = Color(0xFF1E2D4A),
+                                        focusedLabelColor = Color(0xFF38BDF8),
+                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                    )
+                                )
+
+                                OutlinedTextField(
+                                    value = inputBranch,
+                                    onValueChange = { inputBranch = it },
+                                    label = { Text("الفرع الافتراضي", fontSize = 10.sp) },
+                                    placeholder = { Text("main", fontSize = 10.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF38BDF8),
+                                        unfocusedBorderColor = Color(0xFF1E2D4A),
+                                        focusedLabelColor = Color(0xFF38BDF8),
+                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                    )
+                                )
+
+                                Button(
+                                    onClick = { handleAddRepo() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2563EB),
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(38.dp)
+                                ) {
+                                    Text(
+                                        text = "حفظ وتعيين كمستودع نشط 💾",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CairoFont
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Repositories List Items
+                    if (repos.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "لا توجد مستودعات إضافية محفوظة في الخزانة.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B),
+                                fontFamily = CairoFont
+                            )
+                        }
+                    } else {
+                        repos.forEach { entry ->
+                            val isCurrent = entry.id == currentActiveId
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isCurrent) Color(0xFF0C192E) else Color(0xFF090F1C))
+                                    .border(
+                                        1.dp,
+                                        if (isCurrent) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF1E2D4A),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = entry.fullName,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (isCurrent) {
+                                                Text(
+                                                    text = "● نشط",
+                                                    fontSize = 9.sp,
+                                                    color = Color(0xFF10B981),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = CairoFont
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "فرع: ${entry.defaultBranch} | ${if (entry.token.isNotBlank()) "PAT متوفر" else "بدون PAT"}",
+                                            fontSize = 9.sp,
+                                            color = Color(0xFF94A3B8),
+                                            fontFamily = CairoFont
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (!isCurrent) {
+                                            FilledTonalButton(
+                                                onClick = { handleSwitchRepo(entry) },
+                                                colors = ButtonDefaults.filledTonalButtonColors(
+                                                    containerColor = Color(0xFF1E293B),
+                                                    contentColor = Color(0xFF38BDF8)
+                                                ),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text(
+                                                    text = "تفعيل",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = CairoFont
+                                                )
+                                            }
+                                        }
+
+                                        IconButton(
+                                            onClick = { handleDeleteRepo(entry.id) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "حذف",
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Bottom Close Button
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5B842), contentColor = Color(0xFF070B14)),
-                    modifier = Modifier.fillMaxWidth()
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981),
+                        contentColor = Color(0xFF050B14)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
                 ) {
-                    Text("إغلاق وتأكيد", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "إغلاق وتأكيد الاختيار ✓",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        fontFamily = CairoFont
+                    )
                 }
             }
         }

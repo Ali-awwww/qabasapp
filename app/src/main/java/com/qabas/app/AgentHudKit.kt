@@ -590,3 +590,207 @@ fun AgentGeometricControlDeck(
     }
 }
 
+/**
+ * شريط المراقبة الحية للرموز والسرعة (Cyber Live Telemetry HUD)
+ * يعرض استهلاك الرموز، السرعة اللحظية، وزمن الاستجابة مع مؤشر نبضي.
+ */
+@Composable
+fun CyberLiveTelemetryHud(
+    tokensIn: Int,
+    tokensOut: Int,
+    latencyMs: Long,
+    tokensPerSec: Float,
+    isThinking: Boolean,
+    onRunDiagnostic: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pulseTransition = rememberInfiniteTransition(label = "hud_pulse")
+    val pulseAlpha by pulseTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp)),
+        color = Color(0xFF091220),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f))
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isThinking) Color(0xFF10B981).copy(alpha = pulseAlpha)
+                                else Color(0xFF00E5FF)
+                            )
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (isThinking) "SYSTEM PROCESSING ⚡" else "TELEMETRY LIVE 🟢",
+                        color = if (isThinking) Color(0xFF10B981) else Color(0xFF00E5FF),
+                        fontFamily = RobotoMonoFont,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Surface(
+                    onClick = onRunDiagnostic,
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(13.dp))
+                        Text(
+                            text = "تشخيص سريع 🔬",
+                            color = Color(0xFFE9D5FF),
+                            fontFamily = CairoFont,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Tokens In / Out
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("الرموز (Tokens)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
+                    Text(
+                        "${tokensIn + tokensOut}",
+                        color = Color.White,
+                        fontFamily = RobotoMonoFont,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Tokens / Sec Speed
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("السرعة (T/s)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
+                    Text(
+                        if (tokensPerSec > 0f) "%.1f".format(tokensPerSec) else "--",
+                        color = Color(0xFF10B981),
+                        fontFamily = RobotoMonoFont,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Latency
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    Text("الاستجابة (Latency)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
+                    Text(
+                        if (latencyMs > 0) "${latencyMs}ms" else "--",
+                        color = Color(0xFF38BDF8),
+                        fontFamily = RobotoMonoFont,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * شريط مراحل التفكير الحي (Reasoning Flow HUD)
+ * يوضح بدقة المرحلة الحالية: تحليل -> تخطيط -> كود -> فحص
+ */
+@Composable
+fun CyberReasoningFlowHud(
+    currentPhase: String, // "ANALYZE", "PLAN", "CODE", "VERIFY", "IDLE"
+    modifier: Modifier = Modifier
+) {
+    val phases = listOf(
+        Triple("ANALYZE", "تحليل 🔍", Color(0xFF38BDF8)),
+        Triple("PLAN", "تخطيط 📐", Color(0xFF8B5CF6)),
+        Triple("CODE", "تعديل 💻", Color(0xFF10B981)),
+        Triple("VERIFY", "تدقيق 🧪", Color(0xFFF59E0B))
+    )
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp)),
+        color = Color(0xFF070C16),
+        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            phases.forEachIndexed { index, (phaseCode, label, accent) ->
+                val isActive = currentPhase == phaseCode
+                val isCompleted = phases.indexOfFirst { it.first == currentPhase } > index
+
+                Surface(
+                    color = when {
+                        isActive -> accent.copy(alpha = 0.2f)
+                        isCompleted -> Color(0xFF10B981).copy(alpha = 0.12f)
+                        else -> Color.Transparent
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isActive -> accent
+                            isCompleted -> Color(0xFF10B981).copy(alpha = 0.5f)
+                            else -> Color(0xFF1E293B)
+                        }
+                    ),
+                    modifier = Modifier.weight(1f).padding(horizontal = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "[0${index + 1}]",
+                            color = if (isActive || isCompleted) accent else Color(0xFF475569),
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = label,
+                            color = if (isActive) Color.White else if (isCompleted) Color(0xFFA7F3D0) else Color(0xFF64748B),
+                            fontFamily = CairoFont,
+                            fontSize = 11.sp,
+                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

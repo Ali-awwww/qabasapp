@@ -171,10 +171,21 @@ internal fun AgentLiveConsoleTab(
     val chatMessages = remember { mutableStateListOf<AgentChatMessage>() }
     var isAgentThinkingInChat by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        AgentChatSessionManager.init(context)
+        val activeId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+        val loaded = AgentChatSessionManager.loadSessionMessages(context, activeId)
+        chatMessages.clear()
+        chatMessages.addAll(loaded)
+    }
+
     fun handleUserChatMessage(userText: String) {
         val clean = userText.trim()
         if (clean.isBlank()) return
-        chatMessages.add(AgentChatMessage(sender = AgentChatSender.USER, text = clean))
+        val currentSessionId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+        val userMsg = AgentChatMessage(sender = AgentChatSender.USER, text = clean)
+        chatMessages.add(userMsg)
+        AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
         isAgentThinkingInChat = true
         scope.launch(Dispatchers.IO) {
             val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق قبس (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
@@ -184,7 +195,9 @@ internal fun AgentLiveConsoleTab(
                 "تم استلام توجيهك البرمجي وجاري معالجته وتطبيقه على مشروع الكود المحلي: $clean"
             }
             withContext(Dispatchers.Main) {
-                chatMessages.add(AgentChatMessage(sender = AgentChatSender.AGENT, text = response))
+                val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = response)
+                chatMessages.add(agentMsg)
+                AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
                 isAgentThinkingInChat = false
             }
         }
@@ -2433,7 +2446,18 @@ internal fun AgentLiveConsoleTab(
             onPause = { pauseAgent() },
             onResume = { resumeAgent() },
             onStop = { stopAgent() },
-            specialization = selectedSpecialization
+            specialization = selectedSpecialization,
+            onNewChat = {
+                val newId = AgentChatSessionManager.startNewSession(context)
+                chatMessages.clear()
+                Toast.makeText(context, "تم بدء محادثة جديدة 💬", Toast.LENGTH_SHORT).show()
+            },
+            onSwitchSession = { sessionId ->
+                AgentChatSessionManager.switchSession(context, sessionId)
+                chatMessages.clear()
+                chatMessages.addAll(AgentChatSessionManager.loadSessionMessages(context, sessionId))
+                Toast.makeText(context, "تم استكمال الجلسة السابقة 📂", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 
