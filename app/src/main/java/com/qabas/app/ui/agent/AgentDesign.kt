@@ -16,9 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
@@ -247,49 +248,61 @@ fun AgentStatusChip(
     onClick: (() -> Unit)? = null
 ) {
     val (dot, label) = when (kind) {
-        AgentStatusKind.READY -> AgentDesign.Success to "جاهز"
-        AgentStatusKind.NEEDS_ACTION -> AgentDesign.Warning to "يلزم إجراء"
-        AgentStatusKind.RUNNING -> AgentDesign.Primary to "يعمل الآن"
-        AgentStatusKind.FAILED -> AgentDesign.Danger to "توقف"
+        AgentStatusKind.READY -> AgentDesign.Success to "متصل"
+        AgentStatusKind.NEEDS_ACTION -> AgentDesign.Warning to "إجراء"
+        AgentStatusKind.RUNNING -> AgentDesign.Primary to "نشط"
+        AgentStatusKind.FAILED -> AgentDesign.Danger to "عطل"
     }
+    
     Surface(
         modifier = modifier
-            .widthIn(max = 230.dp)
-            .defaultMinSize(minHeight = AgentDesign.TouchTarget)
+            .clip(RoundedCornerShape(6.dp))
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        shape = RoundedCornerShape(AgentDesign.RadiusSm),
-        color = dot.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, dot.copy(alpha = 0.45f))
+        color = dot.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, dot.copy(alpha = 0.25f))
     ) {
         Row(
-            Modifier.padding(horizontal = AgentDesign.SpaceMd, vertical = AgentDesign.SpaceSm),
+            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 Modifier
-                    .size(8.dp)
+                    .size(6.dp)
                     .clip(CircleShape)
                     .background(dot)
+                    .then(if (kind == AgentStatusKind.RUNNING) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                        val scale by infiniteTransition.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 1.6f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1000, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "scale"
+                        )
+                        Modifier.graphicsLayer(scaleX = scale, scaleY = scale, alpha = 1f / scale)
+                    } else Modifier)
             )
-            Spacer(Modifier.width(AgentDesign.SpaceXs))
+            
             Text(
-                text,
+                text = text,
                 color = AgentDesign.TextPrimary,
                 fontFamily = CairoFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = AgentDesign.FontXs,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                maxLines = 1
             )
+            
             if (onClick != null) {
-                Spacer(Modifier.width(AgentDesign.SpaceXs))
+                VerticalDivider(modifier = Modifier.height(10.dp), thickness = 1.dp, color = dot.copy(alpha = 0.3f))
                 Text(
                     label,
                     color = dot,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = AgentDesign.FontXs
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 9.sp
                 )
             }
         }

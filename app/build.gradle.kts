@@ -149,6 +149,7 @@ dependencies {
   implementation(libs.firebase.ai)
   implementation(libs.firebase.appcheck.debug)
   implementation(libs.firebase.appcheck.playintegrity)
+  implementation(libs.firebase.messaging)
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)

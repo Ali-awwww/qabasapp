@@ -423,9 +423,27 @@ object UpdateManager {
             }.getOrNull()
 
             if (supabaseUpdate != null && supabaseUpdate.isActive) {
-                val isNewerCode = supabaseUpdate.versionCode > currentVersionCode
-                val isNewerName = compareVersionNames(supabaseUpdate.versionName, currentVersionName) > 0
-                if (isNewerCode || isNewerName) {
+                val nameComparison = compareVersionNames(supabaseUpdate.versionName, currentVersionName)
+                val isNewer = when {
+                    nameComparison > 0 -> true
+                    nameComparison < 0 -> false
+                    else -> {
+                        // الأسماء متطابقة. نعتمد رقم البناء فقط إذا كان أكبر من الحالي بوضوح
+                        // ونتجنب القيم المحسوبة تلقائياً من semver التي تكون عادة > 10000
+                        if (supabaseUpdate.versionCode > 10000 && currentVersionCode < 1000) {
+                            false
+                        } else {
+                            // مقارنة صارمة: يجب أن يكون الكود أكبر فعلياً
+                            supabaseUpdate.versionCode > currentVersionCode
+                        }
+                    }
+                }
+
+                // الحماية النهائية: إذا تطابقت النسخة والاسم تماماً، فهو ليس تحديثاً
+                val isExactlySame = supabaseUpdate.versionName == currentVersionName && 
+                                   supabaseUpdate.versionCode == currentVersionCode
+                
+                if (isNewer && !isExactlySame) {
                     prefs.edit()
                         .putLong("update_last_check", System.currentTimeMillis())
                         .putInt("update_last_version_code", supabaseUpdate.versionCode)
@@ -485,7 +503,7 @@ object UpdateManager {
         return null
     }
 
-    private fun parseReleaseVersionCode(tag: String): Int = parseVersionCode(tag)
+    internal fun parseReleaseVersionCode(tag: String): Int = parseVersionCode(tag)
 
     /**
      * فحص أحدث ريليز على GitHub Releases — القناة الرسمية للتحديث التلقائي.
@@ -553,10 +571,31 @@ object UpdateManager {
 
             // نأخذ الإصدار فقط إذا كان أعلى من الحالي فعلياً
             val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
-            val isNewer = if (tagName.contains("+")) {
-                releaseVersionCode > currentVersionCode || (releaseVersionCode == currentVersionCode && nameComparison > 0)
-            } else {
-                nameComparison > 0
+            val tagHasExplicitBuild = tagName.contains("+")
+            
+            Log.d(TAG, "Comparing: remote=$releaseVersionName($releaseVersionCode) vs local=$currentVersionName($currentVersionCode). nameComp=$nameComparison, hasPlus=$tagHasExplicitBuild")
+
+            val isNewer = when {
+                nameComparison > 0 -> true
+                nameComparison < 0 -> false
+                else -> {
+                    // الأسماء متطابقة. لا نعتبره تحديثاً إلا إذا وجد رقم بناء صريح (+) وأكبر من الحالي
+                    if (tagHasExplicitBuild) {
+                        releaseVersionCode > currentVersionCode
+                    } else {
+                        // نفس الاسم ولا يوجد رقم بناء صريح -> نعتبرهما نفس النسخة
+                        false
+                    }
+                }
+            }
+            
+            Log.d(TAG, "Result: isNewer=$isNewer")
+
+            // الحماية النهائية للنسخة الحالية: منع ظهور التحديث إذا كانت النسخة والاسم متطابقين تماماً
+            val isExactlySame = releaseVersionName == currentVersionName && releaseVersionCode == currentVersionCode
+            if (isExactlySame) {
+                Log.d(TAG, "⏭️ Exact match found for $tagName, skipping candidate")
+                continue
             }
 
             if (!isNewer) continue
@@ -609,12 +648,18 @@ object UpdateManager {
                 checksum = releaseChecksum
             )
             
-            // اختيار الإصدار الأعلى رقم بناء (أو الأعلى اسماً إذا تساوى رقم البناء)
+            // اختيار الإصدار الأفضل (الأعلى اسماً، ثم الأعلى رقم بناء عند تساوي الأسماء)
             val currentBest = best
-            if (currentBest == null || 
-                candidate.versionCode > currentBest.versionCode ||
-                (candidate.versionCode == currentBest.versionCode && compareVersionNames(candidate.versionName, currentBest.versionName) > 0)
-            ) {
+            val nameComparisonWithBest = compareVersionNames(candidate.versionName, currentBest?.versionName ?: "")
+            
+            val isBetter = when {
+                currentBest == null -> true
+                nameComparisonWithBest > 0 -> true
+                nameComparisonWithBest < 0 -> false
+                else -> candidate.versionCode > currentBest.versionCode
+            }
+
+            if (isBetter) {
                 best = candidate
             }
         }
@@ -801,18 +846,28 @@ object UpdateManager {
                     }
                 }
             }
-
             val currentVersionCode = getCurrentVersionCode(context)
             val currentVersionName = getCurrentVersionName(context)
             val releaseVersionCode = parseVersionCode(tagName)
-            val tagHasBuildNumber = tagName.contains("+")
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
-            val isNewer = if (tagHasBuildNumber) {
-                releaseVersionCode > currentVersionCode
-            } else {
-                compareVersionNames(releaseVersionName, currentVersionName) > 0
+            val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
+            val tagHasExplicitBuild = tagName.contains("+")
+            val isNewer = when {
+                nameComparison > 0 -> true
+                nameComparison < 0 -> false
+                else -> {
+                    if (tagHasExplicitBuild) {
+                        releaseVersionCode > currentVersionCode
+                    } else {
+                        false
+                    }
+                }
             }
+            
+            // Exact match check for diagnostics consistency
+            val isExactlySame = releaseVersionName == currentVersionName && releaseVersionCode == currentVersionCode
+            val finalIsNewer = isNewer && !isExactlySame
 
             GitHubReleaseInspection(
                 tagName = tagName,
@@ -828,7 +883,7 @@ object UpdateManager {
                 xdeltaBinaries = xdeltaBinaries,
                 xdeltaUrls = xdeltaUrls,
                 totalAssetsCount = assets.length(),
-                isNewerThanCurrent = isNewer
+                isNewerThanCurrent = finalIsNewer
             )
         }
     }
@@ -1571,11 +1626,7 @@ object UpdateManager {
         if (buildPart.isNotEmpty()) {
             return buildPart.filter { it.isDigit() }.toIntOrNull() ?: 0
         }
-        val parts = tag.removePrefix("v").trim().split(".")
-        val major = parts.getOrNull(0)?.toIntOrNull() ?: return 0
-        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
-        return major * 10000 + minor * 100 + patch
+        return 0
     }
 
     fun formatSize(bytes: Long): String = when {

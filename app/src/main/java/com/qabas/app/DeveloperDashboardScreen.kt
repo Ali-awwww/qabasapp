@@ -381,8 +381,8 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     val initialTab = when (currentSection) {
                         DashboardSection.CRASH_LOGS -> 2
                         DashboardSection.BUG_REPORTS -> 3
-                        DashboardSection.PRODUCTION_PIPELINE -> 4
-                        DashboardSection.AUDIT_LOG -> 5
+                        DashboardSection.PRODUCTION_PIPELINE -> 5
+                        DashboardSection.AUDIT_LOG -> 6
                         else -> 0
                     }
                     HealthDiagnosticsHubScreen(
@@ -926,7 +926,7 @@ fun HealthDiagnosticsHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ التشخيص الفضائي (HUD)", "🐛 ملتقط الانهيارات (Crash Guard)", "🐞 بلاغات الأخطاء", "🚀 خط الإنتاج (Pipeline)", "📜 سجل التدقيق الأمني")
+    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات", "🐞 البلاغات", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق")
 
     DevHubScaffold(
         title = "مركز الصحة والتشخيص الشامل",
@@ -947,8 +947,9 @@ fun HealthDiagnosticsHubScreen(
             )
             2 -> CrashLogsHubScreen(onBack = { selectedTab = 0 })
             3 -> BugReportsSection()
-            4 -> ProductionPipelineSection()
-            5 -> AuditLogSection(context = context)
+            4 -> BuildDiagnosticSection()
+            5 -> ProductionPipelineSection()
+            6 -> AuditLogSection(context = context)
         }
     }
 }

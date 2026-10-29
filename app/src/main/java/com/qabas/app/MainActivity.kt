@@ -144,22 +144,37 @@ class MainActivity : ComponentActivity() {
         // Handle deep link: qabas://keys/import?gemini=...&groq=...
         handleDeepLink(intent)
 
+        // Initialize managers that are fast or critical for UI immediately
         ThemeManager.init(this)
-        AiModelRegistry.init(this)
         HomeScreenStyleManager.init(this)
-        UserPreferencesManager.init(this)
-        AppSoundManager.init(this)
-        NotificationPreferencesManager.init(this)
-        SpatialCameraPreferencesManager.init(this)
-        QabasNotificationHelper.initializeChannels(this)
-
+        
+        // Launch heavy or IO-dependent initializations in background
         lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { AiModelRegistry.init(this@MainActivity) }
+            runCatching { UserPreferencesManager.init(this@MainActivity) }
+            runCatching { AppSoundManager.init(this@MainActivity) }
+            runCatching { NotificationPreferencesManager.init(this@MainActivity) }
+            runCatching { SpatialCameraPreferencesManager.init(this@MainActivity) }
+            runCatching { QabasNotificationHelper.initializeChannels(this@MainActivity) }
+            
             runCatching {
                 StyleBrain.init(this@MainActivity)
                 // إصلاح القوة الوهمية 50 عندما السمات فارغة
                 StyleBrainLoadFix.repairPersistedEmptyCore(this@MainActivity)
                 StyleManager.init(this@MainActivity)
                 NotificationPreferencesManager.scheduleAllConfiguredAlarms(this@MainActivity)
+            }
+            
+            // 🛰️ تهيئة واسترجاع رمز الإشعارات (FCM Token) عند الإقلاع
+            runCatching {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        android.util.Log.w("MainActivity", "فشل جلب رمز FCM", task.exception)
+                        return@addOnCompleteListener
+                    }
+                    val token = task.result
+                    android.util.Log.d("MainActivity", "رمز FCM الحالي: $token")
+                }
             }
         }
 

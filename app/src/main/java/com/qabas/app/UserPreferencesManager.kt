@@ -643,7 +643,14 @@ object UserPreferencesManager {
                     }
                 }
                 editor.apply()
-                init(context)
+                // Update local StateFlows directly instead of recursive init() call
+                _quranFontSize.value = prefsObj.optDouble("quran_font_size", 20.0).toFloat()
+                _readingFontFamily.value = prefsObj.optString("reading_font_family", "amiri")
+                _readingTheme.value = prefsObj.optString("reading_theme", "dark_luxury")
+                _showTashkeel.value = prefsObj.optBoolean("show_tashkeel", true)
+                _quranReciter.value = prefsObj.optString("quran_reciter", "alafasy")
+                _appLanguage.value = prefsObj.optString("app_language", "ar")
+                Translator.setLanguage(_appLanguage.value)
             }
             // استرجاع تفضيلات الهوية/الموقع/القراءة/المظهر إلى qabas_prefs
             if (root.has("identity_preferences")) {

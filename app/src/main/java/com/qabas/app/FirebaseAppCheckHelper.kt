@@ -30,7 +30,7 @@ object FirebaseAppCheckHelper {
                     )
                     prefs.edit()
                         .putString(DEBUG_SECRET_KEY, debugToken)
-                        .commit()
+                        .apply()
                     Log.d(TAG, "App Check debug secret configured successfully.")
                 }
 

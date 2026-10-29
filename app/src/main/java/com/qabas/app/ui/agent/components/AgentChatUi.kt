@@ -7,6 +7,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -105,15 +106,15 @@ internal fun AgentChatOverlayDialog(
                         )
                     )
             ) {
-                // Top Header Bar: Icon + Name + Status + Buttons
+                // Top Header Bar: Unified Identity + Controls
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0C192E))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .background(Color(0xFF0C192E).copy(alpha = 0.95f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Agent Identity & Status
+                    // Left: Identity & Status Grouped
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
@@ -121,83 +122,85 @@ internal fun AgentChatOverlayDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
-                                .background(specialization.color.copy(alpha = 0.15f))
-                                .border(1.dp, specialization.color.copy(alpha = 0.4f), CircleShape),
+                                .background(specialization.color.copy(alpha = 0.12f))
+                                .border(1.dp, specialization.color.copy(alpha = 0.35f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 specialization.icon,
                                 contentDescription = null,
                                 tint = specialization.color,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        Column {
+                        
+                        Column(verticalArrangement = Arrangement.Center) {
                             Text(
                                 text = "الوكيل الذكي",
                                 color = Color.White,
                                 fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                maxLines = 1
                             )
                             AgentStatusChip(
-                                kind = if (isRunning) {
-                                    if (isPaused) AgentStatusKind.NEEDS_ACTION else AgentStatusKind.RUNNING
-                                } else AgentStatusKind.READY,
-                                text = if (isRunning) {
-                                    if (isPaused) "موقف مؤقتاً" else "يعالج المهام"
-                                } else "جاهز للعمل",
-                                modifier = Modifier.height(24.dp)
+                                kind = when {
+                                    isThinking || (isRunning && !isPaused) -> AgentStatusKind.RUNNING
+                                    isPaused -> AgentStatusKind.NEEDS_ACTION
+                                    else -> AgentStatusKind.READY
+                                },
+                                text = when {
+                                    isThinking -> "يفكر..."
+                                    isRunning && !isPaused -> "يعمل"
+                                    isPaused -> "موقف"
+                                    else -> "جاهز"
+                                },
+                                modifier = Modifier.height(20.dp)
                             )
                         }
                     }
 
-                    // Control Actions
+                    // Right: Actions (Stop/Pause/Close)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (isRunning) {
                             IconButton(
                                 onClick = { if (isPaused) onResume() else onPause() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(Color(0xFF15263F), CircleShape)
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF15263F))
                             ) {
                                 Icon(
                                     imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                                     contentDescription = "Pause/Resume",
-                                    tint = if (isPaused) AgentDesign.Success else AgentDesign.Secondary,
-                                    modifier = Modifier.size(16.dp)
+                                    tint = if (isPaused) AgentDesign.Success else AgentDesign.Primary,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                             IconButton(
                                 onClick = onStop,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(AgentDesign.Danger.copy(alpha = 0.15f), CircleShape)
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(AgentDesign.Danger.copy(alpha = 0.12f))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Stop,
                                     contentDescription = "Stop",
                                     tint = AgentDesign.Danger,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
+                        
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(Color(0xFF1E293B), CircleShape)
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF1E293B))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -254,36 +257,38 @@ internal fun AgentChatOverlayDialog(
                 HorizontalDivider(color = Color(0xFF1E293B))
 
                 // Quick Prompts Redesign
-                Row(
+                LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(end = 12.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "أضف زر مشاركة ⚡",
-                        "افحص الكود 🧪",
-                        "صياد الأخطاء 🩺",
-                        "مزامنة GitHub 🐙"
+                        "أضف زر مشاركة ⚡" to Icons.Default.Share,
+                        "افحص الكود 🧪" to Icons.Default.Science,
+                        "صياد الأخطاء 🩺" to Icons.Default.BugReport,
+                        "مزامنة GitHub 🐙" to Icons.Default.CloudSync
                     )
-                    quickPrompts.forEach { prompt ->
+                    items(quickPrompts) { (prompt, icon) ->
                         Surface(
                             onClick = { inputText = prompt },
-                            color = AgentDesign.Primary.copy(alpha = 0.08f),
+                            color = AgentDesign.Primary.copy(alpha = 0.05f),
                             shape = RoundedCornerShape(AgentDesign.RadiusSm),
-                            border = BorderStroke(1.dp, AgentDesign.Primary.copy(alpha = 0.25f))
+                            border = BorderStroke(1.dp, AgentDesign.Primary.copy(alpha = 0.2f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                Icon(icon, null, tint = AgentDesign.Primary, modifier = Modifier.size(14.dp))
                                 Text(
                                     text = prompt,
-                                    color = AgentDesign.Primary,
+                                    color = AgentDesign.TextPrimary,
                                     fontFamily = CairoFont,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }

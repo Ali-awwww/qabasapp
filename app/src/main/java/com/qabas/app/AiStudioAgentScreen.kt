@@ -589,50 +589,93 @@ fun AiStudioAgentScreen(
                             )
                             Spacer(Modifier.height(8.dp))
                             if (!isOfflineMode) {
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                                    item {
-                                        OutlinedButton(
-                                            onClick = { showModelPicker = true },
-                                            modifier = Modifier.height(48.dp),
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22D3EE).copy(alpha = 0.1f), contentColor = Color(0xFF22D3EE))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(
+                                        onClick = { showModelPicker = true },
+                                        modifier = Modifier.weight(1f).height(46.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF22D3EE).copy(alpha = 0.08f),
+                                        border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            Modifier.padding(horizontal = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(13.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(selectedModel.take(20), fontSize = 12.sp, fontFamily = CairoFont, maxLines = 1)
+                                            Icon(Icons.Default.Tune, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                            Text(
+                                                text = selectedModel.take(22).ifBlank { "اختر النموذج" },
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
                                     }
-                                    item {
-                                        OutlinedButton(
-                                            onClick = onOpenTeamConfig,
-                                            modifier = Modifier.height(48.dp),
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f)),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.1f), contentColor = Color(0xFF8B5CF6))
+                                    
+                                    Surface(
+                                        onClick = onOpenTeamConfig,
+                                        modifier = Modifier.weight(0.7f).height(46.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF8B5CF6).copy(alpha = 0.08f),
+                                        border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            Modifier.padding(horizontal = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(13.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("فريق النماذج", fontSize = 12.sp, fontFamily = CairoFont, maxLines = 1)
+                                            Icon(Icons.Default.Groups, null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                                            Text(
+                                                text = "الفريق",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                 }
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(4.dp))
                             }
                             Text(
-                                text = "أوامر سريعة:",
-                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8A94A6)
+                                text = "أوامر ذكية جاهزة:",
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B),
+                                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
                             )
-                            Spacer(Modifier.height(4.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                                items(quickPrompts) { qp ->
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(end = 12.dp)
+                            ) {
+                                val promptsWithIcons = listOf(
+                                    "مواقيت الصلاة" to Icons.Default.Schedule,
+                                    "تدقيق الكود" to Icons.Default.FactCheck,
+                                    "بناء APK" to Icons.Default.Android,
+                                    "تحسين الأداء" to Icons.Default.Speed,
+                                    "حذف مهمل" to Icons.Default.DeleteSweep
+                                )
+                                items(promptsWithIcons) { (qp, icon) ->
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF0F1626),
-                                        border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
-                                        modifier = Modifier.clickable(enabled = !isExecuting) { promptInput = qp }.wrapContentWidth()
+                                        onClick = { if (!isExecuting) promptInput = qp },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF0F172A),
+                                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                        modifier = Modifier.height(38.dp)
                                     ) {
-                                        Text(qp.take(30) + "...", fontSize = 12.sp, color = Color(0xFFE6EDF7), modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), maxLines = 1)
+                                        Row(
+                                            Modifier.padding(horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(icon, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                                            Text(qp, fontSize = 11.sp, color = Color(0xFFE2E8F0), fontFamily = CairoFont)
+                                        }
                                     }
                                 }
                             }
@@ -898,62 +941,74 @@ fun AiStudioAgentScreen(
             onDismissRequest = { showModelPicker = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            AgentNeonCard(
-                modifier = Modifier
-                    .fillMaxWidth(0.85f)
-                    .padding(16.dp),
-                accent = AgentDesign.Primary,
-                shape = RoundedCornerShape(AgentDesign.RadiusLg)
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.88f).padding(16.dp),
+                color = Color(0xFF0B1220),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f))
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "اختر نموذج الذكاء",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "اختر المحرك الأنسب للمهمة الحالية",
-                        color = AgentDesign.TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp
-                    )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF22D3EE).copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("محرك الذكاء", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = CairoFont)
+                            Text(provider.name, color = Color(0xFF22D3EE), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { showModelPicker = false }) {
+                            Icon(Icons.Default.Close, null, tint = Color(0xFF64748B))
+                        }
+                    }
+                    
                     Spacer(Modifier.height(16.dp))
                     
-                    models.forEach { m ->
-                        val isSelected = selectedModel == m
-                        Surface(
-                            onClick = { selectedModel = m; showModelPicker = false },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            shape = RoundedCornerShape(AgentDesign.RadiusSm),
-                            color = if (isSelected) AgentDesign.Primary.copy(alpha = 0.12f) else Color.Transparent,
-                            border = BorderStroke(
-                                1.dp,
-                                if (isSelected) AgentDesign.Primary.copy(alpha = 0.5f) else AgentDesign.Hairline
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(models) { m ->
+                            val isSelected = selectedModel == m
+                            val modelIcon = when {
+                                m.contains("flash") -> Icons.Default.Bolt
+                                m.contains("pro") -> Icons.Default.Star
+                                m.contains("o1") -> Icons.Default.Psychology
+                                m.contains("gpt-4") -> Icons.Default.AutoAwesome
+                                m.contains("llama") -> Icons.Default.Architecture
+                                else -> Icons.Default.SmartToy
+                            }
+                            
+                            Surface(
+                                onClick = { selectedModel = m; showModelPicker = false },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0xFF22D3EE).copy(alpha = 0.12f) else Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, if (isSelected) Color(0xFF22D3EE).copy(alpha = 0.6f) else Color(0xFF1E293B)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isSelected) AgentDesign.Primary else AgentDesign.TextTertiary)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = m,
-                                    color = if (isSelected) Color.White else AgentDesign.TextSecondary,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 14.sp
-                                )
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        modelIcon, null, 
+                                        tint = if (isSelected) Color(0xFF22D3EE) else Color(0xFF64748B),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        text = m,
+                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                    }
+                                }
                             }
                         }
                     }
