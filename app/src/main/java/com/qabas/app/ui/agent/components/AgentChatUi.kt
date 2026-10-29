@@ -68,7 +68,8 @@ internal fun AgentChatOverlayDialog(
     onStop: () -> Unit,
     specialization: AgentSpecialization,
     onNewChat: () -> Unit = {},
-    onSwitchSession: (String) -> Unit = {}
+    onSwitchSession: (String) -> Unit = {},
+    onApprovePlan: (AgentPlanCardData) -> Unit = {}
 ) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
@@ -311,7 +312,7 @@ internal fun AgentChatOverlayDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(messages, key = { it.id }) { msg ->
-                        ChatMessageBubble(message = msg)
+                        ChatMessageBubble(message = msg, onApprovePlan = onApprovePlan)
                     }
 
                     if (isThinking || (isRunning && !isPaused)) {
@@ -464,7 +465,10 @@ internal fun AgentChatOverlayDialog(
 }
 
 @Composable
-internal fun ChatMessageBubble(message: AgentChatMessage) {
+internal fun ChatMessageBubble(
+    message: AgentChatMessage,
+    onApprovePlan: (AgentPlanCardData) -> Unit = {}
+) {
     val isUser = message.sender == AgentChatSender.USER
     val isSystem = message.sender == AgentChatSender.TOOL_SYSTEM
 
@@ -534,6 +538,14 @@ internal fun ChatMessageBubble(message: AgentChatMessage) {
                         lineHeight = 19.sp
                     )
 
+                    message.planCard?.let { planCard ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        InteractivePlanCard(
+                            planCard = planCard,
+                            onApprovePlan = onApprovePlan
+                        )
+                    }
+
                     message.diff?.let { diff ->
                         Spacer(modifier = Modifier.height(8.dp))
                         AgentDiffCard(
@@ -562,6 +574,164 @@ internal fun ChatMessageBubble(message: AgentChatMessage) {
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * بطاقة خطة التخطيط المسبق التفاعلية (Interactive Plan Card)
+ */
+@Composable
+internal fun InteractivePlanCard(
+    planCard: AgentPlanCardData,
+    onApprovePlan: (AgentPlanCardData) -> Unit
+) {
+    var isApproved by remember { mutableStateOf(planCard.isApproved) }
+
+    Surface(
+        color = Color(0xFF071224),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(
+            1.dp,
+            if (isApproved) Color(0xFF10B981) else Color(0xFFA855F7)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isApproved) Color(0xFF10B981).copy(alpha = 0.2f)
+                                else Color(0xFFA855F7).copy(alpha = 0.2f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isApproved) Icons.Default.CheckCircle else Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = if (isApproved) Color(0xFF10B981) else Color(0xFFA855F7),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = if (isApproved) "خطة العمل المعمدة ✓" else "خطة العمل المقترحة (في انتظار الاعتماد) 📐",
+                        color = if (isApproved) Color(0xFF10B981) else Color(0xFFD8B4FE),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.5.sp
+                    )
+                }
+
+                Text(
+                    text = if (isApproved) "معتمدة" else "مؤقتة",
+                    color = if (isApproved) Color(0xFF10B981) else Color(0xFFF59E0B),
+                    fontFamily = RobotoMonoFont,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = planCard.summary,
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            HorizontalDivider(color = Color(0xFF1E2D4A))
+
+            planCard.steps.forEach { step ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${step.number}",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = RobotoMonoFont
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = step.title,
+                            color = Color(0xFFE2E8F0),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = step.description,
+                            color = Color(0xFF94A3B8),
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            if (!isApproved) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        isApproved = true
+                        planCard.isApproved = true
+                        onApprovePlan(planCard)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF9333EA)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "🚀 اعتماد الخطة والبدء بالتنفيذ المباشر",
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }

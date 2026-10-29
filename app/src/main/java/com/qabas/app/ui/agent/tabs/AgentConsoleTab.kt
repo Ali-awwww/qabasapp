@@ -179,30 +179,6 @@ internal fun AgentLiveConsoleTab(
         chatMessages.addAll(loaded)
     }
 
-    fun handleUserChatMessage(userText: String) {
-        val clean = userText.trim()
-        if (clean.isBlank()) return
-        val currentSessionId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
-        val userMsg = AgentChatMessage(sender = AgentChatSender.USER, text = clean)
-        chatMessages.add(userMsg)
-        AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
-        isAgentThinkingInChat = true
-        scope.launch(Dispatchers.IO) {
-            val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق قبس (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
-            val response = try {
-                AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
-            } catch (e: Exception) {
-                "تم استلام توجيهك البرمجي وجاري معالجته وتطبيقه على مشروع الكود المحلي: $clean"
-            }
-            withContext(Dispatchers.Main) {
-                val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = response)
-                chatMessages.add(agentMsg)
-                AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
-                isAgentThinkingInChat = false
-            }
-        }
-    }
-
     LaunchedEffect(isRunning, isPaused) {
         if (isRunning && !isPaused) {
             if (sessionStartTime == 0L) sessionStartTime = System.currentTimeMillis()
@@ -464,6 +440,73 @@ internal fun AgentLiveConsoleTab(
         } else {
             Toast.makeText(context, "تمت إضافة الأمر إلى طابور الانتظار ⏳ (#${commandQueue.size})", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun handleUserChatMessage(userText: String) {
+        val clean = userText.trim()
+        if (clean.isBlank()) return
+        val currentSessionId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+        val userMsg = AgentChatMessage(sender = AgentChatSender.USER, text = clean)
+        chatMessages.add(userMsg)
+        AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
+        isAgentThinkingInChat = true
+        scope.launch(Dispatchers.IO) {
+            val isPlanning = AgentPrefs.isPlanningMode(context)
+            if (isPlanning) {
+                val planSteps = listOf(
+                    AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع قَبَس المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
+                    AgentPlanStep(2, "صياغة وتعديل المكونات ✍️", "كتابة وااختبار واجهات Jetpack Compose والمنطق البرمجي الخاص بالخاصية المطلوبة."),
+                    AgentPlanStep(3, "التكامل والتحقق من البناء 🚀", "تشغيل أداة التجميع compile_applet والترقيع الذاتي للأخطاء قبل التسليم النهائي.")
+                )
+                val planCardData = AgentPlanCardData(
+                    prompt = clean,
+                    summary = "خطة عمل معمارية مقترحة لتنفيذ: \"$clean\"",
+                    steps = planSteps,
+                    isApproved = false
+                )
+                withContext(Dispatchers.Main) {
+                    val currentActive = AgentPrefs.activePlanningTasksCount(context)
+                    AgentPrefs.putActivePlanningTasksCount(context, currentActive + 1)
+
+                    val agentMsg = AgentChatMessage(
+                        sender = AgentChatSender.AGENT,
+                        text = "تم تفعيل \"وضع التخطيط الهيكلي\". تم إعداد خطة العمل المعمارية التالية لطلبك. يرجى مراجعتها واضغط على زر الاعتماد للبدء بالتنفيذ المباشر:",
+                        planCard = planCardData
+                    )
+                    chatMessages.add(agentMsg)
+                    AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
+                    isAgentThinkingInChat = false
+                }
+            } else {
+                val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق قبس (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
+                val response = try {
+                    AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
+                } catch (e: Exception) {
+                    "تم استلام توجيهك البرمجي وجاري معالجته وتطبيقه على مشروع الكود المحلي: $clean"
+                }
+                withContext(Dispatchers.Main) {
+                    val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = response)
+                    chatMessages.add(agentMsg)
+                    AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
+                    isAgentThinkingInChat = false
+                }
+            }
+        }
+    }
+
+    fun handleApprovePlan(planCard: AgentPlanCardData) {
+        val currentSessionId = AgentChatSessionManager.activeSessionId.value ?: return
+        val currentActive = AgentPrefs.activePlanningTasksCount(context)
+        AgentPrefs.putActivePlanningTasksCount(context, (currentActive - 1).coerceAtLeast(0))
+
+        Toast.makeText(context, "🚀 تم اعتماد الخطة! جاري البدء بالتنفيذ المباشر...", Toast.LENGTH_SHORT).show()
+        val sysMsg = AgentChatMessage(
+            sender = AgentChatSender.TOOL_SYSTEM,
+            text = "تم اعتماد خطة العمل بنجاح لـ: \"${planCard.prompt}\". جاري البدء بتطبيق التعديلات البرمجية..."
+        )
+        chatMessages.add(sysMsg)
+        AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
+        enqueueCommand(planCard.prompt, runImmediatelyIfIdle = true)
     }
 
     LazyColumn(
@@ -2457,7 +2500,8 @@ internal fun AgentLiveConsoleTab(
                 chatMessages.clear()
                 chatMessages.addAll(AgentChatSessionManager.loadSessionMessages(context, sessionId))
                 Toast.makeText(context, "تم استكمال الجلسة السابقة 📂", Toast.LENGTH_SHORT).show()
-            }
+            },
+            onApprovePlan = { planCard -> handleApprovePlan(planCard) }
         )
     }
 

@@ -119,6 +119,22 @@ data class FileDiff(
     val diffText: String
 )
 
+data class AgentPlanStep(
+    val number: Int,
+    val title: String,
+    val description: String,
+    val targetFiles: List<String> = emptyList()
+)
+
+data class AgentPlanCardData(
+    val planId: String = UUID.randomUUID().toString(),
+    val prompt: String,
+    val summary: String,
+    val steps: List<AgentPlanStep>,
+    var isApproved: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 enum class AgentChatSender {
     USER, AGENT, TOOL_SYSTEM
 }
@@ -130,7 +146,8 @@ data class AgentChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val step: AgentStep? = null,
     val diff: FileDiff? = null,
-    val isStreaming: Boolean = false
+    val isStreaming: Boolean = false,
+    val planCard: AgentPlanCardData? = null
 )
 
 enum class AgentTaskStatus(val label: String, val color: Color) {

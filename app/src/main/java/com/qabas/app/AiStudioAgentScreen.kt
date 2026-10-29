@@ -1288,6 +1288,9 @@ private fun AgentCyberSettingsBottomSheet(
     var isAutonomousMode by remember {
         mutableStateOf(AgentPrefs.getBoolean(context, "agent_autonomous_mode", true))
     }
+    var isPlanningMode by remember {
+        mutableStateOf(AgentPrefs.isPlanningMode(context))
+    }
 
     val activeEnginePair = UniversalKeyBrain.getActiveEngine()
 
@@ -1357,6 +1360,71 @@ private fun AgentCyberSettingsBottomSheet(
                         contentDescription = "إغلاق",
                         tint = Color(0xFF94A3B8)
                     )
+                }
+            }
+
+            // 🧠 Active Planning Tasks Counter Badge (عداد المهام المخططة النشطة)
+            val activeTasksCount = AgentPrefs.activePlanningTasksCount(context)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF0D1527),
+                border = BorderStroke(
+                    1.dp,
+                    if (activeTasksCount > 0) Color(0xFFA855F7).copy(alpha = 0.8f) else Color(0xFF1E2D4A)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(if (activeTasksCount > 0) Color(0xFFA855F7) else Color(0xFF64748B))
+                        )
+                        Column {
+                            Text(
+                                text = "مهام التخطيط النشطة (Active Planning Tasks)",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = if (activeTasksCount > 0) "يوجد $activeTasksCount مهمة تخطيط معلقة في وضع Planning Mode" else "لا توجد مهام تخطيط معلقة حالياً",
+                                color = Color(0xFF94A3B8),
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (activeTasksCount > 0) Color(0xFFA855F7).copy(alpha = 0.2f) else Color(0xFF1E2D4A),
+                        border = BorderStroke(
+                            1.dp,
+                            if (activeTasksCount > 0) Color(0xFFA855F7) else Color(0xFF334155)
+                        )
+                    ) {
+                        Text(
+                            text = "🧠 $activeTasksCount",
+                            color = if (activeTasksCount > 0) Color(0xFFE9D5FF) else Color(0xFF94A3B8),
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -1582,6 +1650,42 @@ private fun AgentCyberSettingsBottomSheet(
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color(0xFF050B14),
                                 checkedTrackColor = Color(0xFF38BDF8)
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = Color(0xFF1E2D4A))
+
+                    // Planning / Architect Mode Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "وضع التخطيط الهيكلي (Architect / Planning Mode) 🧠",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = "إنشاء بطاقة خطة تفاعلية والموافقة عليها قبل البدء بكتابة وتطبيق الكود.",
+                                color = Color(0xFF94A3B8),
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Switch(
+                            checked = isPlanningMode,
+                            onCheckedChange = {
+                                isPlanningMode = it
+                                AgentPrefs.putPlanningMode(context, it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF050B14),
+                                checkedTrackColor = Color(0xFFA855F7)
                             )
                         )
                     }

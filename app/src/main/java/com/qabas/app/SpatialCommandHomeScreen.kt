@@ -462,6 +462,15 @@ fun SpatialCommandHomeScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // شارة رقم إصدار وبناء التطبيق الحقيقي وفحص التحديثات
+                    AppRealVersionFooterBadge(
+                        onViewDownloads = onViewDownloads
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }

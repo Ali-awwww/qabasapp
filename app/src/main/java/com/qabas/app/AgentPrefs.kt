@@ -18,6 +18,8 @@ object AgentPrefs {
     const val MODEL = "agent_model"
     const val MAX_TURNS = "agent_max_turns"
     const val AUTO_FIX = "agent_auto_fix"
+    const val PLANNING_MODE = "agent_planning_mode"
+    const val ACTIVE_PLANNING_TASKS_COUNT = "active_planning_tasks_count"
     const val PREFS_NAME = "qabas_agent_encrypted"
     private const val LEGACY_PREFS_NAME = "qabas_prefs"
 
@@ -156,6 +158,20 @@ object AgentPrefs {
 
     fun isAutoFix(context: Context): Boolean =
         getBoolean(context, AUTO_FIX, true)
+
+    fun isPlanningMode(context: Context): Boolean =
+        getBoolean(context, PLANNING_MODE, false)
+
+    fun putPlanningMode(context: Context, enabled: Boolean) {
+        putBoolean(context, PLANNING_MODE, enabled)
+    }
+
+    fun activePlanningTasksCount(context: Context): Int =
+        getInt(context, ACTIVE_PLANNING_TASKS_COUNT, 0).coerceAtLeast(0)
+
+    fun putActivePlanningTasksCount(context: Context, count: Int) {
+        putInt(context, ACTIVE_PLANNING_TASKS_COUNT, count.coerceAtLeast(0))
+    }
 
     fun model(context: Context): String? =
         getString(context, MODEL).takeIf { it.isNotBlank() }
