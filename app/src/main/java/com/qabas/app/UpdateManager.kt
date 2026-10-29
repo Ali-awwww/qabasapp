@@ -423,27 +423,11 @@ object UpdateManager {
             }.getOrNull()
 
             if (supabaseUpdate != null && supabaseUpdate.isActive) {
+                // القاعدة الذهبية: التحديث يظهر فقط إذا زاد رقم الإصدار (versionName) لأعلى
                 val nameComparison = compareVersionNames(supabaseUpdate.versionName, currentVersionName)
-                val isNewer = when {
-                    nameComparison > 0 -> true
-                    nameComparison < 0 -> false
-                    else -> {
-                        // الأسماء متطابقة. نعتمد رقم البناء فقط إذا كان أكبر من الحالي بوضوح
-                        // ونتجنب القيم المحسوبة تلقائياً من semver التي تكون عادة > 10000
-                        if (supabaseUpdate.versionCode > 10000 && currentVersionCode < 1000) {
-                            false
-                        } else {
-                            // مقارنة صارمة: يجب أن يكون الكود أكبر فعلياً
-                            supabaseUpdate.versionCode > currentVersionCode
-                        }
-                    }
-                }
+                val isNewer = nameComparison > 0
 
-                // الحماية النهائية: إذا تطابقت النسخة والاسم تماماً، فهو ليس تحديثاً
-                val isExactlySame = supabaseUpdate.versionName == currentVersionName && 
-                                   supabaseUpdate.versionCode == currentVersionCode
-                
-                if (isNewer && !isExactlySame) {
+                if (isNewer) {
                     prefs.edit()
                         .putLong("update_last_check", System.currentTimeMillis())
                         .putInt("update_last_version_code", supabaseUpdate.versionCode)
@@ -564,39 +548,15 @@ object UpdateManager {
             if (release.optBoolean("draft", false)) continue
 
             val tagName = release.optString("tag_name", "")
-            // وسم +N هو عقد قناة التحديث: رقم البناء من الوسم نفسه.
-            // إذا غاب، نعتمد على مقارنة اسم الإصدار semver بدقة لمنع التفسير الخاطئ
             val releaseVersionCode = parseReleaseVersionCode(tagName)
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
-            // نأخذ الإصدار فقط إذا كان أعلى من الحالي فعلياً
+            // القاعدة الذهبية: نعتبر الإصدار جديداً فقط إذا كان اسم الإصدار (versionName) أعلى برمجياً (مثل 1.3.4 > 1.3.3)
+            // هذا يمنح المطور السيطرة التامة، ويمنع ظهور أي تحديث لمجرد بناء جديد على نفس الإصدار.
             val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
-            val tagHasExplicitBuild = tagName.contains("+")
-            
-            Log.d(TAG, "Comparing: remote=$releaseVersionName($releaseVersionCode) vs local=$currentVersionName($currentVersionCode). nameComp=$nameComparison, hasPlus=$tagHasExplicitBuild")
+            val isNewer = nameComparison > 0
 
-            val isNewer = when {
-                nameComparison > 0 -> true
-                nameComparison < 0 -> false
-                else -> {
-                    // الأسماء متطابقة. لا نعتبره تحديثاً إلا إذا وجد رقم بناء صريح (+) وأكبر من الحالي
-                    if (tagHasExplicitBuild) {
-                        releaseVersionCode > currentVersionCode
-                    } else {
-                        // نفس الاسم ولا يوجد رقم بناء صريح -> نعتبرهما نفس النسخة
-                        false
-                    }
-                }
-            }
-            
-            Log.d(TAG, "Result: isNewer=$isNewer")
-
-            // الحماية النهائية للنسخة الحالية: منع ظهور التحديث إذا كانت النسخة والاسم متطابقين تماماً
-            val isExactlySame = releaseVersionName == currentVersionName && releaseVersionCode == currentVersionCode
-            if (isExactlySame) {
-                Log.d(TAG, "⏭️ Exact match found for $tagName, skipping candidate")
-                continue
-            }
+            Log.d(TAG, "Comparing: remote=$releaseVersionName vs local=$currentVersionName => isNewer=$isNewer")
 
             if (!isNewer) continue
 
@@ -852,22 +812,7 @@ object UpdateManager {
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
             val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
-            val tagHasExplicitBuild = tagName.contains("+")
-            val isNewer = when {
-                nameComparison > 0 -> true
-                nameComparison < 0 -> false
-                else -> {
-                    if (tagHasExplicitBuild) {
-                        releaseVersionCode > currentVersionCode
-                    } else {
-                        false
-                    }
-                }
-            }
-            
-            // Exact match check for diagnostics consistency
-            val isExactlySame = releaseVersionName == currentVersionName && releaseVersionCode == currentVersionCode
-            val finalIsNewer = isNewer && !isExactlySame
+            val finalIsNewer = nameComparison > 0
 
             GitHubReleaseInspection(
                 tagName = tagName,
