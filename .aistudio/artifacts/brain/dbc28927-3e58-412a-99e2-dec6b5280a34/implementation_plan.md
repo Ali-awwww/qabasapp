@@ -1,72 +1,48 @@
-# تطوير أيقونات الشريط السفلي والمؤثرات الصوتية المخصصة (3D Glassmorphic Icons & Tab-Specific SFX)
+# خطة معالجة جلب مقاطع الريلز من السحابة وبناء كارت التشخيص والزر التفاعلي ثلاثي الأضلاع
 
-ترقية تصميم وتفاعل الشريط السفلي للتنقل بإدخال أيقونات هندسية ثلاثية الأبعاد بلمسات زجاجية وذهبية ملكية (`3D Glassmorphic Geometric Icons`) وتخصيص بصمة صوتية توليدية وفريدة لجميع تبويبات الشريط السفلي عند النقر (`Tab-Specific Procedural SFX`).
-
----
-
-## القرارات المؤكدة (Confirmed Decisions)
-
-> [!IMPORTANT]
-> بناءً على إجابات الاستطلاع مع المستخدم:
-
-- **نمط الأيقونات البصري**: أيقونات زجاجية ثلاثية الأبعاد بلمسات هندسية ذهبية متوهجة (`3D Glassmorphic with Gold Accents`).
-- **المؤثرات الصوتية**: نغمات صوتية توليدية حديثة ومخصصة تميز كل تبويب عن الآخر عند النقر والانتخاب (`Procedural Tab-Specific Tones`).
+تم تنفيذ الخطة بالكامل واجتياز التجميع بنجاح.
 
 ---
 
-## 1. النظرة العامة والهدف
+## 1. التشخيص الجذري لمشاكل قسم الريلز (Root Cause Analysis & Fixes)
 
-إضفاء لمسة جمالية فاخرة وفريدة على تجربة الملاحة الرئيسية للتطبيق من خلال:
-1. بناء حاويات زجاجية ثلاثية الأبعاد للأيقونات بها حواف وتفاصيل هندسية ذهبية متوهجة.
-2. إضافة دالة `playTabRouteSound(route: AppState)` داخل `AppSoundManager.kt` تُميّز كل شاشة بنغمة ناعمة خاصة بها (مثلاً: نغمة ترحيبية للرئيسية، نغمة سيبرانية رقمية للوكيل، نغمة حركية للريلز، نغمة إبداعية للاستوديو، نغمة روحانية للمشكاة، ونغمة ميكانيكية للإعدادات).
+### الخلل الأول: ابتلاع الاستثناءات وفقدان بيانات الخطأ (Exception Swallowing) - [تم الحل ✅]
+- **السبب**: دالة `getActiveReels` في `SupabaseServices.kt` كانت تبتلع الأخطاء وتعيد `null` فقط.
+- **الحل**: تمت إضافة فئة بيانات `ReelsFetchDiagnosticResult` ودالة `getActiveReelsDiagnosed` التي تلتقط الاستثناء، تستخرج رمز الاستجابة `HTTP Status Code` (مثل 200, 401, 403, 408, 429)، وتقيس زمن الاستجابة اللحظي `latencyMs` بدقة.
 
----
+### الخلل الثاني: قفل قاطع الدائرة الوقائي (Circuit Breaker Deadlock) - [تم الحل ✅]
+- **السبب**: عند حدوث 3 إخفاقات كان قاطع الدائرة يُقفل لـ 25 ثانية، وكان زر إعادة المحاولة يستدعي الجلب فيتجاهل الشبكة فوراً دون محاولة حقيقية.
+- **الحل**: أضيفت دالة `forceResetCircuitBreaker()` في `ReelSafetyGuardrails.kt` ليتم تصفير القاطع فوراً عند نقر المستخدم على زر إعادة المحاولة.
 
-## 2. تجربة المستخدم والتصميم البصري (UX & Visual Architecture)
+### الخلل الثالث: تعارض التحويل التسلسلي (Serialization Mismatch) - [تم الحل ✅]
+- **السبب**: حقول Supabase الإضافية (`metadata`, `updated_at`, `publish_type`, `is_silent_seed`, `is_featured_by_dev`) كانت تسبب فشل فك التسلسل عند عدم تفعيل `ignoreUnknownKeys`.
+- **الحل**: تم توسيع `ReelRow` لدعم الحقول وتكوين `defaultSerializer` في `SupabaseConfig.kt` مع `ignoreUnknownKeys = true` و `isLenient = true`.
 
-### 1. تصميم الأيقونات ثلاثية الأبعاد (3D Glassmorphic Icon Containers):
-- **الحاوية الزجاجية (3D Glass Capsule):**
-  - كبسولة زجاجية مجسمة لكل أيقونة بحواف محفورة وتدرج ظلي متدرج العمق.
-  - إطار هندسي نيون ذهبي (`GoldPrimary` / `GoldSecondary`) يزداد سطوعاً وتألقاً عند التحديد.
-  - هالة توهج مشعة خلف الأيقونة النشطة مع بريق كوني ناعم.
-- **الحركة ثلاثية الأبعاد:**
-  - دوران وانزلاق عمودي طفيف للأيقونة عند تحديدها بديناميكية النوابض `spring()`.
-
-### 2. البصمات الصوتية التوليدية المخصصة لكل تبويب (Tab-Specific Procedural SFX):
-- **تبويب الرئيسية (`HOME`)**: نغمة ترحيبية دافئة ورنانة (`Warm Resonance Tone`).
-- **تبويب الوكيل الذكي (`AI_STUDIO_AGENT`)**: نبضة سيبرانية رقمية مستقبلية (`Cyber Synth Pulse`).
-- **تبويب الريلز (`REELS`)**: نقرة حركية إيقاعية مشجعة للوسائط (`Kinetic Media Pop`).
-- **تبويب الاستوديو (`STUDIO_GATEWAY`)**: جرس إبداعي متناغم (`Creative Spark Chime`).
-- **تبويب المشكاة (`HASANAT_HUB`)**: صدى روحاني فاخر ونقرة خشبية هادئة (`Spiritual Echo Tone`).
-- **تبويب الإعدادات (`SETTINGS`)**: نقرة ميكانيكية دقيقة (`Precision Mechanical Click`).
+### الخلل الرابع: جمود زر إعادة المحاولة وغياب التغذية الراجعة - [تم الحل ✅]
+- **الحل**: تم بناء زر المثلث التفاعلي النيوني اللانهائي `InfiniteTriangleRetryButton` مع عرض سرعة الاتصال بدقة.
 
 ---
 
-## 3. الهندسة والتكافؤ البرمجي (Technical Implementation)
+## 2. المكونات المنجزة
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        QabasBottomNavigation                           │
-├────────────────────────────────────────────────────────────────────────┤
-│  ForEach Tab -> onClick Event                                         │
-│       │                                                                │
-│       ├─► AppSoundManager.playTabRouteSound(route)                      │
-│       │      ├─► HOME -> Warm Resonance Tone (PCM)                     │
-│       │      ├─► AGENT -> Cyber Synth Pulse (PCM)                      │
-│       │      ├─► REELS -> Kinetic Media Pop (PCM)                      │
-│       │      ├─► STUDIO -> Creative Spark Chime (PCM)                  │
-│       │      ├─► HASANAT -> Spiritual Echo Tone (PCM)                  │
-│       │      └─► SETTINGS -> Precision Mechanical Click (PCM)          │
-│       │                                                                │
-│       ├─► Haptic Feedback Trigger                                      │
-│       └─► Render 3D Glassmorphic Icon Badge + Geometric Gold Accents  │
-└────────────────────────────────────────────────────────────────────────┘
-```
+1. **`ReelSafetyGuardrails.kt`**:
+   - `forceResetCircuitBreaker()`
+   - `getCircuitRemainingCooldownSeconds()`
+   - `getConsecutiveFailures()`
+
+2. **`SupabaseServices.kt` & `SupabaseConfig.kt`**:
+   - `ReelsFetchDiagnosticResult`
+   - `getActiveReelsDiagnosed()`
+   - تحديث `ReelRow`
+   - تهيئة `defaultSerializer` المرن بـ `ignoreUnknownKeys = true`
+
+3. **`ReelsScreen.kt`**:
+   - `ReelsFailureDiagnosticScreen`
+   - `ReelsDiagnosticCard`
+   - `MetricBadge`
+   - `InfiniteTriangleRetryButton`
 
 ---
 
-## 4. خطة الخطوات التنفيذية
-
-1. تحديث `AppSoundManager.kt` بإضافة التوليد الإجرائي للترددات الصوتية الستة الخاصة بكل تبويب وتوفير الدالة `playTabRouteSound(route: AppState)`.
-2. تحديث `QabasBottomNavigation` في `MainActivity.kt` لإضافة الحاويات الزجاجية ثلاثية الأبعاد واللمسات الهندسية الذهبية واستدعاء الصوت المخصص فور النقر.
-3. إجراء فحص التجميع والتحقق عبر `compile_applet`.
+## 3. التحقق
+- تم التحقق من نجاح تجميع التطبيق بالكامل عبر أداة `compile_applet`.

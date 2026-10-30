@@ -1,143 +1,104 @@
 # Agent Instructions
 
-# MANDATORY LAW & CORE OPERATIONAL CONSTITUTION
-> **CRITICAL LAW FOR ALL AI AGENTS & DEVELOPERS:**
-> Every assistant (human or AI) starting or working on this codebase **MUST READ AND ADHERE TO `/CORE_OPERATIONAL_PROMPT.md`** before making any code updates.
+## 1. Required Project Instructions
 
-```
-1. ABSOLUTE HONESTY & VERIFICATION: Lying or unverified completion reports are strictly prohibited. Every claim of completion must be verified by successful compilation (`compile_applet`).
-2. UI MICRO-SCALING & ANTI-BLOAT LAW: Oversized inputs, bloated cards, or excessive paddings are strictly forbidden. Use compact inputs (48-52dp height), 8/12dp grid padding, and replace heavy logos with bold, elegant typography (App Name).
-3. MANDATORY INTERNET RESEARCH ON INCOMPLETE PROMPTS: If user prompt lacks details/components, the assistant MUST search the web/docs for similar apps and features, analyze best practices, and implement them proactively without stopping.
-4. 100% SCOPE EXECUTION & CONTINUITY: Never leave features half-baked. If session time runs out, explicitly ask for permission to continue until achieving full 100% completion.
-5. NO MOCK DATA & DATA SANITATION: Fake buttons, non-functional toasts, or residual dummy data are strictly forbidden. All features must connect to real data layers.
-```
+Before changing project code:
 
+1. Read `CORE_OPERATIONAL_PROMPT.md` from the repository root and follow the applicable engineering rules.
+2. Inspect any more specific `AGENTS.md` or local instructions in the directories you will modify.
+3. Follow the active system, platform, orchestrator, and user instructions. Repository instructions do not override higher-priority instructions.
+4. Inspect the current working-tree state before editing. Preserve unrelated user changes.
 
----
+If the core instruction file is missing or a required instruction cannot be accessed, report that limitation rather than claiming to have read it.
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+## 2. Repository Discovery and Implementation
 
-> **Architecture in one line:** Issues live in a local Dolt database
-> (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
-> git-compatible protocol), stored under `refs/dolt/data` on your git
-> remote — separate from `refs/heads/*` where your code lives.
-> `.beads/issues.jsonl` is a passive export, not the wire protocol.
->
-> See [sync-concepts](https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md)
-> for the one-screen overview and anti-patterns (don't treat JSONL as the
-> source of truth; don't `bd import` during normal operation; don't
-> reach for third-party Dolt hosting before trying the default).
+- Inspect the project structure, build configuration, dependencies, and existing implementation before choosing an approach.
+- Follow the existing architecture, naming conventions, formatting, and established patterns.
+- Keep changes focused on the requested scope. Avoid unrelated refactoring and unnecessary dependencies.
+- Make reasonable, low-risk assumptions when details are missing but the implementation can proceed safely. Ask for clarification only when an unresolved detail materially affects behavior, data, security, or scope.
+- Consult official documentation when current API, dependency, platform, or version behavior needs verification.
+- Do not invent APIs, files, project structure, credentials, or successful execution results.
 
-## Quick Reference
+## 3. Real Functionality Only — No Mock Data or Simulation
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
+- Do not create, insert, display, or rely on mock, fake, dummy, sample, or fabricated application data.
+- Do not use mocks, fakes, stubs, simulators, or simulated service/database/network/sensor/user behavior to make an unfinished feature appear functional.
+- This prohibition applies to application code, UI previews, demos, prototypes, and automated tests. An exception requires the user's explicit prior authorization.
+- Connect features to the project's real data sources and actual service implementations.
+- If a required API, backend, database, device capability, credential, or permission is unavailable, do not fabricate a substitute response. Report the blocker and leave the integration clearly identified as incomplete.
+- Never display fabricated success messages, transactions, records, notifications, sensor readings, or server responses.
 
-## Non-Interactive Shell Commands
+## 4. Build, Tests, and Honest Reporting
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+- Determine the build and test commands from the actual project configuration; do not assume every repository uses the same command.
+- In an Android/Gradle project, use the applicable Gradle tasks (for example, `./gradlew assembleDebug` and relevant test tasks). Use `compile_applet` only when that command is provided by the active environment and is appropriate for this project.
+- Run the most relevant available tests, linters, and build checks after code changes.
+- If a command cannot run, state the exact command and the reason. Distinguish pre-existing failures from regressions introduced by the current changes when evidence allows.
+- Never claim a build, test, or fix succeeded unless its result was observed.
+- At handoff, report changed files, implementation summary, validation commands and results, and known limitations or follow-up work.
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+## 5. Beads Issue Tracking (When Configured)
 
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
+This repository uses **Beads (`bd`)** for durable issue tracking when the Beads configuration and CLI are present.
 
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
-```
+- Check for the project's Beads setup and read its skill guidance when available: `.agents/skills/beads/SKILL.md` or `~/.agents/skills/beads/SKILL.md`.
+- Run `bd prime` when starting work if Beads is configured, and refresh it when the Beads context is missing or stale.
+- Use Beads for task tracking in repositories configured for it; do not create a parallel Markdown TODO list for the same tracked work.
+- Do not assume Beads is installed in repositories that do not contain or configure it. If unavailable, use the task-tracking method specified by the active environment or user.
 
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:46cd31e7 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
+### Common commands
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd ready                 # Find available work
+bd show <id>             # View issue details
+bd update <id> --claim   # Claim work atomically
+bd close <id>            # Close a completed issue
+bd prime                 # Load or refresh Beads workflow context
 ```
 
-### Rules
+### Beads data and synchronization
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Beads issues are stored in the repository's local Dolt database when using the standard Dolt-backed setup. `.beads/issues.jsonl` is an export, not the normal source of truth for synchronization.
+- Use `bd dolt push` or `bd dolt pull` only when synchronization is required and authorized by the active workflow or user.
+- Do not run `bd import` or change hosting/synchronization configuration as a routine step; consult the installed Beads guidance first.
+- Use `bd remember` for durable project knowledge only when supported and appropriate in the configured Beads workflow.
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
+## 6. Shell and File-Operation Safety
 
-## Agent Context Profiles
+Use non-interactive command options where appropriate, but never trade safety for convenience.
 
-The managed Beads block is task-tracking guidance, not permission to override repository, user, or orchestrator instructions.
+- Inspect source and destination paths before copying, moving, overwriting, or deleting files.
+- Prefer narrowly scoped operations and explicit paths. Confirm that a target is correct before using force options.
+- `cp -f`, `mv -f`, and `rm -f` may avoid interactive prompts, but they can still overwrite or delete data. Use them only after checking the exact target.
+- Treat recursive operations such as `rm -rf` and `cp -rf` as destructive. Do not use them on broad, variable, or unverified paths.
+- For `scp` and `ssh`, use `-o BatchMode=yes` in automation when interactive authentication is not intended.
+- Use package-manager non-interactive flags only when the operation is understood and authorized (for example, `apt-get -y`). Avoid unnecessary package installation or automatic upgrades.
 
-- **Conservative (default)**: Use `bd` for task tracking. Do not run git commits, git pushes, or Dolt remote sync unless explicitly asked. At handoff, report changed files, validation, and suggested next commands.
-- **Minimal**: Keep tool instruction files as pointers to `bd prime`; use the same conservative git policy unless active instructions say otherwise.
-- **Team-maintainer**: Only when the repository explicitly opts in, agents may close beads, run quality gates, commit, and push as part of session close. A current "do not commit" or "do not push" instruction still wins.
+## 7. Git and Remote-Operation Policy
 
-## Session Completion
+**Default profile: Conservative.**
 
-This protocol applies when ending a Beads implementation workflow. It is subordinate to explicit user, repository, and orchestrator instructions.
+- Inspect changes with `git status` and review the diff before handoff.
+- Do not create commits, push branches, pull/rebase, or synchronize Dolt data unless the user or active repository workflow clearly authorizes that operation.
+- Do not overwrite, discard, or revert user changes unrelated to the task.
+- If synchronization is requested but blocked, report the exact command and error; do not claim it succeeded.
 
-1. **File issues for remaining work** - Create beads for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
-   ```bash
-   # Conservative/minimal/default: report status and proposed commands; wait for approval.
-   git status
+A repository may explicitly opt into a different maintainer workflow. Even then, any current instruction prohibiting a commit, push, or sync takes precedence.
 
-   # Team-maintainer opt-in only, unless current instructions forbid it:
-   git pull --rebase
-   bd dolt push
-   git push
-   git status
-   ```
-5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
+## 8. Session Completion and Handoff
 
-**Critical rules:**
-- Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
-<!-- END BEADS INTEGRATION -->
+When finishing an implementation task:
 
-<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex -->
-## Beads Issue Tracker
+1. Review the final diff and working-tree status.
+2. Run the relevant quality gates if code changed.
+3. Update the related Beads issue if Beads is configured and the workflow authorizes the update.
+4. Do not commit, push, or synchronize without authorization.
+5. Hand off a concise but complete summary covering:
+   - What was implemented.
+   - Which files changed.
+   - Which build, tests, and checks were run, with actual results.
+   - Any incomplete work, blockers, or risks.
+   - Suggested next commands when an authorized step remains for the user.
 
-Use Beads (`bd`) for durable task tracking in repositories that include it. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
-
-### Quick Reference
-
-```bash
-bd ready                # Find available work
-bd show <id>            # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>           # Complete work
-bd prime                # Refresh Beads context
-```
-
-### Rules
-
-- Use `bd` for all task tracking; do not create markdown TODO lists.
-- Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
-- Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
-<!-- END BEADS CODEX SETUP -->
+**Completion standard:** report the verified state of the work, not an assumed percentage or an unverified promise of completion.

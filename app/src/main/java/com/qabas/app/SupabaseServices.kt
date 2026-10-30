@@ -1059,6 +1059,138 @@ object SupabaseServices {
         }.onFailure { Log.e(TAG, "getUserProfile failed: ${it.message}") }.getOrNull()
 
         /**
+         * جلب مقاطع الريلز النشطة مع تقرير تشخيصي دقيق (زمن الاستجابة، رمز HTTP، ومرحلة الفشل).
+         * يمنع الفشل الصامت ويتيح تفكيك الأعطال وإعادة تعيين قاطع الدائرة يدوياً.
+         */
+        suspend fun getActiveReelsDiagnosed(
+            limit: Int = 20,
+            offset: Int = 0,
+            forceBypassCircuitBreaker: Boolean = false
+        ): ReelsFetchDiagnosticResult {
+            val startTime = System.currentTimeMillis()
+            val endpoint = "${SupabaseConfig.url}/rest/v1/reels"
+
+            if (!isSupabaseAvailable) {
+                return ReelsFetchDiagnosticResult(
+                    reels = null,
+                    isSuccess = false,
+                    httpCode = 0,
+                    latencyMs = 0L,
+                    errorStage = "CONFIG",
+                    errorMessage = "إعدادات Supabase غير مهيأة أو المفاتيح مفقودة في البيئة",
+                    rawEndpoint = endpoint
+                )
+            }
+
+            if (!forceBypassCircuitBreaker && !ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+                val remSec = ReelSafetyGuardrails.getCircuitRemainingCooldownSeconds()
+                return ReelsFetchDiagnosticResult(
+                    reels = null,
+                    isSuccess = false,
+                    httpCode = 429,
+                    latencyMs = 0L,
+                    errorStage = "CIRCUIT_BREAKER",
+                    errorMessage = "قاطع الدائرة نشط لحماية التطبيق من الاستنزاف (متبقي $remSec ثانية). انقر إعادة المحاولة لإلغائه فورياً",
+                    isCircuitBreakerActive = true,
+                    remainingCooldownSec = remSec,
+                    rawEndpoint = endpoint
+                )
+            }
+
+            if (forceBypassCircuitBreaker) {
+                ReelSafetyGuardrails.forceResetCircuitBreaker()
+            }
+
+            val client = client
+            if (client == null) {
+                return ReelsFetchDiagnosticResult(
+                    reels = null,
+                    isSuccess = false,
+                    httpCode = 0,
+                    latencyMs = System.currentTimeMillis() - startTime,
+                    errorStage = "CONFIG",
+                    errorMessage = "عميل Supabase غير متاح",
+                    rawEndpoint = endpoint
+                )
+            }
+
+            return try {
+                val response = client.postgrest.from("reels").select {
+                    filter {
+                        eq("is_active", true)
+                    }
+                    order("created_at", Order.DESCENDING)
+                    order("id", Order.DESCENDING)
+                    range(offset.toLong(), (offset + limit - 1).toLong())
+                }
+                val latency = (System.currentTimeMillis() - startTime).coerceAtLeast(1L)
+                val list = response.decodeList<ReelRow>()
+                ReelSafetyGuardrails.recordNetworkSuccess()
+                ReelsFetchDiagnosticResult(
+                    reels = list,
+                    isSuccess = true,
+                    httpCode = 200,
+                    latencyMs = latency,
+                    errorStage = if (list.isEmpty()) "EMPTY" else null,
+                    errorMessage = if (list.isEmpty()) "لا توجد مقاطع نشطة مسجلة في السحابة حالياً" else null,
+                    rawEndpoint = endpoint
+                )
+            } catch (t: Throwable) {
+                val latency = (System.currentTimeMillis() - startTime).coerceAtLeast(1L)
+                ReelSafetyGuardrails.recordNetworkFailure()
+                Log.e(TAG, "getActiveReelsDiagnosed failed after ${latency}ms: ${t.javaClass.simpleName}: ${t.message}", t)
+
+                val msg = t.message.orEmpty()
+                val isTimeout = t is java.util.concurrent.TimeoutException ||
+                        t is kotlinx.coroutines.TimeoutCancellationException ||
+                        msg.contains("timeout", ignoreCase = true)
+                val isAuth = msg.contains("401", ignoreCase = true) ||
+                        msg.contains("JWT", ignoreCase = true) ||
+                        msg.contains("apikey", ignoreCase = true) ||
+                        msg.contains("Unauthorized", ignoreCase = true)
+                val isSerialization = t is kotlinx.serialization.SerializationException ||
+                        msg.contains("SerializationException") ||
+                        msg.contains("UnknownKey")
+
+                val code = when {
+                    isAuth -> 401
+                    isTimeout -> 408
+                    msg.contains("403") -> 403
+                    msg.contains("404") -> 404
+                    msg.contains("500") -> 500
+                    msg.contains("502") || msg.contains("503") || msg.contains("504") -> 503
+                    else -> 0
+                }
+
+                val stage = when {
+                    isSerialization -> "SERIALIZATION"
+                    isAuth -> "AUTH"
+                    isTimeout -> "TIMEOUT"
+                    else -> "NETWORK"
+                }
+
+                val userFriendlyMessage = when (stage) {
+                    "SERIALIZATION" -> "خطأ في بنية حقول البيانات (Serialization): $msg"
+                    "AUTH" -> "خطأ في صلاحيات مفتاح السحابة (HTTP 401/403): $msg"
+                    "TIMEOUT" -> "انتهت مهلة استجابة السحابة (${latency}ms)"
+                    else -> "تعذر الاتصال بخوادم Supabase (${t.localizedMessage ?: msg})"
+                }
+
+                ReelsFetchDiagnosticResult(
+                    reels = null,
+                    isSuccess = false,
+                    httpCode = if (code != 0) code else null,
+                    latencyMs = latency,
+                    errorStage = stage,
+                    errorMessage = userFriendlyMessage,
+                    isCircuitBreakerActive = !ReelSafetyGuardrails.isSupabaseCallsAllowed(),
+                    remainingCooldownSec = ReelSafetyGuardrails.getCircuitRemainingCooldownSeconds(),
+                    rawEndpoint = endpoint
+                )
+            }
+        }
+
+        /**
          * جلب مقاطع الريلز النشطة — الأحدث أولاً (created_at ثم id لضمان ترتيب ثابت)
          * مع ترقيم صفحات مدى (range) لتمرير لانهائي.
          * تعيد null عند فشل الشبكة/العميل، وقائمة فارغة عند عدم وجود مقاطع — للتمييز بينهما.
@@ -1066,18 +1198,8 @@ object SupabaseServices {
         suspend fun getActiveReels(
             limit: Int = 20,
             offset: Int = 0
-        ): List<ReelRow>? = runCatching {
-            val client = client ?: return null
-            client.postgrest.from("reels").select {
-                filter {
-                    eq("is_active", true)
-                }
-                // ترتيب ثابت: الأحدث أولاً، وid كفاصل للتعادل لضمان عدم تكرار/إسقاط صفحات
-                order("created_at", Order.DESCENDING)
-                order("id", Order.DESCENDING)
-                range(offset.toLong(), (offset + limit - 1).toLong())
-            }.decodeList<ReelRow>()
-        }.onFailure { Log.e(TAG, "getActiveReels failed: ${it.message}") }.getOrNull()
+        ): List<ReelRow>? = getActiveReelsDiagnosed(limit, offset).reels
+
 
         /** جلب الفيديوهات المخصصة لوضع الأثر (المحقونة صامتاً) */
         suspend fun getSilentSeedReels(): List<ReelRow>? = runCatching {
@@ -1714,6 +1836,20 @@ object SupabaseServices {
     )
 
     @Serializable
+    data class ReelsFetchDiagnosticResult(
+        val reels: List<ReelRow>? = null,
+        val isSuccess: Boolean = false,
+        val httpCode: Int? = null,
+        val latencyMs: Long = 0L,
+        val errorStage: String? = null,
+        val errorMessage: String? = null,
+        val isCircuitBreakerActive: Boolean = false,
+        val remainingCooldownSec: Int = 0,
+        val rawEndpoint: String = "",
+        val timestamp: Long = System.currentTimeMillis()
+    )
+
+    @Serializable
     data class ReelRow(
         val id: String = "",
         @SerialName("user_id") val userId: String = "",
@@ -1733,8 +1869,14 @@ object SupabaseServices {
         @SerialName("expiry_at") val expiryAt: String? = null,
         @SerialName("quality") val quality: String = "high",
         @SerialName("ai_analysis") val aiAnalysis: String? = null,
-        @SerialName("created_at") val createdAt: String? = null
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("updated_at") val updatedAt: String? = null,
+        @SerialName("publish_type") val publishType: String? = "normal",
+        @SerialName("is_silent_seed") val isSilentSeed: Boolean = false,
+        @SerialName("is_featured_by_dev") val isFeaturedByDev: Boolean = false,
+        @SerialName("metadata") val metadata: JsonObject? = null
     )
+
 
     @Serializable
     data class ReelCommentRow(

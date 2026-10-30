@@ -61,8 +61,13 @@ import com.qabas.app.SilentReelStorageManager
 import com.qabas.app.ui.components.SilentSyncDevFloatingHud
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -176,6 +181,9 @@ fun ReelsScreen(
     var loadingProgress by remember { mutableFloatStateOf(0.12f) }
     // فشل الشبكة (يُميَّز عن القائمة الفارغة فعلاً) — يعرض حالة خطأ مع إعادة محاولة
     var loadError by remember { mutableStateOf(false) }
+    // سجل التشخيص الفني الأخير لجلب المقاطع من السحابة
+    var lastDiagnostic by remember { mutableStateOf<SupabaseServices.ReelsFetchDiagnosticResult?>(null) }
+    var isRetrying by remember { mutableStateOf(false) }
     // وضع تصفح المحفوظات محلياً عند انقطاع الإنترنت (Offline-First)
     var isOfflineMode by remember { mutableStateOf(false) }
     var isAlAtharMode by remember { mutableStateOf(false) }
@@ -378,38 +386,44 @@ fun ReelsScreen(
         }
     }
 
-    val loadReels = {
+    fun loadReels(isManualRetry: Boolean = false) {
         scope.launch {
+            if (isManualRetry) isRetrying = true
             isLoading = true
             loadError = false
             loadingProgress = 0.15f
             val gen = requestGeneration.incrementAndGet()
             loadingProgress = 0.35f
-            val remoteAttempted = ReelSafetyGuardrails.isSupabaseCallsAllowed() &&
-                    SupabaseServices.isSupabaseAvailable
-            val remoteReels = runCatching {
-                if (!remoteAttempted) {
-                    null
-                } else {
-                    loadingProgress = 0.55f
-                    withTimeoutOrNull(7000L) {
-                        SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = 0)
-                    } ?: null
-                }
-            }.onSuccess {
-                ReelSafetyGuardrails.recordNetworkSuccess()
-            }.onFailure {
-                ReelSafetyGuardrails.recordNetworkFailure()
-            }.getOrNull()
 
-            // فشل حقيقي: طُلب من السحابة لكن لم تصل نتيجة
-            val fetchFailed = remoteReels == null && remoteAttempted
-            if (fetchFailed) {
-                ReelSafetyGuardrails.recordNetworkFailure()
+            if (isManualRetry) {
+                ReelSafetyGuardrails.forceResetCircuitBreaker()
             }
 
+            loadingProgress = 0.55f
+            val diagResult = withTimeoutOrNull(9000L) {
+                SupabaseServices.Profiles.getActiveReelsDiagnosed(
+                    limit = REELS_PAGE_SIZE,
+                    offset = 0,
+                    forceBypassCircuitBreaker = isManualRetry
+                )
+            } ?: SupabaseServices.ReelsFetchDiagnosticResult(
+                reels = null,
+                isSuccess = false,
+                httpCode = 408,
+                latencyMs = 9000L,
+                errorStage = "TIMEOUT",
+                errorMessage = "انتهت مهلة استجابة السحابة (9 ثوانٍ)"
+            )
+
+            lastDiagnostic = diagResult
+            val remoteReels = diagResult.reels
+            val fetchFailed = remoteReels == null
+
             // إسقاط الاستجابات المتقادمة
-            if (gen != requestGeneration.get()) return@launch
+            if (gen != requestGeneration.get()) {
+                if (isManualRetry) isRetrying = false
+                return@launch
+            }
 
             val effectiveReels = if (!remoteReels.isNullOrEmpty()) {
                 val sanitized = remoteReels.mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
@@ -478,6 +492,7 @@ fun ReelsScreen(
             loadingProgress = 1.0f
             delay(100)
             isLoading = false
+            if (isManualRetry) isRetrying = false
             loadError = fetchFailed && allReels.isEmpty()
 
             val authId = SupabaseServices.Auth.getCurrentUserId()
@@ -645,55 +660,12 @@ fun ReelsScreen(
                         onRetry = { loadReels() }
                     )
                 } else if (loadError && allReels.isEmpty()) {
-                    // فشل التحميل (يُميَّز عن لا نتائج): إعادة محاولة صريحة
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF0B1324), Color.Black, Color(0xFF070B14))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.WifiOff,
-                                contentDescription = null,
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(
-                                text = "تعذر الاتصال بالخلاصة",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "تحقق من اتصالك بالإنترنت ثم أعد المحاولة",
-                                color = Color.White.copy(alpha = 0.65f),
-                                fontFamily = CairoFont,
-                                fontSize = 12.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(18.dp))
-                            Button(
-                                onClick = { loadReels() },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.heightIn(min = 44.dp)
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                        }
-                    }
+                    // فشل التحميل الصريح: كارت تشخيص تفصيلي مع زر المثلث التفاعلي وسرعة الاتصال
+                    ReelsFailureDiagnosticScreen(
+                        diagnostic = lastDiagnostic,
+                        isRetrying = isRetrying,
+                        onRetry = { loadReels(isManualRetry = true) }
+                    )
                 } else if (allReels.isEmpty()) {
                     // Empty state: geometric balance (gradient void + weighted centering + capped width)
                     Box(
@@ -2642,3 +2614,449 @@ fun ReelsInteractiveLoadingView(
         }
     }
 }
+
+/**
+ * شاشة التشخيص الشامل عند فشل جلب مقاطع الريلز من السحابة.
+ * تقدم تشخيصاً فنياً دقيقاً ومباشراً بدون إخفاء التفاصيل أو فشل صامت.
+ */
+@Composable
+fun ReelsFailureDiagnosticScreen(
+    diagnostic: SupabaseServices.ReelsFetchDiagnosticResult?,
+    isRetrying: Boolean,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF090D16), Color(0xFF05070B), Color(0xFF070B14))
+                )
+            )
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
+                .padding(horizontal = 20.dp, vertical = 24.dp)
+        ) {
+            // كارت التشخيص الشامل
+            ReelsDiagnosticCard(
+                diagnostic = diagnostic,
+                isRetrying = isRetrying
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // الزر التفاعلي للمثلث اللانهائي مع عرض سرعة الاتصال
+            InfiniteTriangleRetryButton(
+                latencyMs = diagnostic?.latencyMs,
+                isRetrying = isRetrying,
+                onRetry = onRetry
+            )
+        }
+    }
+}
+
+/**
+ * كارت تشخيص تفصيلي يعرض سبب الخطأ ورمز الاستجابة وحالة السحابة وقاطع الدائرة.
+ */
+@Composable
+fun ReelsDiagnosticCard(
+    diagnostic: SupabaseServices.ReelsFetchDiagnosticResult?,
+    isRetrying: Boolean
+) {
+    val httpCode = diagnostic?.httpCode
+    val stage = diagnostic?.errorStage ?: "NETWORK"
+    val latency = diagnostic?.latencyMs ?: 0L
+    val isCircuit = diagnostic?.isCircuitBreakerActive == true
+    val cooldownSec = diagnostic?.remainingCooldownSec ?: 0
+
+    val statusColor = when {
+        isRetrying -> Color(0xFF00E5FF)
+        httpCode == 200 -> Color(0xFF4ADE80)
+        isCircuit -> Color(0xFFF59E0B)
+        httpCode == 401 || httpCode == 403 -> Color(0xFFEF4444)
+        else -> Color(0xFFF87171)
+    }
+
+    val statusTitle = when {
+        isRetrying -> "جاري الفحص المباشر للسحابة..."
+        isCircuit -> "قاطع الدائرة نشط (حماية التردد)"
+        httpCode == 401 || httpCode == 403 -> "خطأ في مصادقة مفتاح Supabase"
+        stage == "TIMEOUT" -> "انتهت مهلة استجابة الخادم"
+        stage == "CONFIG" -> "السحابة غير مهيأة"
+        else -> "تعذر استلام مقاطع الخلاصة"
+    }
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1424).copy(alpha = 0.95f)),
+        border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(statusColor.copy(alpha = 0.6f), GoldPrimary.copy(alpha = 0.3f)))),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            // ترويسة الكارت
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                    Text(
+                        text = "تشخيص السحابة المتقدم",
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = Color.White
+                    )
+                }
+
+                // شارة الحالة
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = statusColor.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = if (httpCode != null && httpCode > 0) "HTTP $httpCode" else stage,
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // شريط المؤشرات الثلاثية (HTTP Code, Ping Latency, Guardrail)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // مؤشر زمن الاتصال والسرعة
+                MetricBadge(
+                    modifier = Modifier.weight(1f),
+                    label = "سرعة الاستجابة",
+                    value = if (latency > 0) "${latency}ms" else "--",
+                    subValue = when {
+                        latency in 1..250 -> "سريع 🟢"
+                        latency in 251..650 -> "متوسط 🟡"
+                        latency > 650 -> "بطيء 🟠"
+                        else -> "منقطع ⚪"
+                    },
+                    accentColor = when {
+                        latency in 1..250 -> Color(0xFF4ADE80)
+                        latency in 251..650 -> Color(0xFFFACC15)
+                        else -> Color(0xFFFB923C)
+                    }
+                )
+
+                // مؤشر رمز الاستجابة
+                MetricBadge(
+                    modifier = Modifier.weight(1f),
+                    label = "رمز الخادم",
+                    value = if (httpCode != null && httpCode > 0) "$httpCode" else "ERR",
+                    subValue = when (httpCode) {
+                        200 -> "ناجح"
+                        401, 403 -> "مرفوض"
+                        408 -> "تأخر"
+                        429 -> "محدود"
+                        null, 0 -> "لا اتصال"
+                        else -> "استثناء"
+                    },
+                    accentColor = if (httpCode == 200) Color(0xFF4ADE80) else Color(0xFFF87171)
+                )
+
+                // مؤشر درع الأمان
+                MetricBadge(
+                    modifier = Modifier.weight(1f),
+                    label = "قاطع الحماية",
+                    value = if (isCircuit) "${cooldownSec}s" else "جاهز",
+                    subValue = if (isCircuit) "مؤمّن 🛡️" else "طبيعي ⚡",
+                    accentColor = if (isCircuit) Color(0xFFF59E0B) else Color(0xFF00E5FF)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // نص التوضيح والخطأ الدقيق
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.Black.copy(alpha = 0.45f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = statusTitle,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.5.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = diagnostic?.errorMessage ?: "تحقق من اتصال جهازك بالإنترنت أو أعد المحاولة لتجاوز التهدئة.",
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp,
+                        color = Color.White.copy(alpha = 0.72f),
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricBadge(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    subValue: String,
+    accentColor: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF161F36),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                fontFamily = CairoFont,
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                fontFamily = RobotoMonoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.5.sp,
+                color = accentColor
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subValue,
+                fontFamily = CairoFont,
+                fontSize = 9.5.sp,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+/**
+ * زر تفاعلي ينشئ مثلثاً هندسياً مع حالة تفاعلية لانهائية ويعرض سرعة الاتصال بدقة.
+ */
+@Composable
+fun InfiniteTriangleRetryButton(
+    latencyMs: Long?,
+    isRetrying: Boolean,
+    onRetry: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite_triangle_transition")
+
+    // تدوير المثلث اللانهائي
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (isRetrying) 1000 else 4500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "triangle_rotation"
+    )
+
+    // نبض الإشعاع والهالة
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "triangle_pulse"
+    )
+
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "triangle_glow"
+    )
+
+    Surface(
+        onClick = onRetry,
+        enabled = !isRetrying,
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFF0F172A),
+        border = BorderStroke(
+            1.5.dp,
+            Brush.sweepGradient(
+                listOf(
+                    GoldPrimary.copy(alpha = glowAlpha),
+                    Color(0xFF00E5FF).copy(alpha = glowAlpha),
+                    GoldPrimary.copy(alpha = glowAlpha)
+                )
+            )
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // المثلث الهندسي المتوهج التفاعلي
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .scale(pulseScale),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .rotate(rotation)
+                ) {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val r = size.minDimension / 2.2f
+
+                    // زوايا المثلث متساوي الأضلاع
+                    val p1 = Offset(cx, cy - r)
+                    val p2 = Offset(cx + (r * cos(PI / 6)).toFloat(), cy + (r * sin(PI / 6)).toFloat())
+                    val p3 = Offset(cx - (r * cos(PI / 6)).toFloat(), cy + (r * sin(PI / 6)).toFloat())
+
+                    val trianglePath = Path().apply {
+                        moveTo(p1.x, p1.y)
+                        lineTo(p2.x, p2.y)
+                        lineTo(p3.x, p3.y)
+                        close()
+                    }
+
+                    // 1. هالة ضوئية خارجية
+                    drawPath(
+                        path = trianglePath,
+                        color = Color(0xFF00E5FF).copy(alpha = glowAlpha * 0.3f),
+                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    // 2. تعبئة زجاجية ذهبية نيونية
+                    drawPath(
+                        path = trianglePath,
+                        brush = Brush.linearGradient(
+                            listOf(
+                                GoldPrimary.copy(alpha = 0.35f),
+                                Color(0xFF00E5FF).copy(alpha = 0.2f)
+                            )
+                        )
+                    )
+
+                    // 3. حواف المثلث النيونية
+                    drawPath(
+                        path = trianglePath,
+                        brush = Brush.linearGradient(
+                            listOf(
+                                Color(0xFF00E5FF),
+                                GoldPrimary,
+                                Color(0xFF00E5FF)
+                            )
+                        ),
+                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    // 4. نواة مركزية مضيئة
+                    drawCircle(
+                        color = Color(0xFF00E5FF),
+                        radius = 2.5.dp.toPx(),
+                        center = Offset(cx, cy)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // النصوص الإرشادية وحالة الزر
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = if (isRetrying) "جاري تجاوز القاطع والفحص..." else "إعادة المحاولة وفحص الاتصال",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (isRetrying) "تصفير قاطع الدائرة فورياً واستعلام الخادم" else "تصفير فوري للحماية واختبار سرعة الاستجابة",
+                    fontFamily = CairoFont,
+                    fontSize = 10.5.sp,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // شارة سرعة الاتصال الفورية
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFF1E293B),
+                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "⚡",
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = if (latencyMs != null && latencyMs > 0) "${latencyMs}ms" else "فحص",
+                        fontFamily = RobotoMonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = Color(0xFF00E5FF)
+                    )
+                }
+            }
+        }
+    }
+}
+

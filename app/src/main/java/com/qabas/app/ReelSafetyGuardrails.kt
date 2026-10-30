@@ -232,6 +232,7 @@ object ReelSafetyGuardrails {
 
     fun recordNetworkSuccess() {
         consecutiveNetworkFailures = 0
+        circuitBreakerUntilMs = 0L
     }
 
     fun recordNetworkFailure() {
@@ -241,6 +242,27 @@ object ReelSafetyGuardrails {
             Log.w(TAG, "Circuit breaker tripped: reels network paused for ${CIRCUIT_COOLDOWN_MS / 1000}s")
         }
     }
+
+    /**
+     * إعادة ضبط قاطع الدائرة فورياً عند نقر المستخدم على زر إعادة المحاولة
+     */
+    fun forceResetCircuitBreaker() {
+        consecutiveNetworkFailures = 0
+        circuitBreakerUntilMs = 0L
+        Log.i(TAG, "Circuit breaker manually reset by user action")
+    }
+
+    /**
+     * الثواني المتبقية حتى انتهاء تهدئة قاطع الدائرة (إن كان مفعلاً)
+     */
+    fun getCircuitRemainingCooldownSeconds(): Int {
+        val rem = circuitBreakerUntilMs - System.currentTimeMillis()
+        return if (rem > 0) ((rem + 999) / 1000).toInt() else 0
+    }
+
+    /** عدد الإخفاقات المتتالية المسجلة */
+    fun getConsecutiveFailures(): Int = consecutiveNetworkFailures
+
 
     /**
      * فحص حجم الكاش ومسح الفائض تلقائياً لمنع استهلاك ذاكرة الهاتف
