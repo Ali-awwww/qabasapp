@@ -17,9 +17,39 @@ android {
     targetSdk = 36
     // قناة التحديث: CI يحقن versionCode/versionName تلقائياً لكل بناء عبر -PappVersionCode
     // و -PappVersionName، فتتزايد الأكواد والإصدارات مع كل دفع ناجح (أساس دلتا xdelta).
-    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 103
-    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.4"
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 104
+    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.5"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // Safe secret resolution for GitHub OAuth keys
+    val resolveSecret = { key: String ->
+      val prop = project.findProperty(key) as? String
+      if (!prop.isNullOrBlank()) prop
+      else {
+        val env = System.getenv(key)
+        if (!env.isNullOrBlank()) env
+        else {
+          var found = ""
+          val envFile = file("${rootDir}/.env")
+          if (envFile.exists()) {
+            envFile.forEachLine { line ->
+              val trimmed = line.trim()
+              if (trimmed.startsWith("$key=")) {
+                found = trimmed.substringAfter("=").trim().removeSurrounding("\"").removeSurrounding("'")
+              }
+            }
+          }
+          found
+        }
+      }
+    }
+
+    buildConfigField("String", "AW_CLIENT_ID", "\"${resolveSecret("AW_CLIENT_ID")}\"")
+    buildConfigField("String", "AW_CLIENT_SECRET", "\"${resolveSecret("AW_CLIENT_SECRET")}\"")
+    buildConfigField("String", "QF_CLIENT_ID", "\"${resolveSecret("QF_CLIENT_ID")}\"")
+    buildConfigField("String", "QF_CLIENT_SECRET", "\"${resolveSecret("QF_CLIENT_SECRET")}\"")
+    buildConfigField("String", "GITHUB_CLIENT_ID", "\"${resolveSecret("GITHUB_CLIENT_ID")}\"")
+    buildConfigField("String", "GITHUB_CLIENT_SECRET", "\"${resolveSecret("GITHUB_CLIENT_SECRET")}\"")
   }
 
   signingConfigs {
@@ -76,6 +106,12 @@ secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  ignoreList.add("AW_CLIENT_ID")
+  ignoreList.add("AW_CLIENT_SECRET")
+  ignoreList.add("QF_CLIENT_ID")
+  ignoreList.add("QF_CLIENT_SECRET")
+  ignoreList.add("GITHUB_CLIENT_ID")
+  ignoreList.add("GITHUB_CLIENT_SECRET")
 }
 
 // Ensure google-services.json always exists before GoogleServices tasks run
@@ -138,6 +174,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.browser)
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.ui)
   implementation(libs.lottie.compose)

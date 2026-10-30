@@ -323,6 +323,44 @@ fun LiveMissionExecutionCard(
                                 )
                             }
 
+                            // 🧠 مؤشر "جارِ التفكير" النشط
+                            if (step.isRunning) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF00E5FF).copy(alpha = 0.05f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    val thinkingTransition = rememberInfiniteTransition(label = "thinking")
+                                    val thinkingAlpha by thinkingTransition.animateFloat(
+                                        initialValue = 0.4f,
+                                        targetValue = 1f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(800, easing = FastOutSlowInEasing),
+                                            repeatMode = RepeatMode.Reverse
+                                        ),
+                                        label = "thinking-alpha"
+                                    )
+                                    
+                                    Icon(
+                                        imageVector = Icons.Default.Psychology,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00E5FF).copy(alpha = thinkingAlpha),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "جارِ التفكير وتحليل الكود...",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF00E5FF).copy(alpha = thinkingAlpha),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
                             if (step.outputSnippet.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(

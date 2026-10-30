@@ -21,7 +21,7 @@ object UniversalKeyBrain {
         return when {
             k.startsWith("sk-or-", ignoreCase = true) -> DetectedProvider.OPENROUTER
             k.startsWith("sk-ant-", ignoreCase = true) -> DetectedProvider.ANTHROPIC
-            k.startsWith("AIza", ignoreCase = true) -> DetectedProvider.GEMINI
+            k.startsWith("AIza", ignoreCase = true) || k.startsWith("Aq", ignoreCase = true) -> DetectedProvider.GEMINI
             k.startsWith("gsk_", ignoreCase = true) -> DetectedProvider.GROQ
             k.startsWith("sk-", ignoreCase = true) -> DetectedProvider.OPENAI
             k.startsWith("hf_", ignoreCase = true) -> DetectedProvider.HUGGINGFACE
@@ -94,7 +94,7 @@ object UniversalKeyBrain {
         if (k.isBlank()) return SmartSaveResult.Unsupported("المفتاح فارغ — الصق مفتاحاً أولاً.")
         val provider = forcedProvider?.takeIf { it != DetectedProvider.NONE } ?: detect(k)
         if (provider == DetectedProvider.NONE) {
-            return SmartSaveResult.Unsupported("تعذّر التعرّف على المفتاح — الصيغ المدعومة: AIza (Gemini)، gsk_ (Groq)، sk-or- (OpenRouter)، sk- (OpenAI)، sk-ant- (Anthropic)، hf_ (HuggingFace)، oc- (OpenCode Zen) — أو اختر المزود يدوياً.")
+            return SmartSaveResult.Unsupported("تعذّر التعرّف على المفتاح — الصيغ المدعومة: AIza أو Aq (Gemini)، gsk_ (Groq)، sk-or- (OpenRouter)، sk- (OpenAI)، sk-ant- (Anthropic)، hf_ (HuggingFace)، oc- (OpenCode Zen) — أو اختر المزود يدوياً.")
         }
         val health = AgentConnectivityEngine.pingProviderLive(provider, k, KeySource.USER_INPUT)
         if (!health.isConnected) {

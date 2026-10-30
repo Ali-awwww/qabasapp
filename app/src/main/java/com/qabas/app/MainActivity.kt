@@ -289,9 +289,21 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         com.qabas.app.ui.components.NetworkHUD()
-                                        com.qabas.app.ui.components.OnlineHUD()
+                                com.qabas.app.ui.components.OnlineHUD()
                                     }
                                 }
+
+                                // Discreet Version Label in the corner
+                                Text(
+                                    text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                                    color = Color.White.copy(alpha = 0.3f),
+                                    fontSize = 9.sp,
+                                    fontFamily = CairoFont,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(start = 12.dp, bottom = 80.dp) // Elevated to stay above potential navigation bars
+                                        .zIndex(20f)
+                                )
                             }
                         }
                     }
@@ -872,6 +884,22 @@ class MainActivity : ComponentActivity() {
         if (uri != null && uri.host == QabasWebConfig.OFFICIAL_WEB_HOST) {
             val path = uri.path.orEmpty()
             android.widget.Toast.makeText(this, "مرحباً بك في تطبيق قبس عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
+        }
+
+        if (uri != null && uri.scheme == "qabas" && uri.host == "github-callback") {
+            val code = uri.getQueryParameter("code")
+            if (!code.isNullOrBlank()) {
+                lifecycleScope.launch {
+                    val token = GitHubAuthManager.exchangeCodeForToken(code)
+                    if (token != null) {
+                        GitHubAuthManager.saveAccessToken(this@MainActivity, token)
+                        Toast.makeText(this@MainActivity, "تم ربط حساب GitHub بنجاح! 🐙", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "فشل ربط حساب GitHub ❌", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            return
         }
 
         val result = KeyDeepLinkHandler.parseIntent(intent) ?: return

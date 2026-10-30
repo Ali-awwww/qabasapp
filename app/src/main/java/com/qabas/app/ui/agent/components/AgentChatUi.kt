@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -538,6 +539,31 @@ internal fun ChatMessageBubble(
                         lineHeight = 19.sp
                     )
 
+                    message.teamSteps.takeIf { it.isNotEmpty() }?.let { steps ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            steps.forEachIndexed { index, step ->
+                                val isLast = index == steps.size - 1
+                                TeamStepCard(
+                                    step = step,
+                                    index = index,
+                                    isLast = isLast,
+                                    isThinking = step.isRunning
+                                )
+                            }
+                        }
+                    }
+
+                    message.teamReport?.leaderDiffs?.firstOrNull()?.let { diff ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        AgentDiffCard(
+                            filePath = diff.filePath,
+                            additions = diff.additions,
+                            deletions = diff.deletions,
+                            diffText = diff.diffText
+                        )
+                    }
+
                     message.planCard?.let { planCard ->
                         Spacer(modifier = Modifier.height(8.dp))
                         InteractivePlanCard(
@@ -553,6 +579,14 @@ internal fun ChatMessageBubble(
                             additions = diff.additions,
                             deletions = diff.deletions,
                             diffText = diff.diffText
+                        )
+                    }
+
+                    message.errorInfo?.let { error ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        DetailedDiagnosticCard(
+                            error = error,
+                            onRetry = { /* logic for retry would go here if needed */ }
                         )
                     }
                 }
@@ -734,6 +768,345 @@ internal fun InteractivePlanCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * بطاقة عرض خطوة الفريق (Team Step Card) مع تأثيرات ذهبية وحركية
+ */
+@Composable
+internal fun TeamStepCard(
+    step: TeamStepEvent,
+    index: Int,
+    isLast: Boolean,
+    isThinking: Boolean
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "glow")
+    
+    // Golden Flash/Glow Alpha
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow_alpha"
+    )
+
+    // Animated Visibility for Sliding effect
+    AnimatedVisibility(
+        visible = true,
+        enter = slideInHorizontally(
+            initialOffsetX = { -150 },
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+        ) + fadeIn(animationSpec = tween(600)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Surface(
+            color = Color(0xFF0F1B2E),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(
+                if (isThinking) 2.dp else 1.dp,
+                if (isThinking) Color(0xFFD4AF37).copy(alpha = glowAlpha) else Color(0xFF1E2D4A)
+            ),
+            // Golden flash shadow when thinking
+            shadowElevation = if (isThinking) (6.dp * glowAlpha) else 0.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Role Icon with status-dependent background
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isThinking -> Color(0xFFD4AF37).copy(alpha = 0.15f)
+                                    step.isSuccess -> Color(0xFF10B981).copy(alpha = 0.15f)
+                                    else -> Color(0xFFEF4444).copy(alpha = 0.15f)
+                                }
+                            )
+                            .border(
+                                1.dp,
+                                when {
+                                    isThinking -> Color(0xFFD4AF37).copy(alpha = glowAlpha)
+                                    step.isSuccess -> Color(0xFF10B981)
+                                    else -> Color(0xFFEF4444)
+                                },
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isThinking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color(0xFFD4AF37),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (step.isSuccess) Icons.Default.Check else Icons.Default.Error,
+                                contentDescription = null,
+                                tint = if (step.isSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.width(12.dp))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = step.title,
+                            color = if (isThinking) Color(0xFFD4AF37) else Color.White,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        if (step.toolName.isNotBlank()) {
+                            Text(
+                                text = "أداة: ${step.toolName}",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 10.sp,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    
+                    // Step Index Badge
+                    Surface(
+                        color = Color(0xFF1E293B),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "#${index + 1}",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 10.sp,
+                            fontFamily = RobotoMonoFont,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                if (step.description.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = step.description,
+                        color = Color(0xFF94A3B8),
+                        fontFamily = CairoFont,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(start = 44.dp)
+                    )
+                }
+
+                // "Thinking" indicator with animation
+                if (isThinking) {
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        color = Color(0xFFD4AF37).copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 44.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val dotTransition = rememberInfiniteTransition(label = "dots")
+                            val dotAlpha by dotTransition.animateFloat(
+                                initialValue = 0.2f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(600, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "dot_alpha"
+                            )
+                            
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFD4AF37).copy(alpha = dotAlpha))
+                            )
+                            
+                            Text(
+                                text = "جارِ التفكير والتحليل الذكي الآن... ✨",
+                                color = Color(0xFFD4AF37),
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                if (step.outputSnippet.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        color = Color(0xFF070D18),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 44.dp)
+                    ) {
+                        Text(
+                            text = step.outputSnippet,
+                            color = Color(0xFF67E8F9),
+                            fontSize = 10.sp,
+                            fontFamily = RobotoMonoFont,
+                            modifier = Modifier.padding(10.dp),
+                            maxLines = 8,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * كارت تشخيص تفصيلي للأخطاء (Detailed Diagnostic Card)
+ */
+@Composable
+internal fun DetailedDiagnosticCard(
+    error: AgentErrorDetails,
+    onRetry: () -> Unit
+) {
+    Surface(
+        color = Color(0xFF1A0B0B),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.2.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text(
+                    text = "تشخيص خطأ الجلب / التنفيذ 🔍",
+                    color = Color(0xFFEF4444),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // تفاصيل الخطأ
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DiagnosticItem(label = "سبب الخطأ", value = error.reason)
+                error.responseCode?.let { DiagnosticItem(label = "رمز الاستجابة", value = "$it HTTP") }
+                error.cloudStatus?.let { DiagnosticItem(label = "حالة السحابة", value = it) }
+                error.connectivitySpeed?.let { DiagnosticItem(label = "سرعة الاتصال", value = it) }
+                
+                if (error.isNetworkError) {
+                    Text(
+                        text = "⚠️ يبدو أن هناك مشكلة في اتصال الشبكة المحلي أو العالمي.",
+                        color = Color(0xFFF87171),
+                        fontSize = 11.sp,
+                        fontFamily = CairoFont,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            InfiniteTriangleRetryButton(onClick = onRetry)
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticItem(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = Color(0xFF94A3B8), fontSize = 11.sp, fontFamily = CairoFont)
+        Text(text = value, color = Color.White, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Medium)
+    }
+}
+
+/**
+ * زر إعادة محاولة تفاعلي مع مثلث حالة لا نهائية
+ */
+@Composable
+internal fun InfiniteTriangleRetryButton(onClick: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "triangle")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing)
+        ),
+        label = "rotation"
+    )
+
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFEF4444).copy(alpha = 0.1f),
+            contentColor = Color(0xFFEF4444)
+        ),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f))
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Canvas(modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = rotation }) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width / 2, 0f)
+                    lineTo(size.width, size.height)
+                    lineTo(0f, size.height)
+                    close()
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0xFFEF4444),
+                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+            
+            Text(
+                text = "إعادة المحاولة الآن",
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.5.sp
+            )
         }
     }
 }

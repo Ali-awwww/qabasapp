@@ -6,15 +6,18 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -44,9 +48,13 @@ import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.agent.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 /** قائمة النماذج المتاحة لكل مزود — مصدر واحد يمنع إرسال نموذج مزودٍ إلى مزود آخر */
@@ -76,13 +84,46 @@ fun AiStudioAgentScreen(
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab) }
+    var showDevConsole by remember { mutableStateOf(false) }
+    var showSidePanel by remember { mutableStateOf(false) }
+    val sessions by AgentChatSessionManager.sessions.collectAsState()
+    val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
+    val chatMessages = remember { mutableStateListOf<AgentChatMessage>() }
+    var isThinking by remember { mutableStateOf(false) }
+    var isRunning by remember { mutableStateOf(false) }
+    var isPaused by remember { mutableStateOf(false) }
+    val chatListState = rememberLazyListState()
+    var chatInputText by remember { mutableStateOf("") }
+    var showSpecChooser by remember { mutableStateOf(false) }
 
     BackHandler {
+        if (showSidePanel) {
+            showSidePanel = false
+            return@BackHandler
+        }
+        if (showDevConsole) {
+            showDevConsole = false
+            return@BackHandler
+        }
         if (showExitConfirmation) {
             showExitConfirmation = false
             return@BackHandler
         }
         showExitConfirmation = true
+    }
+
+    LaunchedEffect(Unit) {
+        AgentChatSessionManager.init(context)
+        val curId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+        val loaded = AgentChatSessionManager.loadSessionMessages(context, curId)
+        chatMessages.clear()
+        chatMessages.addAll(loaded)
+    }
+
+    LaunchedEffect(chatMessages.size, isThinking) {
+        if (chatMessages.isNotEmpty()) {
+            chatListState.animateScrollToItem(chatMessages.size - 1)
+        }
     }
 
     var promptInput by remember { mutableStateOf("") }
@@ -105,6 +146,7 @@ fun AiStudioAgentScreen(
     var showModelPicker by remember { mutableStateOf(false) }
     var selectedModel by remember { mutableStateOf("") }
     var applyingDiffPath by remember { mutableStateOf<String?>(null) }
+    var showRequirementDialog by remember { mutableStateOf(false) }
 
     val TAG = "AiStudioAgentScreen"
 
@@ -314,6 +356,238 @@ fun AiStudioAgentScreen(
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
     val activeRepo = remember(context, vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
 
+    fun handleSendMessage(text: String) {
+        val clean = text.trim()
+        if (clean.isBlank()) return
+
+        // 1. فحص المتطلبات الأساسية (مفتاح API ومستودع GitHub)
+        val currentKeys = AgentConnectivityEngine.resolveKeyWithSource(context)
+        val activeRepoItem = RepoVaultManager.getActiveRepo(context)
+        
+        if (currentKeys.third == KeySource.NONE || activeRepoItem == null) {
+            showRequirementDialog = true
+            return
+        }
+
+        val curId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+        val userMsg = AgentChatMessage(sender = AgentChatSender.USER, text = clean)
+        chatMessages.add(userMsg)
+        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+
+        isThinking = true
+        isRunning = true
+        isPaused = false
+
+        val job = coroutineScope.launch(Dispatchers.IO) {
+            try {
+                // 2. فحص حي للمفتاح قبل البدء (للتأكد من عدم كونه منتهياً أو خاطئاً)
+                val health = AgentConnectivityEngine.pingProviderLive(currentKeys.first, currentKeys.second, currentKeys.third)
+                if (!health.isConnected) {
+                    withContext(Dispatchers.Main) {
+                        val errorDetails = AgentErrorDetails(
+                            reason = "فشل التحقق من مفتاح API: ${health.statusDetail}",
+                            responseCode = health.httpCode,
+                            cloudStatus = "سيرفر ${currentKeys.first.displayName} نشط ولكن المفتاح مرفوض",
+                            isNetworkError = health.httpCode == -1
+                        )
+                        val errorMsg = AgentChatMessage(
+                            sender = AgentChatSender.AGENT,
+                            text = "عذراً، فشل الاتصال بالمزود الذكي. يرجى التحقق من صحة المفتاح في الإعدادات وإعادة المحاولة.",
+                            errorInfo = errorDetails
+                        )
+                        chatMessages.add(errorMsg)
+                        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                        isThinking = false
+                        isRunning = false
+                    }
+                    return@launch
+                }
+
+                val isPlanning = AgentPrefs.isPlanningMode(context)
+                if (isPlanning) {
+                    val planSteps = listOf(
+                        AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع قَبَس المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
+                        AgentPlanStep(2, "صياغة وتعديل المكونات ✍️", "كتابة واختبار واجهات Jetpack Compose والمنطق البرمجي الخاص بالخاصية المطلوبة."),
+                        AgentPlanStep(3, "التكامل والتحقق من البناء 🚀", "تشغيل أداة التجميع compile_applet والترقيع الذاتي للأخطاء قبل التسليم النهائي.")
+                    )
+                    val planCardData = AgentPlanCardData(
+                        prompt = clean,
+                        summary = "خطة عمل معمارية مقترحة لتنفيذ: \"$clean\"",
+                        steps = planSteps,
+                        isApproved = false
+                    )
+                    withContext(Dispatchers.Main) {
+                        val currentActive = AgentPrefs.activePlanningTasksCount(context)
+                        AgentPrefs.putActivePlanningTasksCount(context, currentActive + 1)
+                        val agentMsg = AgentChatMessage(
+                            sender = AgentChatSender.AGENT,
+                            text = "تم تفعيل \"وضع التخطيط الهيكلي\". تم إعداد خطة العمل المعمارية التالية لطلبك. يرجى مراجعتها واضغط على زر الاعتماد للبدء بالتنفيذ المباشر:",
+                            planCard = planCardData
+                        )
+                        chatMessages.add(agentMsg)
+                        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                        isThinking = false
+                        isRunning = false
+                    }
+                } else if (isTeamMode) {
+                    val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
+                    val teamStepsList = mutableListOf<TeamStepEvent>()
+                    val agentMsg = AgentChatMessage(
+                        sender = AgentChatSender.AGENT,
+                        text = "جاري تفعيل فريق النماذج الذكي لمعالجة طلبك... 👥⚡",
+                        teamSteps = emptyList()
+                    )
+                    withContext(Dispatchers.Main) {
+                        chatMessages.add(agentMsg)
+                    }
+                    
+                    val report = MultiModelAgentOrchestrator.executeWithTeam(
+                        context = context,
+                        prompt = clean,
+                        team = team,
+                        onUpdate = { updateText ->
+                            teamProgressText = updateText
+                        },
+                        onStep = { stepEvent ->
+                            val existingIdx = teamStepsList.indexOfFirst { it.key == stepEvent.key }
+                            if (existingIdx >= 0) {
+                                teamStepsList[existingIdx] = stepEvent
+                            } else {
+                                teamStepsList.add(stepEvent)
+                            }
+                            val updatedMsg = agentMsg.copy(teamSteps = teamStepsList.toList())
+                            val msgIdx = chatMessages.indexOfFirst { it.id == agentMsg.id }
+                            if (msgIdx >= 0) {
+                                chatMessages[msgIdx] = updatedMsg
+                            }
+                        }
+                    )
+                    
+                    withContext(Dispatchers.Main) {
+                        val finalMsg = agentMsg.copy(
+                            text = report.leaderSynthesis.ifBlank { "تم تنفيذ المهمة بواسطة الفريق بنجاح." },
+                            teamReport = report,
+                            teamSteps = teamStepsList.toList()
+                        )
+                        val msgIdx = chatMessages.indexOfFirst { it.id == agentMsg.id }
+                        if (msgIdx >= 0) {
+                            chatMessages[msgIdx] = finalMsg
+                        }
+                        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                        isThinking = false
+                        isRunning = false
+                    }
+                } else {
+                    var finalMissionResult: AgentMissionSession? = null
+                    try {
+                        executeAgentMission(
+                            context = context,
+                            prompt = clean,
+                            spec = selectedSpec,
+                            repo = activeRepo,
+                            selectedModel = selectedModel.ifBlank { "gemini-3.8-flash" },
+                            onUpdate = { partialMission ->
+                                currentMission = partialMission
+                            },
+                            onFinished = { finalMission ->
+                                finalMissionResult = finalMission
+                                currentMission = finalMission
+                            }
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Execution error: ${e.message}")
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        val reportText = finalMissionResult?.finalReport?.ifBlank { null }
+                            ?: "تم استلام توجيهك البرمجي بنجاح وتنفيذه بواسطة الوكيل المستقل: $clean"
+                        val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
+                            FileDiff(
+                                filePath = d.filePath,
+                                additions = d.additions,
+                                deletions = d.deletions,
+                                diffText = d.diffText
+                            )
+                        }
+                        val agentMsg = AgentChatMessage(
+                            sender = AgentChatSender.AGENT,
+                            text = reportText,
+                            diff = diff
+                        )
+                        chatMessages.add(agentMsg)
+                        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                        isThinking = false
+                        isRunning = false
+                    }
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                withContext(Dispatchers.Main) {
+                    isThinking = false
+                    isRunning = false
+                    isPaused = false
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isThinking = false
+                    isRunning = false
+                    isPaused = false
+                    executionJob = null
+                }
+            }
+        }
+        executionJob = job
+    }
+
+    fun handleApprovePlan(planCard: AgentPlanCardData) {
+        val curId = AgentChatSessionManager.activeSessionId.value ?: return
+        val currentActive = AgentPrefs.activePlanningTasksCount(context)
+        AgentPrefs.putActivePlanningTasksCount(context, (currentActive - 1).coerceAtLeast(0))
+
+        Toast.makeText(context, "🚀 تم اعتماد الخطة! جاري البدء بالتنفيذ المباشر...", Toast.LENGTH_SHORT).show()
+        val sysMsg = AgentChatMessage(
+            sender = AgentChatSender.TOOL_SYSTEM,
+            text = "تم اعتماد خطة العمل بنجاح لـ: \"${planCard.prompt}\". جاري البدء بتطبيق التعديلات البرمجية..."
+        )
+        chatMessages.add(sysMsg)
+        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+
+        isThinking = true
+        isRunning = true
+        isPaused = false
+
+        val job = coroutineScope.launch(Dispatchers.IO) {
+            var finalMissionResult: AgentMissionSession? = null
+            try {
+                executeAgentMission(
+                    context = context,
+                    prompt = planCard.prompt,
+                    spec = selectedSpec,
+                    repo = activeRepo,
+                    selectedModel = selectedModel.ifBlank { "gemini-3.8-flash" },
+                    onUpdate = { currentMission = it },
+                    onFinished = { finalMissionResult = it; currentMission = it }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Plan execution error: ${e.message}")
+            }
+            withContext(Dispatchers.Main) {
+                val reportText = finalMissionResult?.finalReport?.ifBlank { null }
+                    ?: "تم تنفيذ الخطة البرمجية المعتمدة بنجاح على مشروع قبس."
+                val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
+                    FileDiff(filePath = d.filePath, additions = d.additions, deletions = d.deletions, diffText = d.diffText)
+                }
+                val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = reportText, diff = diff)
+                chatMessages.add(agentMsg)
+                AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                isThinking = false
+                isRunning = false
+                isPaused = false
+                executionJob = null
+            }
+        }
+        executionJob = job
+    }
+
     val quickPrompts = remember {
         listOf(
             "أضف شاشة جديدة لمواقيت الصلاة وبوصلة القبلة",
@@ -328,99 +602,214 @@ fun AiStudioAgentScreen(
         bottomBar = bottomBar,
         containerColor = Color(0xFF05070F),
         topBar = {
-            GlassmorphicSurface(
-                modifier = Modifier.fillMaxWidth().statusBarsPadding(),
-                backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
-                borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF0F1626))
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE))
+            if (showDevConsole) {
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding(),
+                    backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
+                    borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                onClick = { showDevConsole = false },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
+                                    Text("العودة للمحادثة 💬", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "كونسول وأدوات المطور",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            com.qabas.app.ui.components.ModelIndicator(modifier = Modifier.padding(end = 8.dp))
+                            Surface(
+                                onClick = { showSettings = true },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF0F1B2F),
+                                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.6f)),
+                                modifier = Modifier.height(38.dp).testTag("agent_open_settings")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                    Text("الإعدادات", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            "مركز الوكيل الذكي",
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        com.qabas.app.ui.components.ModelIndicator(modifier = Modifier.padding(end = 8.dp))
-                        Surface(
-                            onClick = { showSettings = true },
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF0F1B2F),
-                            border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.6f)),
-                            modifier = Modifier
-                                .height(38.dp)
-                                .testTag("agent_open_settings")
+                    }
+                }
+            } else {
+                // Top Bar شاشة المحادثة الرئيسية الذكية
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding(),
+                    backgroundColor = Color(0xFF0B1220).copy(alpha = 0.92f),
+                    borderColor = Color(0xFF22D3EE).copy(alpha = 0.35f)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626))
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                            }
+
+                            Spacer(Modifier.width(6.dp))
+
+                            // سهم فتح لوحة الجلسات الجانبية
+                            IconButton(
+                                onClick = { showSidePanel = !showSidePanel },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (showSidePanel) Color(0xFF10B981).copy(alpha = 0.25f) else Color(0xFF0F1B2F))
+                                    .border(1.dp, if (showSidePanel) Color(0xFF10B981) else Color(0xFF22D3EE).copy(alpha = 0.45f), CircleShape)
+                                    .testTag("agent_toggle_side_panel")
+                            ) {
+                                Icon(
+                                    imageVector = if (showSidePanel) Icons.Default.MenuOpen else Icons.Default.Menu,
+                                    contentDescription = "قائمة المحادثات",
+                                    tint = if (showSidePanel) Color(0xFF10B981) else Color(0xFF22D3EE),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+
+                            // عنوان الجلسة والتخصص
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showSpecChooser = true }
+                            ) {
+                                val currentSessionTitle = sessions.find { it.id == activeSessionId }?.title ?: "محادثة جديدة 💬"
+                                Text(
+                                    text = currentSessionTitle,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 13.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontFamily = CairoFont
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(selectedSpec.icon, contentDescription = null, tint = selectedSpec.color, modifier = Modifier.size(12.dp))
+                                    Text(
+                                        text = selectedSpec.title,
+                                        color = selectedSpec.color,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        fontFamily = CairoFont
+                                    )
+                                }
+                            }
+
+                            // مؤشر الحالة المباشر
+                            AgentStatusChip(
+                                kind = when {
+                                    isThinking || (isRunning && !isPaused) -> AgentStatusKind.RUNNING
+                                    isPaused -> AgentStatusKind.NEEDS_ACTION
+                                    else -> AgentStatusKind.READY
+                                },
+                                text = when {
+                                    isThinking -> "يفكر..."
+                                    isRunning && !isPaused -> "يعمل"
+                                    isPaused -> "موقف"
+                                    else -> "جاهز"
+                                },
+                                modifier = Modifier.height(26.dp)
+                            )
+
+                            // أزرار التحكم أثناء العمل (إيقاف مؤقت / استئناف / إيقاف)
+                            if (isRunning || isThinking) {
+                                Spacer(Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = {
+                                        if (isPaused) {
+                                            isPaused = false
+                                            Toast.makeText(context, "تم استئناف الوكيل ▶️", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            isPaused = true
+                                            Toast.makeText(context, "تم إيقاف الوكيل مؤقتاً ⏸️", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF15263F))
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                        contentDescription = "Pause/Resume",
+                                        tint = if (isPaused) Color(0xFF10B981) else Color(0xFF38BDF8),
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        executionJob?.cancel()
+                                        executionJob = null
+                                        isRunning = false
+                                        isPaused = false
+                                        isThinking = false
+                                        Toast.makeText(context, "تم إيقاف المهمة ⏹️", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Stop,
+                                        contentDescription = "Stop",
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(4.dp))
+
+                            IconButton(
+                                onClick = { showSettings = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0F1B2F))
+                                    .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape)
+                                    .testTag("agent_open_settings")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Tune,
                                     contentDescription = "إعدادات الوكيل",
                                     tint = Color(0xFF22D3EE),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "الإعدادات",
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                    val isHealthy = if (isOfflineMode) isLocalInstalled else geminiHealth.isConnected
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        AgentStatusChip(
-                            kind = if (isHealthy) AgentStatusKind.READY else AgentStatusKind.NEEDS_ACTION,
-                            text = if (isOfflineMode) {
-                                if (isLocalInstalled) "ON-DEVICE • ${activeLocalModel.name}" else "ON-DEVICE • يلزم التنزيل"
-                            } else {
-                                if (geminiHealth.isConnected) "LIVE • ${geminiHealth.latencyMs}ms" else "OFFLINE • يلزم مفتاح"
-                            },
-                            onClick = { if (isOfflineMode) showOnDeviceDialog = true else { keyDialogInitialTab = 0; showKeyDialog = true } }
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = when {
-                                isExecuting && isTeamMode && teamProgressText.isNotBlank() -> teamProgressText
-                                isExecuting -> "الوكيل يعمل ذاتياً..."
-                                else -> "جاهز لتلقي الأمر"
-                            },
-                            fontSize = 12.sp,
-                            color = if (isExecuting) Color(0xFF22D3EE) else Color(0xFF8A94A6),
-                            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        Modifier.fillMaxWidth().height(1.dp).background(
-                            Brush.horizontalGradient(listOf(Color.Transparent, Color(0xFF22D3EE).copy(alpha = 0.7f), Color(0xFF22D3EE).copy(alpha = 0.7f), Color.Transparent))
-                        )
-                    )
                 }
             }
         }
     ) { innerPadding ->
-        Column(
-            Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
-        ) {
+        if (showDevConsole) {
+            Column(
+                Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
+            ) {
             // Cyber Live Telemetry HUD Strip (Tokens, Speed, Latency, Diagnostics)
             CyberLiveTelemetryHud(
                 tokensIn = if (isExecuting) 1240 else 420,
@@ -931,6 +1320,500 @@ fun AiStudioAgentScreen(
                 }
             }
         }
+    } else {
+            // شاشة المحادثة الأساسية والمباشرة مع اللوحة الجانبية الجزئية
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(Color(0xFF05070F))
+            ) {
+                Column(
+                    Modifier.fillMaxSize()
+                ) {
+                    // قائمة الرسائل
+                    LazyColumn(
+                        state = chatListState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (chatMessages.isEmpty()) {
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF0B1424),
+                                    border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.35f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(18.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(52.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF22D3EE).copy(alpha = 0.12f))
+                                                .border(1.5.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.SmartToy,
+                                                contentDescription = null,
+                                                tint = Color(0xFF22D3EE),
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "مرحباً بك في غرفة الوكيل البرمجي الذكي 🤖",
+                                            color = Color.White,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Text(
+                                            text = "تستطيع إرسال أي طلب تعديل، فحص الكود، إصلاح أخطاء، أو بناء ميزات جديدة مباشرة. استخدم الأوامر السريعة أدناه أو اكتب طلبك باللغة العربية.",
+                                            color = Color(0xFF94A3B8),
+                                            fontFamily = CairoFont,
+                                            fontSize = 12.sp,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        items(chatMessages, key = { it.id }) { msg ->
+                            ChatMessageBubble(
+                                message = msg,
+                                onApprovePlan = { planCard ->
+                                    handleApprovePlan(planCard)
+                                }
+                            )
+                        }
+
+                        if (isThinking || (isRunning && !isPaused)) {
+                            item {
+                                Surface(
+                                    color = Color(0xFF0F2038),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color(0xFF38BDF8),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            text = "الوكيل يفكر ويولّد التعديلات البرمجية... 🧠⚡",
+                                            color = Color(0xFF7DD3FC),
+                                            fontFamily = CairoFont,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color(0xFF1E293B))
+
+                    // شريط الأوامر السريعة
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(end = 10.dp)
+                    ) {
+                        val quickPrompts = listOf(
+                            "أضف زر مشاركة ⚡" to Icons.Default.Share,
+                            "افحص الكود 🧪" to Icons.Default.Science,
+                            "صياد الأخطاء 🩺" to Icons.Default.BugReport,
+                            "مزامنة GitHub 🐙" to Icons.Default.CloudSync,
+                            "تحليل معماري شامل 🏛️" to Icons.Default.Architecture
+                        )
+                        items(quickPrompts) { (prompt, icon) ->
+                            Surface(
+                                onClick = {
+                                    if (!isThinking && (!isRunning || isPaused)) {
+                                        handleSendMessage(prompt)
+                                    } else {
+                                        chatInputText = prompt
+                                    }
+                                },
+                                color = Color(0xFF22D3EE).copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(icon, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(13.dp))
+                                    Text(
+                                        text = prompt,
+                                        color = Color(0xFFE2E8F0),
+                                        fontFamily = CairoFont,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // شريط الإدخال
+                    Surface(
+                        color = Color(0xFF0A1220),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // زر التخصص
+                            IconButton(
+                                onClick = { showSpecChooser = true },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(selectedSpec.color.copy(alpha = 0.12f))
+                                    .border(1.dp, selectedSpec.color.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            ) {
+                                Icon(selectedSpec.icon, contentDescription = "تخصص", tint = selectedSpec.color, modifier = Modifier.size(20.dp))
+                            }
+
+                            OutlinedTextField(
+                                value = chatInputText,
+                                onValueChange = { chatInputText = it },
+                                placeholder = {
+                                    Text(
+                                        "أرسل توجيهاً أو تعديلاً للوكيل...",
+                                        color = Color(0xFF64748B),
+                                        fontFamily = CairoFont,
+                                        fontSize = 12.sp
+                                    )
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFF0F1B2E),
+                                    unfocusedContainerColor = Color(0xFF0D1829),
+                                    focusedBorderColor = Color(0xFF10B981),
+                                    unfocusedBorderColor = Color(0xFF1E293B),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 46.dp, max = 100.dp)
+                                    .testTag("agent_chat_input"),
+                                maxLines = 3,
+                                trailingIcon = {
+                                    val infiniteTransition = rememberInfiniteTransition(label = "team_glow")
+                                    val teamGlowAlpha by infiniteTransition.animateFloat(
+                                        initialValue = 0.4f,
+                                        targetValue = 1f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(1500, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Reverse
+                                        ),
+                                        label = "glow"
+                                    )
+
+                                    IconButton(
+                                        onClick = { isTeamMode = !isTeamMode },
+                                        modifier = Modifier
+                                            .padding(end = 4.dp)
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isTeamMode) Color(0xFFD4AF37).copy(alpha = 0.15f) else Color.Transparent)
+                                            .border(
+                                                width = if (isTeamMode) 1.5.dp else 1.dp,
+                                                color = if (isTeamMode) Color(0xFFD4AF37).copy(alpha = teamGlowAlpha) else Color(0xFF22D3EE).copy(alpha = 0.4f),
+                                                shape = CircleShape
+                                            )
+                                            .testTag("agent_chat_toggle_team")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isTeamMode) Icons.Default.Groups else Icons.Default.SmartToy,
+                                            contentDescription = "تبديل وضع الفريق",
+                                            tint = if (isTeamMode) Color(0xFFD4AF37).copy(alpha = teamGlowAlpha.coerceAtLeast(0.7f)) else Color(0xFF22D3EE),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (chatInputText.isNotBlank()) {
+                                        val textToSend = chatInputText
+                                        chatInputText = ""
+                                        handleSendMessage(textToSend)
+                                    }
+                                },
+                                enabled = chatInputText.isNotBlank() && !isThinking,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF059669),
+                                    disabledContainerColor = Color(0xFF1E293B)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                modifier = Modifier.height(46.dp).testTag("agent_chat_send_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "إرسال",
+                                    tint = if (chatInputText.isNotBlank()) Color.White else Color(0xFF64748B),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 🪟 اللوحة الجانبية الزجاجية الجزئية (Glassmorphic Side Panel Overlaid)
+                // ==========================================
+                if (showSidePanel) {
+                    // الخلفية المعتمة الشفافة للنقر للإغلاق
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { showSidePanel = false }
+                    )
+
+                    // اللوحة الزجاجية المنزلقة
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(0.84f)
+                            .align(Alignment.CenterStart)
+                            .clickable(enabled = false) {},
+                        color = Color(0xF80B1528),
+                        border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.45f)),
+                        shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
+                        shadowElevation = 24.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(14.dp)
+                        ) {
+                            // ترويسة اللوحة مع سهم الإغلاق
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF22D3EE).copy(alpha = 0.15f))
+                                            .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ChatBubbleOutline,
+                                            contentDescription = null,
+                                            tint = Color(0xFF22D3EE),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "جلسات المحادثة 💬",
+                                        color = Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { showSidePanel = false },
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF131D2E))
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "إغلاق اللوحة",
+                                        tint = Color(0xFF22D3EE),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            // زر بدء محادثة جديدة
+                            Surface(
+                                onClick = {
+                                    val newId = AgentChatSessionManager.startNewSession(context)
+                                    chatMessages.clear()
+                                    showSidePanel = false
+                                    Toast.makeText(context, "تم بدء محادثة جديدة 💬", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.18f),
+                                border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.8f)),
+                                modifier = Modifier.fillMaxWidth().height(46.dp).testTag("agent_new_chat_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(Icons.Default.AddComment, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "+ محادثة جديدة 💬",
+                                        color = Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Text(
+                                text = "المحادثات السابقة:",
+                                color = Color(0xFF94A3B8),
+                                fontFamily = CairoFont,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Spacer(Modifier.height(6.dp))
+
+                            if (sessions.isEmpty()) {
+                                Box(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("لا توجد محادثات سابقة", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 12.sp)
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(sessions, key = { it.id }) { session ->
+                                        val isCurrent = session.id == activeSessionId
+                                        val dateStr = remember(session.timestamp) {
+                                            SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(session.timestamp))
+                                        }
+
+                                        Surface(
+                                            onClick = {
+                                                AgentChatSessionManager.switchSession(context, session.id)
+                                                val loaded = AgentChatSessionManager.loadSessionMessages(context, session.id)
+                                                chatMessages.clear()
+                                                chatMessages.addAll(loaded)
+                                                showSidePanel = false
+                                                Toast.makeText(context, "تم استرجاع المحادثة 💬", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isCurrent) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFF08101E),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isCurrent) Color(0xFF10B981).copy(alpha = 0.65f) else Color(0xFF1E2D4A)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.ChatBubbleOutline,
+                                                    contentDescription = null,
+                                                    tint = if (isCurrent) Color(0xFF10B981) else Color(0xFF64748B),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = session.title,
+                                                        color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontFamily = CairoFont,
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "${session.messageCount} رسائل",
+                                                            color = Color(0xFF64748B),
+                                                            fontSize = 10.sp
+                                                        )
+                                                        Text(
+                                                            text = "• $dateStr",
+                                                            color = Color(0xFF475569),
+                                                            fontSize = 9.5.sp
+                                                        )
+                                                    }
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        AgentChatSessionManager.deleteSession(context, session.id)
+                                                        val curId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
+                                                        val loaded = AgentChatSessionManager.loadSessionMessages(context, curId)
+                                                        chatMessages.clear()
+                                                        chatMessages.addAll(loaded)
+                                                        Toast.makeText(context, "تم حذف الجلسة", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.DeleteOutline,
+                                                        contentDescription = "حذف الجلسة",
+                                                        tint = Color(0xFFEF4444).copy(alpha = 0.7f),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showKeyDialog) {
@@ -944,6 +1827,17 @@ fun AiStudioAgentScreen(
         )
     }
     if (showRepoDialog) { RepoSetupDialog(context = context, activeRepo = activeRepo, onDismiss = { showRepoDialog = false }) }
+    
+    if (showRequirementDialog) {
+        AgentRequirementDialog(
+            context = context,
+            onDismiss = { showRequirementDialog = false },
+            onConfigComplete = {
+                refreshDiagnostics()
+                Toast.makeText(context, "تم تفعيل المتطلبات! يمكنك الآن إرسال طلبك 🚀", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
     if (showSettings) {
         AgentCyberSettingsBottomSheet(
             context = context,
@@ -958,8 +1852,62 @@ fun AiStudioAgentScreen(
             },
             onOpenOnDeviceModels = {
                 showOnDeviceDialog = true
+            },
+            onOpenDevTools = {
+                showDevConsole = true
             }
         )
+    }
+    if (showSpecChooser) {
+        Dialog(onDismissRequest = { showSpecChooser = false }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.92f).padding(16.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF0B1424),
+                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "اختر تخصص الوكيل البرمجي 🧠",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(AgentSpecialization.entries.toTypedArray()) { spec ->
+                            val isSelected = selectedSpec == spec
+                            Surface(
+                                onClick = {
+                                    selectedSpec = spec
+                                    showSpecChooser = false
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) spec.color.copy(alpha = 0.18f) else Color(0xFF070E1A),
+                                border = BorderStroke(1.dp, if (isSelected) spec.color else Color(0xFF1E2D4A)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(20.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(spec.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                        Text(spec.description, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    }
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = spec.color, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     if (showOnDeviceDialog) {
         OnDeviceModelDownloadDialog(
@@ -1279,7 +2227,8 @@ private fun AgentCyberSettingsBottomSheet(
     onDismiss: () -> Unit,
     onOpenApiKeys: () -> Unit,
     onOpenRepoSetup: () -> Unit,
-    onOpenOnDeviceModels: () -> Unit
+    onOpenOnDeviceModels: () -> Unit,
+    onOpenDevTools: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedModel by remember { mutableStateOf(AgentPrefs.model(context)) }
@@ -1359,6 +2308,56 @@ private fun AgentCyberSettingsBottomSheet(
                         imageVector = Icons.Default.Close,
                         contentDescription = "إغلاق",
                         tint = Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            // 🛠️ زر مخصص داخل نافذة الإعدادات يفتح الكونسول وأدوات المطور المتقدمة
+            Surface(
+                onClick = {
+                    onDismiss()
+                    onOpenDevTools()
+                },
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF0F2038),
+                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.7f)),
+                modifier = Modifier.fillMaxWidth().testTag("agent_settings_open_dev_console")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22D3EE).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "الكونسول المباشر وأدوات المطور 🛠️⚡",
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "تشخيص المحرك الحي، سجل العمليات، ومركز البناء",
+                            color = Color(0xFF94A3B8),
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp
+                        )
+                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = Color(0xFF22D3EE),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

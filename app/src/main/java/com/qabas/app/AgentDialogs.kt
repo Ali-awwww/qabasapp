@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -1442,5 +1443,626 @@ fun RepoSetupDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * حوار المتطلبات الموحد (Unified Requirements Dialog)
+ * يظهر عندما يحاول المستخدم إرسال رسالة دون توفر مفتاح API أو مستودع GitHub.
+ */
+@Composable
+fun AgentRequirementDialog(
+    context: Context,
+    onDismiss: () -> Unit,
+    onConfigComplete: () -> Unit
+) {
+    var apiKey by remember { mutableStateOf("") }
+    var repoUrl by remember { mutableStateOf("") }
+    var githubToken by remember { mutableStateOf("") }
+    
+    var isVerifying by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Auto-detection
+    val detectedProvider = remember(apiKey) { UniversalKeyBrain.detect(apiKey) }
+    
+    // Repository selection
+    var showRepoSelector by remember { mutableStateOf(false) }
+    var isFetchingRepos by remember { mutableStateOf(false) }
+    
+    val scope = rememberCoroutineScope()
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .wrapContentHeight()
+                .padding(vertical = 24.dp),
+            color = Color(0xFF0B1220),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.5.dp, Color(0xFFD4AF37).copy(alpha = 0.6f)) // Golden border
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFD4AF37).copy(alpha = 0.15f))
+                        .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.4f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = Color(0xFFD4AF37),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "متطلبات العمل النشط 🚀",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Text(
+                    text = "لبدء تنفيذ مهامك البرمجية، يحتاج الوكيل إلى مفتاح ذكاء اصطناعي ومستودع GitHub للعمل عليه.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF94A3B8),
+                    fontFamily = CairoFont,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Section 1: AI Engine
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    RequirementInputSection(
+                        title = "1. مفتاح الذكاء الاصطناعي 🧠",
+                        description = "سيتم التعرّف على المزود تلقائياً (Gemini, Groq, OpenAI...)",
+                        value = apiKey,
+                        onValueChange = { 
+                            apiKey = it
+                            errorMessage = null
+                        },
+                        placeholder = "AIza... أو Aq... (Gemini), gsk_... (Groq), sk-... (OpenAI)"
+                    )
+                    
+                    if (apiKey.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = detectedProvider.color.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, detectedProvider.color.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (detectedProvider != DetectedProvider.NONE) Icons.Default.AutoAwesome else Icons.Default.HelpOutline,
+                                    contentDescription = null,
+                                    tint = detectedProvider.color,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (detectedProvider != DetectedProvider.NONE) 
+                                        "المزود المكتشف: ${detectedProvider.displayName}" 
+                                        else "لم يتم التعرّف على صيغة المفتاح",
+                                    color = detectedProvider.color,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = CairoFont
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // Section 2: GitHub Integration
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "2. مستودع GitHub 🐙",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontFamily = CairoFont
+                        )
+                        
+                        val oauthToken = remember { GitHubAuthManager.getAccessToken(context) }
+                        if (oauthToken.isNullOrBlank()) {
+                            TextButton(
+                                onClick = { 
+                                    GitHubAuthManager.launchAuth(context)
+                                    onDismiss() 
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Login, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF38BDF8))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("ربط الحساب تلقائياً", fontSize = 10.sp, color = Color(0xFF38BDF8), fontFamily = CairoFont)
+                            }
+                        } else {
+                            Surface(
+                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                    Text("تم الربط 🐙", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Text(
+                        text = "رابط المستودع (مثال: owner/repo) أو اختر من حسابك بعد الربط",
+                        fontSize = 10.sp,
+                        color = Color(0xFF94A3B8),
+                        fontFamily = CairoFont,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = repoUrl,
+                        onValueChange = { repoUrl = it },
+                        placeholder = { Text("username/project-name", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color(0xFFD4AF37),
+                            focusedBorderColor = Color(0xFFD4AF37),
+                            unfocusedBorderColor = Color(0xFF334155)
+                        ),
+                        trailingIcon = {
+                            val oauthTokenStored = remember { GitHubAuthManager.getAccessToken(context) }
+                            if (!oauthTokenStored.isNullOrBlank() || githubToken.isNotBlank()) {
+                                IconButton(
+                                    onClick = { 
+                                        showRepoSelector = true 
+                                    },
+                                    modifier = Modifier.padding(end = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.List,
+                                        contentDescription = "جلب المستودعات",
+                                        tint = Color(0xFFD4AF37)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+                
+                if (repoUrl.isBlank()) {
+                    val oauthManager = GitHubAuthManager
+                    val isOauthConfigured = remember { oauthManager.isConfigured() }
+                    
+                    if (isOauthConfigured) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { showRepoSelector = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.CloudSync, null, modifier = Modifier.size(18.dp))
+                                Text("جلب مستودعاتي تلقائياً 🐙", fontFamily = CairoFont, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                RequirementInputSection(
+                    title = "رمز GitHub PAT (اختياري)",
+                    description = "مطلوب للمستودعات الخاصة ولجلب قائمة المستودعات.",
+                    value = githubToken,
+                    onValueChange = { githubToken = it },
+                    placeholder = "ghp_...",
+                    isSecret = true
+                )
+                
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Analytics, contentDescription = null, tint = Color(0xFFFCA5A5), modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "بطاقة تشخيص الخطأ 🔍",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = errorMessage!!,
+                                color = Color(0xFFFCA5A5),
+                                fontSize = 12.sp,
+                                fontFamily = CairoFont,
+                                lineHeight = 20.sp
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { errorMessage = null }) {
+                                    Text("تجاهل", color = Color(0xFF94A3B8), fontSize = 12.sp, fontFamily = CairoFont)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Button(
+                                    onClick = {
+                                        errorMessage = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("إعادة المحاولة", color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(28.dp))
+                
+                // Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF334155))
+                    ) {
+                        Text("إلغاء", color = Color.White, fontFamily = CairoFont)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            if (apiKey.isBlank() || repoUrl.isBlank()) {
+                                errorMessage = "يرجى إدخال مفتاح API ورابط المستودع."
+                                return@Button
+                            }
+                            
+                            isVerifying = true
+                            errorMessage = null
+                            
+                            scope.launch {
+                                try {
+                                    // 1. فحص ذكي وحفظ المفتاح
+                                    val keyRes = UniversalKeyBrain.saveKeyIfLive(context, apiKey.trim())
+                                    if (keyRes !is UniversalKeyBrain.SmartSaveResult.Saved) {
+                                        isVerifying = false
+                                        errorMessage = when (keyRes) {
+                                            is UniversalKeyBrain.SmartSaveResult.Failed -> "فشل فحص المفتاح: ${keyRes.reason}"
+                                            is UniversalKeyBrain.SmartSaveResult.Unsupported -> keyRes.reason
+                                            else -> "فشل التحقق من المفتاح."
+                                        }
+                                        return@launch
+                                    }
+                                    
+                                    // 2. فحص GitHub
+                                    val effectiveToken = if (githubToken.isNotBlank()) githubToken.trim() else GitHubAuthManager.getAccessToken(context).orEmpty()
+                                    val githubHealth = AgentConnectivityEngine.pingGitHubLive(effectiveToken, repoUrl.trim())
+                                    if (!githubHealth.isConnected && effectiveToken.isNotBlank()) {
+                                        isVerifying = false
+                                        errorMessage = "فشل GitHub: ${githubHealth.statusDetail}"
+                                        return@launch
+                                    }
+                                    
+                                    // 3. حفظ بيانات المستودع
+                                    withContext(Dispatchers.IO) {
+                                        val parts = repoUrl.trim().split("/")
+                                        if (parts.size >= 2) {
+                                            val owner = parts[parts.size - 2]
+                                            val repoName = parts[parts.size - 1]
+                                            RepoVaultManager.addOrUpdateRepo(
+                                                context,
+                                                RepoVaultEntry(
+                                                    owner = owner,
+                                                    repo = repoName,
+                                                    token = effectiveToken
+                                                )
+                                            )
+                                        }
+                                    }
+                                    
+                                    isVerifying = false
+                                    onConfigComplete()
+                                    onDismiss()
+                                    
+                                } catch (e: Exception) {
+                                    isVerifying = false
+                                    errorMessage = "حدث خطأ غير متوقع: ${e.localizedMessage}"
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1.5f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37)),
+                        enabled = !isVerifying
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF0B1220), strokeWidth = 2.dp)
+                        } else {
+                            Text("حفظ وتفعيل ⚡", color = Color(0xFF0B1220), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRepoSelector) {
+        val oauthToken = GitHubAuthManager.getAccessToken(context)
+        val effectiveToken = if (githubToken.isNotBlank()) githubToken else oauthToken.orEmpty()
+        
+        if (effectiveToken.isBlank()) {
+            // إذا لم يكن هناك توكن، نطلب تسجيل الدخول أولاً
+            LaunchedEffect(Unit) {
+                GitHubAuthManager.startAuth(context)
+                showRepoSelector = false
+            }
+        } else {
+            RepositorySelectionDialog(
+                token = effectiveToken,
+                onRepoSelected = { repo ->
+                    repoUrl = repo.fullName
+                    showRepoSelector = false
+                },
+                onDismiss = { showRepoSelector = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun RepositorySelectionDialog(
+    token: String,
+    onRepoSelected: (UserRepoSummary) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var repos by remember { mutableStateOf<List<UserRepoSummary>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        scope.launch {
+            try {
+                repos = GitHubRepoClient.listUserRepos(token)
+                isLoading = false
+            } catch (e: Exception) {
+                error = e.localizedMessage
+                isLoading = false
+            }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.85f),
+            color = Color(0xFF0B1220),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.5.dp, Color(0xFFD4AF37).copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "اختر مستودعاً 🐙",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, null, tint = Color.Gray)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFFD4AF37))
+                    }
+                } else if (error != null) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.ErrorOutline, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = "تعذر جلب المستودعات: $error", color = Color.Red, fontSize = 13.sp, textAlign = TextAlign.Center)
+                    }
+                } else if (repos.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.FolderOpen, null, tint = Color.Gray, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = "لم يتم العثور على مستودعات في هذا الحساب.", color = Color.Gray, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(repos) { repo ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onRepoSelected(repo) },
+                                color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(if (repo.isPrivate) Color(0xFFF59E0B).copy(alpha = 0.1f) else Color(0xFF10B981).copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (repo.isPrivate) Icons.Default.Lock else Icons.Default.Public,
+                                            contentDescription = null,
+                                            tint = if (repo.isPrivate) Color(0xFFF59E0B) else Color(0xFF10B981),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = repo.fullName,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = CairoFont
+                                        )
+                                        if (repo.description.isNotBlank()) {
+                                            Text(
+                                                text = repo.description,
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                fontFamily = CairoFont
+                                            )
+                                        }
+                                        Text(
+                                            text = "تحديث: ${repo.updatedAt.take(10)}",
+                                            color = Color(0xFF64748B),
+                                            fontSize = 9.sp,
+                                            fontFamily = CairoFont
+                                        )
+                                    }
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color(0xFF475569), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B))
+                ) {
+                    Text("إغلاق", color = Color.White, fontFamily = CairoFont)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RequirementInputSection(
+    title: String,
+    description: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    isSecret: Boolean = false,
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = description,
+            color = Color(0xFF94A3B8),
+            fontSize = 11.sp,
+            fontFamily = CairoFont,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, fontSize = 12.sp, color = Color(0xFF475569)) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            visualTransformation = if (isSecret) PasswordVisualTransformation() else VisualTransformation.None,
+            trailingIcon = trailingIcon,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Color(0xFFD4AF37),
+                unfocusedBorderColor = Color(0xFF1E293B),
+                focusedContainerColor = Color(0xFF0F172A),
+                unfocusedContainerColor = Color(0xFF0F172A)
+            ),
+            singleLine = true
+        )
     }
 }

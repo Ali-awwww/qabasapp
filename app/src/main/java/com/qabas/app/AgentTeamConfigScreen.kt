@@ -1,8 +1,9 @@
 package com.qabas.app
 
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -16,12 +17,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
  * شاشة تكوين فريق الوكيل متعدد النماذج (Multi-Model Agent Team Config):
@@ -334,169 +337,217 @@ private fun TeamMemberCard(
     onInstructionChange: (String) -> Unit,
     siblingInstructions: Set<String> = emptySet()
 ) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (member.role == AgentTeamRole.LEADER) Color(0xFF1A2E1A) else Color(0xFF16242D)
-        ),
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(member.rank * 100L) // انزلاق متدرج حسب الرتبة
+        visible = true
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(animationSpec = tween(500)),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(14.dp)) {
-            // رأس البطاقة: الاسم + الدور + مفتاح تفعيل + زر الحذف
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = null,
-                    tint = if (member.role == AgentTeamRole.LEADER) Color(0xFFD4AF37) else Color(0xFF38BDF8),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    member.displayName,
-                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(
-                    checked = member.enabled,
-                    onCheckedChange = onEnabledChange,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color(0xFF10B981),
-                        checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.4f),
-                        uncheckedThumbColor = Color(0xFFEF4444),
-                        uncheckedTrackColor = Color(0xFFEF4444).copy(alpha = 0.2f)
-                    ),
-                    modifier = Modifier.height(28.dp)
-                )
-                IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // الدور (Leader / Executor / Reviewer)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("الدور:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
-                Spacer(Modifier.width(8.dp))
-                AgentTeamRole.entries.forEach { role ->
-                    FilterChip(
-                        selected = member.role == role,
-                        onClick = { onRoleChange(role) },
-                        label = { Text(role.label, fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.3f),
-                            selectedLabelColor = Color(0xFFD4AF37)
-                        ),
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            // الرتبة — ديناميكية حسب حجم الفريق (1 إلى teamSize)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("الرتبة:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
-                Spacer(Modifier.width(8.dp))
-                Row {
-                    (1..teamSize.coerceAtMost(5)).forEach { rankNum ->
-                        FilterChip(
-                            selected = member.rank == rankNum,
-                            onClick = { onRankChange(rankNum) },
-                            label = { Text("#$rankNum", fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.25f),
-                                selectedLabelColor = Color(0xFF38BDF8)
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (member.role == AgentTeamRole.LEADER) Color(0xFF1A2E1A) else Color(0xFF16242D)
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (member.role == AgentTeamRole.LEADER) {
+                        Modifier.border(
+                            BorderStroke(
+                                1.dp,
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFFD4AF37), Color(0xFFFFE082), Color(0xFFD4AF37))
+                                )
                             ),
-                            modifier = Modifier.padding(horizontal = 2.dp)
+                            RoundedCornerShape(12.dp)
+                        )
+                    } else Modifier
+                ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            // إضافة وميض خفيف للخلفية إذا كان القائد
+            val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+            val shimmerAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.05f,
+                targetValue = 0.15f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "shimmer-alpha"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (member.role == AgentTeamRole.LEADER) {
+                            Modifier.background(Color(0xFFD4AF37).copy(alpha = shimmerAlpha))
+                        } else Modifier
+                    )
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    // رأس البطاقة: الاسم + الدور + مفتاح تفعيل + زر الحذف
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = if (member.role == AgentTeamRole.LEADER) Color(0xFFD4AF37) else Color(0xFF38BDF8),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            member.displayName,
+                            color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = member.enabled,
+                            onCheckedChange = onEnabledChange,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF10B981),
+                                checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.4f),
+                                uncheckedThumbColor = Color(0xFFEF4444),
+                                uncheckedTrackColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+                            ),
+                            modifier = Modifier.height(28.dp)
+                        )
+                        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // الدور (Leader / Executor / Reviewer)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("الدور:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                        Spacer(Modifier.width(8.dp))
+                        AgentTeamRole.entries.forEach { role ->
+                            FilterChip(
+                                selected = member.role == role,
+                                onClick = { onRoleChange(role) },
+                                label = { Text(role.label, fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.3f),
+                                    selectedLabelColor = Color(0xFFD4AF37)
+                                ),
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // الرتبة — ديناميكية حسب حجم الفريق (1 إلى teamSize)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("الرتبة:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Row {
+                            (1..teamSize.coerceAtMost(5)).forEach { rankNum ->
+                                FilterChip(
+                                    selected = member.rank == rankNum,
+                                    onClick = { onRankChange(rankNum) },
+                                    label = { Text("#$rankNum", fontSize = 11.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.25f),
+                                        selectedLabelColor = Color(0xFF38BDF8)
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // المزود + النموذج + حالة المفتاح (سطر الحالة فقط — الاسم يبقى نظيفاً)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "النموذج: ${member.modelId.takeLast(30)}",
+                            color = Color(0xFF94A3B8), fontSize = 11.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (hasValidKey) "مفتاح مهيأ ✅" else "لا مفتاح ❌",
+                            color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, softWrap = false
                         )
                     }
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            // المزود + النموذج + حالة المفتاح (سطر الحالة فقط — الاسم يبقى نظيفاً)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "النموذج: ${member.modelId.takeLast(30)}",
-                    color = Color(0xFF94A3B8), fontSize = 11.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    if (hasValidKey) "مفتاح مهيأ ✅" else "لا مفتاح ❌",
-                    color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
-                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, softWrap = false
-                )
-            }
-            // خانة تخصيص العضو: مهمته وأسلوبه (تُحقن في برومبته الخاص)
-            Spacer(Modifier.height(6.dp))
-            var instructionDraft by remember(member.id) { mutableStateOf(member.customInstruction) }
-            var instructionTaken by remember(member.id) { mutableStateOf(false) }
-            Text("تخصيص ${member.displayName}:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
-            Spacer(Modifier.height(4.dp))
-            // تخصيصات افتراضية قابلة للاختيار حسب الدور
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                MultiModelAgentOrchestrator.rolePresets(member.role).forEach { preset ->
-                    val isTaken = siblingInstructions.contains(
-                        MultiModelAgentOrchestrator.normalizeInstruction(preset)
-                    )
-                    FilterChip(
-                        selected = MultiModelAgentOrchestrator.normalizeInstruction(instructionDraft) ==
-                            MultiModelAgentOrchestrator.normalizeInstruction(preset),
-                        onClick = {
-                            if (!isTaken) {
-                                instructionDraft = preset
-                                onInstructionChange(preset.trim().take(500))
-                            }
+                    // خانة تخصيص العضو: مهمته وأسلوبه (تُحقن في برومبته الخاص)
+                    Spacer(Modifier.height(6.dp))
+                    var instructionDraft by remember(member.id) { mutableStateOf(member.customInstruction) }
+                    var instructionTaken by remember(member.id) { mutableStateOf(false) }
+                    Text("تخصيص ${member.displayName}:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    // تخصيصات افتراضية قابلة للاختيار حسب الدور
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        MultiModelAgentOrchestrator.rolePresets(member.role).forEach { preset ->
+                            val isTaken = siblingInstructions.contains(
+                                MultiModelAgentOrchestrator.normalizeInstruction(preset)
+                            )
+                            FilterChip(
+                                selected = MultiModelAgentOrchestrator.normalizeInstruction(instructionDraft) ==
+                                    MultiModelAgentOrchestrator.normalizeInstruction(preset),
+                                onClick = {
+                                    if (!isTaken) {
+                                        instructionDraft = preset
+                                        onInstructionChange(preset.trim().take(500))
+                                    }
+                                },
+                                label = { Text(preset.take(22) + "…", fontSize = 10.sp) },
+                                enabled = !isTaken,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.3f),
+                                    selectedLabelColor = Color(0xFF38BDF8),
+                                    disabledLabelColor = Color(0xFF475569)
+                                ),
+                                modifier = Modifier.padding(horizontal = 1.dp)
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = instructionDraft,
+                        onValueChange = {
+                            instructionDraft = it
+                            val norm = MultiModelAgentOrchestrator.normalizeInstruction(it)
+                            instructionTaken = norm.isNotBlank() && siblingInstructions.contains(norm)
+                            if (!instructionTaken) onInstructionChange(it.trim().take(500))
                         },
-                        label = { Text(preset.take(22) + "…", fontSize = 10.sp) },
-                        enabled = !isTaken,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.3f),
-                            selectedLabelColor = Color(0xFF38BDF8),
-                            disabledLabelColor = Color(0xFF475569)
-                        ),
-                        modifier = Modifier.padding(horizontal = 1.dp)
+                        label = { Text("تخصيص مخصص (يُمنع تكرار تخصيص عضو آخر)", fontSize = 11.sp) },
+                        isError = instructionTaken,
+                        supportingText = {
+                            if (instructionTaken) Text(
+                                "⛔ هذا التخصيص مستخدم في عضو آخر — اختر غيره للفصل والنظام",
+                                fontSize = 10.sp, color = Color(0xFFEF4444)
+                            )
+                        },
+                        placeholder = {
+                            Text(
+                                if (member.role == AgentTeamRole.LEADER) "مثال: قسّم المهام لتخطيط ثم تنفيذ ثم مراجعة..."
+                                else "مثال: متخصص في واجهات Compose الداكنة، يلتزم بالعربية الفصيحة...",
+                                fontSize = 10.sp
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1,
+                        maxLines = 3,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                     )
                 }
             }
-            OutlinedTextField(
-                value = instructionDraft,
-                onValueChange = {
-                    instructionDraft = it
-                    val norm = MultiModelAgentOrchestrator.normalizeInstruction(it)
-                    instructionTaken = norm.isNotBlank() && siblingInstructions.contains(norm)
-                    if (!instructionTaken) onInstructionChange(it.trim().take(500))
-                },
-                label = { Text("تخصيص مخصص (يُمنع تكرار تخصيص عضو آخر)", fontSize = 11.sp) },
-                isError = instructionTaken,
-                supportingText = {
-                    if (instructionTaken) Text(
-                        "⛔ هذا التخصيص مستخدم في عضو آخر — اختر غيره للفصل والنظام",
-                        fontSize = 10.sp, color = Color(0xFFEF4444)
-                    )
-                },
-                placeholder = {
-                    Text(
-                        if (member.role == AgentTeamRole.LEADER) "مثال: قسّم المهام لتخطيط ثم تنفيذ ثم مراجعة..."
-                        else "مثال: متخصص في واجهات Compose الداكنة، يلتزم بالعربية الفصيحة...",
-                        fontSize = 10.sp
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 1,
-                maxLines = 3,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
-            )
         }
     }
 }
