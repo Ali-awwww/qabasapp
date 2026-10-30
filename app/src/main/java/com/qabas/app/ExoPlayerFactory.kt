@@ -34,9 +34,7 @@ object ExoPlayerFactory {
                 mapOf(
                     "Accept" to "*/*",
                     "Accept-Encoding" to "identity;q=1, *;q=0",
-                    "Accept-Language" to "ar,en-US;q=0.9,en;q=0.8",
-                    "Referer" to "https://quran.com/",
-                    "Sec-Fetch-Mode" to "no-cors"
+                    "Accept-Language" to "ar,en-US;q=0.9,en;q=0.8"
                 )
             )
     }

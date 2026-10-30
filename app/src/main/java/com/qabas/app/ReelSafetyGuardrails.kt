@@ -126,31 +126,26 @@ object ReelSafetyGuardrails {
         return runCatching {
             val uri = Uri.parse(url)
             val scheme = uri.scheme?.lowercase() ?: ""
-            val host = uri.host
 
-            // Strict enforcement of HTTPS for remote content
-            // Local resources (android.resource, asset) are allowed as they are bundled with the APK
-            val isSecureScheme = (scheme == "https" || scheme == "android.resource" || scheme == "asset")
-            val isNotHttp = (scheme != "http") 
+            // Support all valid Android video URI schemes (https, http, file, content, android.resource, asset)
+            val isSupportedScheme = scheme in listOf("https", "http", "file", "content", "android.resource", "asset")
 
-            isSecureScheme && isNotHttp &&
-                (scheme != "https" || !host.isNullOrBlank()) &&
+            isSupportedScheme &&
                 !url.contains("javascript:", ignoreCase = true) &&
-                !url.contains("file://", ignoreCase = true) &&
                 !url.contains("<script", ignoreCase = true)
         }.getOrDefault(false)
     }
 
     /**
      * التحقق من سلامة رابط الصورة المصغرة:
-     * يشترط أن يكون مشفراً عبر https:// حصراً ومضافاً لمضيف صالح.
+     * يشترط أن يكون رابطاً صالحاً ومحمياً (https, http, file, content, android.resource, asset).
      */
     fun isValidImageUrl(url: String): Boolean {
         if (url.isBlank()) return false
         return runCatching {
             val uri = Uri.parse(url)
-            val scheme = uri.scheme?.lowercase()
-            scheme == "https" && !uri.host.isNullOrBlank()
+            val scheme = uri.scheme?.lowercase() ?: ""
+            scheme in listOf("https", "http", "file", "content", "android.resource", "asset")
         }.getOrDefault(false)
     }
 

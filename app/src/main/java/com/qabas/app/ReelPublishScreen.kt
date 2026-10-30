@@ -705,45 +705,33 @@ fun ReelPublishScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    color = Color(0xFF0F172A),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { isSilentSeed = !isSilentSeed }
                             .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "فيديو صامت (لوضع الأثر) ✦ نشر مسبق للأوفلاين",
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "حقن المقطع صامتاً في أجهزة جميع المستخدمين لتشغيله عند انقطاع الإنترنت.",
-                                    fontFamily = CairoFont,
-                                    fontSize = 10.sp,
-                                    color = Color.White.copy(alpha = 0.6f)
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = isSilentSeed,
-                            onCheckedChange = { isSilentSeed = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = DeepSlate,
-                                checkedTrackColor = GoldPrimary
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "خيارات نشر المطور 🛠️",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = GoldPrimary
                             )
-                        )
+                            Text(
+                                text = "يمكنك في أسفل الشاشة الاختيار بين النشر العادي للمجتمع أو النشر الفوري للحقن الصامت للأوفلاين عبر الأزرار المخصصة.",
+                                fontFamily = CairoFont,
+                                fontSize = 10.5.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 }
             }
@@ -863,102 +851,173 @@ fun ReelPublishScreen(
                 (selectedVideoUri != null || directVideoUrl.isNotBlank()) &&
                 (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed)
 
-            Button(
-                onClick = {
-                    val validation = ReelPublishManager.validateContent(
-                        title = title,
-                        description = description,
-                        category = selectedCategory,
-                        videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
-                        hasAcceptedPledge = hasAcceptedPledge,
-                        isDeveloper = isDeveloper,
-                        durationSeconds = (selectedVideoDurationMs / 1000).toInt()
-                    )
-                    when (validation) {
-                        is ReelPublishManager.ValidationResult.Invalid -> {
-                            generalErrorMessage = validation.reason
-                        }
-                        is ReelPublishManager.ValidationResult.Valid -> {
-                            isPublishing = true
-                            generalErrorMessage = null
-                            uploadSentBytes = 0L
-                            uploadTotalBytes = 0L
-                            uploadSpeedBps = 0L
-                            uploadEtaSeconds = 0L
-                            scope.launch {
-                                val result = ReelPublishManager.publishReelWithUpload(
-                                    context = context,
-                                    userId = currentUserId,
-                                    userName = currentUserName,
-                                    email = currentUserEmail,
-                                    title = title.trim(),
-                                    description = description.takeIf { it.isNotBlank() },
-                                    videoUri = selectedVideoUri,
-                                    directUrl = directVideoUrl.takeIf { it.isNotBlank() },
-                                    thumbnailBytes = selectedVideoThumbnailBytes,
-                                    category = selectedCategory,
-                                    isFeaturedByDev = isFeaturedByDev,
-                                    isSilentSeed = isSilentSeed,
-                                    publishAt = publishAt,
-                                    expiryAt = expiryAt,
-                                    quality = quality,
-                                    onProgressUpdate = { progressText ->
-                                        publishProgressText = progressText
-                                    },
-                                    onBytesProgress = { sent, total, _ ->
-                                        uploadSentBytes = sent
-                                        uploadTotalBytes = total
-                                    }
-                                )
-                                isPublishing = false
-                                when (result) {
-                                    is ReelPublishManager.PublishResult.Success -> {
-                                        Toast.makeText(context, "تم نشر المقطع بنجاح! جزاك الله خيراً", Toast.LENGTH_LONG).show()
-                                        onPublishedSuccess()
-                                        onDismiss()
-                                    }
-                                    is ReelPublishManager.PublishResult.Failed -> {
-                                        generalErrorMessage = if (AdminGuard.isDashboardAccessAllowed(context)) {
-                                            "فشل النشر [${result.stage}]: ${result.devMessage}"
-                                        } else {
-                                            "تعذر نشر المقطع — تحقق من الاتصال وحاول مجدداً."
-                                        }
+            val doPublishAction: (Boolean) -> Unit = { asSilent ->
+                val validation = ReelPublishManager.validateContent(
+                    title = title,
+                    description = description,
+                    category = selectedCategory,
+                    videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
+                    hasAcceptedPledge = hasAcceptedPledge,
+                    isDeveloper = isDeveloper,
+                    durationSeconds = (selectedVideoDurationMs / 1000).toInt()
+                )
+                when (validation) {
+                    is ReelPublishManager.ValidationResult.Invalid -> {
+                        generalErrorMessage = validation.reason
+                    }
+                    is ReelPublishManager.ValidationResult.Valid -> {
+                        isPublishing = true
+                        isSilentSeed = asSilent
+                        generalErrorMessage = null
+                        uploadSentBytes = 0L
+                        uploadTotalBytes = 0L
+                        uploadSpeedBps = 0L
+                        uploadEtaSeconds = 0L
+                        scope.launch {
+                            val result = ReelPublishManager.publishReelWithUpload(
+                                context = context,
+                                userId = currentUserId,
+                                userName = currentUserName,
+                                email = currentUserEmail,
+                                title = title.trim(),
+                                description = description.takeIf { it.isNotBlank() },
+                                videoUri = selectedVideoUri,
+                                directUrl = directVideoUrl.takeIf { it.isNotBlank() },
+                                thumbnailBytes = selectedVideoThumbnailBytes,
+                                category = selectedCategory,
+                                isFeaturedByDev = isFeaturedByDev,
+                                isSilentSeed = asSilent,
+                                publishAt = publishAt,
+                                expiryAt = expiryAt,
+                                quality = quality,
+                                onProgressUpdate = { progressText ->
+                                    publishProgressText = progressText
+                                },
+                                onBytesProgress = { sent, total, _ ->
+                                    uploadSentBytes = sent
+                                    uploadTotalBytes = total
+                                }
+                            )
+                            isPublishing = false
+                            when (result) {
+                                is ReelPublishManager.PublishResult.Success -> {
+                                    val toastMsg = if (asSilent) "تم حقن مقطع الفيديو الصامت للأوفلاين بنجاح!" else "تم نشر المقطع للمجتمع بنجاح!"
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                    onPublishedSuccess()
+                                    onDismiss()
+                                }
+                                is ReelPublishManager.PublishResult.Failed -> {
+                                    generalErrorMessage = if (AdminGuard.isDashboardAccessAllowed(context)) {
+                                        "فشل النشر [${result.stage}]: ${result.devMessage}"
+                                    } else {
+                                        "تعذر نشر المقطع — تحقق من الاتصال وحاول مجدداً."
                                     }
                                 }
                             }
                         }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                enabled = canPublish,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = GoldPrimary,
-                    disabledContainerColor = Color.White.copy(alpha = 0.12f)
-                )
-            ) {
-                if (isPublishing) {
-                    CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = publishProgressText,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        color = DeepSlate,
-                        fontSize = 13.sp
+                }
+            }
+
+            if (isDeveloper) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Option 1: Normal Reel Publishing to Community Feed
+                    Button(
+                        onClick = { doPublishAction(false) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = canPublish,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF0284C7),
+                            disabledContainerColor = Color.White.copy(alpha = 0.12f)
+                        )
+                    ) {
+                        if (isPublishing && !isSilentSeed) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(publishProgressText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.5.sp)
+                        } else {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "🎬 نشر ريلز عادي للمجتمع",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 13.5.sp
+                            )
+                        }
+                    }
+
+                    // Option 2: Offline Silent Video Injection Publishing
+                    Button(
+                        onClick = { doPublishAction(true) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = canPublish,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GoldPrimary,
+                            disabledContainerColor = Color.White.copy(alpha = 0.12f)
+                        )
+                    ) {
+                        if (isPublishing && isSilentSeed) {
+                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(publishProgressText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate, fontSize = 12.5.sp)
+                        } else {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "⚡ نشر فيديو صامت للحقن (أوفلاين)",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepSlate,
+                                fontSize = 13.5.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { doPublishAction(false) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    enabled = canPublish,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GoldPrimary,
+                        disabledContainerColor = Color.White.copy(alpha = 0.12f)
                     )
-                } else {
-                    Icon(Icons.Default.CloudUpload, contentDescription = null, tint = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isDeveloper) "نشر فوري برتبة المطور" else "نشر المقطع",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        color = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f),
-                        fontSize = 14.sp
-                    )
+                ) {
+                    if (isPublishing) {
+                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = publishProgressText,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            color = DeepSlate,
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "نشر المقطع",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canPublish) DeepSlate else Color.White.copy(alpha = 0.4f),
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
 

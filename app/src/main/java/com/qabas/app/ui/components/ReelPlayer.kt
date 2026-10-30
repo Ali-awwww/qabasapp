@@ -362,6 +362,7 @@ fun ReelPlayer(
                                         p.clearMediaItems()
                                         p.setMediaItem(MediaItem.fromUri(videoUrl))
                                         p.prepare()
+                                        p.playWhenReady = true
                                     }
                                 }
                             },
