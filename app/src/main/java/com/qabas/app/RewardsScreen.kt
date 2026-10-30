@@ -42,8 +42,9 @@ fun RewardsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val accountService = remember { AppServices.getAccountService(context) }
     val giftManager = remember { AppServices.getGiftManager(context) }
-    
     var balance by remember { mutableStateOf(accountService.walletBalance) }
+    val coroutineScope = rememberCoroutineScope()
+    var isRedeeming by remember { mutableStateOf(false) }
     val tabs = listOf("المحفظة والمهام", "متجر قبس", "مركز الهدايا")
     var selectedTabIndex by remember { mutableStateOf(0) }
 
@@ -321,6 +322,8 @@ fun StoreItemCard(item: RewardItem, canAfford: Boolean, onClick: () -> Unit) {
 @Composable
 fun GiftCenterTab(giftManager: GiftManager, onBalanceUpdated: (Int) -> Unit) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isRedeeming by remember { mutableStateOf(false) }
     var codeInput by remember { mutableStateOf("") }
     var activePromoDate by remember { mutableStateOf(giftManager.getPromoExpiryDateString()) }
     val accountService = remember { AppServices.getAccountService(context) }
@@ -363,32 +366,45 @@ fun GiftCenterTab(giftManager: GiftManager, onBalanceUpdated: (Int) -> Unit) {
                     
                     Button(
                         onClick = {
-                            if (codeInput.isNotBlank()) {
-                                val result = giftManager.redeemCode(codeInput)
-                                val msg = when (result) {
-                                    RedemptionResult.SUCCESS_PROMO -> {
-                                        activePromoDate = giftManager.getPromoExpiryDateString()
-                                        "تم تفعيل باقة برو بنجاح! 🎉"
+                            if (codeInput.isNotBlank() && !isRedeeming) {
+                                isRedeeming = true
+                                coroutineScope.launch {
+                                    try {
+                                        val result = giftManager.redeemCode(codeInput)
+                                        val msg = when (result) {
+                                            RedemptionResult.SUCCESS_PROMO -> {
+                                                activePromoDate = giftManager.getPromoExpiryDateString()
+                                                "تم تفعيل باقة برو بنجاح! 🎉"
+                                            }
+                                            RedemptionResult.SUCCESS_GIFT_CARD -> {
+                                                onBalanceUpdated(accountService.walletBalance)
+                                                "تم شحن رصيدك بنجاح! 💰"
+                                            }
+                                            RedemptionResult.INVALID_CODE -> "عذراً، الكود غير صحيح أو غير مفعل."
+                                            RedemptionResult.ALREADY_USED -> "لقد قمت باستخدام هذا الكود بالحد الأقصى المسموح!"
+                                            RedemptionResult.EXPIRED -> "عذراً، انتهت صلاحية هذا الكود."
+                                            RedemptionResult.LIMIT_REACHED -> "عذراً، تم استنفاد الحد الأقصى لاستخدام هذا الكود."
+                                        }
+                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                                        if (result == RedemptionResult.SUCCESS_PROMO || result == RedemptionResult.SUCCESS_GIFT_CARD) {
+                                            codeInput = ""
+                                        }
+                                    } finally {
+                                        isRedeeming = false
                                     }
-                                    RedemptionResult.SUCCESS_GIFT_CARD -> {
-                                        onBalanceUpdated(accountService.walletBalance)
-                                        "تم شحن رصيدك بنجاح! 💰"
-                                    }
-                                    RedemptionResult.INVALID_CODE -> "عذراً، الكود غير صحيح أو منتهي."
-                                    RedemptionResult.ALREADY_USED -> "لقد قمت باستخدام هذا الكود مسبقاً!"
-                                    RedemptionResult.EXPIRED -> "عذراً، انتهت صلاحية هذا الكود."
-                                }
-                                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-                                if (result == RedemptionResult.SUCCESS_PROMO || result == RedemptionResult.SUCCESS_GIFT_CARD) {
-                                    codeInput = ""
                                 }
                             }
                         },
+                        enabled = !isRedeeming,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("استرداد الآن", color = DeepSlate, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        if (isRedeeming) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = DeepSlate, strokeWidth = 2.dp)
+                        } else {
+                            Text("استرداد الآن", color = DeepSlate, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
                     }
                 }
             }

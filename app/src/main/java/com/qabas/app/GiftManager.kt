@@ -6,13 +6,15 @@ import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 enum class RedemptionResult {
     SUCCESS_PROMO,
     SUCCESS_GIFT_CARD,
     INVALID_CODE,
     ALREADY_USED,
-    EXPIRED
+    EXPIRED,
+    LIMIT_REACHED
 }
 
 /**
@@ -180,28 +182,68 @@ class GiftManager(private val context: Context) {
     }
 
     /**
-     * استرداد كود.
-     * المصدر الوحيد للأكواد الصالحة هو Supabase (الكاش المحلي) مدمجاً مع الأكواد
-     * المخصصة المحفوظة محلياً كاحتياط في حال عدم توفر اتصال.
+     * استرداد كود عبر واجهة RPC السحابية الآمنة لـ Supabase.
+     * يتحقق ذرياً من الصلاحية، تاريخ الانتهاء، والحد الأقصى للاستخدام.
      */
-    fun redeemCode(code: String): RedemptionResult {
+    suspend fun redeemCode(code: String, idempotencyKey: String = UUID.randomUUID().toString()): RedemptionResult {
         val cleanCode = code.trim().uppercase(Locale.US)
+        if (cleanCode.isBlank()) return RedemptionResult.INVALID_CODE
 
-        // التحقق مما إذا كان الكود مستخدماً من قبل
+        // التحقق السحابي عبر RPC الآمن أولاً
+        if (SupabaseServices.isSupabaseAvailable) {
+            val rpcResult = SupabaseServices.Database.reservePromoCode(cleanCode, idempotencyKey)
+            var handledCloudResult: RedemptionResult? = null
+
+            rpcResult.onSuccess { res ->
+                if (res.success) {
+                    val discountType = res.discountType ?: "PROMO"
+                    val discountVal = res.discountValue
+
+                    if (discountType.equals("GIFT", ignoreCase = true)) {
+                        accountService.walletBalance += discountVal.toInt()
+                        handledCloudResult = RedemptionResult.SUCCESS_GIFT_CARD
+                    } else {
+                        // كود ترقية باقة برو (المدة بالأيام)
+                        val durationDays = if (discountVal > 0) discountVal else 30L
+                        val durationMs = durationDays * 24L * 60L * 60L * 1000L
+                        val currentExpiry = if (hasActivePromoUpgrade()) activePromoExpiryTime else System.currentTimeMillis()
+                        val newExpiry = currentExpiry + durationMs
+
+                        prefs.edit()
+                            .putLong("promo_expiry_time", newExpiry)
+                            .apply()
+
+                        handledCloudResult = RedemptionResult.SUCCESS_PROMO
+                    }
+                } else {
+                    handledCloudResult = when (res.errorCode) {
+                        "EXPIRED" -> RedemptionResult.EXPIRED
+                        "USER_LIMIT_EXCEEDED", "ALREADY_CONFIRMED" -> RedemptionResult.ALREADY_USED
+                        "TOTAL_LIMIT_EXCEEDED" -> RedemptionResult.LIMIT_REACHED
+                        else -> RedemptionResult.INVALID_CODE
+                    }
+                }
+            }.onFailure { err ->
+                Log.w(TAG, "Cloud RPC reserve failed, attempting local fallback: ${err.message}")
+            }
+
+            if (handledCloudResult != null) {
+                return handledCloudResult!!
+            }
+        }
+
+        // مسار احتياطي محلي في حال انقطاع الشبكة (Local Fallback)
         val usedCodes = prefs.getStringSet("used_codes", mutableSetOf()) ?: mutableSetOf()
         if (usedCodes.contains(cleanCode)) {
             return RedemptionResult.ALREADY_USED
         }
 
-        // 1. التحقق من أكواد الترقية (Promo Codes) — الكاش السحابي + المحلي الاحتياطي
         val allPromoCodes = validPromoCodes + getCustomPromoCodes()
         val durationMs = allPromoCodes[cleanCode]
         if (durationMs != null) {
-            // إذا كان لديه عرض فعال، قم بتمديده، وإلا ابدأ من اليوم
             val currentExpiry = if (hasActivePromoUpgrade()) activePromoExpiryTime else System.currentTimeMillis()
             val newExpiry = currentExpiry + durationMs
 
-            // حفظ التحديث
             val newUsedCodes = mutableSetOf<String>().apply {
                 addAll(usedCodes)
                 add(cleanCode)
@@ -215,7 +257,6 @@ class GiftManager(private val context: Context) {
             return RedemptionResult.SUCCESS_PROMO
         }
 
-        // 2. التحقق من بطاقات الهدايا (Gift Cards) — الكاش السحابي + المحلي الاحتياطي
         val allGiftCards = validGiftCards + getCustomGiftCards()
         val points = allGiftCards[cleanCode]
         if (points != null) {
@@ -234,5 +275,22 @@ class GiftManager(private val context: Context) {
         }
 
         return RedemptionResult.INVALID_CODE
+    }
+
+    /**
+     * حجز كود مسبقاً قبل عملية الدفع (للمعاملات ومسار الشراء)
+     */
+    suspend fun reservePromoForCheckout(
+        code: String,
+        idempotencyKey: String = UUID.randomUUID().toString()
+    ): Result<SupabaseServices.PromoReservationResponse> {
+        return SupabaseServices.Database.reservePromoCode(code, idempotencyKey)
+    }
+
+    /**
+     * إلغاء حجز الكود عند فشل أو تراجع المستخدم عن الدفع
+     */
+    suspend fun releasePromoReservation(reservationToken: String): Result<Boolean> {
+        return SupabaseServices.Database.releasePromoCode(reservationToken)
     }
 }

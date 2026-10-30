@@ -28,6 +28,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.UUID
 
 object SupabaseServices {
@@ -605,6 +607,35 @@ object SupabaseServices {
             client.postgrest.from("promo_codes").upsert(row)
             true
         }.onFailure { Log.e(TAG, "savePromoCode failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun reservePromoCode(
+            code: String,
+            idempotencyKey: String? = UUID.randomUUID().toString()
+        ): Result<PromoReservationResponse> = runCatching {
+            val client = client ?: return Result.failure(IllegalStateException("Supabase not available"))
+            val params = buildJsonObject {
+                put("p_code", code.trim().uppercase(java.util.Locale.US))
+                if (idempotencyKey != null) {
+                    put("p_idempotency_key", idempotencyKey)
+                }
+            }
+            client.postgrest.rpc(
+                function = "reserve_promo_code",
+                parameters = params
+            ).decodeAs<PromoReservationResponse>()
+        }.onFailure { Log.e(TAG, "reservePromoCode RPC failed: ${it.message}") }
+
+        suspend fun releasePromoCode(reservationToken: String): Result<Boolean> = runCatching {
+            val client = client ?: return Result.failure(IllegalStateException("Supabase not available"))
+            val params = buildJsonObject {
+                put("p_token", reservationToken)
+            }
+            val res = client.postgrest.rpc(
+                function = "release_promo_code",
+                parameters = params
+            ).decodeAs<PromoReleaseResponse>()
+            res.success
+        }.onFailure { Log.e(TAG, "releasePromoCode RPC failed: ${it.message}") }
 
         // ── Transactions & Guards Operations ──
         suspend fun recordTransaction(
@@ -1967,6 +1998,25 @@ object SupabaseServices {
         val type: String = "PROMO",
         val value: Long = 0L,
         @SerialName("is_active") val isActive: Boolean = true
+    )
+
+    @Serializable
+    data class PromoReservationResponse(
+        val success: Boolean = false,
+        @SerialName("is_retry") val isRetry: Boolean = false,
+        @SerialName("reservation_token") val reservationToken: String? = null,
+        val code: String? = null,
+        @SerialName("discount_type") val discountType: String? = null,
+        @SerialName("discount_value") val discountValue: Long = 0L,
+        @SerialName("reserved_until") val reservedUntil: String? = null,
+        @SerialName("error_code") val errorCode: String? = null,
+        val message: String? = null
+    )
+
+    @Serializable
+    data class PromoReleaseResponse(
+        val success: Boolean = false,
+        val message: String? = null
     )
 
     data class AuthDiagnosticsResult(
