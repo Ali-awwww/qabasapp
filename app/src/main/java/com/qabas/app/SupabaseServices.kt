@@ -13,6 +13,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -1500,6 +1501,54 @@ object SupabaseServices {
             client.storage.from(bucketName).delete(paths)
             true
         }.onFailure { Log.e(TAG, "deleteFiles failed: ${it.message}") }.getOrDefault(false)
+
+        /**
+         * التحقق من وجود وجاهزية رابط الفيديو في Supabase Storage قبل العرض في المشغل،
+         * مع آلية إعادة المحاولة (Retry logic مع التراجع الأسّي) لمعالجة تأخير التحديث والمزامنة في السحابة.
+         */
+        suspend fun verifyVideoAvailabilityWithRetry(
+            videoUrl: String,
+            maxRetries: Int = 3,
+            initialDelayMs: Long = 1000L
+        ): Boolean = withContext(Dispatchers.IO) {
+            if (videoUrl.isBlank()) return@withContext false
+
+            // المسارات والروابط المحلية (content, file, android.resource) جاهزة محلياً دائماً
+            if (!videoUrl.startsWith("http://", ignoreCase = true) &&
+                !videoUrl.startsWith("https://", ignoreCase = true)
+            ) {
+                return@withContext true
+            }
+
+            var currentDelay = initialDelayMs
+            for (attempt in 1..maxRetries) {
+                val isAvailable = runCatching {
+                    val req = Request.Builder()
+                        .url(videoUrl)
+                        .head() // Head request خفيف للتحقق دون تحميل الفيديو بالكامل
+                        .header("User-Agent", ExoPlayerFactory.USER_AGENT)
+                        .build()
+                    rawHttpClient.newCall(req).execute().use { resp ->
+                        val code = resp.code
+                        resp.isSuccessful || code == 200 || code == 206 || code == 304
+                    }
+                }.getOrDefault(false)
+
+                if (isAvailable) {
+                    Log.d(TAG, "verifyVideoAvailabilityWithRetry: URL verified successfully on attempt $attempt -> $videoUrl")
+                    return@withContext true
+                }
+
+                Log.w(TAG, "verifyVideoAvailabilityWithRetry: attempt $attempt/$maxRetries failed for $videoUrl. Retrying in ${currentDelay}ms...")
+                if (attempt < maxRetries) {
+                    delay(currentDelay)
+                    currentDelay *= 2 // Exponential backoff (1s, 2s, 4s...)
+                }
+            }
+
+            Log.e(TAG, "verifyVideoAvailabilityWithRetry: Video URL unavailable after $maxRetries attempts -> $videoUrl")
+            false
+        }
     }
 
     data class RemoteFile(

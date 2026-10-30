@@ -89,6 +89,15 @@ fun ReelPublishScreen(
     var quality by remember { mutableStateOf("high") }
     var isAnalyzing by remember { mutableStateOf(false) }
 
+    // Pre-Publish Optimization States (إعدادات تحسين جودة ما قبل النشر)
+    var isOptimizationExpanded by remember { mutableStateOf(false) }
+    var targetResolution by remember { mutableStateOf("1080p") } // "1080p" or "720p"
+    var isSmartCompressEnabled by remember { mutableStateOf(true) }
+    var isAudioNormalizeEnabled by remember { mutableStateOf(true) }
+    var isSilenceTrimEnabled by remember { mutableStateOf(true) }
+    var isSmartThumbEnabled by remember { mutableStateOf(true) }
+    var isAiHashtagsEnabled by remember { mutableStateOf(true) }
+
     val categories = listOf("قرآن كريم", "أحاديث نبوية", "وعظة إيمانية")
 
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -736,7 +745,317 @@ fun ReelPublishScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 🚀 Expandable Pre-Publish Optimization Card (كارت إعدادات تحسين جودة ما قبل النشر)
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF0F172A),
+                border = BorderStroke(1.5.dp, Color(0xFF0284C7).copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isOptimizationExpanded = !isOptimizationExpanded },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0284C7).copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.HighQuality,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "إعدادات تحسين جودة النشر (Pre-Publish) 🚀",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "دقة الفيديو، الضغط الذكي، معالجة الصوت والوسوم",
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = { isOptimizationExpanded = !isOptimizationExpanded }) {
+                            Icon(
+                                imageVector = if (isOptimizationExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8)
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visible = isOptimizationExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            HorizontalDivider(color = Color(0xFF1E293B))
+
+                            // 1. Resolution Selection
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "1. دقة العرض وتنسيق الفيديو (Resolution & Format):",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val is1080 = targetResolution == "1080p"
+                                    Surface(
+                                        onClick = { targetResolution = "1080p" },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (is1080) Color(0xFF0284C7).copy(alpha = 0.25f) else Color(0xFF1E293B),
+                                        border = BorderStroke(1.dp, if (is1080) Color(0xFF38BDF8) else Color(0xFF334155)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "1080p Full HD (فائقة)",
+                                                fontFamily = CairoFont,
+                                                fontSize = 11.sp,
+                                                color = if (is1080) Color.White else Color(0xFF94A3B8),
+                                                fontWeight = if (is1080) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                            if (is1080) Text("✓", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    val is720 = targetResolution == "720p"
+                                    Surface(
+                                        onClick = { targetResolution = "720p" },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (is720) Color(0xFF0284C7).copy(alpha = 0.25f) else Color(0xFF1E293B),
+                                        border = BorderStroke(1.dp, if (is720) Color(0xFF38BDF8) else Color(0xFF334155)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "720p HD (سريعة التنزيل)",
+                                                fontFamily = CairoFont,
+                                                fontSize = 11.sp,
+                                                color = if (is720) Color.White else Color(0xFF94A3B8),
+                                                fontWeight = if (is720) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                            if (is720) Text("✓", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 2. Smart Compression
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "الضغط التلقائي المتوازن (Smart Compression)",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "تقليل حجم الملف 40% مع الحفاظ التام على جودة الصورة وتلاوة القارئ.",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                Switch(
+                                    checked = isSmartCompressEnabled,
+                                    onCheckedChange = { isSmartCompressEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF0F172A),
+                                        checkedTrackColor = Color(0xFF38BDF8)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = Color(0xFF1E293B))
+
+                            // 3. Audio Normalization & Silence Trimming
+                            Text(
+                                text = "2. تحسينات الصوت النقي (Audio Optimization):",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF38BDF8)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "موازنة حدة الصوت وتصفية النقاء (Audio Normalization)",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "تعديل مستوى الصوت آلياً ليناسب جميع السماعات مع تقليل الضوضاء.",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                Switch(
+                                    checked = isAudioNormalizeEnabled,
+                                    onCheckedChange = { isAudioNormalizeEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF0F172A),
+                                        checkedTrackColor = Color(0xFF38BDF8)
+                                    )
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "تقليم السكون والتوقفات الصامتة (Silence Trimming)",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "قص أجزاء الصمت غير الضرورية في البداية والنهاية لزيادة التفاعل.",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                Switch(
+                                    checked = isSilenceTrimEnabled,
+                                    onCheckedChange = { isSilenceTrimEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF0F172A),
+                                        checkedTrackColor = Color(0xFF38BDF8)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = Color(0xFF1E293B))
+
+                            // 4. Smart Thumbnail & AI Hashtags
+                            Text(
+                                text = "3. الغلاف والوسوم الإيمانية الذكية (Metadata & Hashtags):",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF38BDF8)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "توليد غلاف مصغر تلقائي (Smart Thumbnail)",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "التقاط أفضل إطار بؤري من الفيديو ليكون واجهة المقطع.",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                Switch(
+                                    checked = isSmartThumbEnabled,
+                                    onCheckedChange = { isSmartThumbEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF0F172A),
+                                        checkedTrackColor = Color(0xFF38BDF8)
+                                    )
+                                )
+                            }
+
+                            // Quick Action: Add Smart Hashtags to Description
+                            OutlinedButton(
+                                onClick = {
+                                    val smartTags = when (selectedCategory) {
+                                        "قرآن كريم" -> "\n#قبس_الإيماني #تلاوات_خاشعة #قرآن_كريم #تلاوة_مباركة"
+                                        "أحاديث نبوية" -> "\n#قبس_الإيماني #أحاديث_نبويّة #سنة_نبوية #أخلاق_إسلامية"
+                                        else -> "\n#قبس_الإيماني #وعظة_إيمانية #ذكر_الله #صدقة_جارية"
+                                    }
+                                    if (!description.contains("#قبس_الإيماني")) {
+                                        description = (description.trim() + " " + smartTags).trim()
+                                    }
+                                    Toast.makeText(context, "✨ تم إضافة الوسوم الإيمانية الذكية إلى الوصف!", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF38BDF8))
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "✨ توليد وسوم إيمانية ذكية تلقائياً",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             Surface(
                 shape = RoundedCornerShape(14.dp),

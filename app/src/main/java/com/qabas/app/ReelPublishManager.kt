@@ -319,6 +319,15 @@ object ReelPublishManager {
                         "رفض التخزين السحابي الملف (تحقق من السلال user-uploads/media-assets والشبكة)"
                     )
                 }
+
+                // التحقق من وصول وجاهزية الملف في التخزين السحابي قبل الاستمرار (مع إعادة المحاولة للتأخير)
+                onProgressUpdate("جاري التأكد من جاهزية الفيديو في التخزين السحابي...")
+                SupabaseServices.Storage.verifyVideoAvailabilityWithRetry(
+                    videoUrl = uploadedVideoUrl,
+                    maxRetries = 3,
+                    initialDelayMs = 1000L
+                )
+
                 finalVideoUrl = uploadedVideoUrl
 
                 // رفع الصورة المصغرة إن وجدت
