@@ -33,7 +33,6 @@ object ExoPlayerFactory {
             .setDefaultRequestProperties(
                 mapOf(
                     "Accept" to "*/*",
-                    "Accept-Encoding" to "identity;q=1, *;q=0",
                     "Accept-Language" to "ar,en-US;q=0.9,en;q=0.8"
                 )
             )
@@ -66,14 +65,18 @@ object ExoPlayerFactory {
         )
 
         if (useCache) {
-            // قراءة من كاش قبس إن وُجد المقطع، والتنزيل من الشبكة (بنفس ترويسات HTTP)
-            // مع الكتابة للكاش. FLAG_IGNORE_CACHE_ON_ERROR: أي خطأ في الكاش لا يُسقط
-            // التشغيل بل يتجاوز إلى الشبكة مباشرة.
-            val cacheDataSourceFactory = CacheDataSource.Factory()
-                .setCache(VideoCacheService.getCache(appContext))
-                .setUpstreamDataSourceFactory(createDataSourceFactory(appContext))
-                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-            builder.setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
+            val cacheDataSourceFactory = runCatching {
+                CacheDataSource.Factory()
+                    .setCache(VideoCacheService.getCache(appContext))
+                    .setUpstreamDataSourceFactory(createDataSourceFactory(appContext))
+                    .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            }.getOrNull()
+
+            if (cacheDataSourceFactory != null) {
+                builder.setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
+            } else {
+                builder.setMediaSourceFactory(DefaultMediaSourceFactory(createDataSourceFactory(appContext)))
+            }
         } else {
             builder.setMediaSourceFactory(DefaultMediaSourceFactory(createDataSourceFactory(appContext)))
         }

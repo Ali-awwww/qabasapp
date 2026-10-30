@@ -43,6 +43,7 @@ object VideoCacheService {
                 val evictor = LeastRecentlyUsedCacheEvictor(MAX_CACHE_BYTES)
                 val databaseProvider = StandaloneDatabaseProvider(context.applicationContext)
                 val cache = SimpleCache(cacheDir, evictor, databaseProvider)
+                cachedCache = cache
                 cache
             }.onFailure { Log.e(TAG, "Failed to initialize Video Cache", it) }
                 .getOrThrow()

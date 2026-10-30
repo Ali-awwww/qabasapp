@@ -185,6 +185,14 @@ fun ReelPlayer(
         exoPlayer?.let { player ->
             runCatching {
                 if (isPlaying && !isUserPaused) {
+                    if (hasError) {
+                        hasError = false
+                        isBuffering = true
+                        player.stop()
+                        player.clearMediaItems()
+                        player.setMediaItem(MediaItem.fromUri(videoUrl))
+                        player.prepare()
+                    }
                     player.play()
                 } else {
                     player.pause()
@@ -201,11 +209,11 @@ fun ReelPlayer(
         }
     }
 
-    // Guardrail: Buffer Timeout Guard (max 12s before graceful fallback)
-    LaunchedEffect(isBuffering) {
-        if (isBuffering) {
-            delay(12_000)
-            if (isBuffering) {
+    // Guardrail: Buffer Timeout Guard (max 15s before graceful fallback, only when actively playing)
+    LaunchedEffect(isBuffering, isPlaying, isUserPaused) {
+        if (isBuffering && isPlaying && !isUserPaused) {
+            delay(15_000)
+            if (isBuffering && isPlaying && !isUserPaused) {
                 hasError = true
                 isBuffering = false
             }
@@ -281,7 +289,6 @@ fun ReelPlayer(
                 )
             }
     ) {
-        // Video View
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -292,6 +299,11 @@ fun ReelPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                }
+            },
+            update = { view ->
+                if (view.player != exoPlayer) {
+                    view.player = exoPlayer
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -353,16 +365,18 @@ fun ReelPlayer(
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = {
-                                // إعادة المحضير فقط — بوابة التشغيل الموحّدة تتكفل بالتشغيل
                                 hasError = false
                                 isBuffering = true
+                                isUserPaused = false
                                 exoPlayer?.let { p ->
                                     runCatching {
                                         p.stop()
                                         p.clearMediaItems()
                                         p.setMediaItem(MediaItem.fromUri(videoUrl))
                                         p.prepare()
-                                        p.playWhenReady = true
+                                        if (isPlaying) {
+                                            p.play()
+                                        }
                                     }
                                 }
                             },
