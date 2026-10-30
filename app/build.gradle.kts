@@ -17,8 +17,8 @@ android {
     targetSdk = 36
     // قناة التحديث: CI يحقن versionCode/versionName تلقائياً لكل بناء عبر -PappVersionCode
     // و -PappVersionName، فتتزايد الأكواد والإصدارات مع كل دفع ناجح (أساس دلتا xdelta).
-    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 102
-    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.3"
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 103
+    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.4"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
