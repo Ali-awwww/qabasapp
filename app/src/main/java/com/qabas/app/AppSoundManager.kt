@@ -219,6 +219,14 @@ object AppSoundManager {
         // أصوات النجاح والتنقل
         pcmCache["success_chime"] = generateSuccess()
         pcmCache["nav_whoosh"] = generateSweep(70, 300.0, 750.0, 1.0, 0.1)
+
+        // أصوات التبويبات المخصصة لشريط التنقل السفلي (Tab-Specific Procedural SFX)
+        pcmCache["nav_tab_home"] = generateNavTabHome()
+        pcmCache["nav_tab_agent"] = generateNavTabAgent()
+        pcmCache["nav_tab_reels"] = generateNavTabReels()
+        pcmCache["nav_tab_studio"] = generateNavTabStudio()
+        pcmCache["nav_tab_hasanat"] = generateNavTabHasanat()
+        pcmCache["nav_tab_settings"] = generateNavTabSettings()
     }
 
     private fun loadPcmSafely(context: Context, key: String, resId: Int) {
@@ -403,6 +411,25 @@ object AppSoundManager {
     }
 
     /**
+     * تشغيل نغمة صوتية مخصصة لكل تبويب في الشريط السفلي (Tab-Specific Procedural SFX)
+     */
+    fun playTabRouteSound(route: AppState, view: View? = null) {
+        if (!_masterEnabled.value || !_clickEnabled.value || _currentPreset.value == AppSoundPreset.OFF) return
+
+        val key = when (route) {
+            AppState.HOME -> "nav_tab_home"
+            AppState.AI_STUDIO_AGENT -> "nav_tab_agent"
+            AppState.REELS -> "nav_tab_reels"
+            AppState.STUDIO_GATEWAY -> "nav_tab_studio"
+            AppState.HASANAT_HUB -> "nav_tab_hasanat"
+            AppState.SETTINGS -> "nav_tab_settings"
+            else -> "nav_tab_home"
+        }
+
+        playSoundByKey(key, view, withHaptic = true)
+    }
+
+    /**
      * تشغيل صوت التفعيل / التحويل الكامل / تغيير الثيم
      */
     fun playActivate(view: View? = null) {
@@ -583,6 +610,69 @@ object AppSoundManager {
             f3 = 783.99, // G5
             noteDurMs = 45,
             sustainDurMs = 90
+        )
+    }
+
+    private fun generateNavTabHome(): ByteArray {
+        // نغمة رنانة ترحيبية دافئة (Warm Resonance Tone): نغمتان متناغمتان 528Hz و 792Hz
+        return generateDualBurst(
+            freq1 = 528.0, dur1Ms = 25,
+            freq2 = 792.0, dur2Ms = 38,
+            decayRate = 5.2
+        )
+    }
+
+    private fun generateNavTabAgent(): ByteArray {
+        // نبضة سيبرانية رقمية مستقبلية (Cyber Synth Pulse): سحب تصاعدي سريع مع توافقيات رقمية
+        return generateSweep(
+            durationMs = 45,
+            startFreq = 880.0,
+            endFreq = 1760.0,
+            harmonicRatio = 2.0,
+            harmonicAmp = 0.35
+        )
+    }
+
+    private fun generateNavTabReels(): ByteArray {
+        // نقرة حركية إيقاعية للوسائط (Kinetic Media Pop): هبوط نغمي خاطف مع نقرة محسوسة
+        return generateTone(
+            durationMs = 28,
+            startFreq = 1420.0,
+            endFreq = 480.0,
+            decayRate = 8.5,
+            amplitude = 26000.0,
+            addClick = true
+        )
+    }
+
+    private fun generateNavTabStudio(): ByteArray {
+        // جرس إبداعي متناغم (Creative Spark Chime): نغمتان براقتان 880Hz -> 1320Hz
+        return generateDualBurst(
+            freq1 = 880.0, dur1Ms = 20,
+            freq2 = 1320.0, dur2Ms = 40,
+            decayRate = 4.8
+        )
+    }
+
+    private fun generateNavTabHasanat(): ByteArray {
+        // صدى روحاني فاخر (Spiritual Echo Tone): رنين هادئ عند 432Hz مع توافقيات سكينة
+        return generateHarmonicBell(
+            durationMs = 95,
+            fundamental = 432.0,
+            harmonics = doubleArrayOf(1.0, 0.4, 0.2),
+            harmonicMultipliers = doubleArrayOf(1.0, 2.0, 3.0)
+        )
+    }
+
+    private fun generateNavTabSettings(): ByteArray {
+        // نقرة ميكانيكية دقيقة (Precision Mechanical Click): نقرة سريعة حادة ومتقنة
+        return generateTone(
+            durationMs = 18,
+            startFreq = 2100.0,
+            endFreq = 1200.0,
+            decayRate = 9.5,
+            amplitude = 24000.0,
+            addClick = true
         )
     }
 

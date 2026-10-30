@@ -25,12 +25,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -900,11 +903,136 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun GlassmorphicGeometricNavIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    isSelected: Boolean,
+    scale: Float,
+    translationY: androidx.compose.ui.unit.Dp
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .offset(y = translationY)
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+    ) {
+        // 1. هالة النيون البصرية المشعة خلف الكبسولة الزجاجية عند التحديد
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                GoldPrimary.copy(alpha = 0.45f),
+                                Color(0xFF00E5FF).copy(alpha = 0.20f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+        }
+
+        // 2. الكبسولة الزجاجية المجسمة ثلاثية الأبعاد (3D Glassmorphic Geometric Pod)
+        Surface(
+            shape = RoundedCornerShape(13.dp),
+            color = if (isSelected) Color(0xFF141F36).copy(alpha = 0.90f) else Color(0xFF0F172A).copy(alpha = 0.45f),
+            shadowElevation = if (isSelected) 8.dp else 1.dp,
+            border = BorderStroke(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                brush = if (isSelected) {
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFFFF9D2),     // لمعان زجاجي علوي لامع
+                            GoldPrimary,           // ذهبي قبس الملكي
+                            Color(0xFF00E5FF),     // وميض نيون فيروزي
+                            GoldSecondary,
+                            Color(0xFF78590F)
+                        )
+                    )
+                } else {
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.20f),
+                            GoldPrimary.copy(alpha = 0.25f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    )
+                }
+            ),
+            modifier = Modifier.size(width = 38.dp, height = 34.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                // طبقة الانعكاس الزجاجي اللامع العلوي (Glossy Specular Glass Reflection)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth(0.85f)
+                        .height(11.dp)
+                        .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = if (isSelected) 0.36f else 0.14f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+
+                // لمسة هندسية ذهبية ماسية في زوايا الكبسولة (Geometric Diamond Corner Accents)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 2.dp, end = 2.dp)
+                        .size(4.dp)
+                        .rotate(45f)
+                        .background(if (isSelected) GoldPrimary else GoldPrimary.copy(alpha = 0.35f))
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 2.dp, start = 2.dp)
+                        .size(3.dp)
+                        .rotate(45f)
+                        .background(if (isSelected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.20f))
+                )
+
+                // ظل داخلي ناعم للأيقونة لمنح عمق ثلاثي الأبعاد بارز
+                if (isSelected) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.Black.copy(alpha = 0.60f),
+                        modifier = Modifier
+                            .size(21.dp)
+                            .offset(x = 1.dp, y = 1.dp)
+                    )
+                }
+
+                // الأيقونة ثلاثية الأبعاد العائمة داخل الحجرة الزجاجية
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun QabasBottomNavigation(
     currentRoute: AppState,
     onNavigate: (AppState) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val navItems = remember {
         listOf(
             Triple(AppState.HOME, Icons.Default.Home, "الرئيسية"),
@@ -920,25 +1048,26 @@ fun QabasBottomNavigation(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                ambientColor = GoldPrimary.copy(alpha = 0.15f),
-                spotColor = GoldSecondary.copy(alpha = 0.25f)
+                elevation = 20.dp,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                ambientColor = GoldPrimary.copy(alpha = 0.25f),
+                spotColor = GoldSecondary.copy(alpha = 0.40f)
             )
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .border(
-                width = 1.dp,
+                width = 1.2.dp,
                 brush = Brush.horizontalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.08f),
-                        GoldPrimary.copy(alpha = 0.5f),
-                        GoldSecondary.copy(alpha = 0.35f),
+                        GoldPrimary.copy(alpha = 0.65f),
+                        Color(0xFF00E5FF).copy(alpha = 0.4f),
+                        GoldSecondary.copy(alpha = 0.55f),
                         Color.White.copy(alpha = 0.08f)
                     )
                 ),
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ),
-        color = CardSurface.copy(alpha = 0.95f)
+        color = Color(0xFF0B101D).copy(alpha = 0.96f)
     ) {
         NavigationBar(
             containerColor = Color.Transparent,
@@ -947,13 +1076,13 @@ fun QabasBottomNavigation(
             windowInsets = WindowInsets.navigationBars,
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 64.dp)
+                .defaultMinSize(minHeight = 66.dp)
         ) {
             navItems.forEach { (route, icon, labelKey) ->
                 val label = Translator.tr(labelKey)
                 val isSelected = currentRoute == route
                 val iconScale by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1.18f else 1.0f,
+                    targetValue = if (isSelected) 1.22f else 1.0f,
                     animationSpec = androidx.compose.animation.core.spring(
                         dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
                         stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
@@ -961,7 +1090,7 @@ fun QabasBottomNavigation(
                     label = "nav_icon_scale"
                 )
                 val iconTranslationY by androidx.compose.animation.core.animateDpAsState(
-                    targetValue = if (isSelected) (-2).dp else 0.dp,
+                    targetValue = if (isSelected) (-3).dp else 0.dp,
                     animationSpec = androidx.compose.animation.core.spring(
                         dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
                         stiffness = androidx.compose.animation.core.Spring.StiffnessLow
@@ -972,54 +1101,57 @@ fun QabasBottomNavigation(
                 NavigationBarItem(
                     modifier = Modifier.testTag(TestTags.NAV_ITEM_PREFIX + route.name),
                     icon = {
-                        Box(contentAlignment = Alignment.Center) {
+                        GlassmorphicGeometricNavIcon(
+                            icon = icon,
+                            contentDescription = label,
+                            isSelected = isSelected,
+                            scale = iconScale,
+                            translationY = iconTranslationY
+                        )
+                    },
+                    label = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip,
+                                color = if (isSelected) GoldPrimary else TextSecondary.copy(alpha = 0.75f)
+                            )
                             if (isSelected) {
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Box(
                                     modifier = Modifier
-                                        .size(34.dp)
+                                        .width(18.dp)
+                                        .height(2.5.dp)
+                                        .clip(RoundedCornerShape(2.dp))
                                         .background(
-                                            brush = Brush.radialGradient(
-                                                colors = listOf(
-                                                    GoldPrimary.copy(alpha = 0.3f),
-                                                    Color.Transparent
-                                                )
-                                            ),
-                                            shape = CircleShape
+                                            Brush.horizontalGradient(
+                                                listOf(GoldPrimary, GoldSecondary)
+                                            )
                                         )
                                 )
                             }
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = label,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .offset(y = iconTranslationY)
-                                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
-                            )
                         }
-                    },
-                    label = {
-                        Text(
-                            text = label,
-                            fontFamily = CairoFont,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Clip
-                        )
                     },
                     selected = isSelected,
                     onClick = {
-                        AppSoundManager.playTab()
+                        runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                        AppSoundManager.playTabRouteSound(route)
                         onNavigate(route)
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = if (ThemeManager.activePreset.isDark) DeepSlate else Color.White,
-                        unselectedIconColor = TextSecondary,
+                        selectedIconColor = GoldPrimary,
+                        unselectedIconColor = TextSecondary.copy(alpha = 0.7f),
                         selectedTextColor = GoldPrimary,
-                        unselectedTextColor = TextSecondary,
-                        indicatorColor = GoldPrimary
+                        unselectedTextColor = TextSecondary.copy(alpha = 0.7f),
+                        indicatorColor = Color.Transparent
                     )
                 )
             }
