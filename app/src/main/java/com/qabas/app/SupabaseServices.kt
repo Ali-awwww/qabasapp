@@ -507,7 +507,13 @@ object SupabaseServices {
 
         suspend fun saveScholarProposal(row: ScholarProposalRow): Boolean = runCatching {
             val client = client ?: return false
-            client.postgrest.from("scholar_proposals").upsert(row)
+            val uid = Auth.getCurrentUserId()
+            val enriched = if (row.userId.isNullOrBlank() && !uid.isNullOrBlank()) {
+                row.copy(userId = uid)
+            } else {
+                row
+            }
+            client.postgrest.from("scholar_proposals").upsert(enriched)
             true
         }.onFailure { Log.e(TAG, "saveScholarProposal failed: ${it.message}") }.getOrDefault(false)
 
@@ -675,7 +681,8 @@ object SupabaseServices {
             accountNumber: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
-            val payload = mapOf(
+            val uid = Auth.getCurrentUserId()
+            val payload = mutableMapOf<String, Any>(
                 "id" to id,
                 "user_email" to userEmail,
                 "screen_name" to screenName,
@@ -687,6 +694,9 @@ object SupabaseServices {
                 "device_info" to deviceModel,
                 "developer_reply" to (developerReply ?: "")
             )
+            if (!uid.isNullOrBlank()) {
+                payload["user_id"] = uid
+            }
             client.postgrest.from("dev_bug_reports").insert(payload)
             true
         }.onFailure { Log.e(TAG, "recordBugReport failed: ${it.message}") }.getOrDefault(false)
@@ -1443,7 +1453,7 @@ object SupabaseServices {
             if (!isSupabaseAvailable) emptyList()
             else {
                 val client = client ?: return@runCatching emptyList()
-                client.postgrest.from("app_reviews").select {
+                client.postgrest.from("app_reviews_public").select {
                     order("created_at", Order.DESCENDING)
                 }.decodeList<AppReviewDto>()
             }
@@ -1468,8 +1478,10 @@ object SupabaseServices {
         ): Result<Unit> = runCatching {
             if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
             val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
+            val uid = Auth.getCurrentUserId()
             val review = AppReviewDto(
                 id = UUID.randomUUID().toString(),
+                userId = uid,
                 authorName = authorName.ifBlank { "مستخدم قبس" },
                 rating = rating.coerceIn(1, 5),
                 categoryRating = category,
@@ -1492,11 +1504,15 @@ object SupabaseServices {
         suspend fun submitFeedback(type: String, message: String, userName: String): Result<Unit> = runCatching {
             if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
             val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
-            val payload = mapOf(
+            val uid = Auth.getCurrentUserId()
+            val payload = mutableMapOf<String, Any>(
                 "report_type" to type,
                 "description" to message,
                 "user_email" to userName.ifBlank { "user@qabas.app" }
             )
+            if (!uid.isNullOrBlank()) {
+                payload["user_id"] = uid
+            }
             client.postgrest.from("dev_bug_reports").insert(payload)
             Unit
         }
@@ -1807,6 +1823,7 @@ object SupabaseServices {
         @SerialName("suggested_topic") val suggestedTopic: String = "سيرة وعبر",
         val rationale: String = "",
         @SerialName("user_proposer_name") val userProposerName: String = "طالب علم",
+        @SerialName("user_id") val userId: String? = null,
         @SerialName("upvotes_count") val upvotesCount: Int = 1,
         val status: String = "قيد المراجعة العلمية",
         @SerialName("created_at_millis") val createdAtMillis: Long = System.currentTimeMillis()
@@ -1824,6 +1841,7 @@ object SupabaseServices {
     @Serializable
     data class AppReviewDto(
         val id: String = UUID.randomUUID().toString(),
+        @SerialName("user_id") val userId: String? = null,
         @SerialName("author_name") val authorName: String = "مستخدم قبس",
         val rating: Int = 5,
         @SerialName("category_rating") val categoryRating: String = "overall",
