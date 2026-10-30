@@ -440,16 +440,9 @@ fun ReelsScreen(
                     isAlAtharMode = true
                     silentReels
                 } else {
-                    val cached = ReelPreferencesManager.getCachedReels(context)
-                    if (cached.isNotEmpty()) {
-                        isOfflineMode = true
-                        isAlAtharMode = false
-                        cached
-                    } else {
-                        isOfflineMode = false
-                        isAlAtharMode = false
-                        emptyList()
-                    }
+                    isOfflineMode = false
+                    isAlAtharMode = false
+                    emptyList()
                 }
             } else {
                 val silentReels = SilentReelStorageManager.getDownloadedReels(context)
@@ -485,7 +478,7 @@ fun ReelsScreen(
             loadingProgress = 1.0f
             delay(100)
             isLoading = false
-            loadError = fetchFailed
+            loadError = fetchFailed && allReels.isEmpty()
 
             val authId = SupabaseServices.Auth.getCurrentUserId()
             if (authId != null) {

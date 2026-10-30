@@ -83,12 +83,20 @@ jobs:
                 -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_EXE_LINKER_FLAGS="-static" \
-                -DXD3_ARMOR=OFF -DXD3_BUILD_TESTS=OFF -DXD3_BUILD_LIB=OFF
+                -DXD3_ARMOR=OFF \
+                -DXD3_BUILD_TESTS=OFF \
+                -DXD3_BUILD_LIB=OFF \
+                -DXD3_LZMA_MODE=off \
+                -DCMAKE_DISABLE_FIND_PACKAGE_LibLZMA=TRUE
             else
               cmake -S "$SRC" -B "$BDIR" \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_EXE_LINKER_FLAGS="-static" \
-                -DXD3_ARMOR=OFF -DXD3_BUILD_TESTS=OFF -DXD3_BUILD_LIB=OFF
+                -DXD3_ARMOR=OFF \
+                -DXD3_BUILD_TESTS=OFF \
+                -DXD3_BUILD_LIB=OFF \
+                -DXD3_LZMA_MODE=off \
+                -DCMAKE_DISABLE_FIND_PACKAGE_LibLZMA=TRUE
             fi
             cmake --build "$BDIR" --target xdelta3 -j"$(nproc)"
             cp "$BDIR/xdelta3" "$OUT"

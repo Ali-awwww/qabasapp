@@ -300,8 +300,8 @@ object ReelPublishManager {
                 val totalBytes = localVideoFile.length()
                 onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
                 val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
-                    bucketName = "user-uploads",
-                    path = "reels/$userId/$fileName",
+                    bucketName = "reels",
+                    path = "videos/$userId/$fileName",
                     file = localVideoFile,
                     contentType = "video/mp4"
                 ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
@@ -311,12 +311,18 @@ object ReelPublishManager {
                         file = localVideoFile,
                         contentType = "video/mp4"
                     ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
+                    ?: SupabaseServices.Storage.uploadFileWithProgress(
+                        bucketName = "user-uploads",
+                        path = "reels/$userId/$fileName",
+                        file = localVideoFile,
+                        contentType = "video/mp4"
+                    ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
 
                 if (uploadedVideoUrl.isNullOrBlank()) {
                     Log.e(TAG, "Publish failed at UPLOAD_VIDEO: storage upload returned null")
                     return@withContext PublishResult.Failed(
                         PublishStage.UPLOAD_VIDEO,
-                        "رفض التخزين السحابي الملف (تحقق من السلال user-uploads/media-assets والشبكة)"
+                        "رفض التخزين السحابي الملف (تحقق من السلال reels/media-assets/user-uploads والشبكة)"
                     )
                 }
 
@@ -338,11 +344,17 @@ object ReelPublishManager {
                     runCatching {
                         FileOutputStream(tmpThumb).use { it.write(thumbnailBytes) }
                         val url = SupabaseServices.Storage.uploadFileWithProgress(
-                            bucketName = "media-assets",
+                            bucketName = "reels",
                             path = "thumbnails/$userId/$thumbFileName",
                             file = tmpThumb,
                             contentType = "image/jpeg"
                         ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
+                            ?: SupabaseServices.Storage.uploadFileWithProgress(
+                                bucketName = "media-assets",
+                                path = "thumbnails/$userId/$thumbFileName",
+                                file = tmpThumb,
+                                contentType = "image/jpeg"
+                            ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
                         tmpThumb.delete()
                         url
                     }.getOrNull()?.let { finalThumbUrl = it }

@@ -125,7 +125,7 @@ fun ReelPlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                android.util.Log.w("ReelPlayer", "Media3 playback error handled gracefully: ${error.message}")
+                android.util.Log.w("ReelPlayer", "Media3 playback error handled: ${error.message}")
                 hasError = true
                 isBuffering = false
                 isActuallyPlaying = false

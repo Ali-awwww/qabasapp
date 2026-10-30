@@ -1,6 +1,6 @@
 {
-  "summary":  "خطة تنفيذ إضافة إعدادات تحسين جودة ما قبل النشر (Pre-Publish Optimization Settings) لشاشة نشر الريلز",
-  "updatedAt":  "2026-10-30T06:55:01.344546274Z",
+  "summary":  "خطة إعادة ضبط ومعالجة الاتصال بسحابة Supabase Storage وتفعيل السلال المعتمدة لتشغيل فيديو الريلز بدون انقطاع",
+  "updatedAt":  "2026-10-30T07:44:40.854308205Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
