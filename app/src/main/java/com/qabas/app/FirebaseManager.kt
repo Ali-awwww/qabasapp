@@ -69,16 +69,27 @@ object FirebaseManager {
         }
     }
 
+    private fun isSyntheticUserId(userId: String?): Boolean {
+        if (userId.isNullOrBlank()) return true
+        return userId == "local_user" || userId.startsWith("local_") || userId.startsWith("dev_") || userId.startsWith("anon_")
+    }
+
     /**
      * مزامنة بيانات المستخدم مع Firestore
      */
     suspend fun syncUserToFirestore(context: Context, userId: String, displayName: String?, email: String?) {
+        val auth = FirebaseAuth.getInstance().currentUser
+        val targetUid = auth?.uid ?: userId
+        if (isSyntheticUserId(targetUid) || auth == null) {
+            Log.d(TAG, "syncUserToFirestore skipped for synthetic or unauthenticated user: $targetUid")
+            return
+        }
         try {
             val db = getFirestore(context)
-            val userRef = db.collection("users").document(userId)
+            val userRef = db.collection("users").document(targetUid)
 
             val payload = hashMapOf<String, Any>(
-                "userId" to userId,
+                "userId" to targetUid,
                 "has_reward" to false,
                 "total_wins" to 0,
                 "updatedAt" to FieldValue.serverTimestamp()
@@ -91,9 +102,8 @@ object FirebaseManager {
             }
 
             userRef.set(payload, SetOptions.merge()).await()
-            Log.d(TAG, "User $userId synced to Firestore successfully")
+            Log.d(TAG, "User $targetUid synced to Firestore successfully")
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.UPDATE, "users/$userId")
             Log.w(TAG, "Failed to sync user to Firestore: ${e.message}")
         }
     }
@@ -109,12 +119,18 @@ object FirebaseManager {
         rank: Int,
         badge: String
     ) {
+        val auth = FirebaseAuth.getInstance().currentUser
+        val targetUid = auth?.uid ?: userId
+        if (isSyntheticUserId(targetUid) || auth == null) {
+            Log.d(TAG, "syncLeaderboardToFirestore skipped for synthetic or unauthenticated user: $targetUid")
+            return
+        }
         try {
             val db = getFirestore(context)
-            val entryRef = db.collection("leaderboard").document(userId)
+            val entryRef = db.collection("leaderboard").document(targetUid)
 
             val payload = hashMapOf<String, Any>(
-                "userId" to userId,
+                "userId" to targetUid,
                 "name" to name,
                 "points" to points,
                 "rank" to rank,
@@ -126,7 +142,6 @@ object FirebaseManager {
             entryRef.set(payload, SetOptions.merge()).await()
             Log.d(TAG, "Leaderboard entry synced to Firestore successfully")
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.UPDATE, "leaderboard/$userId")
             Log.w(TAG, "Failed to sync leaderboard to Firestore: ${e.message}")
         }
     }
@@ -142,13 +157,19 @@ object FirebaseManager {
         script: String,
         hasVoiceover: Boolean
     ) {
+        val auth = FirebaseAuth.getInstance().currentUser
+        val targetUid = auth?.uid ?: userId
+        if (isSyntheticUserId(targetUid) || auth == null) {
+            Log.d(TAG, "saveProjectToFirestore skipped for synthetic or unauthenticated user: $targetUid")
+            return
+        }
         try {
             val db = getFirestore(context)
-            val projectRef = db.collection("users").document(userId).collection("projects").document(projectId)
+            val projectRef = db.collection("users").document(targetUid).collection("projects").document(projectId)
 
             val payload = hashMapOf<String, Any>(
                 "projectId" to projectId,
-                "userId" to userId,
+                "userId" to targetUid,
                 "title" to title,
                 "ai_script" to script,
                 "has_voiceover" to hasVoiceover,
@@ -158,7 +179,6 @@ object FirebaseManager {
             projectRef.set(payload, SetOptions.merge()).await()
             Log.d(TAG, "Project $projectId synced to Firestore successfully")
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.UPDATE, "users/$userId/projects/$projectId")
             Log.w(TAG, "Failed to sync project to Firestore: ${e.message}")
         }
     }

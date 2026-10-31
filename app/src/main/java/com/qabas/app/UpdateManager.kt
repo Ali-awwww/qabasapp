@@ -135,7 +135,7 @@ object UpdateManager {
             }
             null
         } catch (e: Exception) {
-            Log.e(TAG, "❌ fetchGitHubTokenFromSupabase: ${e.message}")
+            Log.d(TAG, "fetchGitHubTokenFromSupabase skipped/denied: ${e.message}")
             null
         }
     }

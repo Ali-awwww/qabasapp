@@ -188,6 +188,45 @@ object SupabaseServices {
             }.decodeSingleOrNull<UserRow>()
         }.onFailure { Log.e(TAG, "getUserByCustomId failed: ${it.message}") }.getOrNull()
 
+        suspend fun getUserByAccountNumber(accountNumber: String): UserRow? = runCatching {
+            val client = client ?: return null
+            val cleanAcc = accountNumber.trim()
+            if (cleanAcc.isBlank()) return null
+            val formatted = if (cleanAcc.startsWith("#")) cleanAcc else "#$cleanAcc"
+            val altFormatted = formatted.removePrefix("#")
+            
+            val direct = client.postgrest.from("users").select {
+                filter {
+                    or {
+                        eq("account_number", formatted)
+                        eq("account_number", altFormatted)
+                        ilike("account_number", "%$altFormatted")
+                    }
+                }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()
+            if (direct != null) return direct
+
+            val digitsOnly = cleanAcc.filter { it.isDigit() }
+            if (digitsOnly.isNotEmpty()) {
+                val seq = digitsOnly.toIntOrNull()
+                if (seq != null) {
+                    val fullQbs = String.format(java.util.Locale.ROOT, "#QBS-%04d", seq)
+                    val qbsNoHash = fullQbs.removePrefix("#")
+                    return client.postgrest.from("users").select {
+                        filter {
+                            or {
+                                eq("account_number", fullQbs)
+                                eq("account_number", qbsNoHash)
+                            }
+                        }
+                        limit(1)
+                    }.decodeSingleOrNull<UserRow>()
+                }
+            }
+            null
+        }.onFailure { Log.e(TAG, "getUserByAccountNumber failed: ${it.message}") }.getOrNull()
+
         suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
             val client = client ?: return 1
             val users = client.postgrest.from("users").select().decodeList<UserRow>()
@@ -585,6 +624,10 @@ object SupabaseServices {
             }.decodeSingleOrNull<UserRow>()
             user?.email
         }.onFailure { Log.e(TAG, "findEmailByCustomId failed: ${it.message}") }.getOrNull()
+
+        suspend fun findEmailByAccountNumber(accountNumber: String): String? = runCatching {
+            getUserByAccountNumber(accountNumber)?.email
+        }.onFailure { Log.e(TAG, "findEmailByAccountNumber failed: ${it.message}") }.getOrNull()
 
         // ── Promo Codes Operations ──
         suspend fun getValidPromoCodes(): List<PromoCodeRow> = runCatching {
@@ -1066,6 +1109,14 @@ object SupabaseServices {
         }
     }
 
+    fun isSyntheticOrLocalUserId(userId: String?): Boolean {
+        if (userId.isNullOrBlank()) return true
+        return userId == "local_user" ||
+               userId.startsWith("dev_") ||
+               userId.startsWith("local_") ||
+               userId.startsWith("anon_")
+    }
+
     // ==========================================
     // Profiles Operations
     // ==========================================
@@ -1076,28 +1127,52 @@ object SupabaseServices {
             email: String? = null,
             avatarUrl: String? = null,
             preferencesJson: String? = null
-        ): Boolean = runCatching {
-            val client = client ?: return false
-            val row = ProfileRow(
-                id = userId,
-                email = email,
-                fullName = displayName,
-                avatarUrl = avatarUrl,
-                role = "user"
-            )
-            client.postgrest.from("profiles").upsert(row)
-            true
-        }.onFailure { Log.e(TAG, "syncUserProfile failed: ${it.message}") }.getOrDefault(false)
-
-        suspend fun getUserProfile(userId: String): ProfileRow? = runCatching {
-            val client = client ?: return null
-            client.postgrest.from("profiles").select {
-                filter {
-                    eq("id", userId)
+        ): Boolean {
+            if (isSyntheticOrLocalUserId(userId)) {
+                Log.d(TAG, "syncUserProfile skipped for synthetic/local userId: $userId")
+                return false
+            }
+            return runCatching {
+                val client = client ?: return false
+                val row = ProfileRow(
+                    id = userId,
+                    email = email,
+                    fullName = displayName,
+                    avatarUrl = avatarUrl,
+                    role = "user"
+                )
+                client.postgrest.from("profiles").upsert(row)
+                true
+            }.onFailure { err ->
+                if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
+                    Log.w(TAG, "syncUserProfile RLS/permission denied for $userId: ${err.message}")
+                } else {
+                    Log.e(TAG, "syncUserProfile failed: ${err.message}")
                 }
-                limit(1)
-            }.decodeSingleOrNull<ProfileRow>()
-        }.onFailure { Log.e(TAG, "getUserProfile failed: ${it.message}") }.getOrNull()
+            }.getOrDefault(false)
+        }
+
+        suspend fun getUserProfile(userId: String): ProfileRow? {
+            if (isSyntheticOrLocalUserId(userId)) {
+                Log.d(TAG, "getUserProfile skipped for synthetic/local userId: $userId")
+                return null
+            }
+            return runCatching {
+                val client = client ?: return null
+                client.postgrest.from("profiles").select {
+                    filter {
+                        eq("id", userId)
+                    }
+                    limit(1)
+                }.decodeSingleOrNull<ProfileRow>()
+            }.onFailure { err ->
+                if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
+                    Log.w(TAG, "getUserProfile RLS/permission denied for $userId: ${err.message}")
+                } else {
+                    Log.e(TAG, "getUserProfile failed: ${err.message}")
+                }
+            }.getOrNull()
+        }
 
         /**
          * جلب مقاطع الريلز النشطة مع تقرير تشخيصي دقيق (زمن الاستجابة، رمز HTTP، ومرحلة الفشل).
@@ -1440,26 +1515,50 @@ object SupabaseServices {
     // UserSettings Operations
     // ==========================================
     object UserSettings {
-        suspend fun saveUserSettings(userId: String, jsonPayload: String): Boolean = runCatching {
-            val client = client ?: return false
-            val row = UserSettingsRow(
-                userId = userId,
-                preferencesJson = jsonPayload,
-                updatedAt = java.time.Instant.now().toString()
-            )
-            client.postgrest.from("user_settings").upsert(row)
-            true
-        }.onFailure { Log.e(TAG, "saveUserSettings failed: ${it.message}") }.getOrDefault(false)
-
-        suspend fun getUserSettings(userId: String): UserSettingsRow? = runCatching {
-            val client = client ?: return null
-            client.postgrest.from("user_settings").select {
-                filter {
-                    eq("user_id", userId)
+        suspend fun saveUserSettings(userId: String, jsonPayload: String): Boolean {
+            if (isSyntheticOrLocalUserId(userId)) {
+                Log.d(TAG, "saveUserSettings skipped for synthetic/local userId: $userId")
+                return false
+            }
+            return runCatching {
+                val client = client ?: return false
+                val row = UserSettingsRow(
+                    userId = userId,
+                    preferencesJson = jsonPayload,
+                    updatedAt = java.time.Instant.now().toString()
+                )
+                client.postgrest.from("user_settings").upsert(row)
+                true
+            }.onFailure { err ->
+                if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
+                    Log.w(TAG, "saveUserSettings RLS/permission denied for $userId: ${err.message}")
+                } else {
+                    Log.e(TAG, "saveUserSettings failed: ${err.message}")
                 }
-                limit(1)
-            }.decodeSingleOrNull<UserSettingsRow>()
-        }.onFailure { Log.e(TAG, "getUserSettings failed: ${it.message}") }.getOrNull()
+            }.getOrDefault(false)
+        }
+
+        suspend fun getUserSettings(userId: String): UserSettingsRow? {
+            if (isSyntheticOrLocalUserId(userId)) {
+                Log.d(TAG, "getUserSettings skipped for synthetic/local userId: $userId")
+                return null
+            }
+            return runCatching {
+                val client = client ?: return null
+                client.postgrest.from("user_settings").select {
+                    filter {
+                        eq("user_id", userId)
+                    }
+                    limit(1)
+                }.decodeSingleOrNull<UserSettingsRow>()
+            }.onFailure { err ->
+                if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
+                    Log.w(TAG, "getUserSettings RLS/permission denied for $userId: ${err.message}")
+                } else {
+                    Log.e(TAG, "getUserSettings failed: ${err.message}")
+                }
+            }.getOrNull()
+        }
     }
 
     // ==========================================
