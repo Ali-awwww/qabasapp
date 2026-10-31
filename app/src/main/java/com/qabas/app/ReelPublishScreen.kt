@@ -50,11 +50,11 @@ fun ReelPublishScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    val isDeveloper = remember(currentUserEmail) {
+    val isDeveloper = remember(currentUserEmail, currentUserId) {
         ReelPublishManager.isDeveloperUser(context, currentUserEmail)
     }
 
-    val publishStatus = remember(currentUserEmail) {
+    val publishStatus = remember(currentUserEmail, currentUserId) {
         ReelPublishManager.checkPublishEligibility(context, currentUserEmail)
     }
 
