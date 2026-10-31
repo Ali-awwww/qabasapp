@@ -295,7 +295,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                     singleLine = true
                 )
 
-                // فلاتر الحالة الأربعة بتوزيع متناسق
+                // فلاتر الحالات المسجلة بتوزيع متناسق
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
