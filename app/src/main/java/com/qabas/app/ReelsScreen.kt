@@ -349,11 +349,8 @@ fun ReelsScreen(
         ?: FirebaseAuthRepository.getEffectiveUserId(context)
         ?: currentUserEmail
 
-    val isDeveloper = remember(currentUserEmail) {
-        ReelPublishManager.isDeveloperUser(context, currentUserEmail) ||
-        prefs.getBoolean("is_developer", false) ||
-        prefs.getBoolean("is_admin", false) ||
-        CloudServices.isOwnerAccount(currentUserEmail)
+    val isDeveloper = remember(currentUserEmail, currentSupabaseId) {
+        ReelPublishManager.isDeveloperUser(context, currentUserEmail)
     }
 
     // 🛡️ فحص دقيق للجلسة في Firebase Auth والتطبيق لمنع الضيف فقط وليس الحسابات المسجلة
