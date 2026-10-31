@@ -857,6 +857,7 @@ fun AiStudioAgentScreen(
                         providerName = keyResolution.first.displayName,
                         modelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
                         isOfflineMode = isOfflineMode,
+                        isOfflineModelReady = OnDeviceModelManager.isModelInstalled(context, activeLocalModel),
                         isProviderReady = keyResolution.third != KeySource.NONE,
                         isGitHubReady = githubHealth.isConnected,
                         isChecking = isPinging,
