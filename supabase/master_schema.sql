@@ -730,8 +730,12 @@ begin
     end if;
 
     if caller_role in ('developer', 'admin', 'owner') then
+        new.created_at := now();
         return new;
     end if;
+
+    -- Never trust a client-supplied timestamp when enforcing a daily quota.
+    new.created_at := now();
 
     perform pg_advisory_xact_lock(hashtextextended(caller_id, 0));
 
@@ -754,6 +758,36 @@ drop trigger if exists trg_enforce_reel_daily_publish_limit on public.reels;
 create trigger trg_enforce_reel_daily_publish_limit
 before insert on public.reels
 for each row execute function public.enforce_reel_daily_publish_limit();
+
+-- Prevent owners from backdating posts or editing counters/privileged metadata.
+create or replace function public.protect_reel_server_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $protect_reel_server_fields$
+begin
+    if coalesce(auth.jwt()->'app_metadata'->>'role', '') not in ('developer', 'admin', 'owner') then
+        if new.user_id::text <> old.user_id::text
+           or new.created_at <> old.created_at then
+            raise exception 'reel_server_fields_are_immutable' using errcode = '42501';
+        end if;
+        new.likes_count := old.likes_count;
+        new.comments_count := old.comments_count;
+        new.shares_count := old.shares_count;
+        new.views_count := old.views_count;
+        new.publish_type := old.publish_type;
+        new.is_silent_seed := old.is_silent_seed;
+        new.is_featured_by_dev := old.is_featured_by_dev;
+    end if;
+    return new;
+end;
+$protect_reel_server_fields$;
+
+drop trigger if exists trg_protect_reel_server_fields on public.reels;
+create trigger trg_protect_reel_server_fields
+before update on public.reels
+for each row execute function public.protect_reel_server_fields();
 
 -- Public playback is allowed, but uploads into the reels bucket must be under
 -- videos/<authenticated UID>/... or thumbnails/<authenticated UID>/...
