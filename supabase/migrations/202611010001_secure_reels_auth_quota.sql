@@ -99,6 +99,7 @@ with check (
             coalesce(publish_type, 'normal') = 'normal'
             and not coalesce(is_silent_seed, false)
             and not coalesce(is_featured_by_dev, false)
+            and not (to_jsonb(tags) ? 'silent_seed')
         )
     )
 );
@@ -117,6 +118,7 @@ with check (
         and coalesce(publish_type, 'normal') = 'normal'
         and not coalesce(is_silent_seed, false)
         and not coalesce(is_featured_by_dev, false)
+        and not (to_jsonb(tags) ? 'silent_seed')
     )
     or coalesce(auth.jwt()->'app_metadata'->>'role', '') in ('developer', 'admin', 'owner')
 );
