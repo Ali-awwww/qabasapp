@@ -79,7 +79,7 @@ internal fun AgentLiveConsoleTab(
 
     var ghState by remember { mutableStateOf(GitHubConnectionState.SYNCING) }
     var ghUser by remember { mutableStateOf<String?>(null) }
-    var ghBranch by remember { mutableStateOf("main") }
+    var ghBranch by remember { mutableStateOf("غير محدد") }
     var ghLatencyMs by remember { mutableLongStateOf(0L) }
     var ghErrorMessage by remember { mutableStateOf("") }
 
@@ -97,7 +97,7 @@ internal fun AgentLiveConsoleTab(
             ghLatencyMs = (System.currentTimeMillis() - t0).coerceAtLeast(1L)
             if (user != null) {
                 ghUser = user
-                ghBranch = if (owner.isNotBlank() && repo.isNotBlank()) client.getDefaultBranch() else "main"
+                ghBranch = if (owner.isNotBlank() && repo.isNotBlank()) client.getDefaultBranch().ifBlank { "غير محدد" } else "غير محدد"
                 ghState = GitHubConnectionState.CONNECTED
                 ghErrorMessage = ""
             } else {
@@ -611,7 +611,7 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "المستودع الرئيسي الافتراضي",
+                                if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -642,7 +642,7 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Text(
                                 when (ghState) {
-                                    GitHubConnectionState.CONNECTED -> "● جاهز للتنفيذ ⚡"
+                                    GitHubConnectionState.CONNECTED -> if (owner.isNotBlank() && repo.isNotBlank()) "● اتصال GitHub سليم" else "● GitHub متصل · اختر مستودعاً"
                                     GitHubConnectionState.SYNCING -> "○ جاري المزامنة..."
                                     GitHubConnectionState.NOT_CONFIGURED -> "⚠️ بانتظار الرمز"
                                     GitHubConnectionState.PERMISSION_ERROR -> "❌ خطأ صلاحية"
