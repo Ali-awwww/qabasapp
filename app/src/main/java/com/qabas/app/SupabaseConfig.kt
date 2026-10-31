@@ -132,10 +132,10 @@ object SupabaseConfig {
                 defaultSchema = "public"
             }
             install(Auth) {
-                autoLoadFromStorage = false
-                enableLifecycleCallbacks = false
-                alwaysAutoRefresh = false
-                sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
+                // Persist the authenticated session across process restarts and refresh expiring tokens.
+                autoLoadFromStorage = true
+                autoSaveToStorage = true
+                alwaysAutoRefresh = true
             }
             install(Storage)
             install(Functions)
