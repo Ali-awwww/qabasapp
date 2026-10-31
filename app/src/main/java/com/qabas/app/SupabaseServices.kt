@@ -1511,37 +1511,32 @@ object SupabaseServices {
          */
         suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Boolean = runCatching {
             val client = client ?: return false
-            if (userId.isNotBlank() && !isSyntheticOrLocalUserId(userId)) {
+            val authenticatedUid = client.auth.currentUserOrNull()?.id
+            if (!authenticatedUid.isNullOrBlank()) {
                 client.postgrest.from("reel_history").insert(
                     mapOf(
                         "reel_id" to reelId,
-                        "user_id" to userId,
+                        "user_id" to authenticatedUid,
                         "watched_duration_sec" to watchedDurationSec.coerceIn(0, 3600)
                     )
                 )
             }
-            incrementReelViews(reelId)
-            true
-        }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrDefault(false)
+            // Public view counting is performed by a narrowly scoped SECURITY DEFINER RPC,
+            // not by granting clients permission to update arbitrary reel columns.
+            incrementReelViews(reelId) != null
+        }.onFailure { Log.e(TAG, "recordReelWatch failed", it) }.getOrDefault(false)
 
         /**
-         * زيادة عداد مشاهدات الريل الفعلي في قاعدة البيانات السحابية (views_count + 1).
+         * Increment the real cloud view counter through a restricted database function.
          */
         suspend fun incrementReelViews(reelId: String): Int? = runCatching {
             val client = client ?: return null
-            // 1. جلب العدد الحالي الحقيقي
-            val current = client.postgrest.from("reels").select {
-                filter { eq("id", reelId) }
-                limit(1)
-            }.decodeSingleOrNull<ReelRow>()?.viewsCount ?: 0
-
-            val newCount = current + 1
-            // 2. تحديث الحقل في جدول reels
-            client.postgrest.from("reels").update(mapOf("views_count" to newCount)) {
-                filter { eq("id", reelId) }
-            }
-            newCount
-        }.onFailure { Log.e(TAG, "incrementReelViews failed for $reelId: ${it.message}") }.getOrNull()
+            val params = buildJsonObject { put("p_reel_id", reelId) }
+            client.postgrest.rpc(
+                function = "increment_reel_view_count",
+                parameters = params
+            ).decodeAs<Int>()
+        }.onFailure { Log.e(TAG, "incrementReelViews failed for $reelId", it) }.getOrNull()
     }
 
     // ==========================================
