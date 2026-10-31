@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,7 +70,7 @@ fun AgentHubOverview(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize().background(HubBackground).padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxSize().background(HubBackground).padding(horizontal = 16.dp).testTag("agent_hub_overview"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -170,7 +171,7 @@ fun AgentHubProjectsSection(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize().background(HubBackground).padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxSize().background(HubBackground).padding(horizontal = 16.dp).testTag("agent_hub_projects"),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
