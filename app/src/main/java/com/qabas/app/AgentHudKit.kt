@@ -483,15 +483,18 @@ fun AgentGeometricControlDeck(
     modifier: Modifier = Modifier
 ) {
     val modules = listOf(
-        AgentTab("01", "استوديو المهام", Icons.Default.RocketLaunch, Color(0xFF00E5FF)),
-        AgentTab("02", "التشغيل المباشر", Icons.Default.Terminal, Color(0xFF10B981)),
-        AgentTab("03", "ترسانة الأدوات", Icons.Default.Handyman, Color(0xFF00E5FF)),
-        AgentTab("04", "سجل العمليات", Icons.Default.History, Color(0xFF10B981))
+        AgentTab("01", "نظرة عامة", Icons.Default.Dashboard, Color(0xFF00E5FF)),
+        AgentTab("02", "مساحة العمل", Icons.Default.Code, Color(0xFF8B5CF6)),
+        AgentTab("03", "الكونسول", Icons.Default.Terminal, Color(0xFF10B981)),
+        AgentTab("04", "المشاريع", Icons.Default.FolderOpen, Color(0xFF00E5FF)),
+        AgentTab("05", "النشاط", Icons.Default.History, Color(0xFF8B5CF6)),
+        AgentTab("06", "الأدوات", Icons.Default.Handyman, Color(0xFF10B981))
     )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -530,7 +533,7 @@ fun AgentGeometricControlDeck(
                     }
                 ),
                 modifier = Modifier
-                    .weight(1f)
+                    .width(104.dp)
                     .height(52.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { onSelect(index) }
@@ -563,12 +566,7 @@ fun AgentGeometricControlDeck(
                         )
                     }
                     Text(
-                        text = when (index) {
-                            0 -> "المهام"
-                            1 -> "الطرفية"
-                            2 -> "الأدوات"
-                            else -> "السجلات"
-                        },
+                        text = module.label,
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
