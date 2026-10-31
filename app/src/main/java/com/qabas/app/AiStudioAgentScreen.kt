@@ -611,6 +611,13 @@ fun AiStudioAgentScreen(
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626)).testTag("agent_hub_back")
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
                             Surface(
                                 onClick = { showDevConsole = false },
                                 shape = RoundedCornerShape(10.dp),
@@ -628,7 +635,7 @@ fun AiStudioAgentScreen(
                             }
                             Spacer(Modifier.width(10.dp))
                             Text(
-                                "كونسول وأدوات المطور",
+                                "مركز التطوير الذكي",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 fontSize = 15.sp,
