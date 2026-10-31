@@ -84,7 +84,7 @@ fun AiStudioAgentScreen(
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab) }
-    var showDevConsole by remember { mutableStateOf(false) }
+    var showDevConsole by remember { mutableStateOf(true) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
     val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
@@ -811,17 +811,17 @@ fun AiStudioAgentScreen(
             Column(
                 Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
             ) {
-            // Cyber Live Telemetry HUD Strip (Tokens, Speed, Latency, Diagnostics)
-            CyberLiveTelemetryHud(
-                tokensIn = if (isExecuting) 1240 else 420,
-                tokensOut = if (isExecuting) 850 else 180,
-                latencyMs = geminiHealth.latencyMs,
-                tokensPerSec = if (isExecuting) 38.5f else 0f,
-                isThinking = isExecuting,
-                onRunDiagnostic = {
-                    refreshDiagnostics()
-                    Toast.makeText(context, "تم تشخيص حالة المحرك والمستودع بنجاح 🔬", Toast.LENGTH_SHORT).show()
-                },
+            // Live telemetry is sourced from the actual GitHub health check and device runtime.
+            LiveTelemetryHudStrip(
+                latencyMs = githubHealth.latencyMs,
+                isConnected = githubHealth.isConnected,
+                isPinging = isPinging,
+                activeModelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                isOfflineMode = isOfflineMode,
+                usedMemoryMb = liveUsedMemoryMb,
+                maxMemoryMb = liveMaxMemoryMb,
+                onRefresh = { refreshDiagnostics() },
+                onModelClick = { showModelPicker = true },
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
 
