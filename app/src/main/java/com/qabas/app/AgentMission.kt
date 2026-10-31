@@ -321,7 +321,7 @@ private suspend fun executeAgentMissionInner(
 
         // الخطوة 4: التقرير النهائي
         val finalReport = """
-            ✅ تم إنجاز المهمة بنجاح محلياً 100% بدون إنترنت وبدون مفتاح API!
+            اكتمل توليد مسودة الكود محلياً عبر النموذج المثبت، بدون إنترنت أو مفتاح API.
             • النموذج المستخدم: ${readyModel.name} (${readyModel.sizeFormatted})
             • بيئة التشغيل: On-Device Local Inference (${if (inferenceData.isNativeJni) "تسريع المعالج المحلي JNI" else "معالجة محلية داخلية"})
             • زمن المعالجة الفعلي: ${inferenceData.executionLatencyMs}ms
