@@ -174,6 +174,7 @@ fun ReelsScreen(
     val savedReels by ReelPreferencesManager.savedReels.collectAsState()
     val likedReels by ReelPreferencesManager.likedReels.collectAsState()
     val watchHistory by ReelPreferencesManager.watchHistory.collectAsState()
+    val alAtharEnabled by ReelPreferencesManager.alAtharEnabled.collectAsState()
 
     var allReels by remember { mutableStateOf<List<SupabaseServices.ReelRow>>(emptyList()) }
     var hiddenReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -253,6 +254,13 @@ fun ReelsScreen(
     // ⚡ محرك الجلب المسبق الصامت (لوضع الأثر)
     LaunchedEffect(Unit) {
         SilentReelPrefetcher.startSync(context, scope)
+    }
+
+    LaunchedEffect(alAtharEnabled) {
+        if (!alAtharEnabled && selectedTab == 2) {
+            selectedTab = 0
+            isAlAtharMode = false
+        }
     }
 
     LaunchedEffect(dockExpanded) {
@@ -956,10 +964,15 @@ fun ReelsScreen(
                         }
 
                         Box(modifier = Modifier.fillMaxSize()) {
+                            val aspectRatio = remember(reel.metadata) {
+                                reel.metadata?.get("aspect_ratio")?.toString()?.trim('"') ?: "9:16"
+                            }
+                            
                             ReelPlayer(
                                 videoUrl = reel.videoUrl,
                                 // بوابة التشغيل الموحّدة: الصفحة مرئية + الشبكة مسموحة + الشاشة نشطة
                                 isPlaying = isPageVisible && isNetworkPermitted && isScreenActive,
+                                aspectRatio = aspectRatio,
                                 playbackSpeed = playbackSpeed,
                                 volume = audioVolume,
                                 brightness = screenBrightness,
@@ -1258,34 +1271,36 @@ fun ReelsScreen(
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    if (alAtharEnabled) {
+                                        Spacer(modifier = Modifier.width(2.dp))
 
-                                    // Al-Athar Mode Tab
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
-                                            .border(
-                                                BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
-                                                RoundedCornerShape(16.dp)
+                                        // Al-Athar Mode Tab
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
+                                                .border(
+                                                    BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
+                                                    RoundedCornerShape(16.dp)
+                                                )
+                                                .clickable {
+                                                    selectedTab = 2
+                                                    isAlAtharMode = true
+                                                    ReelPreferencesManager.triggerHaptic(context)
+                                                }
+                                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "الأثر ✦",
+                                                fontFamily = CairoFont,
+                                                fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
+                                                fontSize = 11.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
                                             )
-                                            .clickable {
-                                                selectedTab = 2
-                                                isAlAtharMode = true
-                                                ReelPreferencesManager.triggerHaptic(context)
-                                            }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "الأثر ✦",
-                                            fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            softWrap = false,
-                                            maxLines = 1,
-                                            color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
-                                        )
+                                        }
                                     }
                                 }
                             }

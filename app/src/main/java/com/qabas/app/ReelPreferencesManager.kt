@@ -67,6 +67,7 @@ object ReelPreferencesManager {
     private const val KEY_LIKED_REELS = "reels_liked_reels_json"
     private const val KEY_STATS = "reels_stats_json"
     private const val KEY_CACHED_REELS = "reels_cached_reels_json"
+    private const val KEY_AL_ATHAR_ENABLED = "reels_al_athar_enabled"
 
     // StateFlows for UI observation
     private val _autoplayWifiOnly = MutableStateFlow(false)
@@ -95,6 +96,9 @@ object ReelPreferencesManager {
 
     private val _doubleTapAction = MutableStateFlow("LIKE")
     val doubleTapAction: StateFlow<String> = _doubleTapAction.asStateFlow()
+
+    private val _alAtharEnabled = MutableStateFlow(true) // Default to true as it's a key feature
+    val alAtharEnabled: StateFlow<Boolean> = _alAtharEnabled.asStateFlow()
 
     // History and Lists
     private val _watchHistory = MutableStateFlow<List<ReelHistoryItem>>(emptyList())
@@ -127,6 +131,7 @@ object ReelPreferencesManager {
         _showCaptions.value = prefs.getBoolean(KEY_SHOW_CAPTIONS, true)
         _contentCategory.value = prefs.getString(KEY_CONTENT_CATEGORY, "ALL") ?: "ALL"
         _doubleTapAction.value = prefs.getString(KEY_DOUBLE_TAP_ACTION, "LIKE") ?: "LIKE"
+        _alAtharEnabled.value = prefs.getBoolean(KEY_AL_ATHAR_ENABLED, true)
 
         // Load History safely & purge any legacy mock/demo data
         fun isMock(item: ReelHistoryItem): Boolean {
@@ -211,6 +216,12 @@ object ReelPreferencesManager {
         _doubleTapAction.value = action
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_DOUBLE_TAP_ACTION, action).apply()
+    }
+
+    fun setAlAtharEnabled(context: Context, enabled: Boolean) {
+        _alAtharEnabled.value = enabled
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_AL_ATHAR_ENABLED, enabled).apply()
     }
 
     // --- Watch History Operations ---

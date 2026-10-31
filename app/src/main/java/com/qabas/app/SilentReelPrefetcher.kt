@@ -55,6 +55,15 @@ object SilentReelPrefetcher {
     }
 
     private suspend fun performSync(context: Context) {
+        // التحقق من تفعيل الميزة في الإعدادات
+        if (!ReelPreferencesManager.alAtharEnabled.value) {
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false,
+                lastMessage = "Al-Athar Disabled"
+            )
+            return
+        }
+
         _syncState.value = _syncState.value.copy(
             lastMessage = "Checking Cloud...",
             downloadedCount = SilentReelStorageManager.getDownloadedCount(context),

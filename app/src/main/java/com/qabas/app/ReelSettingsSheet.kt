@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
@@ -43,8 +45,10 @@ fun ReelSettingsSheet(
     val playbackSpeed by ReelPreferencesManager.playbackSpeed.collectAsState()
     val showCaptions by ReelPreferencesManager.showCaptions.collectAsState()
     val doubleTapAction by ReelPreferencesManager.doubleTapAction.collectAsState()
+    val alAtharEnabled by ReelPreferencesManager.alAtharEnabled.collectAsState()
 
     var cacheStatus by remember { mutableStateOf<String?>(null) }
+    var showAlAtharExplanation by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -211,6 +215,21 @@ fun ReelSettingsSheet(
                 }
             )
 
+            // ميزة الأثر
+            ReelSettingSwitchRow(
+                title = "تفعيل ميزة الأثر ✦",
+                subtitle = "تحميل المحتوى الإيماني مسبقاً ليعمل بدون إنترنت وفي الخلفية",
+                checked = alAtharEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled) {
+                        showAlAtharExplanation = true
+                    } else {
+                        ReelPreferencesManager.setAlAtharEnabled(context, false)
+                        ReelPreferencesManager.triggerHaptic(context)
+                    }
+                }
+            )
+
             ReelSettingSwitchRow(
                 title = "التشغيل التلقائي عبر Wi-Fi فقط",
                 subtitle = "عدم بدء الفيديو تلقائياً على باقات الجوال للحد من الاستهلاك",
@@ -358,6 +377,75 @@ fun ReelSettingsSheet(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
+    }
+
+    // Al-Athar Explanation Dialog
+    if (showAlAtharExplanation) {
+        AlertDialog(
+            onDismissRequest = { showAlAtharExplanation = false },
+            containerColor = Color(0xFF0F172A),
+            titleContentColor = GoldPrimary,
+            textContentColor = Color.White.copy(alpha = 0.85f),
+            icon = {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text(
+                    "ميزة الأثر ✦",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "عند تفعيل هذه الميزة، سيقوم التطبيق بتحميل مجموعة مختارة من المقاطع الإيمانية والنفحات الإيمانية في الخلفية بشكل صامت.",
+                        fontFamily = CairoFont,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        color = GoldPrimary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "هذا يضمن لك وصولاً سريعاً للمحتوى حتى عند انقطاع الإنترنت، لتكون صدقة جارية وأثراً لا ينقطع.",
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            color = GoldPrimary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(12.dp),
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        ReelPreferencesManager.setAlAtharEnabled(context, true)
+                        ReelPreferencesManager.triggerHaptic(context)
+                        showAlAtharExplanation = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("موافق وتفعيل", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlAtharExplanation = false }) {
+                    Text("إلغاء", fontFamily = CairoFont, color = Color.White.copy(alpha = 0.6f))
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.padding(16.dp).border(BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)), RoundedCornerShape(24.dp))
+        )
     }
 }
 

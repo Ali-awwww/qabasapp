@@ -58,6 +58,7 @@ import kotlinx.coroutines.isActive
 fun ReelPlayer(
     videoUrl: String,
     isPlaying: Boolean,
+    aspectRatio: String = "9:16",
     playbackSpeed: Float = 1.0f,
     volume: Float = 1f,
     brightness: Float = 0.5f,
@@ -294,7 +295,7 @@ fun ReelPlayer(
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    resizeMode = if (aspectRatio == "9:16") AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
