@@ -114,7 +114,7 @@ class AgentQualityTest {
     fun `agent screen renders deck modules and sub-tabs`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 2)
+                AiStudioAgentScreen(onBack = {}, initialTab = 0)
             }
         }
 
@@ -122,9 +122,13 @@ class AgentQualityTest {
         composeTestRule.onNodeWithTag("deck_module_02").assertExists()
         composeTestRule.onNodeWithTag("deck_module_03").assertExists()
         composeTestRule.onNodeWithTag("deck_module_04").assertExists()
+        composeTestRule.onNodeWithTag("deck_module_05").assertExists()
+        composeTestRule.onNodeWithTag("deck_module_06").assertExists()
+        composeTestRule.onNodeWithTag("agent_hub_overview").assertExists()
+
+        composeTestRule.onNodeWithTag("deck_module_06").performClick()
         composeTestRule.onNodeWithTag("sub_tab_readiness").assertExists()
         composeTestRule.onNodeWithTag("sub_tab_tools").assertExists()
-
         composeTestRule.onNodeWithTag("sub_tab_readiness").performClick()
         composeTestRule.onNodeWithTag("sub_tab_tools").performClick()
     }
