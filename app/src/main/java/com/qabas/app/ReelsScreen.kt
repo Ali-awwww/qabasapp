@@ -210,10 +210,12 @@ fun ReelsScreen(
     val likeInFlight = remember { mutableStateMapOf<String, Boolean>() }
 
     // Top Navigation & Filter State
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: وضع الأثر (Al-Athar)
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: الأثر (Al-Athar)
     var selectedCategory by remember { mutableStateOf("ALL") }
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
+    var showAlAtharExplanation by remember { mutableStateOf(false) }
 
     // Sheets State
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -338,7 +340,10 @@ fun ReelsScreen(
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
-    val currentUserId = SupabaseServices.Auth.getCurrentUserId()
+    // 🛡️ User ID Selection - CRITICAL for RLS
+    // For reads/display, we can fallback. For WRITES (Like/Save/Publish), we MUST use Supabase ID.
+    val currentSupabaseId = SupabaseServices.Auth.getCurrentUserId()
+    val currentUserId = currentSupabaseId
         ?: prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
         ?: FirebaseAuthRepository.getEffectiveUserId(context)
         ?: currentUserEmail
@@ -871,8 +876,27 @@ fun ReelsScreen(
                                     )
 
                                     scope.launch {
-                                        val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
-                                        val ok = authId != null && runCatching {
+                                        val authId = SupabaseServices.Auth.getCurrentUserId()
+                                        
+                                        if (authId == null) {
+                                            // تراجع فوري: لا يمكن الإعجاب سحابياً بدون جلسة Supabase نشطة (RLS Requirement)
+                                            likedReelIds[reel.id] = !newLikedState
+                                            dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
+                                            ReelPreferencesManager.toggleLiked(
+                                                context = context,
+                                                reelId = reel.id,
+                                                title = reel.title,
+                                                userName = reel.userName,
+                                                userAvatar = reel.userAvatar,
+                                                videoUrl = reel.videoUrl,
+                                                category = selectedCategory
+                                            )
+                                            Toast.makeText(context, "انتهت جلسة السحابة — يرجى تسجيل الدخول مجدداً", Toast.LENGTH_SHORT).show()
+                                            likeInFlight[reel.id] = false
+                                            return@launch
+                                        }
+
+                                        val ok = runCatching {
                                             withTimeoutOrNull(5000L) {
                                                 if (newLikedState) {
                                                     SupabaseServices.Profiles.likeReel(reel.id, authId)
@@ -895,7 +919,12 @@ fun ReelsScreen(
                                                 videoUrl = reel.videoUrl,
                                                 category = selectedCategory
                                             )
-                                            Toast.makeText(context, "تعذر تسجيل الإعجاب — تحقق من اتصالك", Toast.LENGTH_SHORT).show()
+                                            val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
+                                                "الخدمات السحابية غير متوفرة حالياً"
+                                            } else {
+                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
+                                            }
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                         }
                                         likeInFlight[reel.id] = false
                                     }
@@ -1271,36 +1300,38 @@ fun ReelsScreen(
                                         )
                                     }
 
-                                    if (alAtharEnabled) {
-                                        Spacer(modifier = Modifier.width(2.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
 
-                                        // Al-Athar Mode Tab
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
-                                                .border(
-                                                    BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
-                                                    RoundedCornerShape(16.dp)
-                                                )
-                                                .clickable {
+                                    // Al-Athar Mode Tab (Always visible for manual switching)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
+                                            .border(
+                                                BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
+                                                RoundedCornerShape(16.dp)
+                                            )
+                                            .clickable {
+                                                if (!alAtharEnabled) {
+                                                    showAlAtharExplanation = true
+                                                } else {
                                                     selectedTab = 2
                                                     isAlAtharMode = true
-                                                    ReelPreferencesManager.triggerHaptic(context)
                                                 }
-                                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "الأثر ✦",
-                                                fontFamily = CairoFont,
-                                                fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
-                                                fontSize = 11.sp,
-                                                softWrap = false,
-                                                maxLines = 1,
-                                                color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
-                                            )
-                                        }
+                                                ReelPreferencesManager.triggerHaptic(context)
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "الأثر ✦",
+                                            fontFamily = CairoFont,
+                                            fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 11.sp,
+                                            softWrap = false,
+                                            maxLines = 1,
+                                            color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
+                                        )
                                     }
                                 }
                             }
@@ -1539,7 +1570,7 @@ fun ReelsScreen(
     // Publish Reel Screen
     if (showPublishDialog) {
         ReelPublishScreen(
-            currentUserId = currentUserId,
+            currentUserId = currentSupabaseId ?: "anonymous",
             currentUserName = currentUserName,
             currentUserEmail = currentUserEmail,
             onDismiss = { showPublishDialog = false },
@@ -1644,6 +1675,19 @@ fun ReelsScreen(
             onLogin = {
                 showGuestLoginPrompt = false
                 onOpenProfile()
+            }
+        )
+    }
+
+    // 🕊️ Al-Athar Explanation Dialog
+    if (showAlAtharExplanation) {
+        AlAtharExplanationDialog(
+            onDismiss = { showAlAtharExplanation = false },
+            onEnable = {
+                scope.launch {
+                    ReelPreferencesManager.setAlAtharEnabled(context, true)
+                }
+                showAlAtharExplanation = false
             }
         )
     }
@@ -3150,6 +3194,104 @@ fun ReelDetailsBottomSheet(
                 StatItem(icon = Icons.Default.Favorite, label = "${reel.likesCount} إعجاب")
                 StatItem(icon = Icons.Default.Comment, label = "${reel.commentsCount} تعليق")
                 StatItem(icon = Icons.Default.Visibility, label = "${reel.viewsCount} مشاهدة")
+            }
+        }
+    }
+}
+
+@Composable
+fun AlAtharExplanationDialog(
+    onDismiss: () -> Unit,
+    onEnable: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 28.dp)
+                .widthIn(max = 440.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.98f))
+                .border(BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.5f)), RoundedCornerShape(28.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = GoldPrimary.copy(alpha = 0.15f),
+                    border = BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.5f)),
+                    modifier = Modifier.size(72.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "ميزة وضع الأثر 🕊️",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "عند تفعيل هذه الميزة، سيقوم التطبيق بتحميل مجموعة من المقاطع الإيمانية المختارة في الخلفية، لتتمكن من مشاهدتها والانتفاع بها حتى في حال انقطاع اتصالك بالإنترنت.",
+                    fontFamily = CairoFont,
+                    fontSize = 13.5.sp,
+                    color = Color.White.copy(alpha = 0.82f),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onEnable,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate)
+                    ) {
+                        Text(
+                            "تفعيل الآن ✨",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "ليس الآن",
+                            fontFamily = CairoFont,
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
         }
     }

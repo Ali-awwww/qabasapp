@@ -295,7 +295,12 @@ fun ReelPlayer(
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     useController = false
-                    resizeMode = if (aspectRatio == "9:16") AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    resizeMode = when (aspectRatio) {
+                        "9:16" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        "1:1" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        "16:9" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT

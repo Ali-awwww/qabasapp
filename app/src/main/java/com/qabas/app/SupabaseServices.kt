@@ -1273,9 +1273,11 @@ object SupabaseServices {
             aspectRatio: String = "9:16"
         ): ReelRow? = runCatching {
             val client = client ?: return null
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
             val row = ReelRow(
                 id = UUID.randomUUID().toString(),
-                userId = userId,
+                userId = effectiveUserId,
                 userName = userName.ifBlank { "صانع محتوى" },
                 userAvatar = userAvatar,
                 title = title,
@@ -1294,7 +1296,9 @@ object SupabaseServices {
                     put("aspect_ratio", aspectRatio)
                 }
             )
-            // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل
+
+            Log.d(TAG, "saveReel: Inserting row with user_id=$effectiveUserId (Auth UID: $currentAuthUid, Passed userId: $userId)")
+
             client.postgrest.from("reels").insert(row) {
                 select()
             }.decodeSingleOrNull<ReelRow>()
@@ -1307,7 +1311,6 @@ object SupabaseServices {
                     eq("id", reelId)
                 }
             }
-            // تحقق أن الحذف أثّر فعلاً: DELETE قد ينجح (204) دون حذف أي صف (RLS/معرّف غير موجود)
             val remaining = client.postgrest.from("reels").select {
                 filter {
                     eq("id", reelId)
@@ -1329,23 +1332,30 @@ object SupabaseServices {
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val row = mapOf("reel_id" to reelId, "user_id" to userId)
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
+            val row = mapOf("reel_id" to reelId, "user_id" to effectiveUserId)
             client.postgrest.from("reel_likes").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "likeReel failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { e -> 
+            Log.e(TAG, "likeReel failed for reel $reelId, user $userId: ${e.message}")
+        }.getOrDefault(false)
 
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
             client.postgrest.from("reel_likes").delete {
                 filter {
                     eq("reel_id", reelId)
-                    eq("user_id", userId)
+                    eq("user_id", effectiveUserId)
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "unlikeReel failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { e -> 
+            Log.e(TAG, "unlikeReel failed for reel $reelId, user $userId: ${e.message}")
+        }.getOrDefault(false)
 
-        /** تعيد null عند الفشل (شبكة/عميل) وقائمة فارغة عند عدم وجود تعليقات — للتمييز بينهما */
         suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
             val client = client ?: return null
             client.postgrest.from("reel_comments").select {
@@ -1356,16 +1366,14 @@ object SupabaseServices {
             }.decodeList<ReelCommentRow>()
         }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
-        /**
-         * إضافة تعليق على ريل — يعيد الصف المُدرج فعلياً من الخلفية
-         * (بمعرّفه ووقته الحقيقيين) بدل اختلاقهما محلياً.
-         */
         suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
             val client = client ?: return null
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
             val comment = ReelCommentRow(
                 id = UUID.randomUUID().toString(),
                 reelId = reelId,
-                userId = userId,
+                userId = effectiveUserId,
                 commentText = commentText,
                 likesCount = 0,
                 createdAt = java.time.Instant.now().toString()
@@ -1375,34 +1383,33 @@ object SupabaseServices {
             }.decodeSingleOrNull<ReelCommentRow>()
         }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrNull()
 
-        // ==========================================
-        // المحفوظات السحابية للريلز (reel_bookmarks)
-        // ==========================================
-
-        /** جلب معرّفات الريلز المحفوظة لمستخدم — لمزامنة حالة «محفوظ» عبر الأجهزة */
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
             client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter {
-                    eq("user_id", userId)
+                    eq("user_id", effectiveUserId)
                 }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
         }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
 
-        /** حفظ ريل في المحفوظات السحابية */
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            client.postgrest.from("reel_bookmarks").upsert(ReelBookmarkRow(reelId = reelId, userId = userId))
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
+            client.postgrest.from("reel_bookmarks").upsert(ReelBookmarkRow(reelId = reelId, userId = effectiveUserId))
             true
         }.onFailure { Log.e(TAG, "addReelBookmark failed: ${it.message}") }.getOrDefault(false)
 
-        /** إزالة ريل من المحفوظات السحابية */
         suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
+            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val effectiveUserId = currentAuthUid ?: userId
             client.postgrest.from("reel_bookmarks").delete {
                 filter {
                     eq("reel_id", reelId)
-                    eq("user_id", userId)
+                    eq("user_id", effectiveUserId)
                 }
             }
             true

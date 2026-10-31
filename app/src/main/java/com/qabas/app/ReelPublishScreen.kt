@@ -547,39 +547,59 @@ fun ReelPublishScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 listOf(
-                    Triple("9:16", "طولي", Icons.Default.StayCurrentPortrait),
-                    Triple("1:1", "مربع", Icons.Default.CropSquare),
-                    Triple("16:9", "عرضي", Icons.Default.CropLandscape)
+                    Triple("9:16", "طولي (Vertical)", Icons.Default.StayCurrentPortrait),
+                    Triple("1:1", "مربع (Square)", Icons.Default.Square),
+                    Triple("16:9", "عرضي (Wide)", Icons.Default.CropLandscape)
                 ).forEach { (ratio, label, icon) ->
                     val isSelected = aspectRatio == ratio
                     Surface(
                         onClick = { aspectRatio = ratio },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.2.dp, if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f),
+                        border = BorderStroke(
+                            1.4.dp, 
+                            if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.1f)
+                        ),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 12.dp)
+                            modifier = Modifier.padding(vertical = 14.dp, horizontal = 4.dp)
                         ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = label,
-                                tint = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.5f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) GoldPrimary.copy(alpha = 0.2f) else Color.Transparent),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.45f),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = label,
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                                color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = ratio,
+                                fontFamily = RobotoMonoFont,
+                                fontSize = 9.sp,
+                                color = if (isSelected) GoldPrimary.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.3f),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
