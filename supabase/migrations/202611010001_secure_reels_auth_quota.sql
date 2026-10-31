@@ -54,7 +54,6 @@ with check (
             coalesce(publish_type, 'normal') = 'normal'
             and not coalesce(is_silent_seed, false)
             and not coalesce(is_featured_by_dev, false)
-            and not (coalesce(tags, '[]'::jsonb) ? 'silent_seed')
         )
     )
 );
@@ -168,10 +167,21 @@ for each row execute function public.enforce_reel_daily_publish_limit();
 
 -- Public playback is allowed, but uploads into the reels bucket must be under
 -- videos/<authenticated UID>/... or thumbnails/<authenticated UID>/...
-drop policy if exists "Allow public upload on reels storage" on storage.objects;
-drop policy if exists "Allow public read on reels storage" on storage.objects;
-drop policy if exists reels_public_read on storage.objects;
-drop policy if exists reels_owner_upload on storage.objects;
+do $
+declare
+    p record;
+begin
+    for p in
+        select policyname
+          from pg_policies
+         where schemaname = 'storage'
+           and tablename = 'objects'
+           and (coalesce(qual, '') ilike '%reels%'
+                or coalesce(with_check, '') ilike '%reels%')
+    loop
+        execute format('drop policy if exists %I on storage.objects', p.policyname);
+    end loop;
+end $;
 
 create policy reels_public_read
 on storage.objects for select to anon, authenticated
