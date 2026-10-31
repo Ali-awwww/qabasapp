@@ -429,7 +429,7 @@ private suspend fun executeAgentMissionInner(
         onFinished(mission)
         return
     }
-    val tokensInfo1 = " [الرموز المستهلكة: ${planData.totalTokens} • زمن الاستجابة: ${latencyMs1}ms]"
+    val tokensInfo1 = " [الرموز المستهلكة: ${planData?.totalTokens ?: 0} • زمن الاستجابة: ${latencyMs1}ms]"
 
     initialSteps[0] = step1.copy(
         isRunning = false,
@@ -482,7 +482,7 @@ private suspend fun executeAgentMissionInner(
         onFinished(mission)
         return
     }
-    val inspectionSummary = "ملفات تم التحقق من وجودها فعلياً على فرع (${targetRepo!!.defaultBranch}):\n" +
+    val inspectionSummary = "ملفات تم التحقق من وجودها فعلياً على فرع (${targetRepo?.defaultBranch ?: "غير محدد"}):\n" +
         relevantFiles.joinToString("\n• ", prefix = "• ")
 
     initialSteps[1] = step2.copy(
@@ -557,7 +557,7 @@ private suspend fun executeAgentMissionInner(
         onFinished(mission)
         return
     }
-    val tokensInfo3 = " [الرموز: ${codeData.totalTokens} • زمن التوليد: ${latencyMs3}ms]"
+    val tokensInfo3 = " [الرموز: ${codeData?.totalTokens ?: 0} • زمن التوليد: ${latencyMs3}ms]"
 
     initialSteps[2] = step3.copy(
         isRunning = false,
