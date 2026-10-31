@@ -258,6 +258,7 @@ object ReelPublishManager {
         expiryAt: String? = null,
         quality: String = "high",
         userAvatar: String? = null,
+        aspectRatio: String = "9:16",
         onProgressUpdate: (String) -> Unit = {},
         onBytesProgress: (sentBytes: Long, totalBytes: Long, phase: UploadPhase) -> Unit = { _, _, _ -> }
     ): PublishResult = withContext(Dispatchers.IO) {
@@ -404,7 +405,10 @@ object ReelPublishManager {
                 userAvatar = resolvedAvatar,
                 publishAt = publishAt,
                 expiryAt = expiryAt,
-                quality = quality
+                quality = quality,
+                isSilentSeed = isSilentSeed,
+                publishType = if (isSilentSeed) "injection" else "normal",
+                aspectRatio = aspectRatio
             )
         }.getOrNull()
 

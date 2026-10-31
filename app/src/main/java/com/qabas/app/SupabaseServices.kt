@@ -1267,7 +1267,10 @@ object SupabaseServices {
             publishAt: String? = null,
             expiryAt: String? = null,
             quality: String = "high",
-            aiAnalysis: String? = null
+            aiAnalysis: String? = null,
+            isSilentSeed: Boolean = false,
+            publishType: String = "normal",
+            aspectRatio: String = "9:16"
         ): ReelRow? = runCatching {
             val client = client ?: return null
             val row = ReelRow(
@@ -1284,7 +1287,12 @@ object SupabaseServices {
                 expiryAt = expiryAt,
                 quality = quality,
                 aiAnalysis = aiAnalysis,
-                createdAt = java.time.Instant.now().toString()
+                publishType = publishType,
+                isSilentSeed = isSilentSeed,
+                createdAt = java.time.Instant.now().toString(),
+                metadata = buildJsonObject {
+                    put("aspect_ratio", aspectRatio)
+                }
             )
             // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل
             client.postgrest.from("reels").insert(row) {

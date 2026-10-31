@@ -63,6 +63,7 @@ fun ReelPublishScreen(
     var selectedCategory by remember { mutableStateOf("قرآن كريم") }
     var isFeaturedByDev by remember { mutableStateOf(false) }
     var isSilentSeed by remember { mutableStateOf(false) }
+    var aspectRatio by remember { mutableStateOf("9:16") } // "9:16", "1:1", "16:9"
 
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoThumbnailFile by remember { mutableStateOf<File?>(null) }
@@ -538,7 +539,57 @@ fun ReelPublishScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "2. التصنيف",
+                text = "2. أبعاد الفيديو (Aspect Ratio)",
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = GoldPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                listOf(
+                    Triple("9:16", "طولي", Icons.Default.StayCurrentPortrait),
+                    Triple("1:1", "مربع", Icons.Default.CropSquare),
+                    Triple("16:9", "عرضي", Icons.Default.CropLandscape)
+                ).forEach { (ratio, label, icon) ->
+                    val isSelected = aspectRatio == ratio
+                    Surface(
+                        onClick = { aspectRatio = ratio },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.2.dp, if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.1f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = label,
+                                tint = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = label,
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "3. التصنيف",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -575,7 +626,7 @@ fun ReelPublishScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "3. تفاصيل المقطع",
+                text = "4. تفاصيل المقطع",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -1209,6 +1260,7 @@ fun ReelPublishScreen(
                                 publishAt = publishAt,
                                 expiryAt = expiryAt,
                                 quality = quality,
+                                aspectRatio = aspectRatio,
                                 onProgressUpdate = { progressText ->
                                     publishProgressText = progressText
                                 },

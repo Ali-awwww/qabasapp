@@ -209,7 +209,7 @@ fun ReelsScreen(
     val likeInFlight = remember { mutableStateMapOf<String, Boolean>() }
 
     // Top Navigation & Filter State
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following)
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: وضع الأثر (Al-Athar)
     var selectedCategory by remember { mutableStateOf("ALL") }
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -219,6 +219,7 @@ fun ReelsScreen(
     var showHistorySheet by remember { mutableStateOf(false) }
     var showPublishDialog by remember { mutableStateOf(false) }
     var showDevChatScreen by remember { mutableStateOf(false) }
+    var activeDetailsReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeCommentReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeMoreOptionsReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeCreatorProfile by remember { mutableStateOf<Triple<String, String, String?>?>(null) }
@@ -329,9 +330,9 @@ fun ReelsScreen(
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
-    val currentUserId = prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
+    val currentUserId = SupabaseServices.Auth.getCurrentUserId()
+        ?: prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
         ?: FirebaseAuthRepository.getEffectiveUserId(context)
-        ?: SupabaseServices.Auth.getCurrentUserId()
         ?: currentUserEmail
 
     val isDeveloper = remember(currentUserEmail) {
@@ -472,7 +473,8 @@ fun ReelsScreen(
                         cached
                     } else {
                         isOfflineMode = false
-                        isAlAtharMode = false
+                    isAlAtharMode = false
+                    selectedTab = 0
                         AUTHENTIC_STARTER_REELS
                     }
                 }
@@ -578,18 +580,25 @@ fun ReelsScreen(
                 }
             }
             .filter { reel ->
-                if (selectedTab == 1) {
-                    // Following tab: show reels by followed creators or own published reels
-                    val followedIds = CreatorFollowManager.followedIds(context)
-                    followedIds.any { it.equals(reel.userId, ignoreCase = true) } ||
-                        CreatorFollowManager.identitiesMatch(
-                            reel.userId,
-                            reel.userName,
-                            viewer.id,
-                            viewer.displayName,
-                            viewer.email
-                        )
-                } else true
+                when (selectedTab) {
+                    1 -> {
+                        // Following tab: show reels by followed creators or own published reels
+                        val followedIds = CreatorFollowManager.followedIds(context)
+                        followedIds.any { it.equals(reel.userId, ignoreCase = true) } ||
+                                CreatorFollowManager.identitiesMatch(
+                                    reel.userId,
+                                    reel.userName,
+                                    viewer.id,
+                                    viewer.displayName,
+                                    viewer.email
+                                )
+                    }
+                    2 -> {
+                        // Al-Athar tab: show silent seeds or offline-injected reels
+                        reel.isSilentSeed || reel.publishType == "injection" || reel.tags.contains("أثر")
+                    }
+                    else -> true // For You tab
+                }
             }
     }
 
@@ -1027,6 +1036,10 @@ fun ReelsScreen(
                                 onAudioClick = {
                                     activeAudioReel = reel
                                 },
+                                onOpenDetails = {
+                                    activeDetailsReel = reel
+                                },
+                                activeDetailsReel = activeDetailsReel,
                                 onShare = {
                                     checkGuestInteraction {
                                         runCatching {
@@ -1172,7 +1185,7 @@ fun ReelsScreen(
                                 )
                             }
 
-                            // Center Cybernetic Tabs Capsule (متابعون | لك ✦) — neatly fitted without truncation
+                             // Center Cybernetic Tabs Capsule (لك | متابعون | الأثر) — neatly fitted without truncation
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
                                 color = Color(0xFF0F172A).copy(alpha = 0.75f),
@@ -1196,23 +1209,24 @@ fun ReelsScreen(
                                             )
                                             .clickable {
                                                 selectedTab = 0
+                                                isAlAtharMode = false
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "لك ✦",
                                             fontFamily = CairoFont,
                                             fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 12.sp,
+                                            fontSize = 11.sp,
                                             softWrap = false,
                                             maxLines = 1,
                                             color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = 0.7f)
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
 
                                     // Following Tab
                                     Box(
@@ -1226,20 +1240,51 @@ fun ReelsScreen(
                                             .clickable {
                                                 checkGuestInteraction {
                                                     selectedTab = 1
+                                                    isAlAtharMode = false
                                                     ReelPreferencesManager.triggerHaptic(context)
                                                 }
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "متابعون",
                                             fontFamily = CairoFont,
                                             fontWeight = if (selectedTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 12.sp,
+                                            fontSize = 11.sp,
                                             softWrap = false,
                                             maxLines = 1,
                                             color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(2.dp))
+
+                                    // Al-Athar Mode Tab
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
+                                            .border(
+                                                BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
+                                                RoundedCornerShape(16.dp)
+                                            )
+                                            .clickable {
+                                                selectedTab = 2
+                                                isAlAtharMode = true
+                                                ReelPreferencesManager.triggerHaptic(context)
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "الأثر ✦",
+                                            fontFamily = CairoFont,
+                                            fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 11.sp,
+                                            softWrap = false,
+                                            maxLines = 1,
+                                            color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
                                         )
                                     }
                                 }
@@ -1549,6 +1594,18 @@ fun ReelsScreen(
         )
     }
 
+    // Video Details Bottom Sheet
+    activeDetailsReel?.let { reel ->
+        ReelDetailsBottomSheet(
+            reel = reel,
+            onOpenCreatorProfile = { id, name, avatar ->
+                activeDetailsReel = null
+                activeCreatorProfile = Triple(id, name, avatar)
+            },
+            onDismiss = { activeDetailsReel = null }
+        )
+    }
+
     // Audio / Recitation Details Bottom Sheet
     activeAudioReel?.let { reel ->
         ReelAudioDetailsSheet(
@@ -1706,6 +1763,8 @@ fun ReelSpatialHUDOverlays(
     onSave: () -> Unit,
     onComment: () -> Unit,
     onAudioClick: () -> Unit,
+    onOpenDetails: () -> Unit,
+    activeDetailsReel: SupabaseServices.ReelRow?,
     onShare: () -> Unit,
     onMoreOptions: () -> Unit,
     onOpenCreatorProfile: (creatorId: String, creatorName: String, creatorAvatar: String?) -> Unit
@@ -1755,174 +1814,9 @@ fun ReelSpatialHUDOverlays(
                 .padding(start = 14.dp, end = 66.dp, bottom = 96.dp)
                 .fillMaxWidth()
         ) {
-            // بطاقة الناشر والوصف — مطوية افتراضياً لتقليل التشيت، وتُفتح بسهم «التفاصيل»
-            AnimatedVisibility(
-                visible = infoExpanded,
-                enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
-            ) {
-            // شريط الناشر: صورة + اسم + موثق + زر متابعة، وسطر معلومات النشر
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .border(1.2.dp, GoldPrimary, CircleShape)
-                            .clickable {
-                                onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
-                            },
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = reel.userName ?: "صانع محتوى قبس",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .clickable {
-                                        onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
-                                    }
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            if (creatorVerified) {
-                                Surface(
-                                    color = GoldPrimary,
-                                    shape = CircleShape,
-                                    modifier = Modifier.size(13.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = "موثق",
-                                        tint = DeepSlate,
-                                        modifier = Modifier.padding(1.5.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
-                            Icon(
-                                Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = GoldPrimary.copy(alpha = 0.8f),
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = formatRelativeTime(reel.createdAt),
-                                color = Color.White.copy(alpha = 0.62f),
-                                fontFamily = NotoSansFont,
-                                fontSize = 9.5.sp,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
-
-                    if (!isOwnReel && reel.userId.isNotBlank()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isFollowingCreator) Color.White.copy(alpha = 0.12f) else GoldPrimary,
-                            border = BorderStroke(
-                                1.dp,
-                                if (isFollowingCreator) Color.White.copy(alpha = 0.3f) else GoldPrimary
-                            ),
-                            modifier = Modifier.clickable {
-                                if (isGuest) {
-                                    onRequireLogin()
-                                } else {
-                                    val next = CreatorFollowManager.setFollowed(
-                                        hudContext, hudViewer,
-                                        reel.userId, reel.userName ?: "",
-                                        reel.userAvatar, !isFollowingCreator
-                                    )
-                                    if (next != null) isFollowingCreator = next
-                                }
-                            }
-                        ) {
-                            Text(
-                                text = if (isFollowingCreator) "متابَع ✓" else "متابعة +",
-                                color = if (isFollowingCreator) Color.White else DeepSlate,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-                }
-
-                // سطر معلومات النشر: التصنيف + الوسوم
-                val publishTags = reel.tags.filter { it.isNotBlank() }.take(3)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 6.dp)
-                ) {
-                    publishTags.forEach { tag ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = GoldPrimary.copy(alpha = 0.14f),
-                            border = BorderStroke(0.6.dp, GoldPrimary.copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = "#$tag",
-                                color = GoldPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Title
-            Text(
-                text = reel.title,
-                color = Color.White,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // Description / Captions (if enabled)
-            if (showCaptions && !reel.description.isNullOrBlank()) {
-                Text(
-                    text = reel.description,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontFamily = CairoFont,
-                    fontSize = 12.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            }
+            // Details are now shown in ReelDetailsBottomSheet triggered by the Details arrow button
+            // This block is removed from the HUD overlay to prevent redundancy and clutter.
+            Spacer(modifier = Modifier.height(10.dp))
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -2037,9 +1931,9 @@ fun ReelSpatialHUDOverlays(
             verticalAlignment = Alignment.Bottom
         ) {
             ReelArrowButton(
-                expanded = infoExpanded,
+                expanded = activeDetailsReel != null,
                 label = "التفاصيل",
-                onClick = { infoExpanded = !infoExpanded }
+                onClick = onOpenDetails
             )
             ReelArrowButton(
                 expanded = actionsExpanded,
@@ -3060,3 +2954,197 @@ fun InfiniteTriangleRetryButton(
     }
 }
 
+
+/**
+ * 🛰️ ReelDetailsBottomSheet — لوحة تفاصيل المقطع (العنوان، التصنيف، الوصف، والناشر)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReelDetailsBottomSheet(
+    reel: SupabaseServices.ReelRow,
+    onOpenCreatorProfile: (String, String, String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val hudViewer = remember { CreatorFollowManager.currentViewer(context) }
+    val creatorVerified = remember(reel.userId) { VerificationManager.isVerified(context, reel.userId) }
+    var isFollowingCreator by remember(reel.userId) {
+        mutableStateOf(CreatorFollowManager.isFollowing(context, reel.userId))
+    }
+    val isOwnReel = remember(reel.userId) {
+        CreatorFollowManager.isSameAccount(
+            reel.userId, reel.userName,
+            hudViewer.id, hudViewer.displayName, hudViewer.email
+        )
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A),
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(color = GoldPrimary.copy(alpha = 0.5f))
+        },
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            // Header: Creator Info
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                AsyncImage(
+                    model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, GoldPrimary, CircleShape)
+                        .clickable {
+                            onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
+                        },
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = reel.userName ?: "صانع محتوى قبس",
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (creatorVerified) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Verified,
+                                contentDescription = "موثق",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "نشر ${formatRelativeTime(reel.createdAt)}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp
+                    )
+                }
+                
+                if (!isOwnReel && reel.userId.isNotBlank()) {
+                    Button(
+                        onClick = {
+                            val next = CreatorFollowManager.setFollowed(
+                                context, hudViewer,
+                                reel.userId, reel.userName ?: "",
+                                reel.userAvatar, !isFollowingCreator
+                            )
+                            if (next != null) isFollowingCreator = next
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isFollowingCreator) Color.White.copy(alpha = 0.1f) else GoldPrimary,
+                            contentColor = if (isFollowingCreator) Color.White else DeepSlate
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(
+                            text = if (isFollowingCreator) "متابَع" else "متابعة",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Title
+            Text(
+                text = reel.title,
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp,
+                lineHeight = 28.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Tags / Category
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                reel.tags.filter { it.isNotBlank() }.forEach { tag ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GoldPrimary.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            text = tag,
+                            color = GoldPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Description
+            if (!reel.description.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White.copy(alpha = 0.05f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = reel.description,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontFamily = CairoFont,
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Statistics / Interaction Summary
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatItem(icon = Icons.Default.Favorite, label = "${reel.likesCount} إعجاب")
+                StatItem(icon = Icons.Default.Comment, label = "${reel.commentsCount} تعليق")
+                StatItem(icon = Icons.Default.Visibility, label = "${reel.viewsCount} مشاهدة")
+            }
+        }
+    }
+}
+
+@Composable
+fun StatItem(icon: ImageVector, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(text = label, color = Color.White.copy(alpha = 0.6f), fontFamily = CairoFont, fontSize = 12.sp)
+    }
+}
