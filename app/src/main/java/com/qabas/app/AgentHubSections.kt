@@ -55,6 +55,7 @@ fun AgentHubOverview(
     providerName: String,
     modelName: String,
     isOfflineMode: Boolean,
+    isOfflineModelReady: Boolean,
     isProviderReady: Boolean,
     isGitHubReady: Boolean,
     isChecking: Boolean,
@@ -108,7 +109,7 @@ fun AgentHubOverview(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         HubStatusPill("GitHub", if (isGitHubReady) "متصل" else "غير متصل", isGitHubReady, Modifier.weight(1f))
-                        HubStatusPill(if (isOfflineMode) "النموذج المحلي" else providerName, if (isOfflineMode) "وضع محلي" else if (isProviderReady) "مفتاح مضاف" else "لا يوجد مفتاح", isOfflineMode || isProviderReady, Modifier.weight(1f))
+                        HubStatusPill(if (isOfflineMode) "النموذج المحلي" else providerName, if (isOfflineMode) if (isOfflineModelReady) "محلي جاهز" else "النموذج غير مثبت" else if (isProviderReady) "مفتاح مضاف" else "لا يوجد مفتاح", if (isOfflineMode) isOfflineModelReady else isProviderReady, Modifier.weight(1f))
                     }
                 }
             }
