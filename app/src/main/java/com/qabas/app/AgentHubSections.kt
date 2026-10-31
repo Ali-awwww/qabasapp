@@ -18,22 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Activity
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GitHub
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.RocketLaunch
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -135,7 +120,7 @@ fun AgentHubOverview(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                 HubMetricCard("سجل العمليات", historyCount.toString(), HubViolet, Icons.Default.History, Modifier.weight(1f))
-                HubMetricCard("فحص الاتصال", if (isChecking) "جارٍ الفحص" else "تحديث الحالة", HubCyan, Icons.Default.Activity, Modifier.weight(1f))
+                HubMetricCard("فحص الاتصال", if (isChecking) "جارٍ الفحص" else "تحديث الحالة", HubCyan, Icons.Default.Refresh, Modifier.weight(1f))
             }
         }
         item {
@@ -167,7 +152,7 @@ fun AgentHubOverview(
                     Text("إعدادات الذكاء", fontFamily = CairoFont, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
                 }
                 OutlinedButton(onClick = onRefresh, enabled = !isChecking, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, HubBorder)) {
-                    Icon(Icons.Default.Activity, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                     Text(if (isChecking) "جارٍ الفحص" else "تحديث الاتصال", fontFamily = CairoFont, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
                 }
             }
@@ -227,7 +212,7 @@ fun AgentHubProjectsSection(
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.GitHub, contentDescription = null, tint = if (selected) HubGreen else HubCyan, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Code, contentDescription = null, tint = if (selected) HubGreen else HubCyan, modifier = Modifier.size(18.dp))
                             Text(repository.displayName, color = HubText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (selected) HubStatusPill("السياق النشط", "محدد", true)
                         }
