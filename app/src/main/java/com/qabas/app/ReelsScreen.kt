@@ -335,6 +335,7 @@ fun ReelsScreen(
 
     val likedReelIds = remember { mutableStateMapOf<String, Boolean>() }
     val dynamicLikeCounts = remember { mutableStateMapOf<String, Int>() }
+    val dynamicViewCounts = remember { mutableStateMapOf<String, Int>() }
 
     // User details for comments & cloud syncing
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -375,13 +376,19 @@ fun ReelsScreen(
     }
 
     /**
-     * إثبات المشاهدة: تسجيل محلي + سحابي (للمستخدم المصادق فقط) بمدة المشاهدة الفعلية المقيسة.
+     * إثبات المشاهدة: تسجيل محلي + سحابي وتحديث العداد الحي المباشر للفيديو.
      */
     fun finalizeWatch(reelId: String?) {
         val rid = reelId ?: return
         val secs = watchSeconds[rid] ?: 0
         if (secs <= 0) return
         val reel = allReels.find { it.id == rid } ?: return
+
+        // 1. زيادة العداد الحي محلياً فوراً لمنع بقاء العداد على 0
+        val curViews = dynamicViewCounts[rid] ?: reel.viewsCount
+        dynamicViewCounts[rid] = curViews + 1
+
+        // 2. حفظ المشاهدة في التفضيلات المحلية
         ReelPreferencesManager.recordWatch(
             context = context,
             reelId = rid,
@@ -392,10 +399,12 @@ fun ReelsScreen(
             category = selectedCategory,
             durationSec = secs
         )
-        val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
-        if (authId != null && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+
+        // 3. المزامنة مع الخادم السحابي
+        if (ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
-                runCatching { SupabaseServices.Profiles.recordReelWatch(rid, authId, secs) }
+                val effectiveUser = currentSupabaseId ?: FirebaseAuthRepository.getEffectiveUserId(context) ?: ""
+                SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
             }
         }
     }
@@ -463,12 +472,25 @@ fun ReelsScreen(
                 }
             } else if (fetchFailed) {
                 val silentReels = SilentReelStorageManager.getDownloadedReels(context)
+                val cached = ReelPreferencesManager.getCachedReels(context)
                 if (silentReels.isNotEmpty()) {
                     isOfflineMode = true
                     isAlAtharMode = true
+                    selectedTab = 2 // تبويب الأثر
                     silentReels
+                } else if (cached.isNotEmpty()) {
+                    isOfflineMode = true
+                    isAlAtharMode = false
+                    cached
+                } else if (!isDeveloper) {
+                    // للمستخدم العادي: توفير مقاطع أصيلة للتشغيل الأوفلاين فوراً بدلاً من الشاشة الفارغة
+                    isOfflineMode = true
+                    isAlAtharMode = true
+                    selectedTab = 2
+                    AUTHENTIC_STARTER_REELS
                 } else {
-                    isOfflineMode = false
+                    // للمطور فقط عند عدم وجود أي كاش: يترك فارغاً حتى يتمكن من رؤية شاشة التشخيص الفني
+                    isOfflineMode = true
                     isAlAtharMode = false
                     emptyList()
                 }
@@ -486,8 +508,8 @@ fun ReelsScreen(
                         cached
                     } else {
                         isOfflineMode = false
-                    isAlAtharMode = false
-                    selectedTab = 0
+                        isAlAtharMode = false
+                        selectedTab = 0
                         AUTHENTIC_STARTER_REELS
                     }
                 }
@@ -499,6 +521,9 @@ fun ReelsScreen(
             allReels.forEach { r ->
                 dynamicLikeCounts[r.id] = r.likesCount
                 likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
+                if (!dynamicViewCounts.containsKey(r.id)) {
+                    dynamicViewCounts[r.id] = r.viewsCount
+                }
             }
             loadingProgress = 0.98f
             lastWatchedReelId = null
@@ -557,6 +582,7 @@ fun ReelsScreen(
                     if (!dynamicLikeCounts.containsKey(r.id)) {
                         dynamicLikeCounts[r.id] = r.likesCount
                         likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
+                        dynamicViewCounts[r.id] = r.viewsCount
                     }
                 }
             }
@@ -681,8 +707,8 @@ fun ReelsScreen(
                         progress = loadingProgress,
                         onRetry = { loadReels() }
                     )
-                } else if (loadError && allReels.isEmpty()) {
-                    // فشل التحميل الصريح: كارت تشخيص تفصيلي مع زر المثلث التفاعلي وسرعة الاتصال
+                } else if (loadError && allReels.isEmpty() && isDeveloper) {
+                    // فشل التحميل الصريح: يظهر فقط للمطور مع تشخيص دقيق وزر المثلث التفاعلي
                     ReelsFailureDiagnosticScreen(
                         diagnostic = lastDiagnostic,
                         isRetrying = isRetrying,
@@ -1644,6 +1670,8 @@ fun ReelsScreen(
     activeDetailsReel?.let { reel ->
         ReelDetailsBottomSheet(
             reel = reel,
+            liveViews = dynamicViewCounts[reel.id] ?: reel.viewsCount,
+            liveLikes = dynamicLikeCounts[reel.id] ?: reel.likesCount,
             onOpenCreatorProfile = { id, name, avatar ->
                 activeDetailsReel = null
                 activeCreatorProfile = Triple(id, name, avatar)
@@ -2751,7 +2779,7 @@ fun ReelsDiagnosticCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // نص التوضيح والخطأ الدقيق
+            // نص التوضيح والخطأ الدقيق مع حماية الروابط برمز قفل
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = Color.Black.copy(alpha = 0.45f),
@@ -2759,19 +2787,44 @@ fun ReelsDiagnosticCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = statusTitle,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp,
+                            color = Color.White
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "محمي",
+                                tint = Color(0xFF00E5FF).copy(alpha = 0.7f),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "المسارات محجوبة أمنياً",
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp,
+                                color = Color(0xFF00E5FF).copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val rawMsg = diagnostic?.errorMessage ?: "تحقق من اتصال جهازك بالإنترنت أو أعد المحاولة لتجاوز التهدئة."
+                    val maskedMsg = rawMsg
+                        .replace(Regex("https?://[^\\s'\"]+"), "[🔒 مسار سحابي محمي]")
+                        .replace(Regex("\"[a-z0-9]+\\.supabase\\.co\""), "\"[🔒 نطاق السحابة]\"")
                     Text(
-                        text = statusTitle,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.5.sp,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = diagnostic?.errorMessage ?: "تحقق من اتصال جهازك بالإنترنت أو أعد المحاولة لتجاوز التهدئة.",
+                        text = maskedMsg,
                         fontFamily = NotoSansFont,
                         fontSize = 11.5.sp,
-                        color = Color.White.copy(alpha = 0.72f),
+                        color = Color.White.copy(alpha = 0.78f),
                         lineHeight = 16.sp
                     )
                 }
@@ -3015,12 +3068,14 @@ fun InfiniteTriangleRetryButton(
 
 
 /**
- * 🛰️ ReelDetailsBottomSheet — لوحة تفاصيل المقطع (العنوان، التصنيف، الوصف، والناشر)
+ * 🛰️ ReelDetailsBottomSheet — لوحة تفاصيل المقطع الهندسية الحديثة (العنوان، التصنيف، الوصف، والناشر)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReelDetailsBottomSheet(
     reel: SupabaseServices.ReelRow,
+    liveViews: Int = reel.viewsCount,
+    liveLikes: Int = reel.likesCount,
     onOpenCreatorProfile: (String, String, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -3039,163 +3094,289 @@ fun ReelDetailsBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        scrimColor = Color.Black.copy(alpha = 0.6f),
+        containerColor = Color(0xFF090E1A),
+        scrimColor = Color.Black.copy(alpha = 0.65f),
         dragHandle = {
-            BottomSheetDefaults.DragHandle(color = GoldPrimary.copy(alpha = 0.5f))
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .width(44.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.4f), Color(0xFF00E5FF).copy(alpha = 0.5f))))
+            )
         },
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 22.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // Header: Creator Info
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // ── 1. الهيدر: بطاقة صانع المحتوى الهندسية ──
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF131D31).copy(alpha = 0.7f),
+                border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF00E5FF).copy(alpha = 0.2f)))),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                AsyncImage(
-                    model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
-                    contentDescription = null,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .border(1.5.dp, GoldPrimary, CircleShape)
-                        .clickable {
-                            onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
-                        },
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = reel.userName ?: "صانع محتوى قبس",
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .border(1.5.dp, Brush.sweepGradient(listOf(GoldPrimary, Color(0xFF00E5FF), GoldPrimary)), CircleShape)
+                            .clickable {
+                                onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
+                            }
+                    ) {
+                        AsyncImage(
+                            model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
-                        if (creatorVerified) {
-                            Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = reel.userName ?: "صانع محتوى قبس",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (creatorVerified) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Icon(
+                                    Icons.Default.Verified,
+                                    contentDescription = "موثق",
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.Verified,
-                                contentDescription = "موثق",
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(16.dp)
+                                Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.45f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "نشر ${formatRelativeTime(reel.createdAt)}",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontFamily = CairoFont,
+                                fontSize = 11.5.sp
                             )
                         }
                     }
-                    Text(
-                        text = "نشر ${formatRelativeTime(reel.createdAt)}",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp
-                    )
-                }
-                
-                if (!isOwnReel && reel.userId.isNotBlank()) {
-                    Button(
-                        onClick = {
-                            val next = CreatorFollowManager.setFollowed(
-                                context, hudViewer,
-                                reel.userId, reel.userName ?: "",
-                                reel.userAvatar, !isFollowingCreator
+
+                    if (!isOwnReel && reel.userId.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                val next = CreatorFollowManager.setFollowed(
+                                    context, hudViewer,
+                                    reel.userId, reel.userName ?: "",
+                                    reel.userAvatar, !isFollowingCreator
+                                )
+                                if (next != null) isFollowingCreator = next
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isFollowingCreator) Color.White.copy(alpha = 0.12f) else GoldPrimary,
+                                contentColor = if (isFollowingCreator) Color.White else DeepSlate
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text(
+                                text = if (isFollowingCreator) "متابَع ✓" else "+ متابعة",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp
                             )
-                            if (next != null) isFollowingCreator = next
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isFollowingCreator) Color.White.copy(alpha = 0.1f) else GoldPrimary,
-                            contentColor = if (isFollowingCreator) Color.White else DeepSlate
-                        ),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Text(
-                            text = if (isFollowingCreator) "متابَع" else "متابعة",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Title
+            // ── 2. عنوان المقطع ──
             Text(
                 text = reel.title,
                 color = Color.White,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 20.sp,
-                lineHeight = 28.sp
+                fontSize = 19.sp,
+                lineHeight = 27.sp
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Tags / Category
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                reel.tags.filter { it.isNotBlank() }.forEach { tag ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = GoldPrimary.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                    ) {
-                        Text(
-                            text = tag,
-                            color = GoldPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+            // ── 3. وسوم وتصنيفات الفيديو ──
+            if (reel.tags.any { it.isNotBlank() }) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    reel.tags.filter { it.isNotBlank() }.forEach { rawTag ->
+                        val cleanTag = rawTag.trim().removePrefix("#")
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF131E35),
+                            border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF00E5FF).copy(alpha = 0.25f))))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "#",
+                                    color = Color(0xFF00E5FF),
+                                    fontFamily = RobotoMonoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = cleanTag,
+                                    color = GoldPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(14.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Description
+            // ── 4. الوصف التفصيلي للمقطع ──
             if (!reel.description.isNullOrBlank()) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.05f),
+                    color = Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = reel.description,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = Color.White.copy(alpha = 0.88f),
                         fontFamily = CairoFont,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         lineHeight = 22.sp,
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+            } else {
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            // ── 5. بطاقات الإحصائيات الهندسية المترابطة بالعداد الحقيقي ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                GeometricStatCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Visibility,
+                    count = liveViews,
+                    label = "مشاهدة",
+                    accentColor = Color(0xFF00E5FF)
+                )
+                GeometricStatCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Favorite,
+                    count = liveLikes,
+                    label = "إعجاب",
+                    accentColor = Color(0xFFEF4444)
+                )
+                GeometricStatCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Comment,
+                    count = reel.commentsCount,
+                    label = "تعليق",
+                    accentColor = GoldPrimary
+                )
+            }
+        }
+    }
+}
+
+/**
+ * كارت إحصائي هندسي حديث ومصمم بدقة للتفاعلات الحقيقية
+ */
+@Composable
+fun GeometricStatCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    count: Int,
+    label: String,
+    accentColor: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF131D31).copy(alpha = 0.8f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = accentColor.copy(alpha = 0.15f),
+                modifier = Modifier.size(30.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Statistics / Interaction Summary
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItem(icon = Icons.Default.Favorite, label = "${reel.likesCount} إعجاب")
-                StatItem(icon = Icons.Default.Comment, label = "${reel.commentsCount} تعليق")
-                StatItem(icon = Icons.Default.Visibility, label = "${reel.viewsCount} مشاهدة")
-            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = formatCompactCount(count),
+                color = Color.White,
+                fontFamily = RobotoMonoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = 0.6f),
+                fontFamily = CairoFont,
+                fontSize = 11.sp
+            )
         }
+    }
+}
+
+private fun formatCompactCount(count: Int): String {
+    return when {
+        count >= 1_000_000 -> String.format(java.util.Locale.ROOT, "%.1fM", count / 1_000_000.0)
+        count >= 1_000 -> String.format(java.util.Locale.ROOT, "%.1fK", count / 1000.0)
+        else -> count.toString()
     }
 }
 
