@@ -108,7 +108,7 @@ fun AgentHubOverview(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HubStatusPill("GitHub", if (isGitHubReady) "متصل" else "غير متصل", isGitHubReady, Modifier.weight(1f))
+                        HubStatusPill("GitHub", if (isChecking) "جارٍ الفحص" else if (isGitHubReady) "متصل" else "غير متصل", isGitHubReady, Modifier.weight(1f))
                         HubStatusPill(if (isOfflineMode) "النموذج المحلي" else providerName, if (isOfflineMode) if (isOfflineModelReady) "محلي جاهز" else "النموذج غير مثبت" else if (isProviderReady) "مفتاح مضاف" else "لا يوجد مفتاح", if (isOfflineMode) isOfflineModelReady else isProviderReady, Modifier.weight(1f))
                     }
                 }
@@ -117,7 +117,7 @@ fun AgentHubOverview(
         item {
             Text("حالة بيئة التطوير", color = HubText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                HubMetricCard("محرك الذكاء", modelName.ifBlank { "غير محدد" }, if (isOfflineMode || isProviderReady) HubGreen else HubAmber, Icons.Default.Psychology, Modifier.weight(1f))
+                HubMetricCard("محرك الذكاء", modelName.ifBlank { "غير محدد" }, if ((isOfflineMode && isOfflineModelReady) || (!isOfflineMode && isProviderReady)) HubGreen else HubAmber, Icons.Default.Psychology, Modifier.weight(1f))
                 HubMetricCard("تنفيذ المهام", when { isExecuting -> "قيد التنفيذ"; isChatRunning -> "محادثة نشطة"; else -> "متوقف" }, if (isExecuting || isChatRunning) HubCyan else HubMuted, Icons.Default.RocketLaunch, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
