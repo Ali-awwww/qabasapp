@@ -567,21 +567,45 @@ CREATE POLICY "Users can insert or update own api keys"
 begin;
 
 -- Keep the database compatible with the complete ReelRow payload used by the app.
-create table if not exists public.reel_bookmarks (
-    id uuid primary key default gen_random_uuid(),
-    reel_id text not null references public.reels(id) on delete cascade,
-    user_id text not null,
-    created_at timestamptz default now(),
-    constraint unique_reel_user_bookmark unique (reel_id, user_id)
-);
+-- Older installations used UUID reel IDs while the current schema uses TEXT.
+-- Derive the FK column type from the live reels table before creating missing tables.
+do $
+declare
+    reel_id_type text;
+begin
+    select format_type(a.atttypid, a.atttypmod)
+      into reel_id_type
+      from pg_attribute a
+     where a.attrelid = 'public.reels'::regclass
+       and a.attname = 'id'
+       and not a.attisdropped;
 
-create table if not exists public.reel_history (
-    id uuid primary key default gen_random_uuid(),
-    reel_id text not null references public.reels(id) on delete cascade,
-    user_id text not null,
-    watched_duration_sec integer default 0,
-    created_at timestamptz default now()
-);
+    if to_regclass('public.reel_bookmarks') is null then
+        execute format(
+            'create table public.reel_bookmarks (
+                id uuid primary key default gen_random_uuid(),
+                reel_id %s not null references public.reels(id) on delete cascade,
+                user_id text not null,
+                created_at timestamptz default now(),
+                constraint unique_reel_user_bookmark unique (reel_id, user_id)
+            )',
+            reel_id_type
+        );
+    end if;
+
+    if to_regclass('public.reel_history') is null then
+        execute format(
+            'create table public.reel_history (
+                id uuid primary key default gen_random_uuid(),
+                reel_id %s not null references public.reels(id) on delete cascade,
+                user_id text not null,
+                watched_duration_sec integer default 0,
+                created_at timestamptz default now()
+            )',
+            reel_id_type
+        );
+    end if;
+end $;
 
 create index if not exists idx_reel_bookmarks_user
     on public.reel_bookmarks(user_id, created_at desc);
