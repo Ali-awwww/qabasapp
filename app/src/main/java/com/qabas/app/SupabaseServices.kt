@@ -1354,7 +1354,11 @@ object SupabaseServices {
         ): ReelRow? = runCatching {
             val client = client ?: return null
             val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+                ?: error("Supabase authentication is required to publish a reel")
+            require(userId == currentAuthUid) {
+                "The requested reel owner does not match the authenticated Supabase user"
+            }
+            val effectiveUserId = currentAuthUid
             val row = ReelRow(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
@@ -1382,7 +1386,7 @@ object SupabaseServices {
             client.postgrest.from("reels").insert(row) {
                 select()
             }.decodeSingleOrNull<ReelRow>()
-        }.onFailure { Log.e(TAG, "saveReel failed: ${it.message}") }.getOrNull()
+        }.onFailure { Log.e(TAG, "saveReel failed", it) }.getOrNull()
 
         suspend fun deleteReel(reelId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1412,8 +1416,8 @@ object SupabaseServices {
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
             val row = mapOf("reel_id" to reelId, "user_id" to effectiveUserId)
             client.postgrest.from("reel_likes").upsert(row)
             true
@@ -1423,8 +1427,8 @@ object SupabaseServices {
 
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
             client.postgrest.from("reel_likes").delete {
                 filter {
                     eq("reel_id", reelId)
@@ -1448,8 +1452,11 @@ object SupabaseServices {
 
         suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
             val client = client ?: return null
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
+            require(userId == effectiveUserId) {
+                "The comment owner does not match the authenticated Supabase user"
+            }
             val comment = ReelCommentRow(
                 id = UUID.randomUUID().toString(),
                 reelId = reelId,
@@ -1465,8 +1472,8 @@ object SupabaseServices {
 
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
             client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter {
                     eq("user_id", effectiveUserId)
@@ -1476,16 +1483,16 @@ object SupabaseServices {
 
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
             client.postgrest.from("reel_bookmarks").upsert(ReelBookmarkRow(reelId = reelId, userId = effectiveUserId))
             true
         }.onFailure { Log.e(TAG, "addReelBookmark failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val effectiveUserId = client.auth.currentUserOrNull()?.id
+                ?: error("Supabase authentication is required for reel interactions")
             client.postgrest.from("reel_bookmarks").delete {
                 filter {
                     eq("reel_id", reelId)
