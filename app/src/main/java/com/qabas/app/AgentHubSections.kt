@@ -220,7 +220,7 @@ fun AgentHubProjectsSection(
                         }
                         Text(repository.fullName, color = HubMuted, fontFamily = RobotoMonoFont, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("الفرع: ${repository.defaultBranch.ifBlank { "main" }}", color = HubMuted, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("الفرع: ${repository.defaultBranch.ifBlank { "غير محدد" }}", color = HubMuted, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
                             Text(if (repository.isPrivate) "خاص" else "عام", color = HubMuted, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         if (repository.description.isNotBlank()) Text(repository.description, color = HubMuted, fontFamily = CairoFont, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -479,13 +479,22 @@ internal fun AgentLiveConsoleTab(
                 }
             } else {
                 val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق قبس (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
-                val response = try {
+                val chatResult = runCatching {
                     AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
-                } catch (e: Exception) {
-                    "تم استلام توجيهك البرمجي وجاري معالجته وتطبيقه على مشروع الكود المحلي: $clean"
                 }
                 withContext(Dispatchers.Main) {
-                    val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = response)
+                    val agentMsg = if (chatResult.isSuccess) {
+                        AgentChatMessage(sender = AgentChatSender.AGENT, text = chatResult.getOrThrow())
+                    } else {
+                        val detail = chatResult.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
+                        AgentChatMessage(
+                            sender = AgentChatSender.TOOL_SYSTEM,
+                            text = buildString {
+                                append("تعذر الحصول على رد من مزود الذكاء الاصطناعي. لم تُنفّذ أي تعديلات على المشروع.")
+                                if (detail != null) append("\n\nالتفاصيل: $detail")
+                            }
+                        )
+                    }
                     chatMessages.add(agentMsg)
                     AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
                     isAgentThinkingInChat = false
