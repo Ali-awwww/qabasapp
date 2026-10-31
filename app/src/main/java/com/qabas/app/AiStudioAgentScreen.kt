@@ -480,6 +480,7 @@ fun AiStudioAgentScreen(
                     }
                 } else {
                     var finalMissionResult: AgentMissionSession? = null
+                    var missionFailure: String? = null
                     try {
                         executeAgentMission(
                             context = context,
@@ -496,12 +497,14 @@ fun AiStudioAgentScreen(
                             }
                         )
                     } catch (e: Exception) {
+                        missionFailure = e.message
                         Log.e(TAG, "Execution error: ${e.message}")
                     }
 
                     withContext(Dispatchers.Main) {
-                        val reportText = finalMissionResult?.finalReport?.ifBlank { null }
-                            ?: "تم استلام توجيهك البرمجي بنجاح وتنفيذه بواسطة الوكيل المستقل: $clean"
+                        val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
+                            ?: missionFailure?.let { "تعذر إكمال المهمة: $it" }
+                            ?: "انتهى التنفيذ دون تقرير نهائي؛ لم يتم تأكيد نجاح المهمة."
                         val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
                             FileDiff(
                                 filePath = d.filePath,
@@ -511,7 +514,7 @@ fun AiStudioAgentScreen(
                             )
                         }
                         val agentMsg = AgentChatMessage(
-                            sender = AgentChatSender.AGENT,
+                            sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
                             text = reportText,
                             diff = diff
                         )
@@ -558,6 +561,7 @@ fun AiStudioAgentScreen(
 
         val job = coroutineScope.launch(Dispatchers.IO) {
             var finalMissionResult: AgentMissionSession? = null
+            var missionFailure: String? = null
             try {
                 executeAgentMission(
                     context = context,
@@ -569,15 +573,21 @@ fun AiStudioAgentScreen(
                     onFinished = { finalMissionResult = it; currentMission = it }
                 )
             } catch (e: Exception) {
+                missionFailure = e.message
                 Log.e(TAG, "Plan execution error: ${e.message}")
             }
             withContext(Dispatchers.Main) {
-                val reportText = finalMissionResult?.finalReport?.ifBlank { null }
-                    ?: "تم تنفيذ الخطة البرمجية المعتمدة بنجاح على مشروع قبس."
+                val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
+                    ?: missionFailure?.let { "تعذر تنفيذ الخطة المعتمدة: $it" }
+                    ?: "انتهى مسار الخطة دون تقرير نهائي؛ لم يتم تأكيد نجاح التنفيذ."
                 val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
                     FileDiff(filePath = d.filePath, additions = d.additions, deletions = d.deletions, diffText = d.diffText)
                 }
-                val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = reportText, diff = diff)
+                val agentMsg = AgentChatMessage(
+                    sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
+                    text = reportText,
+                    diff = diff
+                )
                 chatMessages.add(agentMsg)
                 AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
                 isThinking = false
