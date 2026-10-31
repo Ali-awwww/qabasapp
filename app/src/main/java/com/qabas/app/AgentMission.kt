@@ -247,11 +247,11 @@ private suspend fun executeAgentMissionInner(
         onUpdate(mission)
     coroutineContext.ensureActive()
 
-        // الخطوة 2: فحص ملفات التطبيق وشجرة الكود محلياً
+        // الخطوة 2: توثيق سياق النموذج المحلي دون الادعاء بفحص ملفات المشروع
         val step2 = AgentExecutionStep(
-            title = "فحص ملفات التطبيق وشجرة الكود محلياً 🔍",
-            description = "فحص مسارات التطبيق وتحديد حزم Compose المعنية بالعملية...",
-            toolName = "list_local_tree",
+            title = "التحقق من بيئة النموذج المحلي",
+            description = "قراءة بيانات النموذج والخطة الناتجة؛ هذا المسار لا يقرأ شجرة ملفات المشروع.",
+            toolName = "local_runtime_context",
             isRunning = true
         )
         initialSteps.add(step2)
@@ -326,8 +326,8 @@ private suspend fun executeAgentMissionInner(
             • بيئة التشغيل: On-Device Local Inference (${if (inferenceData.isNativeJni) "تسريع المعالج المحلي JNI" else "معالجة محلية داخلية"})
             • زمن المعالجة الفعلي: ${inferenceData.executionLatencyMs}ms
             • عدد الرموز المستخرجة: ${inferenceData.tokensGenerated}
-            • تم فحص المسارات وتوليد الكود البرمجي الحقيقي لأمر: «$prompt».
-            • الكود متوافق تماماً مع دستور العمل، ومعايير الشاشات التكيفية وقوانين الحماية من تشويه النصوص.
+            • تم توليد مسودة كود من النموذج المحلي للطلب: «$prompt».
+            • لم يتم تعديل ملفات المشروع تلقائياً في هذا المسار؛ راجع المخرجات وطبّق التغييرات بعد مراجعتها.
         """.trimIndent()
 
         mission = mission.copy(
@@ -412,8 +412,24 @@ private suspend fun executeAgentMissionInner(
     }
 
     val planData = planResult.getOrNull()
-    val planText = planData?.text ?: "تم إعداد الخطة المعمارية بنجاح."
-    val tokensInfo1 = " [الرموز المستهلكة: ${planData?.totalTokens ?: 0} • زمن الاستجابة: ${latencyMs1}ms]"
+    val planText = planData?.text?.takeIf { it.isNotBlank() }
+    if (planText == null) {
+        val errorMsg = "أعاد مزود الذكاء استجابة تخطيط فارغة؛ لم يتم اعتماد خطة للمهمة."
+        initialSteps[0] = step1.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = "❌ $errorMsg"
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = errorMsg
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return
+    }
+    val tokensInfo1 = " [الرموز المستهلكة: ${planData.totalTokens} • زمن الاستجابة: ${latencyMs1}ms]"
 
     initialSteps[0] = step1.copy(
         isRunning = false,
@@ -435,27 +451,44 @@ private suspend fun executeAgentMissionInner(
     onUpdate(mission)
 
     val targetRepo = repo
-    val inspectionResult = if (targetRepo != null && targetRepo.token.isNotBlank()) {
-        try {
-            val rc = GitHubRepoClient(targetRepo.owner, targetRepo.repo, targetRepo.token)
-            val tree = rc.getTree(targetRepo.defaultBranch)
-            val relevantFiles = tree?.filter { it.path.endsWith(".kt") || it.path.endsWith(".xml") }?.take(8)?.map { it.path }
-            if (!relevantFiles.isNullOrEmpty()) {
-                "ملفات تم التحقق من وجودها على فرع (${targetRepo.defaultBranch}):\n" + relevantFiles.joinToString("\n• ", prefix = "• ")
-            } else {
-                "تم فحص فرع ${targetRepo.defaultBranch} بمستودع ${targetRepo.repo} بنجاح."
-            }
-        } catch (e: Exception) {
-            "فحص الهيكل المحلي: app/src/main/java/com/qabas/app/ (${e.localizedMessage ?: e.message})"
+    val inspectionResult: Result<List<RepoFile>?> = when {
+        targetRepo == null -> Result.failure(IllegalStateException("لا يوجد مستودع مرتبط بالمهمة."))
+        targetRepo.token.isBlank() -> Result.failure(IllegalStateException("رمز الوصول للمستودع غير متوفر."))
+        targetRepo.defaultBranch.isBlank() -> Result.failure(IllegalStateException("الفرع الافتراضي للمستودع غير محدد."))
+        else -> runCatching {
+            GitHubRepoClient(targetRepo.owner, targetRepo.repo, targetRepo.token)
+                .getTree(targetRepo.defaultBranch)
         }
-    } else {
-        "فحص مسارات التطبيق: شاشات الواجهة، مشغل الوسائط، وإعدادات الوكيل الذكي (فحص محلي حقيقي)."
     }
+    val tree = inspectionResult.getOrNull()
+    val relevantFiles = tree
+        ?.filter { it.path.endsWith(".kt") || it.path.endsWith(".xml") }
+        ?.take(8)
+        ?.map { it.path }
+    if (tree.isNullOrEmpty() || relevantFiles.isNullOrEmpty()) {
+        val reason = inspectionResult.exceptionOrNull()?.localizedMessage
+            ?: "لم تُرجع شجرة المستودع ملفات Kotlin أو XML قابلة للفحص."
+        initialSteps[1] = step2.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = "❌ تعذر فحص المستودع: $reason"
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = "أُوقفت المهمة قبل توليد الكود لأن فحص المستودع لم ينجح: $reason"
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return
+    }
+    val inspectionSummary = "ملفات تم التحقق من وجودها فعلياً على فرع (${targetRepo!!.defaultBranch}):\n" +
+        relevantFiles.joinToString("\n• ", prefix = "• ")
 
     initialSteps[1] = step2.copy(
         isRunning = false,
         isSuccess = true,
-        outputSnippet = inspectionResult
+        outputSnippet = inspectionSummary
     )
     mission = mission.copy(steps = initialSteps.toList(), status = AgentTaskStatus.WRITING)
     onUpdate(mission)
@@ -507,8 +540,24 @@ private suspend fun executeAgentMissionInner(
     }
 
     val codeData = codeResult.getOrNull()
-    val generatedCode = codeData?.text ?: "// تم إعداد التعديل البرمجي بنجاح"
-    val tokensInfo3 = " [الرموز: ${codeData?.totalTokens ?: 0} • زمن التوليد: ${latencyMs3}ms]"
+    val generatedCode = codeData?.text?.takeIf { it.isNotBlank() }
+    if (generatedCode == null) {
+        val errorMsg = "أعاد مزود الذكاء استجابة كود فارغة؛ لم يتم إنشاء مقترح قابل للمراجعة."
+        initialSteps[2] = step3.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = "❌ $errorMsg"
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = errorMsg
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return
+    }
+    val tokensInfo3 = " [الرموز: ${codeData.totalTokens} • زمن التوليد: ${latencyMs3}ms]"
 
     initialSteps[2] = step3.copy(
         isRunning = false,
