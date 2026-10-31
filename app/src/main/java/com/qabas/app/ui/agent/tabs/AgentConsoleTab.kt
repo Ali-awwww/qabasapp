@@ -514,6 +514,14 @@ internal fun AgentLiveConsoleTab(
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        item {
+            AgentHubPageIntro(
+                index = "02",
+                title = "كونسول التنفيذ",
+                description = "مراقبة الاتصال والطابور والخطوات والنتائج الفعلية",
+                icon = Icons.Default.Terminal
+            )
+        }
         // ==========================================
         // 🎯 المستودع المستهدف للتنفيذ (غرفة الوكيل = غرفة التنفيذ المربوطة بالخزانة)
         // ==========================================

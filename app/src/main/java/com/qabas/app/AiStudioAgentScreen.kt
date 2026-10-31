@@ -869,6 +869,14 @@ fun AiStudioAgentScreen(
                         Modifier.fillMaxSize().cyberGridBackground().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        item {
+                            AgentHubPageIntro(
+                                index = "02",
+                                title = "مساحة العمل",
+                                description = "تهيئة المهمة والتخصص والتنفيذ ومراجعة التغييرات المقترحة",
+                                icon = Icons.Default.Code
+                            )
+                        }
                         item { Spacer(Modifier.height(4.dp)) }
 
                         // Container 1: Mode & Team
@@ -2141,6 +2149,13 @@ private fun UnifiedToolsAndReadinessSection(
             .fillMaxSize()
             .background(Color(0xFF05070F))
     ) {
+        AgentHubPageIntro(
+            index = "06",
+            title = "الأدوات والجاهزية",
+            description = "إدارة قدرات الوكيل والتحقق من الاتصالات قبل التنفيذ",
+            icon = Icons.Default.Build,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -262,3 +262,40 @@ private fun HubAction(label: String, icon: androidx.compose.ui.graphics.vector.I
         }
     }
 }
+
+
+/** Shared, compact page identity for the developer hub's functional sections. */
+@Composable
+internal fun AgentHubPageIntro(
+    index: String,
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(HubSurface, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .testTag("agent_hub_page_$index"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .background(HubCyan.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = HubCyan, modifier = Modifier.size(20.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text(index, color = HubCyan, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                Text(title, color = HubText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(description, color = HubMuted, fontFamily = CairoFont, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}

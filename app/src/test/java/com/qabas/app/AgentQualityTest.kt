@@ -149,4 +149,44 @@ class AgentQualityTest {
         }
         composeTestRule.onNodeWithTag("agent_hub_projects").assertExists()
     }
+
+    @Test
+    fun `workspace section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 1)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
+    }
+
+    @Test
+    fun `console section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 2)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
+    }
+
+    @Test
+    fun `history section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 4)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_05").assertExists()
+    }
+
+    @Test
+    fun `tools section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 5)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_06").assertExists()
+    }
 }

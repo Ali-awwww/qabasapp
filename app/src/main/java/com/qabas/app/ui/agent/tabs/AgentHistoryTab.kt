@@ -102,6 +102,14 @@ internal fun TaskHistoryLogTab(context: Context) {
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            AgentHubPageIntro(
+                index = "05",
+                title = "سجل النشاط",
+                description = "تتبّع نتائج المهام والأدوات والأخطاء المسجلة فعلياً",
+                icon = Icons.Default.History
+            )
+        }
         // ==========================================
         // 📊 لوحة المؤشرات البصرية والإحصائيات الهندسية المتناغمة (Spatial Telemetry HUD)
         // ==========================================
