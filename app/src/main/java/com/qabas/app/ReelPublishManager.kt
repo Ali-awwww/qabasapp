@@ -261,6 +261,18 @@ object ReelPublishManager {
         onProgressUpdate: (String) -> Unit = {},
         onBytesProgress: (sentBytes: Long, totalBytes: Long, phase: UploadPhase) -> Unit = { _, _, _ -> }
     ): PublishResult = withContext(Dispatchers.IO) {
+        val authUid = SupabaseServices.Auth.getCurrentUserId()
+            ?: return@withContext PublishResult.Failed(
+                PublishStage.SAVE_ROW,
+                "لا توجد جلسة Supabase صالحة. أعد تسجيل الدخول ثم حاول النشر مجدداً."
+            )
+        if (authUid != userId) {
+            return@withContext PublishResult.Failed(
+                PublishStage.SAVE_ROW,
+                "هوية الحساب السحابي لا تطابق الحساب الحالي. أعد تسجيل الدخول ثم حاول مجدداً."
+            )
+        }
+
         val isDev = isDeveloperUser(context, email)
 
         var finalVideoUrl = directUrl?.trim().orEmpty()
