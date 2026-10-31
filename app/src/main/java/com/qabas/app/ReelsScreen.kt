@@ -344,8 +344,9 @@ fun ReelsScreen(
     // 🛡️ User ID Selection - CRITICAL for RLS
     // For reads/display, we can fallback. For WRITES (Like/Save/Publish), we MUST use Supabase ID.
     // Observe Supabase auth state so the screen updates after persisted-session restoration.
-    val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
-    val currentSupabaseId = supabaseAuthUser?.id ?: SupabaseServices.Auth.getCurrentUserId()
+    val supabaseAuthState by SupabaseServices.Auth.currentUser.collectAsState()
+    // The profile flow may contain a local fallback; only the live Supabase client is authoritative.
+    val currentSupabaseId = remember(supabaseAuthState) { SupabaseServices.Auth.getCurrentUserId() }
     val currentUserId = currentSupabaseId
         ?: prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
         ?: FirebaseAuthRepository.getEffectiveUserId(context)
