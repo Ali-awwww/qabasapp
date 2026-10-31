@@ -612,6 +612,29 @@ create index if not exists idx_reel_bookmarks_user
 create index if not exists idx_reel_history_user
     on public.reel_history(user_id, created_at desc);
 
+-- Durable quota ledger: deleting a reel cannot restore today's allowance.
+create table if not exists public.reel_publish_daily_quota (
+    user_id text not null,
+    publish_day date not null,
+    reel_id text not null,
+    created_at timestamptz not null default now(),
+    primary key (user_id, publish_day)
+);
+alter table public.reel_publish_daily_quota enable row level security;
+revoke all on public.reel_publish_daily_quota from anon, authenticated;
+
+-- Preserve today's already-published quota when this migration is first applied.
+insert into public.reel_publish_daily_quota (user_id, publish_day, reel_id, created_at)
+select distinct on (r.user_id::text, (r.created_at at time zone 'UTC')::date)
+       r.user_id::text,
+       (r.created_at at time zone 'UTC')::date,
+       r.id::text,
+       r.created_at
+  from public.reels r
+ where r.created_at is not null
+ order by r.user_id::text, (r.created_at at time zone 'UTC')::date, r.created_at asc
+on conflict (user_id, publish_day) do nothing;
+
 alter table public.reels
     add column if not exists user_name text default 'صانع محتوى قبس',
     add column if not exists user_avatar text,
@@ -765,14 +788,11 @@ begin
 
     perform pg_advisory_xact_lock(hashtextextended(caller_id, 0));
 
-    select count(*)::integer
-      into posts_today
-      from public.reels r
-     where r.user_id::text = caller_id
-       and r.created_at >= date_trunc('day', now())
-       and r.created_at < date_trunc('day', now()) + interval '1 day';
+    insert into public.reel_publish_daily_quota (user_id, publish_day, reel_id, created_at)
+    values (caller_id, (now() at time zone 'UTC')::date, new.id::text, now())
+    on conflict (user_id, publish_day) do nothing;
 
-    if posts_today >= 1 then
+    if not found then
         raise exception 'reels_daily_limit_exceeded' using errcode = 'P0001';
     end if;
 
