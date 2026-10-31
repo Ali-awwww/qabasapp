@@ -865,7 +865,7 @@ fun AiStudioAgentScreen(
                         isChatRunning = isRunning,
                         activeMissionTitle = currentMission?.userPrompt,
                         activeMissionStatus = currentMission?.status?.name,
-                        historyCount = missionHistory.size,
+                        historyCount = AgentRunLog.load(context).size,
                         onSelectTab = { topTab = it },
                         onOpenRepository = { showRepoDialog = true },
                         onOpenKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
