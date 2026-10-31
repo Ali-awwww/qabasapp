@@ -355,6 +355,7 @@ fun AiStudioAgentScreen(
     val activeEnginePair = remember { derivedStateOf { UniversalKeyBrain.getActiveEngine() } }
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
     val activeRepo = remember(context, vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
+    val savedRepositories = remember(context, vaultTrigger) { RepoVaultManager.getRepositories(context) }
 
     fun handleSendMessage(text: String) {
         val clean = text.trim()
@@ -843,20 +844,26 @@ fun AiStudioAgentScreen(
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (topTab) {
-                    1 -> AgentLiveConsoleTab(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
+                    0 -> AgentHubOverview(
+                        repositoryName = activeRepo?.fullName,
+                        repositoryBranch = activeRepo?.defaultBranch,
+                        providerName = keyResolution.first.displayName,
+                        modelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                        isOfflineMode = isOfflineMode,
+                        isProviderReady = keyResolution.third != KeySource.NONE,
+                        isGitHubReady = githubHealth.isConnected,
+                        isChecking = isPinging,
+                        isExecuting = isExecuting,
+                        isChatRunning = isRunning,
+                        activeMissionTitle = currentMission?.userPrompt,
+                        activeMissionStatus = currentMission?.status?.name,
+                        historyCount = missionHistory.size,
+                        onSelectTab = { topTab = it },
+                        onOpenRepository = { showRepoDialog = true },
+                        onOpenKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onRefresh = { refreshDiagnostics() }
                     )
-                    2 -> UnifiedToolsAndReadinessSection(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
-                    )
-                    3 -> TaskHistoryLogTab(context)
-                    else -> LazyColumn(
+                    1 -> LazyColumn(
                         Modifier.fillMaxSize().cyberGridBackground().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -1317,6 +1324,28 @@ fun AiStudioAgentScreen(
 
                         item { Spacer(Modifier.height(24.dp)) }
                     }
+                    2 -> AgentLiveConsoleTab(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = { showRepoDialog = true }
+                    )
+                    3 -> AgentHubProjectsSection(
+                        repositories = savedRepositories,
+                        activeRepositoryId = activeRepo?.id,
+                        onSelectRepository = { repository ->
+                            RepoVaultManager.setActiveRepo(context, repository.id)
+                            Toast.makeText(context, "تم تحديد ${repository.fullName} كمستودع نشط", Toast.LENGTH_SHORT).show()
+                        },
+                        onAddRepository = { showRepoDialog = true }
+                    )
+                    4 -> TaskHistoryLogTab(context)
+                    5 -> UnifiedToolsAndReadinessSection(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = { showRepoDialog = true }
+                    )
                 }
             }
         }
