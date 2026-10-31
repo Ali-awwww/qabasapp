@@ -105,7 +105,7 @@ fun AgentHubOverview(
                         Box(
                             Modifier.size(38.dp).background(HubCyan.copy(alpha = 0.12f), CircleShape),
                             contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Default.GitHub, contentDescription = null, tint = HubCyan) }
+                        ) { Icon(Icons.Default.Code, contentDescription = null, tint = HubCyan) }
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
                             Text("المشروع النشط", color = HubMuted, fontFamily = CairoFont, fontSize = 11.sp)
                             Text(repositoryName ?: "لم يتم ربط مستودع", color = HubText, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
