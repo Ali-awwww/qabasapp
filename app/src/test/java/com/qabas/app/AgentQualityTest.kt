@@ -139,4 +139,14 @@ class AgentQualityTest {
         }
         composeTestRule.onNodeWithTag("agent_hub_overview").assertExists()
     }
+
+    @Test
+    fun `agent screen opens on projects section`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 3)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_projects").assertExists()
+    }
 }
