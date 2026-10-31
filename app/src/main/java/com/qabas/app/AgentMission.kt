@@ -679,8 +679,14 @@ suspend fun runBuildVerification(
         return baseMission.copy(steps = steps, status = if (running) AgentTaskStatus.BUILDING else baseMission.status)
     }
 
-    if (repo == null || repo.token.isBlank()) {
-        val failed = emitStep(false, false, "🔗 لا يوجد مستودع مربوط برمز صالح — اربطه أولاً من مركز البناء.")
+    if (repo == null || repo.token.isBlank() || repo.defaultBranch.isBlank()) {
+        val reason = when {
+            repo == null -> "لا يوجد مستودع مرتبط."
+            repo.token.isBlank() -> "رمز الوصول للمستودع غير متوفر."
+            else -> "الفرع الافتراضي للمستودع غير محدد."
+        }
+        val failed = emitStep(false, false, "🔗 تعذر بدء البناء: $reason اربط مستودعاً صالحاً وحدد فرعه أولاً.")
+            .copy(status = AgentTaskStatus.FAILED)
         onUpdate(failed)
         return failed
     }
@@ -692,7 +698,7 @@ suspend fun runBuildVerification(
         owner = repo.owner,
         repo = repo.repo,
         token = repo.token,
-        branch = repo.defaultBranch.ifBlank { "main" },
+        branch = repo.defaultBranch,
         pollIntervalMs = pollIntervalMs,
         timeoutMs = timeoutMs,
         onTick = { run ->
