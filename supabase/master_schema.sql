@@ -650,7 +650,13 @@ using (
     or coalesce(auth.jwt()->'app_metadata'->>'role', '') in ('developer', 'admin', 'owner')
 )
 with check (
-    user_id::text = auth.uid()::text
+    (
+        user_id::text = auth.uid()::text
+        and coalesce(auth.jwt()->'app_metadata'->>'role', '') not in ('developer', 'admin', 'owner')
+        and coalesce(publish_type, 'normal') = 'normal'
+        and not coalesce(is_silent_seed, false)
+        and not coalesce(is_featured_by_dev, false)
+    )
     or coalesce(auth.jwt()->'app_metadata'->>'role', '') in ('developer', 'admin', 'owner')
 );
 
