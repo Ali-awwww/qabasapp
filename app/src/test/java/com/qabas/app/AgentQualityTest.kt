@@ -167,7 +167,7 @@ class AgentQualityTest {
                 AiStudioAgentScreen(onBack = {}, initialTab = 2)
             }
         }
-        composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
+        composeTestRule.onNodeWithTag("agent_hub_page_03").assertExists()
     }
 
     @Test

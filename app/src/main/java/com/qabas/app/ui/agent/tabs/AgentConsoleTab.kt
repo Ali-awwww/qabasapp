@@ -516,7 +516,7 @@ internal fun AgentLiveConsoleTab(
     ) {
         item {
             AgentHubPageIntro(
-                index = "02",
+                index = "03",
                 title = "كونسول التنفيذ",
                 description = "مراقبة الاتصال والطابور والخطوات والنتائج الفعلية",
                 icon = Icons.Default.Terminal
