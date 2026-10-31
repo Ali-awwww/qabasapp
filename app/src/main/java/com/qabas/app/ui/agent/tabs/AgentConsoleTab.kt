@@ -342,7 +342,7 @@ internal fun AgentLiveConsoleTab(
                     )
                     cmd.progress = 0.85f
                     cmd.turnsUsed = 2
-                    cmd.currentPhase = "معالجة التعديلات المستلمة من السيرفر"
+                    cmd.currentPhase = "تم استلام الرد واستخراج المقترح للمراجعة"
 
                     // فحص وجود كود لتشكيل FileDiff حقيقي
                     var realDiff: FileDiff? = null
@@ -352,7 +352,7 @@ internal fun AgentLiveConsoleTab(
                         realDiff = FileDiff(
                             filePath = "app/src/main/java/com/qabas/app/$targetFile",
                             additions = codeBlock.lines().size,
-                            deletions = 1,
+                            deletions = 0,
                             diffText = codeBlock
                         )
                         generatedDiff = realDiff
@@ -361,8 +361,8 @@ internal fun AgentLiveConsoleTab(
                     cmd.status = CommandStatus.COMPLETED
                     cmd.turnsUsed = 3
                     cmd.progress = 1.0f
-                    cmd.currentPhase = "اكتملت المهمة بنجاح ✅"
-                    cmd.resultSummary = "تم الاتصال بسيرفر ${provider.displayName} وإنجاز المهمة ($latency ms | 🪙 ${agentResponse.totalTokens} توكن فعلي)."
+                    cmd.currentPhase = "اكتمل الطلب واستُلم الرد ✅"
+                    cmd.resultSummary = "تم استلام رد من ${provider.displayName} واستخراج مقترح للمراجعة؛ لم تُعدّل ملفات المشروع ($latency ms | 🪙 ${agentResponse.totalTokens} توكن)."
 
                     chatMessages.add(
                         AgentChatMessage(
@@ -375,8 +375,8 @@ internal fun AgentLiveConsoleTab(
                     AgentRunLog.record(
                         context = context,
                         title = cmd.prompt.take(60),
-                        tools = listOf("api_call", "parse_response", "update_code"),
-                        summary = "تم إنجاز المهمة بنجاح عبر الاتصال المباشر بسيرفر ${provider.displayName} (استهلاك ${agentResponse.totalTokens} توكن).",
+                        tools = listOf("api_call", "parse_response", "proposal_extract"),
+                        summary = "تم استلام رد ناجح من ${provider.displayName} واستخراج مقترح للمراجعة؛ لم يتم تعديل ملفات المشروع (استهلاك ${agentResponse.totalTokens} توكن).",
                         ok = true
                     )
                 },
@@ -422,7 +422,7 @@ internal fun AgentLiveConsoleTab(
                 isRunning = false
                 activeCommandId = null
                 if (cmd.status == CommandStatus.COMPLETED) {
-                    Toast.makeText(context, "أنجز الوكيل المهمة بنجاح! 🚀", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "اكتمل الطلب واستلمنا رد الوكيل. راجع المقترح قبل حفظه.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -978,7 +978,7 @@ internal fun AgentLiveConsoleTab(
                             when (ghState) {
                                 GitHubConnectionState.CONNECTED -> {
                                     Text(
-                                        if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "مستودع مرتبط بنجاح",
+                                        if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
                                         color = Color.White,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
