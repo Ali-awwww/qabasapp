@@ -84,7 +84,7 @@ fun AiStudioAgentScreen(
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab) }
-    var showDevConsole by remember { mutableStateOf(true) }
+    var showHub by remember { mutableStateOf(true) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
     val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
@@ -101,8 +101,8 @@ fun AiStudioAgentScreen(
             showSidePanel = false
             return@BackHandler
         }
-        if (showDevConsole) {
-            showDevConsole = false
+        if (showHub) {
+            showHub = false
             return@BackHandler
         }
         if (showExitConfirmation) {
@@ -603,7 +603,7 @@ fun AiStudioAgentScreen(
         bottomBar = bottomBar,
         containerColor = Color(0xFF05070F),
         topBar = {
-            if (showDevConsole) {
+            if (showHub) {
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth().statusBarsPadding(),
                     backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
@@ -630,7 +630,7 @@ fun AiStudioAgentScreen(
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
                             IconButton(
-                                onClick = { showDevConsole = false },
+                                onClick = { showHub = false },
                                 modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF10B981).copy(alpha = 0.14f)).testTag("agent_return_chat")
                             ) {
                                 Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
@@ -774,6 +774,18 @@ fun AiStudioAgentScreen(
                             Spacer(Modifier.width(4.dp))
 
                             IconButton(
+                                onClick = { showHub = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0F1B2F))
+                                    .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f), CircleShape)
+                                    .testTag("agent_open_hub")
+                            ) {
+                                Icon(Icons.Default.Dashboard, contentDescription = "مركز التطوير", tint = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp))
+                            }
+
+                            IconButton(
                                 onClick = { showSettings = true },
                                 modifier = Modifier
                                     .size(36.dp)
@@ -795,7 +807,7 @@ fun AiStudioAgentScreen(
             }
         }
     ) { innerPadding ->
-        if (showDevConsole) {
+        if (showHub) {
             Column(
                 Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
             ) {
@@ -1872,7 +1884,7 @@ fun AiStudioAgentScreen(
                 showOnDeviceDialog = true
             },
             onOpenDevTools = {
-                showDevConsole = true
+                showHub = true
             }
         )
     }
