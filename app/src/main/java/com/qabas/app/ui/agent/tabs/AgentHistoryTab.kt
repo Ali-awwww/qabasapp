@@ -255,7 +255,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                             Spacer(modifier = Modifier.width(5.dp))
                                             Text("نسبة الإنجاز", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text(successRate, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text(successRate, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("agent_history_success_rate"))
                                     }
                                     Icon(Icons.Default.TrendingUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
                                 }
