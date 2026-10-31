@@ -6,7 +6,7 @@ begin;
 -- Keep the database compatible with the complete ReelRow payload used by the app.
 -- Older installations used UUID reel IDs while the current schema uses TEXT.
 -- Derive the FK column type from the live reels table before creating missing tables.
-do $
+do $create_reel_interaction_tables$
 declare
     reel_id_type text;
 begin
@@ -42,7 +42,7 @@ begin
             reel_id_type
         );
     end if;
-end $;
+end $create_reel_interaction_tables$;
 
 create index if not exists idx_reel_bookmarks_user
     on public.reel_bookmarks(user_id, created_at desc);
@@ -274,7 +274,7 @@ for each row execute function public.protect_reel_server_fields();
 
 -- Public playback is allowed, but uploads into the reels bucket must be under
 -- videos/<authenticated UID>/... or thumbnails/<authenticated UID>/...
-do $
+do $reels_storage_policies$
 declare
     p record;
 begin
