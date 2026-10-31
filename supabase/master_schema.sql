@@ -567,6 +567,27 @@ CREATE POLICY "Users can insert or update own api keys"
 begin;
 
 -- Keep the database compatible with the complete ReelRow payload used by the app.
+create table if not exists public.reel_bookmarks (
+    id uuid primary key default gen_random_uuid(),
+    reel_id text not null references public.reels(id) on delete cascade,
+    user_id text not null,
+    created_at timestamptz default now(),
+    constraint unique_reel_user_bookmark unique (reel_id, user_id)
+);
+
+create table if not exists public.reel_history (
+    id uuid primary key default gen_random_uuid(),
+    reel_id text not null references public.reels(id) on delete cascade,
+    user_id text not null,
+    watched_duration_sec integer default 0,
+    created_at timestamptz default now()
+);
+
+create index if not exists idx_reel_bookmarks_user
+    on public.reel_bookmarks(user_id, created_at desc);
+create index if not exists idx_reel_history_user
+    on public.reel_history(user_id, created_at desc);
+
 alter table public.reels
     add column if not exists user_name text default 'صانع محتوى قبس',
     add column if not exists user_avatar text,
