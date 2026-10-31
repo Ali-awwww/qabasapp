@@ -229,4 +229,27 @@ grant select, insert, delete on public.reel_comments to authenticated;
 grant select, insert, delete on public.reel_bookmarks to authenticated;
 grant select, insert on public.reel_history to authenticated;
 
+-- Allow safe view-count increments without granting public UPDATE on reels.
+create or replace function public.increment_reel_view_count(p_reel_id text)
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+    updated_count integer;
+begin
+    update public.reels
+       set views_count = coalesce(views_count, 0) + 1
+     where id::text = p_reel_id
+       and is_active = true
+    returning views_count into updated_count;
+
+    return updated_count;
+end;
+$;
+
+revoke all on function public.increment_reel_view_count(text) from public;
+grant execute on function public.increment_reel_view_count(text) to anon, authenticated;
+
 commit;
