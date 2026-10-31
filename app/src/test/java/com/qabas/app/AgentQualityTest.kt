@@ -85,6 +85,12 @@ class AgentQualityTest {
         assertEquals("مراجع", name)
     }
 
+    @Test
+    fun `extractTargetFile does not guess a source file when no path is provided`() {
+        val target = extractTargetFile("أضف ميزة جديدة للمشروع", "fun newFeature() = Unit")
+        assertEquals("AgentProposal.kt", target)
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // AgentPrefs.maskSecret — إظهار آخر 4 محارف فقط
     // ═══════════════════════════════════════════════════════════════════
