@@ -610,30 +610,16 @@ fun AiStudioAgentScreen(
                     borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             IconButton(
                                 onClick = onBack,
                                 modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626)).testTag("agent_hub_back")
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
                             }
-                            Spacer(Modifier.width(6.dp))
-                            Surface(
-                                onClick = { showDevConsole = false },
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.18f),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
-                                    Text("العودة للمحادثة 💬", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                                }
-                            }
-                            Spacer(Modifier.width(10.dp))
                             Text(
                                 "مركز التطوير الذكي",
                                 fontWeight = FontWeight.Bold,
@@ -641,24 +627,19 @@ fun AiStudioAgentScreen(
                                 fontSize = 15.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
-                            com.qabas.app.ui.components.ModelIndicator(modifier = Modifier.padding(end = 8.dp))
-                            Surface(
-                                onClick = { showSettings = true },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF0F1B2F),
-                                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.6f)),
-                                modifier = Modifier.height(38.dp).testTag("agent_open_settings")
+                            IconButton(
+                                onClick = { showDevConsole = false },
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF10B981).copy(alpha = 0.14f)).testTag("agent_return_chat")
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
-                                    Text("الإعدادات", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
+                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(
+                                onClick = { showSettings = true },
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1B2F)).border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape).testTag("agent_open_settings")
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
                             }
                         }
                     }
