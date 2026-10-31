@@ -202,7 +202,7 @@ begin
     loop
         execute format('drop policy if exists %I on storage.objects', p.policyname);
     end loop;
-end $;
+end $reels_storage_policies$;
 
 create policy reels_public_read
 on storage.objects for select to anon, authenticated
@@ -235,7 +235,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $increment_reel_view_counter$
 declare
     updated_count integer;
 begin
