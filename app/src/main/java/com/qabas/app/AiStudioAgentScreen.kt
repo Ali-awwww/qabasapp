@@ -466,7 +466,14 @@ fun AiStudioAgentScreen(
                     
                     withContext(Dispatchers.Main) {
                         val finalMsg = agentMsg.copy(
-                            text = report.leaderSynthesis.ifBlank { "تم تنفيذ المهمة بواسطة الفريق بنجاح." },
+                            sender = if (report.overallSuccess) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
+                            text = report.leaderSynthesis.ifBlank {
+                                if (report.overallSuccess) {
+                                    "اكتمل تشغيل فريق النماذج، لكن لم يصدر تقرير تلخيصي."
+                                } else {
+                                    "تعذر إكمال المهمة عبر فريق النماذج. راجع تفاصيل الخطوات والأخطاء المسجلة."
+                                }
+                            },
                             teamReport = report,
                             teamSteps = teamStepsList.toList()
                         )
@@ -1299,13 +1306,15 @@ fun AiStudioAgentScreen(
                                         onApplyDiff = { diff ->
                                             if (activeRepo == null || activeRepo.token.isBlank()) {
                                                 Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
+                                            } else if (activeRepo.defaultBranch.isBlank()) {
+                                                Toast.makeText(context, "تعذر حفظ المقترح: الفرع الافتراضي غير محدد.", Toast.LENGTH_LONG).show()
                                             } else {
                                                 applyingDiffPath = diff.filePath
                                                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                                     val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
                                                     // 🔑 نكتب المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
                                                     val safePath = AgentPatchKit.proposalPath(diff.filePath)
-                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch.ifBlank { "main" }, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
+                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
                                                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                                                         applyingDiffPath = null
                                                         if (ok) {

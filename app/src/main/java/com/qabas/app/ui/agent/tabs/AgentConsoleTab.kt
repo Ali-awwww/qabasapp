@@ -2378,10 +2378,14 @@ internal fun AgentLiveConsoleTab(
                                     return@Button
                                 }
                                 val diff = generatedDiff ?: return@Button
+                                if (ghBranch.isBlank() || ghBranch == "غير محدد") {
+                                    Toast.makeText(context, "تعذر الحفظ: لم يتم تحديد فرع المستودع.", Toast.LENGTH_LONG).show()
+                                    return@Button
+                                }
                                 isPushingToGitHub = true
                                 scope.launch(Dispatchers.IO) {
                                     val client = GitHubRepoClient(owner.trim(), repo.trim(), token.trim())
-                                    val branch = ghBranch.ifBlank { "main" }
+                                    val branch = ghBranch
                                     val commitMessage = "chore(agent): save proposal for ${diff.filePath.substringAfterLast("/")}"
                                     // 🔑 نحفظ المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
                                     val safePath = AgentPatchKit.proposalPath(diff.filePath)
