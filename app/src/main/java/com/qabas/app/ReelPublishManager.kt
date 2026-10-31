@@ -27,7 +27,7 @@ object ReelPublishManager {
     private const val PREFS_NAME = "qabas_reels_publish_prefs"
 
     // Quotas & Limits
-    const val DAILY_LIMIT_REGULAR = 3
+    const val DAILY_LIMIT_REGULAR = 1
     const val DAILY_LIMIT_DEVELOPER = 999
     const val COOLDOWN_REGULAR_MS = 15 * 60 * 1000L // 15 minutes between posts
     const val MAX_REGULAR_VIDEO_SECONDS = 90
@@ -54,19 +54,18 @@ object ReelPublishManager {
      * التحقق مما إذا كان المستخدم يملك صلاحيات المطور (Developer / SuperUser)
      */
     fun isDeveloperUser(context: Context, email: String?): Boolean {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val devFlag = prefs.getBoolean("is_developer", false) || prefs.getBoolean("is_admin", false)
-        val cleanEmail = email?.trim()?.lowercase().orEmpty()
-        val isDevEmail = cleanEmail == "xman88371@gmail.com" ||
-            cleanEmail == "aly750834@gmail.com" ||
-            cleanEmail.startsWith("dev@") ||
-            cleanEmail.contains("developer") ||
-            cleanEmail.contains("admin") ||
-            CloudServices.isOwnerAccount(cleanEmail)
-
-        return devFlag || isDevEmail
+        // Privileged roles must come from server-controlled Supabase app_metadata.
+        val role = runCatching {
+            SupabaseConfig.currentSession()
+                ?.user
+                ?.appMetadata
+                ?.get("role")
+                ?.toString()
+                ?.trim('"')
+                ?.lowercase(Locale.ROOT)
+        }.getOrNull()
+        return role in setOf("developer", "admin", "owner")
     }
-
     /**
      * التحقق مما إذا كان المستخدم الحالي هو صاحب وناشر هذا المقطع
      */
