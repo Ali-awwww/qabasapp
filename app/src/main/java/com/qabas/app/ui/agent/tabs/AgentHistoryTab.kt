@@ -55,7 +55,6 @@ import java.text.SimpleDateFormat
 private enum class TaskHistoryFilter(val label: String, val color: Color) {
     ALL("الكل", GoldPrimary),
     COMPLETED("تم بنجاح ✓", Color(0xFF10B981)),
-    IN_PROGRESS("قيد التنفيذ ⚡", Color(0xFF00F0FF)),
     FAILED("فشل ✗", Color(0xFFEF4444))
 }
 
@@ -70,15 +69,7 @@ internal fun TaskHistoryLogTab(context: Context) {
     val okCount = runs.count { it.ok }
     val failCount = runs.count { !it.ok }
     val totalCount = runs.size
-    val successRate = if (totalCount > 0) (okCount * 100) / totalCount else 100
-
-    val infiniteTransition = rememberInfiniteTransition(label = "TaskHistorySync")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "PulseAlpha"
-    )
+    val successRate = if (totalCount > 0) "${(okCount * 100) / totalCount}%" else "—"
 
     // تصفية السجل حسب الحالة والبحث
     val filteredRuns = remember(runs, selectedFilter, searchQuery) {
@@ -87,7 +78,6 @@ internal fun TaskHistoryLogTab(context: Context) {
                 TaskHistoryFilter.ALL -> true
                 TaskHistoryFilter.COMPLETED -> run.ok
                 TaskHistoryFilter.FAILED -> !run.ok
-                TaskHistoryFilter.IN_PROGRESS -> false
             }
             val matchesQuery = searchQuery.isBlank() ||
                 run.title.contains(searchQuery, ignoreCase = true) ||
@@ -184,7 +174,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                     // 📐 شبكة متناسقة هندسياً 2x2 للكبسولات الإحصائية
                     // ==========================================
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // الصف الأول: مكتملة + قيد التنفيذ
+                        // الصف الأول: العمليات الناجحة وإجمالي السجل
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -213,12 +203,12 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 }
                             }
 
-                            // كبسولة 2: قيد التنفيذ (IN PROGRESS)
+                            // كبسولة 2: إجمالي العمليات المسجلة
                             Surface(
                                 modifier = Modifier.weight(1f),
                                 color = Color(0xFF05182C),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -227,18 +217,13 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(7.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0xFF00F0FF).copy(alpha = pulseAlpha))
-                                            )
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("قيد التنفيذ", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("إجمالي العمليات", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text("0 نشطة", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text("$totalCount عملية", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -290,7 +275,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                             Spacer(modifier = Modifier.width(5.dp))
                                             Text("نسبة الإنجاز", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text("$successRate%", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text(successRate, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Icon(Icons.Default.TrendingUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
                                 }
