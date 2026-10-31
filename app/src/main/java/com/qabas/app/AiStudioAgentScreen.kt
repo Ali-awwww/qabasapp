@@ -83,7 +83,7 @@ fun AiStudioAgentScreen(
     val prefs = AgentPrefs.instance(context)
 
     var showExitConfirmation by remember { mutableStateOf(false) }
-    var topTab by remember { mutableStateOf(initialTab) }
+    var topTab by remember { mutableStateOf(initialTab.coerceIn(0, 5)) }
     var showHub by remember { mutableStateOf(true) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
@@ -831,7 +831,8 @@ fun AiStudioAgentScreen(
                     isExecuting && teamProgressText.contains("تخطيط", ignoreCase = true) -> "PLAN"
                     isExecuting && teamProgressText.contains("بناء", ignoreCase = true) -> "VERIFY"
                     isExecuting -> "CODE"
-                    else -> "ANALYZE"
+                    isThinking || (isRunning && !isPaused) -> "ANALYZE"
+                    else -> "IDLE"
                 },
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
