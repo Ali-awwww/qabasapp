@@ -404,6 +404,7 @@ object BugReportRepository {
                         developerReply = cloud.developerReply,
                         isReadByUser = true // سيتم تحديثه لاحقاً
                     )).copy(
+                        userId = cloud.userId,
                         status = cloud.status,
                         developerReply = cloud.developerReply,
                         syncedToCloud = true,
