@@ -64,32 +64,8 @@ fun ProjectsScreen(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val isFirebaseConfigured = remember { FirebaseManager.isConfigured(context) }
-    var isSyncingProjects by remember { mutableStateOf(false) }
-
-    // مزامنة المشاريع والمسودات تلقائياً مع Firebase Firestore بالتوازي في الخلفية
-    LaunchedEffect(projects, isFirebaseConfigured) {
-        if (isFirebaseConfigured && projects.isNotEmpty()) {
-            isSyncingProjects = true
-            val uid = FirebaseManager.getAuth().currentUser?.uid
-                ?: context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE).getString("user_id", null)
-                ?: "local_creator"
-            try {
-                projects.take(15).forEach { proj ->
-                    FirebaseManager.saveProjectToFirestore(
-                        context = context,
-                        userId = uid,
-                        projectId = proj.id.ifBlank { "proj_${proj.title.hashCode()}" },
-                        title = proj.title,
-                        script = proj.idea,
-                        hasVoiceover = proj.finalVideoPath.isNotBlank()
-                    )
-                }
-            } finally {
-                isSyncingProjects = false
-            }
-        }
-    }
+    // ProjectService already syncs saved drafts to Supabase.
+    val isSyncingProjects = false
 
     if (projectToDelete != null) {
         AlertDialog(
