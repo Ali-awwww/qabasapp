@@ -41,6 +41,7 @@ object BugReportRepository {
     @Serializable
     data class BugReportItem(
         val id: String = UUID.randomUUID().toString(),
+        @SerialName("user_id") val userId: String? = null,
         @SerialName("screen_name") val screenName: String = "الرئيسية",
         val description: String = "",
         @SerialName("report_type") val reportType: String = "BUG", // BUG, IMPROVEMENT, CONTENT
@@ -188,6 +189,7 @@ object BugReportRepository {
         ensureLoaded(context)
 
         val id = UUID.randomUUID().toString()
+        val supabaseUserId = SupabaseServices.Auth.getCurrentUserId()
         val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
         val model = Build.MODEL
         val androidVer = Build.VERSION.RELEASE
@@ -220,6 +222,7 @@ object BugReportRepository {
         // 2. إنشاء الكائن الأولي
         var reportItem = BugReportItem(
             id = id,
+            userId = supabaseUserId,
             screenName = screenName.ifBlank { "الرئيسية" },
             description = enrichedDescription,
             reportType = reportType.ifBlank { "BUG" },
@@ -247,10 +250,10 @@ object BugReportRepository {
         if (SupabaseServices.isSupabaseAvailable) {
             try {
                 // أ. رفع الصورة إلى Storage إن وُجدت
-                if (localImagePath != null) {
+                if (localImagePath != null && !reportItem.userId.isNullOrBlank()) {
                     val imgFile = File(localImagePath)
                     if (imgFile.exists()) {
-                        val remoteFileName = "bug_${id}.jpg"
+                        val remoteFileName = "${reportItem.userId}/bug_${id}.jpg"
                         uploadedImageUrl = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
                             path = remoteFileName,
@@ -269,7 +272,8 @@ object BugReportRepository {
                     appVersion = currentVer,
                     deviceModel = fullDeviceModel,
                     id = id,
-                    accountNumber = accountNumber
+                    accountNumber = accountNumber,
+                    userId = reportItem.userId
                 )
 
                 if (dbSuccess) {
@@ -356,6 +360,7 @@ object BugReportRepository {
                         reportType = c.reportType,
                         status = c.status,
                         userEmail = c.userEmail,
+                        userId = c.userId,
                         localImagePath = null,
                         imageUrl = c.imageUrl.takeIf { it.isNotBlank() },
                         appVersion = c.appVersion,
@@ -392,6 +397,7 @@ object BugReportRepository {
                         reportType = cloud.reportType,
                         status = cloud.status,
                         userEmail = cloud.userEmail,
+                        userId = cloud.userId,
                         appVersion = cloud.appVersion,
                         deviceModel = cloud.deviceInfo,
                         imageUrl = cloud.imageUrl,
@@ -453,13 +459,19 @@ object BugReportRepository {
             val currentList = _reports.value.toMutableList()
 
             for (report in pending) {
+                // Never sync an offline report under a different account after a sign-out/switch.
+                if (report.userId != SupabaseServices.Auth.getCurrentUserId()) continue
+
                 var cloudImageUrl = report.imageUrl
-                if (cloudImageUrl.isNullOrBlank() && report.localImagePath != null) {
+                if (cloudImageUrl.isNullOrBlank() &&
+                    report.localImagePath != null &&
+                    !report.userId.isNullOrBlank()
+                ) {
                     val file = File(report.localImagePath)
                     if (file.exists()) {
                         cloudImageUrl = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
-                            path = "bug_${report.id}.jpg",
+                            path = "${report.userId}/bug_${report.id}.jpg",
                             data = file.readBytes()
                         )
                     }
@@ -474,7 +486,8 @@ object BugReportRepository {
                     appVersion = report.appVersion,
                     deviceModel = report.deviceModel,
                     developerReply = report.developerReply,
-                    id = report.id
+                    id = report.id,
+                    userId = report.userId
                 )
 
                 if (dbSuccess) {
