@@ -26,9 +26,9 @@ class SavedItemsRepository(
             filter = "user_id=eq.$userId"
         }
 
-        client.realtime.connect()
-        channel.join(blockUntilJoined = true)
         try {
+            client.realtime.connect()
+            channel.join(blockUntilJoined = true)
             emit(fetchSavedItems(userId))
             changes.collect {
                 emit(fetchSavedItems(userId))
