@@ -6,7 +6,7 @@ import android.util.Log
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import io.github.jan.supabase.auth.SessionManager
-import io.github.jan.supabase.auth.exception.NoSessionFoundException
+import io.github.jan.supabase.auth.NoSessionFoundException
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
