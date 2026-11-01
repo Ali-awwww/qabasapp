@@ -31,6 +31,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.UUID
+import kotlin.time.Duration.Companion.hours
 
 object SupabaseServices {
     private const val TAG = "SupabaseServices"
@@ -723,12 +724,41 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "recordContentGuardCheck failed: ${it.message}") }.getOrDefault(false)
 
+        private fun bugReportObjectPath(value: String?): String? {
+            val raw = value?.trim().orEmpty()
+            if (raw.isBlank()) return null
+            if (!raw.startsWith("http://", ignoreCase = true) &&
+                !raw.startsWith("https://", ignoreCase = true)
+            ) return raw.removePrefix("/").substringBefore("?").takeIf { it.isNotBlank() }
+
+            val markers = listOf(
+                "/storage/v1/object/public/bug_reports/",
+                "/storage/v1/object/sign/bug_reports/",
+                "/storage/v1/object/authenticated/bug_reports/"
+            )
+            val marker = markers.firstOrNull { raw.contains(it) } ?: return null
+            return raw.substringAfter(marker).substringBefore("?")
+                .removePrefix("/")
+                .takeIf { it.isNotBlank() }
+        }
+
+        private suspend fun withSignedBugReportImage(row: BugReportRow): BugReportRow {
+            val path = bugReportObjectPath(row.imageUrl) ?: return row
+            val signedUrl = Storage.createSignedUrl(
+                bucketName = "bug_reports",
+                path = path,
+                expiresIn = 1.hours
+            )
+            return if (signedUrl.isNullOrBlank()) row else row.copy(imageUrl = signedUrl)
+        }
+
         // ── Bug Reports Operations ──
         suspend fun getAllBugReports(): List<BugReportRow> = runCatching {
             val client = client ?: return emptyList()
-            client.postgrest.from("dev_bug_reports").select {
+            val rows = client.postgrest.from("dev_bug_reports").select {
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
+            rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
@@ -737,12 +767,13 @@ object SupabaseServices {
             // establish that email as the authenticated identity.
             val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
             val client = client ?: return emptyList()
-            client.postgrest.from("dev_bug_reports").select {
+            val rows = client.postgrest.from("dev_bug_reports").select {
                 filter {
                     eq("user_id", activeUserId)
                 }
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
+            rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getBugReportsByUser failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun recordBugReport(
@@ -1815,6 +1846,36 @@ object SupabaseServices {
             path: String,
             data: ByteArray
         ): String? = uploadFile(bucketName, path, data, true)
+
+        fun normalizeObjectPath(bucketName: String, value: String?): String? {
+            val raw = value?.trim().orEmpty()
+            if (raw.isBlank()) return null
+            if (!raw.startsWith("http://", ignoreCase = true) &&
+                !raw.startsWith("https://", ignoreCase = true)
+            ) return raw.removePrefix("/").substringBefore("?").takeIf { it.isNotBlank() }
+
+            val markers = listOf(
+                "/storage/v1/object/public/$bucketName/",
+                "/storage/v1/object/sign/$bucketName/",
+                "/storage/v1/object/authenticated/$bucketName/"
+            )
+            val marker = markers.firstOrNull { raw.contains(it) } ?: return null
+            return raw.substringAfter(marker).substringBefore("?")
+                .removePrefix("/")
+                .takeIf { it.isNotBlank() }
+        }
+
+        suspend fun createSignedUrl(
+            bucketName: String,
+            path: String,
+            expiresIn: kotlin.time.Duration = 1.hours
+        ): String? = runCatching {
+            val client = client ?: return null
+            client.storage.from(bucketName).createSignedUrl(
+                path = path,
+                expiresIn = expiresIn
+            )
+        }.onFailure { Log.e(TAG, "createSignedUrl failed for $bucketName: ${it.message}") }.getOrNull()
 
         fun getPublicUrl(bucketName: String, path: String): String? {
             val client = client ?: return null
