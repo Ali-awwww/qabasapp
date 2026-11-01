@@ -729,8 +729,7 @@ object SupabaseServices {
             val path = Storage.normalizeObjectPath("bug_reports", row.imageUrl) ?: return row
             val signedUrl = Storage.createSignedUrl(
                 bucketName = "bug_reports",
-                path = path,
-                expiresIn = 1.hours
+                path = path
             )
             return if (signedUrl.isNullOrBlank()) row else row.copy(imageUrl = signedUrl)
         }
