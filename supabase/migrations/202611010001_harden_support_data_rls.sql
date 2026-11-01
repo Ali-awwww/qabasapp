@@ -38,6 +38,10 @@ DROP POLICY IF EXISTS "Allow public insert dev_chat_messages" ON public.dev_chat
 DROP POLICY IF EXISTS "Allow public select dev_chat_messages" ON public.dev_chat_messages;
 DROP POLICY IF EXISTS "Users can view own dev_chat_messages" ON public.dev_chat_messages;
 DROP POLICY IF EXISTS "Users can insert own dev_chat_messages" ON public.dev_chat_messages;
+-- Remove the exact legacy owner policies found in the live database before re-creating them.
+DROP POLICY IF EXISTS "dev_chat_delete_own" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "dev_chat_insert_own" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "dev_chat_select_own" ON public.dev_chat_messages;
 
 DROP POLICY IF EXISTS "Public select policy on dev_bug_reports" ON public.dev_bug_reports;
 DROP POLICY IF EXISTS "Public insert policy on dev_bug_reports" ON public.dev_bug_reports;
@@ -47,6 +51,8 @@ DROP POLICY IF EXISTS "Allow public insert dev_bug_reports" ON public.dev_bug_re
 DROP POLICY IF EXISTS "Allow public select dev_bug_reports" ON public.dev_bug_reports;
 DROP POLICY IF EXISTS "Allow update dev_bug_reports" ON public.dev_bug_reports;
 DROP POLICY IF EXISTS "Allow delete dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "dev_bug_reports_insert_own" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "dev_bug_reports_select_own" ON public.dev_bug_reports;
 
 -- RLS alone is not enough: remove broad table grants and restore only required privileges.
 REVOKE ALL ON TABLE public.dev_chat_messages FROM PUBLIC, anon, authenticated;
@@ -73,7 +79,7 @@ CREATE POLICY "Users can insert own dev_chat_messages"
         OR (
             sender = 'user'
             AND lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
-            AND (user_id IS NULL OR user_id = auth.uid()::text)
+            AND user_id = auth.uid()::text
         )
     );
 
@@ -106,3 +112,117 @@ CREATE POLICY "Support admins can update dev_bug_reports"
 CREATE POLICY "Support admins can delete dev_bug_reports"
     ON public.dev_bug_reports FOR DELETE TO authenticated
     USING (public.qabas_is_support_admin());
+
+-- Storage hardening: remove legacy public mutation policies, preserve public reads for
+-- published media, and limit authenticated writes to the caller's own object folders.
+DROP POLICY IF EXISTS "allow delete azan-voices" ON storage.objects;
+DROP POLICY IF EXISTS "allow upload azan-voices" ON storage.objects;
+DROP POLICY IF EXISTS "public_delete_new_buckets" ON storage.objects;
+DROP POLICY IF EXISTS "public_update_new_buckets" ON storage.objects;
+DROP POLICY IF EXISTS "public_write_new_buckets" ON storage.objects;
+DROP POLICY IF EXISTS "qabas storage public delete" ON storage.objects;
+DROP POLICY IF EXISTS "qabas storage public insert" ON storage.objects;
+DROP POLICY IF EXISTS "qabas storage public update" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Audio Bucket Insert" ON storage.objects;
+DROP POLICY IF EXISTS "Public can upload bug reports images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public insert on storage objects" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public update on storage objects" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public delete on storage objects" ON storage.objects;
+
+DROP POLICY IF EXISTS "qabas_storage_authenticated_insert_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_update_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_delete_own" ON storage.objects;
+
+CREATE POLICY "qabas_storage_authenticated_insert_own"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+    );
+
+CREATE POLICY "qabas_storage_authenticated_update_own"
+    ON storage.objects FOR UPDATE TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    )
+    WITH CHECK (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    );
+
+CREATE POLICY "qabas_storage_authenticated_delete_own"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    );
+
