@@ -665,19 +665,11 @@ fun EnhancedUsersSection(
                                     color = Color(0xFF78350F).copy(alpha = 0.4f),
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier.clickable {
-                                        coroutineScope.launch {
-                                            var count = 0
-                                            devUsers.forEach { u ->
-                                                FirebaseManager.syncUserToFirestore(
-                                                    context = context,
-                                                    userId = u.id,
-                                                    displayName = u.name,
-                                                    email = u.email
-                                                )
-                                                count++
-                                            }
-                                            Toast.makeText(context, "تمت مزامنة $count مستخدم مع Firebase Firestore بنجاح 🔥", Toast.LENGTH_SHORT).show()
-                                        }
+                                        Toast.makeText(
+                                            context,
+                                            "ملفات المستخدمين تُدار في Supabase ولا تحتاج إلى مزامنة Firestore منفصلة",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 ) {
                                     Text(
