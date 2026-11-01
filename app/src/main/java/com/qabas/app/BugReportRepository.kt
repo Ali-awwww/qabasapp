@@ -41,6 +41,7 @@ object BugReportRepository {
     @Serializable
     data class BugReportItem(
         val id: String = UUID.randomUUID().toString(),
+        @SerialName("user_id") val userId: String? = null,
         @SerialName("screen_name") val screenName: String = "الرئيسية",
         val description: String = "",
         @SerialName("report_type") val reportType: String = "BUG", // BUG, IMPROVEMENT, CONTENT
@@ -188,6 +189,7 @@ object BugReportRepository {
         ensureLoaded(context)
 
         val id = UUID.randomUUID().toString()
+        val supabaseUserId = SupabaseServices.Auth.getCurrentUserId()
         val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
         val model = Build.MODEL
         val androidVer = Build.VERSION.RELEASE
@@ -220,6 +222,7 @@ object BugReportRepository {
         // 2. إنشاء الكائن الأولي
         var reportItem = BugReportItem(
             id = id,
+            userId = supabaseUserId,
             screenName = screenName.ifBlank { "الرئيسية" },
             description = enrichedDescription,
             reportType = reportType.ifBlank { "BUG" },
@@ -247,10 +250,10 @@ object BugReportRepository {
         if (SupabaseServices.isSupabaseAvailable) {
             try {
                 // أ. رفع الصورة إلى Storage إن وُجدت
-                if (localImagePath != null) {
+                if (localImagePath != null && !reportItem.userId.isNullOrBlank()) {
                     val imgFile = File(localImagePath)
                     if (imgFile.exists()) {
-                        val remoteFileName = "bug_${id}.jpg"
+                        val remoteFileName = "${reportItem.userId}/bug_${id}.jpg"
                         uploadedImageUrl = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
                             path = remoteFileName,
@@ -269,7 +272,8 @@ object BugReportRepository {
                     appVersion = currentVer,
                     deviceModel = fullDeviceModel,
                     id = id,
-                    accountNumber = accountNumber
+                    accountNumber = accountNumber,
+                    userId = reportItem.userId
                 )
 
                 if (dbSuccess) {
@@ -356,6 +360,7 @@ object BugReportRepository {
                         reportType = c.reportType,
                         status = c.status,
                         userEmail = c.userEmail,
+                        userId = c.userId,
                         localImagePath = null,
                         imageUrl = c.imageUrl.takeIf { it.isNotBlank() },
                         appVersion = c.appVersion,
@@ -392,12 +397,14 @@ object BugReportRepository {
                         reportType = cloud.reportType,
                         status = cloud.status,
                         userEmail = cloud.userEmail,
+                        userId = cloud.userId,
                         appVersion = cloud.appVersion,
                         deviceModel = cloud.deviceInfo,
                         imageUrl = cloud.imageUrl,
                         developerReply = cloud.developerReply,
                         isReadByUser = true // سيتم تحديثه لاحقاً
                     )).copy(
+                        userId = cloud.userId,
                         status = cloud.status,
                         developerReply = cloud.developerReply,
                         syncedToCloud = true,
@@ -453,34 +460,54 @@ object BugReportRepository {
             val currentList = _reports.value.toMutableList()
 
             for (report in pending) {
-                var cloudImageUrl = report.imageUrl
-                if (cloudImageUrl.isNullOrBlank() && report.localImagePath != null) {
-                    val file = File(report.localImagePath)
+                val activeUserId = SupabaseServices.Auth.getCurrentUserId()
+                val activeEmail = SupabaseServices.Auth.getCurrentUserEmail()
+                    ?.trim()
+                    ?.lowercase(java.util.Locale.ROOT)
+                // Older local reports did not persist user_id. Backfill only when the
+                // current Supabase email matches the report owner; never cross accounts.
+                val reportOwnerId = report.userId ?: activeUserId?.takeIf {
+                    activeEmail == report.userEmail.trim().lowercase(java.util.Locale.ROOT)
+                }
+                if (reportOwnerId != activeUserId) continue
+                val reportToSync = if (report.userId == reportOwnerId) {
+                    report
+                } else {
+                    report.copy(userId = reportOwnerId)
+                }
+
+                var cloudImageUrl = reportToSync.imageUrl
+                if (cloudImageUrl.isNullOrBlank() &&
+                    reportToSync.localImagePath != null &&
+                    !reportToSync.userId.isNullOrBlank()
+                ) {
+                    val file = File(reportToSync.localImagePath)
                     if (file.exists()) {
                         cloudImageUrl = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
-                            path = "bug_${report.id}.jpg",
+                            path = "${reportToSync.userId}/bug_${reportToSync.id}.jpg",
                             data = file.readBytes()
                         )
                     }
                 }
 
                 val dbSuccess = SupabaseServices.Database.recordBugReport(
-                    userEmail = report.userEmail,
-                    screenName = report.screenName,
-                    description = report.description,
+                    userEmail = reportToSync.userEmail,
+                    screenName = reportToSync.screenName,
+                    description = reportToSync.description,
                     imageUrl = cloudImageUrl ?: "",
-                    reportType = report.reportType,
-                    appVersion = report.appVersion,
-                    deviceModel = report.deviceModel,
-                    developerReply = report.developerReply,
-                    id = report.id
+                    reportType = reportToSync.reportType,
+                    appVersion = reportToSync.appVersion,
+                    deviceModel = reportToSync.deviceModel,
+                    developerReply = reportToSync.developerReply,
+                    id = reportToSync.id,
+                    userId = reportToSync.userId
                 )
 
                 if (dbSuccess) {
-                    val idx = currentList.indexOfFirst { it.id == report.id }
+                    val idx = currentList.indexOfFirst { it.id == reportToSync.id }
                     if (idx != -1) {
-                        currentList[idx] = report.copy(
+                        currentList[idx] = reportToSync.copy(
                             imageUrl = cloudImageUrl,
                             syncedToCloud = true
                         )

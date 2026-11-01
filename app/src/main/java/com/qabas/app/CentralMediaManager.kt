@@ -258,8 +258,9 @@ object CentralMediaManager {
         val file = File(localPath)
         if (!file.exists()) return@withContext false
 
+        val userId = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext false
         val bucket = targetBucket ?: asset.bucketName ?: "media-assets"
-        val cloudPath = "${UUID.randomUUID().toString().take(8)}_${file.name}"
+        val cloudPath = "$userId/${UUID.randomUUID().toString().take(8)}_${file.name}"
 
         try {
             val bytes = file.readBytes()

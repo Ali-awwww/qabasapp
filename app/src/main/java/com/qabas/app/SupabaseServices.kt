@@ -752,10 +752,16 @@ object SupabaseServices {
             id: String = UUID.randomUUID().toString(),
             status: String = "open",
             developerReply: String? = null,
-            accountNumber: String? = null
+            accountNumber: String? = null,
+            userId: String? = Auth.getCurrentUserId()
         ): Boolean = runCatching {
             val client = client ?: return false
-            val uid = Auth.getCurrentUserId()
+            val activeUserId = Auth.getCurrentUserId()
+            if (userId != activeUserId) {
+                Log.w(TAG, "recordBugReport skipped: report belongs to a different authentication session")
+                return false
+            }
+            val uid = userId
             val payload = mutableMapOf<String, Any>(
                 "id" to id,
                 "user_email" to userEmail,
@@ -828,9 +834,12 @@ object SupabaseServices {
             accountNumber: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
+            val isUserMessage = sender.equals("user", ignoreCase = true)
+            val effectiveUserId = if (isUserMessage) Auth.getCurrentUserId() else targetUserId
+            if (isUserMessage && effectiveUserId.isNullOrBlank()) return false
             val row = ChatMessageRow(
                 id = UUID.randomUUID().toString(),
-                userId = targetUserId,
+                userId = effectiveUserId,
                 userEmail = userEmail,
                 accountNumber = accountNumber,
                 sender = sender,
@@ -1695,6 +1704,21 @@ object SupabaseServices {
     object Storage {
         val DEFAULT_BUCKETS = listOf("media-assets", "audio-tracks", "bug_reports")
 
+        /**
+         * Return the access JWT for the active Supabase session. Reflection keeps this
+         * compatible with the session property naming used by the project's SDK version.
+         */
+        private fun currentAccessToken(): String? {
+            val session = runCatching { client?.auth?.currentSessionOrNull() }.getOrNull() ?: return null
+            val tokenMethod = session.javaClass.methods.firstOrNull { method ->
+                method.parameterTypes.isEmpty() &&
+                    method.name.lowercase().replace("_", "").contains("accesstoken")
+            } ?: return null
+            return runCatching { tokenMethod.invoke(session) as? String }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+        }
+
         private val rawHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -1751,10 +1775,11 @@ object SupabaseServices {
                     Log.e(TAG, "uploadFileWithProgress: blank anon key")
                     return@runCatching null
                 }
+                val bearerToken = currentAccessToken() ?: anon
                 val req = Request.Builder()
                     .url("$base/storage/v1/object/$bucketName/$path")
                     .header("apikey", anon)
-                    .header("Authorization", "Bearer $anon")
+                    .header("Authorization", "Bearer $bearerToken")
                     .header("x-upsert", if (upsert) "true" else "false")
                     .post(CountingRequestBody(file, contentType, onProgress))
                     .build()
@@ -1794,11 +1819,15 @@ object SupabaseServices {
 
         suspend fun listFiles(bucketName: String, path: String = ""): List<RemoteFile> = runCatching {
             val client = client ?: return emptyList()
-            val files = client.storage.from(bucketName).list(path)
+            // The default view is scoped to this account because uploads are stored under UID folders.
+            val effectivePath = path.ifBlank { Auth.getCurrentUserId().orEmpty() }
+            if (effectivePath.isBlank()) return emptyList()
+            val files = client.storage.from(bucketName).list(effectivePath)
             files.map { f ->
+                val objectPath = "$effectivePath/${f.name}"
                 RemoteFile(
                     name = f.name,
-                    publicUrl = client.storage.from(bucketName).publicUrl(if (path.isEmpty()) f.name else "$path/${f.name}"),
+                    publicUrl = client.storage.from(bucketName).publicUrl(objectPath),
                     sizeBytes = 0L,
                     createdAt = f.createdAt?.toString()
                 )
@@ -2097,6 +2126,7 @@ object SupabaseServices {
     @Serializable
     data class BugReportRow(
         val id: String = UUID.randomUUID().toString(),
+        @SerialName("user_id") val userId: String? = null,
         @SerialName("user_email") val userEmail: String = "user@qabas.app",
         @SerialName("screen_name") val screenName: String = "",
         val description: String = "",

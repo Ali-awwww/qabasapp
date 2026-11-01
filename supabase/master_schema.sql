@@ -370,6 +370,7 @@ CREATE INDEX IF NOT EXISTS idx_dev_chat_email ON public.dev_chat_messages (user_
 -- جدول بلاغات الأعطال والمشاكل (dev_bug_reports) والجدولين البديلين
 CREATE TABLE IF NOT EXISTS public.dev_bug_reports (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id TEXT,
     user_email TEXT NOT NULL DEFAULT 'user@qabas.app',
     screen_name TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
@@ -479,7 +480,7 @@ DECLARE
         'promo_codes', 'transactions', 'content_guard_logs', 'reels', 'reel_likes',
         'reel_comments', 'reel_bookmarks', 'reel_history', 'reels_feed', 'audio_tracks',
         'hadith_presets', 'scholar_lectures', 'scholar_proposals', 'app_updates',
-        'app_reviews', 'dev_chat_messages', 'chat_messages', 'dev_bug_reports',
+        'app_reviews', 'chat_messages',
         'bug_reports', 'user_feedbacks', 'league_leaderboard'
     ];
 BEGIN
@@ -496,6 +497,106 @@ BEGIN
         EXECUTE format('GRANT ALL ON TABLE public.%I TO anon, authenticated, service_role;', tbl);
     END LOOP;
 END $$;
+
+-- Support inbox tables contain private user messages and diagnostic reports.
+-- They intentionally use per-user / support-admin policies instead of public CRUD.
+ALTER TABLE public.dev_chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dev_bug_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dev_chat_messages ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE public.dev_bug_reports ADD COLUMN IF NOT EXISTS user_id TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_dev_bug_reports_user_id
+    ON public.dev_bug_reports (user_id);
+
+CREATE OR REPLACE FUNCTION public.qabas_is_support_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        lower(coalesce(auth.jwt() ->> 'email', '')) IN (
+            'aliwalead.2007@gmail.com',
+            'xman88371@gmail.com'
+        )
+        OR lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN (
+            'admin', 'developer', 'owner'
+        );
+$$;
+
+REVOKE ALL ON FUNCTION public.qabas_is_support_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.qabas_is_support_admin() TO authenticated;
+
+DROP POLICY IF EXISTS "Public select policy on dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Public insert policy on dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Public update policy on dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Public delete policy on dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Allow public insert dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Allow public select dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Users can view own dev_chat_messages" ON public.dev_chat_messages;
+DROP POLICY IF EXISTS "Users can insert own dev_chat_messages" ON public.dev_chat_messages;
+
+DROP POLICY IF EXISTS "Public select policy on dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Public insert policy on dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Public update policy on dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Public delete policy on dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Allow public insert dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Allow public select dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Allow update dev_bug_reports" ON public.dev_bug_reports;
+DROP POLICY IF EXISTS "Allow delete dev_bug_reports" ON public.dev_bug_reports;
+
+REVOKE ALL ON TABLE public.dev_chat_messages FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.dev_bug_reports FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.dev_chat_messages TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.dev_bug_reports TO authenticated;
+GRANT INSERT ON TABLE public.dev_bug_reports TO anon;
+GRANT ALL ON TABLE public.dev_chat_messages, public.dev_bug_reports TO service_role;
+
+CREATE POLICY "Users can view own dev_chat_messages"
+    ON public.dev_chat_messages FOR SELECT TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR user_id = auth.uid()::text
+        OR lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    );
+
+CREATE POLICY "Users can insert own dev_chat_messages"
+    ON public.dev_chat_messages FOR INSERT TO authenticated
+    WITH CHECK (
+        public.qabas_is_support_admin()
+        OR (
+            sender = 'user'
+            AND lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+            AND user_id = auth.uid()::text
+        )
+    );
+
+CREATE POLICY "Users can view own dev_bug_reports"
+    ON public.dev_bug_reports FOR SELECT TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR user_id = auth.uid()::text
+        OR lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    );
+
+CREATE POLICY "Public can submit dev_bug_reports"
+    ON public.dev_bug_reports FOR INSERT TO anon, authenticated
+    WITH CHECK (
+        status = 'open'
+        AND coalesce(developer_reply, '') = ''
+        AND (
+            (auth.uid() IS NULL AND user_id IS NULL)
+            OR (auth.uid() IS NOT NULL AND user_id = auth.uid()::text)
+        )
+    );
+
+CREATE POLICY "Support admins can update dev_bug_reports"
+    ON public.dev_bug_reports FOR UPDATE TO authenticated
+    USING (public.qabas_is_support_admin())
+    WITH CHECK (public.qabas_is_support_admin());
+
+CREATE POLICY "Support admins can delete dev_bug_reports"
+    ON public.dev_bug_reports FOR DELETE TO authenticated
+    USING (public.qabas_is_support_admin());
 
 -- استثناء جدول platform_api_keys: مقتصر على service_role فقط
 ALTER TABLE public.platform_api_keys ENABLE ROW LEVEL SECURITY;
@@ -517,18 +618,120 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- سياسات سلال التخزين
+-- Public reads are limited to the app's published media buckets.
 DROP POLICY IF EXISTS "Allow public select on storage objects" ON storage.objects;
-CREATE POLICY "Allow public select on storage objects" ON storage.objects FOR SELECT USING (true);
+CREATE POLICY "Allow public select on storage objects"
+    ON storage.objects FOR SELECT TO public
+    USING (bucket_id IN (
+        'reels', 'audio_tracks', 'audio-tracks', 'bug_reports', 'avatars',
+        'media-assets', 'user-uploads', 'ai-generated', 'azan-voices'
+    ));
 
+-- No blanket public writes. Users manage only objects inside their own UID folder;
+-- trusted support admins retain management access for shared assets.
 DROP POLICY IF EXISTS "Allow public insert on storage objects" ON storage.objects;
-CREATE POLICY "Allow public insert on storage objects" ON storage.objects FOR INSERT WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Allow public update on storage objects" ON storage.objects;
-CREATE POLICY "Allow public update on storage objects" ON storage.objects FOR UPDATE USING (true);
-
 DROP POLICY IF EXISTS "Allow public delete on storage objects" ON storage.objects;
-CREATE POLICY "Allow public delete on storage objects" ON storage.objects FOR DELETE USING (true);
+DROP POLICY IF EXISTS "qabas_storage_authenticated_insert_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_update_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_delete_own" ON storage.objects;
+
+CREATE POLICY "qabas_storage_authenticated_insert_own"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    );
+
+CREATE POLICY "qabas_storage_authenticated_update_own"
+    ON storage.objects FOR UPDATE TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    )
+    WITH CHECK (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    );
+
+CREATE POLICY "qabas_storage_authenticated_delete_own"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (
+        public.qabas_is_support_admin()
+        OR (bucket_id = 'ai-generated' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'avatars' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'user_avatars' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'bug_reports' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'media-assets' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] IN ('reels', 'thumbnails') AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'user-uploads' AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR ((storage.foldername(name))[1] = 'reels' AND (storage.foldername(name))[2] = auth.uid()::text)
+        ))
+        OR (bucket_id = 'audio-tracks' AND (storage.foldername(name))[1] = auth.uid()::text)
+        OR (bucket_id = 'reels' AND
+            (storage.foldername(name))[1] IN ('videos', 'thumbnails')
+            AND (storage.foldername(name))[2] = auth.uid()::text
+        )
+    );
 
 -- ==============================================================================
 -- 9. جدول مفاتيح API المشفرة للمزامنة (user_api_keys)
