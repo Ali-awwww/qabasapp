@@ -135,8 +135,10 @@ object SupabaseConfig {
                 // Let supabase-kt restore the platform session and refresh tokens automatically.
                 // MemorySessionManager loses the refresh token when the process is recreated.
                 autoLoadFromStorage = true
+                autoSaveToStorage = true
                 enableLifecycleCallbacks = true
                 alwaysAutoRefresh = true
+                sessionManager = SupabaseEncryptedSessionManager(AppServices.appContext)
             }
             install(Storage)
             install(Functions)
