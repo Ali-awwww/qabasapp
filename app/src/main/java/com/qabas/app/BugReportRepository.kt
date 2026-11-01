@@ -376,10 +376,12 @@ object BugReportRepository {
     /**
      * جلب أحدث الردود والحالات من السحابة للمستخدم الحالي.
      */
-    suspend fun refreshUserReports(context: Context, email: String) = withContext(Dispatchers.IO) {
-        if (!SupabaseServices.isSupabaseAvailable) return@withContext
+    suspend fun refreshUserReports(context: Context) = withContext(Dispatchers.IO) {
+        if (!SupabaseServices.isSupabaseAvailable ||
+            SupabaseServices.Auth.getCurrentUserId().isNullOrBlank()
+        ) return@withContext
         try {
-            val cloudItems = SupabaseServices.Database.getBugReportsByUser(email)
+            val cloudItems = SupabaseServices.Database.getBugReportsByUser()
             if (cloudItems.isEmpty()) return@withContext
 
             ensureLoaded(context)
