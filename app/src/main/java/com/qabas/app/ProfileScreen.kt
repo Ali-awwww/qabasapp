@@ -140,7 +140,7 @@ fun ProfileScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
-    // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
+    // من جلسة Supabase الفعلية بدل عرض هوية حساب قديم أو غير موثق
     LaunchedEffect(userEmail) {
         val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
         val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
@@ -148,10 +148,8 @@ fun ProfileScreen(
         val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
-        // Supabase is the app's primary sign-in provider. A still-authenticated
-        // Firebase user from a previous account must never override this identity.
+        // Only the active Supabase session is authoritative for this profile.
         val realEmail = sbEmail
-        val usesSupabaseIdentity = !sbEmail.isNullOrBlank()
         val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
         val activeEmail = realEmail ?: userEmail
         val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
@@ -346,7 +344,7 @@ fun ProfileScreen(
         projectsCount = projectService.getAllProjects().size
         socialAccounts = SocialAccountManager.getAccounts(context)
         
-        // Fetch League stats from Cloud / Firebase / Supabase
+        // Fetch league stats from Supabase
         try {
             isLoadingLeague = true
             val leaderboard = CloudServices.Database.getLeaderboard()
@@ -800,13 +798,16 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(14.dp))
 
-            // بطاقة المزامنة السحابية الهجينة (Firebase + Supabase + Local)
-            val isFirebaseActive = remember { FirebaseManager.isConfigured(context) }
-            val isSupabaseActive = remember { SupabaseServices.isSupabaseAvailable }
+            // Profile cloud status is driven by the Supabase client only.
+            val isSupabaseActive = SupabaseServices.isSupabaseAvailable
             Surface(
                 color = Color(0xFF151B2B),
                 shape = CutCornerShape(12.dp),
-                border = BorderStroke(1.dp, if (isFirebaseActive) Color(0xFFFFA000).copy(alpha = 0.4f) else GoldPrimary.copy(alpha = 0.3f)),
+                border = BorderStroke(
+                    1.dp,
+                    if (isSupabaseActive) Color(0xFF10B981).copy(alpha = 0.4f)
+                    else GoldPrimary.copy(alpha = 0.3f)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -819,29 +820,27 @@ fun ProfileScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(if (isFirebaseActive) Color(0xFF78350F).copy(alpha = 0.3f) else Color(0xFF1E293B)),
+                                .background(if (isSupabaseActive) Color(0xFF064E3B) else Color(0xFF1E293B)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                                if (isSupabaseActive) Icons.Default.CloudDone else Icons.Default.CloudQueue,
                                 contentDescription = null,
-                                tint = if (isFirebaseActive) Color(0xFFFFA000) else GoldPrimary,
+                                tint = if (isSupabaseActive) Color(0xFF10B981) else GoldPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Column {
                             Text(
-                                "المزامنة السحابية المزدوجة",
+                                "المزامنة السحابية عبر Supabase",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp
                             )
                             Text(
-                                if (isFirebaseActive && isSupabaseActive) "Firebase 🔥 + Supabase ☁️ متصلان"
-                                else if (isFirebaseActive) "Firebase Firestore متصل ومفعّل 🔥"
-                                else "التخزين المحلي الآمن 💾",
-                                color = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                if (isSupabaseActive) "Supabase متصل ومفعّل ☁️" else "التخزين المحلي — Supabase غير مهيأ",
+                                color = if (isSupabaseActive) Color(0xFF10B981) else Color(0xFF94A3B8),
                                 fontFamily = NotoSansFont,
                                 fontSize = 11.sp
                             )
@@ -849,11 +848,11 @@ fun ProfileScreen(
                     }
 
                     Surface(
-                        color = if (isFirebaseActive) Color(0xFF065F46) else Color(0xFF334155),
+                        color = if (isSupabaseActive) Color(0xFF065F46) else Color(0xFF334155),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = if (isFirebaseActive) "مُزامن آلياً ✓" else "محلي",
+                            text = if (isSupabaseActive) "سحابي ✓" else "محلي",
                             color = Color.White,
                             fontFamily = CairoFont,
                             fontSize = 10.sp,
@@ -944,7 +943,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── Firebase Cloud Sync & Bookmarks Card ───
+            // ─── Supabase Cloud Saved Items Card ───
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2122,24 +2121,16 @@ fun ProfileScreen(
                         }
                         isUpdatingPw = true
                         coroutineScope.launch {
-                            var success = false
-                            if (SupabaseServices.isSupabaseAvailable) {
-                                val ok = SupabaseServices.Auth.updatePassword(newPw.trim())
-                                if (ok) success = true
-                            }
-                            if (CloudServices.isFirebaseInitialized && !success) {
-                                val ok = CloudServices.Auth.resetPassword(userEmail)
-                                if (ok) success = true
-                            }
-                            if (!success && !SupabaseServices.isSupabaseAvailable && !CloudServices.isFirebaseInitialized) {
-                                success = true
-                            }
+                            val success = runCatching {
+                                SupabaseServices.isSupabaseAvailable &&
+                                    SupabaseServices.Auth.updatePassword(newPw.trim())
+                            }.getOrDefault(false)
                             isUpdatingPw = false
-                            showChangePasswordDialog = false
                             if (success) {
-                                Toast.makeText(context, "تم تحديث كلمة المرور بنجاح في Supabase! 🔒", Toast.LENGTH_LONG).show()
+                                showChangePasswordDialog = false
+                                Toast.makeText(context, "تم تحديث كلمة المرور في Supabase بنجاح 🔒", Toast.LENGTH_LONG).show()
                             } else {
-                                Toast.makeText(context, "تم إرسال رابط تأكيد التغيير إلى بريدك الإلكتروني", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "تعذر تحديث كلمة المرور. تحقق من اتصال Supabase ومن تسجيل الدخول الحالي.", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
