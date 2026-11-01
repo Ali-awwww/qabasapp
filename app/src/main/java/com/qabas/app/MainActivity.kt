@@ -378,7 +378,21 @@ class MainActivity : ComponentActivity() {
         var isSubmitting by remember { mutableStateOf(false) }
         var attachedTelemetry by remember { mutableStateOf<PrecisionDiagnosticEngine.DiagnosticTelemetry?>(null) }
 
-        val myReports by BugReportRepository.reports.collectAsState()
+        val allReports by BugReportRepository.reports.collectAsState()
+        val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
+        val cloudAuthUser by CloudServices.Auth.currentUser.collectAsState()
+        val supabaseUserId = remember(supabaseAuthUser, cloudAuthUser) {
+            SupabaseServices.Auth.getCurrentUserId()
+        }
+        val authenticatedEmail = supabaseAuthUser?.email ?: cloudAuthUser?.email
+        val myReports = remember(allReports, supabaseAuthUser, cloudAuthUser, supabaseUserId, authenticatedEmail) {
+            BugReportRepository.filterReportsForOwner(
+                source = allReports,
+                localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
+                supabaseUserId = supabaseUserId,
+                authenticatedEmail = authenticatedEmail
+            )
+        }
 
         Box(modifier = Modifier.fillMaxSize().background(DeepSlate)) {
             if (!showChatScreen) {
