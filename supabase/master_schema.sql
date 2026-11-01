@@ -566,7 +566,7 @@ CREATE POLICY "Users can insert own dev_chat_messages"
         OR (
             sender = 'user'
             AND lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
-            AND (user_id IS NULL OR user_id = auth.uid()::text)
+            AND user_id = auth.uid()::text
         )
     );
 
@@ -632,6 +632,9 @@ CREATE POLICY "Allow public select on storage objects"
 DROP POLICY IF EXISTS "Allow public insert on storage objects" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public update on storage objects" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public delete on storage objects" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_insert_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_update_own" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_storage_authenticated_delete_own" ON storage.objects;
 
 CREATE POLICY "qabas_storage_authenticated_insert_own"
     ON storage.objects FOR INSERT TO authenticated
