@@ -125,6 +125,11 @@ DROP POLICY IF EXISTS "qabas storage public insert" ON storage.objects;
 DROP POLICY IF EXISTS "qabas storage public update" ON storage.objects;
 DROP POLICY IF EXISTS "Admin Audio Bucket Insert" ON storage.objects;
 DROP POLICY IF EXISTS "Public can upload bug reports images" ON storage.objects;
+DROP POLICY IF EXISTS "Public Audio Bucket Select" ON storage.objects;
+DROP POLICY IF EXISTS "qabas_audio_tracks_public_read_objects" ON storage.objects;
+CREATE POLICY "qabas_audio_tracks_public_read_objects"
+    ON storage.objects FOR SELECT TO public
+    USING (bucket_id = 'audio-tracks');
 DROP POLICY IF EXISTS "Allow public insert on storage objects" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public update on storage objects" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public delete on storage objects" ON storage.objects;
