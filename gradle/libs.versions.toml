@@ -118,7 +118,6 @@ roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi
 roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
-firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 # firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
 # firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 firebase-ai = { group = "com.google.firebase", name = "firebase-ai" }
