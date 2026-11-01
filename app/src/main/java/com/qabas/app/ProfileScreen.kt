@@ -39,8 +39,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
+
+// Keep editable profile data isolated per authenticated account on shared devices.
+private fun accountProfilePreferences(context: Context, email: String) =
+    context.getSharedPreferences(
+        "qabas_profile_" + MessageDigest.getInstance("SHA-256")
+            .digest(email.trim().lowercase().toByteArray())
+            .joinToString("") { "%02x".format(it) },
+        Context.MODE_PRIVATE
+    )
 
 // Tournament Rank Tier Badge Model
 data class TournamentTierBadge(
@@ -70,6 +80,7 @@ fun ProfileScreen(
     var userEmail by remember {
         mutableStateOf(prefs.getString("user_email", "user@example.com") ?: "user@example.com")
     }
+    val profilePrefs = remember(userEmail) { accountProfilePreferences(context, userEmail) }
 
     // User Profile State with real persistence
     var displayName by remember { 
@@ -80,22 +91,21 @@ fun ProfileScreen(
         mutableStateOf(savedName)
     }
     var userBio by remember {
-        mutableStateOf(prefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
     }
     var userCustomTag by remember {
-        val cid = UserIdentifierManager.getCustomId(context)
+        val cid = UserIdentifierManager.getCustomId(context, userEmail)
         mutableStateOf(if (cid.isNotBlank()) UserIdentifierManager.formatDisplay(cid) else "@qabas_user")
     }
     var userAccountNumber by remember {
-        val acc = UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_account_number", "") ?: ""
+        val acc = UserIdentifierManager.getAccountNumber(context, userEmail)
         mutableStateOf(acc)
     }
     var avatarUriString by remember {
-        mutableStateOf(prefs.getString("user_avatar_uri", "") ?: "")
+        mutableStateOf(profilePrefs.getString("user_avatar_uri", "") ?: "")
     }
     var selectedPresetAvatar by remember {
-        mutableIntStateOf(prefs.getInt("user_avatar_preset", 0))
+        mutableIntStateOf(profilePrefs.getInt("user_avatar_preset", 0))
     }
     
     val projectService = remember { ProjectService(context) }
@@ -125,7 +135,7 @@ fun ProfileScreen(
 
     // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
     // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
-    LaunchedEffect(Unit) {
+    LaunchedEffect(userEmail) {
         val emailLooksFake = userEmail.isBlank() ||
             userEmail.equals("user@example.com", ignoreCase = true) ||
             userEmail.equals("guest@qabas.studio", ignoreCase = true)
@@ -159,7 +169,7 @@ fun ProfileScreen(
         }
         if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
-            prefs.edit().putString("user_avatar_uri", realAvatar).apply()
+            profilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
         }
 
         // مزامنة وسحب رقم الحساب الحقيقي من السحابة لضمان الدقة وتحديث العداد
@@ -192,7 +202,10 @@ fun ProfileScreen(
                 val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: "image/jpeg"
                 val localFile = withContext(Dispatchers.IO) {
                     runCatching {
-                        val f = File(context.filesDir, "user_avatar_permanent.jpg")
+                        val accountKey = MessageDigest.getInstance("SHA-256")
+                            .digest(userEmail.trim().lowercase().toByteArray())
+                            .joinToString("") { "%02x".format(it) }
+                        val f = File(context.filesDir, "user_avatar_$accountKey.jpg")
                         FileOutputStream(f).use { it.write(bytes) }
                         f
                     }.getOrNull()
@@ -218,7 +231,7 @@ fun ProfileScreen(
                 val finalUri = cloudUrl ?: localFile?.toURI()?.toString() ?: uri.toString()
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
-                prefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
+                profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
                 if (cloudUrl != null) {
                     Toast.makeText(context, "تم تحديث الصورة الشخصية ومزامنتها مع السحابة 📸", Toast.LENGTH_SHORT).show()
                 } else {
@@ -2462,8 +2475,8 @@ fun ProfileScreen(
                                         .putString("user_name", displayName)
                                         .putString("user_tag", userCustomTag)
                                         .putString("user_custom_id", cleanId)
-                                        .putString("user_bio", userBio)
                                         .apply()
+                                    profilePrefs.edit().putString("user_bio", userBio).apply()
 
                                     if (SupabaseServices.isSupabaseAvailable && userEmail.isNotBlank()) {
                                         val userId = SupabaseServices.Auth.getCurrentUserId() ?: userEmail
@@ -2556,7 +2569,7 @@ fun ProfileScreen(
                                     .clickable {
                                         selectedPresetAvatar = index
                                         avatarUriString = ""
-                                        prefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
+                                        profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
                                         showAvatarPickerSheet = false
                                         Toast.makeText(context, "تم تعيين الرمز الشخصي ✦", Toast.LENGTH_SHORT).show()
                                     },
