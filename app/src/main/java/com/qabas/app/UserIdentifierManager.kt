@@ -118,6 +118,9 @@ object UserIdentifierManager {
             val mapped = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)
             if (!mapped.isNullOrBlank()) return formatAccountNumber(mapped)
         }
+        // A caller asking for a specific account must never receive the device-wide
+        // "current" number: it may belong to the previously signed-in account.
+        if (!email.isNullOrBlank()) return ""
         val current = prefs.getString(KEY_ACCOUNT_NUMBER, "") ?: ""
         return if (current.isNotBlank()) formatAccountNumber(current) else ""
     }
@@ -360,7 +363,10 @@ object UserIdentifierManager {
 
         // 2. التحقق من السحابة أولاً
         if (SupabaseServices.isSupabaseAvailable) {
-            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
+            val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
+                .takeIf { authenticatedEmail?.equals(cleanEmail, ignoreCase = true) == true }
+            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail, authenticatedUid)
             if (cloudUser != null && !cloudUser.accountNumber.isNullOrBlank()) {
                 val cloudAcc = formatAccountNumber(cloudUser.accountNumber)
                 saveAccountNumber(context, cleanEmail, cloudAcc)
@@ -414,7 +420,9 @@ object UserIdentifierManager {
             if (cleanEmail.isNullOrBlank() && !isSavedIdGuest) return savedId
             val ownerEmail = prefs.getString(KEY_MAP_PREFIX + normalize(savedId), null)
                 ?.trim()?.lowercase(Locale.ROOT)
-            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) {
+            // An unmapped legacy identifier has no provable owner. Do not attach it
+            // to a different signed-in account just because it exists on this device.
+            if (ownerEmail == cleanEmail) {
                 if (!isSavedIdGuest || isGuestSession) return savedId
             }
         }
@@ -423,14 +431,23 @@ object UserIdentifierManager {
         if (isLoggedIn || !sessionEmail.isNullOrBlank()) {
             if (!isGuestSession) {
                 val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
-                if (!oldTag.isNullOrBlank() && oldTag != "qabas_creator" && oldTag != "user" && !oldTag.equals("guest", ignoreCase = true) && !oldTag.equals("ضيف", ignoreCase = true)) {
+                val oldTagOwner = oldTag?.let {
+                    prefs.getString(KEY_MAP_PREFIX + normalize(it), null)
+                        ?.trim()?.lowercase(Locale.ROOT)
+                }
+                if (oldTagOwner == cleanEmail && !oldTag.isNullOrBlank() &&
+                    oldTag != "qabas_creator" && oldTag != "user" &&
+                    !oldTag.equals("guest", ignoreCase = true) &&
+                    !oldTag.equals("ضيف", ignoreCase = true)
+                ) {
                     val normalized = normalize(oldTag)
-                    prefs.edit().putString(KEY_CUSTOM_ID, normalized).apply()
+                    saveCustomId(context, normalized, cleanEmail)
                     return normalized
                 }
 
-                val name = prefs.getString("user_name", null)
-                val newId = generateUniqueId(name ?: sessionEmail)
+                val nameSeed = if (!cleanEmail.isNullOrBlank()) cleanEmail.substringBefore("@")
+                    else prefs.getString("user_name", null) ?: sessionEmail
+                val newId = generateUniqueId(nameSeed)
                 saveCustomId(context, newId, sessionEmail)
                 return newId
             } else {
@@ -487,7 +504,7 @@ object UserIdentifierManager {
             if (cleanEmail.isNullOrBlank()) return existing
             val ownerEmail = prefs.getString(KEY_MAP_PREFIX + existing, null)
                 ?.trim()?.lowercase(Locale.ROOT)
-            if (ownerEmail.isNullOrBlank() || ownerEmail == cleanEmail) {
+            if (ownerEmail == cleanEmail) {
                 saveCustomId(context, existing, cleanEmail)
                 return existing
             }

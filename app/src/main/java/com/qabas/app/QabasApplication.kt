@@ -15,6 +15,9 @@ class QabasApplication : Application() {
         PerfTracker.onAppCreate()
         QabasCrashGuard.install(this)
 
+        // Make the application context available before Supabase Auth creates its client.
+        AppServices.appContext = this
+
         // عدّاد الإقلاعات لصحة الإصدار (انهيارات / إقلاعات)
         runCatching {
             val prefs = getSharedPreferences("qabas_prefs", MODE_PRIVATE)

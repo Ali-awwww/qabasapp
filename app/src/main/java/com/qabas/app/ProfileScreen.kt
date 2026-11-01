@@ -39,8 +39,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
+
+// Keep editable profile data isolated per authenticated account on shared devices.
+private fun accountProfilePreferences(context: Context, email: String) =
+    context.getSharedPreferences(
+        "qabas_profile_" + MessageDigest.getInstance("SHA-256")
+            .digest(email.trim().lowercase().toByteArray())
+            .joinToString("") { "%02x".format(it) },
+        Context.MODE_PRIVATE
+    )
 
 // Tournament Rank Tier Badge Model
 data class TournamentTierBadge(
@@ -68,34 +78,41 @@ fun ProfileScreen(
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var userEmail by remember {
-        mutableStateOf(prefs.getString("user_email", "user@example.com") ?: "user@example.com")
+        mutableStateOf(
+            SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
+                ?: runCatching { FirebaseManager.getAuth().currentUser?.email }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("user_email", "user@example.com")
+                ?: "user@example.com"
+        )
     }
+    val profilePrefs = remember(userEmail) { accountProfilePreferences(context, userEmail) }
 
     // User Profile State with real persistence
     var displayName by remember { 
-        val savedName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
+        val savedName = profilePrefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("user_name", "")?.takeIf {
+                prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
+            }
             ?: userEmail.substringBefore('@').takeIf { it != "user" && it != "guest" }
             ?: "صانع المحتوى الدعوي"
         mutableStateOf(savedName)
     }
     var userBio by remember {
-        mutableStateOf(prefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
     }
     var userCustomTag by remember {
-        val cid = UserIdentifierManager.getCustomId(context)
+        val cid = UserIdentifierManager.getCustomId(context, userEmail)
         mutableStateOf(if (cid.isNotBlank()) UserIdentifierManager.formatDisplay(cid) else "@qabas_user")
     }
     var userAccountNumber by remember {
-        val acc = UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_account_number", "") ?: ""
+        val acc = UserIdentifierManager.getAccountNumber(context, userEmail)
         mutableStateOf(acc)
     }
     var avatarUriString by remember {
-        mutableStateOf(prefs.getString("user_avatar_uri", "") ?: "")
+        mutableStateOf(profilePrefs.getString("user_avatar_uri", "") ?: "")
     }
     var selectedPresetAvatar by remember {
-        mutableIntStateOf(prefs.getInt("user_avatar_preset", 0))
+        mutableIntStateOf(profilePrefs.getInt("user_avatar_preset", 0))
     }
     
     val projectService = remember { ProjectService(context) }
@@ -125,41 +142,62 @@ fun ProfileScreen(
 
     // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
     // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
-    LaunchedEffect(Unit) {
-        val emailLooksFake = userEmail.isBlank() ||
-            userEmail.equals("user@example.com", ignoreCase = true) ||
-            userEmail.equals("guest@qabas.studio", ignoreCase = true)
-        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
-        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
-            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
-        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank() &&
-            prefs.getString("user_email", null) != null &&
-            nameSnapshot != null
-        ) return@LaunchedEffect
-
+    LaunchedEffect(userEmail) {
         val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
-        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
         val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
             ?: SupabaseServices.Auth.getCurrentUserMeta("name")
         val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
-        val realEmail = fb?.email?.takeIf { it.isNotBlank() } ?: sbEmail?.takeIf { it.isNotBlank() }
-        val realName = fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        // Supabase is the app's primary sign-in provider. A still-authenticated
+        // Firebase user from a previous account must never override this identity.
+        val realEmail = sbEmail ?: fb?.email?.takeIf { it.isNotBlank() }
+        val usesSupabaseIdentity = !sbEmail.isNullOrBlank()
+        val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
+        val activeEmail = realEmail ?: userEmail
+        val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
+        val cloudProfile = realEmail?.takeIf { it.isNotBlank() }?.let { email ->
+            SupabaseServices.Database.getUserByEmail(email, SupabaseServices.Auth.getCurrentUserId())
+        }
+        val realName = cloudProfile?.name?.takeIf { it.isNotBlank() }
+            ?: if (usesSupabaseIdentity) sbName else fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
+        val realAvatar = if (usesSupabaseIdentity) sbAvatar else fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+        val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
+        val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
+            prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
+        } else null
+        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
+            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
 
-        if (emailLooksFake && realEmail != null) {
+        if (identityChanged && realEmail != null) {
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if (nameLooksFake && realName != null) {
-            displayName = realName
-            prefs.edit().putString("user_display_name", realName).putString("user_name", realName).apply()
+        if (identityChanged || nameLooksFake || savedAccountName != null) {
+            val activeName = savedAccountName ?: realName
+                ?: activeEmail.substringBefore("@").takeIf { it.isNotBlank() }
+                ?: "صانع المحتوى الدعوي"
+            displayName = activeName
+            activeProfilePrefs.edit().putString("user_name", activeName).apply()
+            if (identityChanged || globalIdentityMatches) {
+                prefs.edit().putString("user_display_name", activeName).putString("user_name", activeName).apply()
+            }
         }
+
+        // Reload every account-scoped field when the authenticated identity changes.
+        userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+        avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+        selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
+        userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
+            .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
+        userAccountNumber = UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
+
         if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
-            prefs.edit().putString("user_avatar_uri", realAvatar).apply()
+            activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
         }
 
         // مزامنة وسحب رقم الحساب الحقيقي من السحابة لضمان الدقة وتحديث العداد
@@ -192,7 +230,10 @@ fun ProfileScreen(
                 val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: "image/jpeg"
                 val localFile = withContext(Dispatchers.IO) {
                     runCatching {
-                        val f = File(context.filesDir, "user_avatar_permanent.jpg")
+                        val accountKey = MessageDigest.getInstance("SHA-256")
+                            .digest(userEmail.trim().lowercase().toByteArray())
+                            .joinToString("") { "%02x".format(it) }
+                        val f = File(context.filesDir, "user_avatar_$accountKey.jpg")
                         FileOutputStream(f).use { it.write(bytes) }
                         f
                     }.getOrNull()
@@ -218,7 +259,7 @@ fun ProfileScreen(
                 val finalUri = cloudUrl ?: localFile?.toURI()?.toString() ?: uri.toString()
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
-                prefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
+                profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
                 if (cloudUrl != null) {
                     Toast.makeText(context, "تم تحديث الصورة الشخصية ومزامنتها مع السحابة 📸", Toast.LENGTH_SHORT).show()
                 } else {
@@ -2457,13 +2498,14 @@ fun ProfileScreen(
                                     userBio = tempBio
                                     UserIdentifierManager.saveCustomId(context, cleanId, userEmail)
 
+                                    profilePrefs.edit().putString("user_name", displayName).apply()
                                     prefs.edit()
                                         .putString("user_display_name", displayName)
                                         .putString("user_name", displayName)
                                         .putString("user_tag", userCustomTag)
                                         .putString("user_custom_id", cleanId)
-                                        .putString("user_bio", userBio)
                                         .apply()
+                                    profilePrefs.edit().putString("user_bio", userBio).apply()
 
                                     if (SupabaseServices.isSupabaseAvailable && userEmail.isNotBlank()) {
                                         val userId = SupabaseServices.Auth.getCurrentUserId() ?: userEmail
@@ -2556,7 +2598,7 @@ fun ProfileScreen(
                                     .clickable {
                                         selectedPresetAvatar = index
                                         avatarUriString = ""
-                                        prefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
+                                        profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
                                         showAvatarPickerSheet = false
                                         Toast.makeText(context, "تم تعيين الرمز الشخصي ✦", Toast.LENGTH_SHORT).show()
                                     },
