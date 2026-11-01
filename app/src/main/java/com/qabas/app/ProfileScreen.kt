@@ -2498,6 +2498,7 @@ fun ProfileScreen(
                                     userBio = tempBio
                                     UserIdentifierManager.saveCustomId(context, cleanId, userEmail)
 
+                                    profilePrefs.edit().putString("user_name", displayName).apply()
                                     prefs.edit()
                                         .putString("user_display_name", displayName)
                                         .putString("user_name", displayName)
