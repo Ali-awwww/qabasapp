@@ -385,7 +385,8 @@ fun ProfileScreen(
                     userId = authUserId,
                     displayName = displayName,
                     email = userEmail,
-                    avatarUrl = prefs.getString("user_avatar_uri", null)
+                    avatarUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                        ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
                 )
             }
         } catch (e: Exception) {
