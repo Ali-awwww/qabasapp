@@ -10,6 +10,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.functions.Functions
+import io.github.jan.supabase.realtime.Realtime
 
 /**
  * Single Supabase client configured once per process.
@@ -113,6 +114,7 @@ object SupabaseConfig {
                 }
                 install(Storage)
                 install(Functions)
+                install(Realtime)
             }
         }
 
@@ -142,6 +144,7 @@ object SupabaseConfig {
             }
             install(Storage)
             install(Functions)
+            install(Realtime)
         }
     }
 
