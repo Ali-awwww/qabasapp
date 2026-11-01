@@ -1,204 +1,100 @@
 package com.qabas.app
 
-import android.content.Context
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.PersistentCacheSettings
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.Source
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.awaitClose
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import java.time.Instant
 
 /**
- * مستودع العناصر المحفوظة (القرآن الكريم، الإلهام، الأدعية) المدعوم بـ Firebase Firestore
- * يستغل مميزات فايربيس الفريدة:
- * 1. التخزين المحلي التلقائي والمفهرس بدون اتصال (Offline Persistent Cache)
- * 2. المزامنة اللحظية الحية عبر تدفقات Snapshot Listeners
- * 3. تتبع مصدر البيانات (هل البيانات من الكاش المحلي أم من السحابة)
+ * Supabase repository for saved Quran verses, inspirations, and adhkar.
+ * Row ownership is enforced by PostgreSQL RLS using auth.uid().
  */
 class SavedItemsRepository(
-    private val db: FirebaseFirestore
+    private val client: SupabaseClient = SupabaseConfig.client
 ) {
-    constructor(context: Context) : this(
-        FirebaseManager.getFirestore(context.applicationContext)
-    )
+    fun observeSavedItems(userId: String): Flow<List<SavedItem>> = flow {
+        require(userId.isNotBlank()) { "User ID must not be blank" }
 
-    init {
-        // تفعيل الإعدادات المحسنة لذاكرة التخزين المؤقت الدائمة
+        // RLS limits visible rows to the authenticated owner. A user-scoped
+        // channel avoids the unsupported filter-property API in supabase-kt 3.6.
+        val channel = client.realtime.channel("saved-items:$userId")
+        val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+            table = TABLE
+        }
+
         try {
-            val settings = FirebaseFirestoreSettings.Builder(db.firestoreSettings)
-                .setLocalCacheSettings(
-                    PersistentCacheSettings.newBuilder()
-                        .setSizeBytes(104857600L) // 100 MB Cache
-                        .build()
-                )
-                .build()
-            db.firestoreSettings = settings
-        } catch (_: Exception) {
-            // يتم ضبط الإعدادات مرة واحدة عند تهيئة النسخة
+            channel.subscribe(blockUntilSubscribed = true)
+            emit(fetchSavedItems(userId))
+            changes.collect {
+                emit(fetchSavedItems(userId))
+            }
+        } finally {
+            client.realtime.removeChannel(channel)
         }
     }
 
-    /**
-     * مراقبة كافة العناصر المحفوظة للمستخدم في الوقت الحقيقي عبر تدفق Snapshot Listener
-     */
-    fun observeSavedItems(userId: String): Flow<List<SavedItem>> = callbackFlow {
-        if (userId.isBlank()) {
-            trySend(emptyList())
-            close()
-            return@callbackFlow
-        }
-
-        val collectionRef = db.collection("users")
-            .document(userId)
-            .collection("saved_items")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-
-        val registration = collectionRef.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                handleFirestoreError(error, OperationType.LIST, "users/$userId/saved_items")
-                close(error)
-                return@addSnapshotListener
-            }
-            if (snapshot != null) {
-                val items = snapshot.documents.mapNotNull { doc ->
-                    try {
-                        val item = doc.toObject(SavedItem::class.java)
-                        item?.copy(id = doc.id)
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-                trySend(items)
-            }
-        }
-
-        awaitClose {
-            registration.remove()
-        }
+    suspend fun fetchSavedItems(userId: String): List<SavedItem> {
+        require(userId.isNotBlank()) { "User ID must not be blank" }
+        return client.postgrest.from(TABLE).select {
+            filter { eq("user_id", userId) }
+            order("created_at", Order.DESCENDING)
+        }.decodeList<SavedItem>()
     }
 
-    /**
-     * مراقبة العناصر المحفوظة حسب النوع (قرآن / خواطر / أذكار)
-     */
-    fun observeSavedItemsByType(userId: String, type: SavedItemType): Flow<List<SavedItem>> =
-        observeSavedItems(userId).map { list ->
-            list.filter { it.type == type }
-        }
-
-    /**
-     * التحقق اللحظي مما إذا كان عنصر معين محفوظاً في السحابة
-     */
-    fun isItemSavedFlow(userId: String, itemId: String): Flow<Boolean> = callbackFlow {
-        if (userId.isBlank() || itemId.isBlank()) {
-            trySend(false)
-            close()
-            return@callbackFlow
-        }
-
-        val docRef = db.collection("users")
-            .document(userId)
-            .collection("saved_items")
-            .document(itemId)
-
-        val registration = docRef.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                handleFirestoreError(error, OperationType.GET, docRef.path)
-                trySend(false)
-                return@addSnapshotListener
-            }
-            trySend(snapshot != null && snapshot.exists())
-        }
-
-        awaitClose {
-            registration.remove()
-        }
-    }
-
-    /**
-     * حفظ عنصر مع ضمان التحديث المتفائل في الكاش المحلي والمزامنة مع السيرفر
-     */
     suspend fun saveItem(item: SavedItem) {
         require(item.userId.isNotBlank()) { "User ID must not be blank" }
         require(item.id.isNotBlank()) { "Item ID must not be blank" }
-
-        val docRef = db.collection("users")
-            .document(item.userId)
-            .collection("saved_items")
-            .document(item.id)
-
-        try {
-            val payload = hashMapOf<String, Any>(
-                "id" to item.id,
-                "userId" to item.userId,
-                "itemType" to item.itemType,
-                "title" to item.title,
-                "content" to item.content,
-                "reference" to item.reference,
-                "tags" to item.tags,
-                "createdAt" to (item.createdAt ?: FieldValue.serverTimestamp()),
-                "updatedAt" to FieldValue.serverTimestamp()
-            )
-            docRef.set(payload).await()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.CREATE, docRef.path)
-            throw e
+        val now = Instant.now().toString()
+        val row = item.copy(
+            createdAt = item.createdAt ?: now,
+            updatedAt = now
+        )
+        client.postgrest.from(TABLE).upsert(row) {
+            onConflict = "user_id,id"
         }
     }
 
-    /**
-     * حذف عنصر محفوظ
-     */
     suspend fun deleteItem(userId: String, itemId: String) {
         require(userId.isNotBlank()) { "User ID must not be blank" }
         require(itemId.isNotBlank()) { "Item ID must not be blank" }
-
-        val docRef = db.collection("users")
-            .document(userId)
-            .collection("saved_items")
-            .document(itemId)
-
-        try {
-            docRef.delete().await()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.DELETE, docRef.path)
-            throw e
+        client.postgrest.from(TABLE).delete {
+            filter {
+                eq("user_id", userId)
+                eq("id", itemId)
+            }
         }
     }
 
-    /**
-     * تبديل حالة الحفظ (حفظ إذا لم يكن محفوظاً، وحذف إذا كان محفوظاً)
-     */
-    suspend fun toggleSaved(userId: String, item: SavedItem): Boolean {
+    suspend fun isItemSaved(userId: String, itemId: String): Boolean {
         require(userId.isNotBlank()) { "User ID must not be blank" }
-        require(item.id.isNotBlank()) { "Item ID must not be blank" }
+        require(itemId.isNotBlank()) { "Item ID must not be blank" }
+        return client.postgrest.from(TABLE).select {
+            filter {
+                eq("user_id", userId)
+                eq("id", itemId)
+            }
+            limit(1)
+        }.decodeList<SavedItem>().isNotEmpty()
+    }
 
-        val docRef = db.collection("users")
-            .document(userId)
-            .collection("saved_items")
-            .document(item.id)
-
-        val doc = try {
-            docRef.get(Source.CACHE).await()
-        } catch (_: Exception) {
-            docRef.get().await()
-        }
-
-        return if (doc.exists()) {
+    suspend fun toggleSaved(userId: String, item: SavedItem): Boolean {
+        return if (isItemSaved(userId, item.id)) {
             deleteItem(userId, item.id)
             false
         } else {
             saveItem(item.copy(userId = userId))
             true
         }
+    }
+
+    private companion object {
+        const val TABLE = "saved_items"
     }
 }

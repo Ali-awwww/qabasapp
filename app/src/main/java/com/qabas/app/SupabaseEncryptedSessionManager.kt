@@ -6,7 +6,6 @@ import android.util.Log
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import io.github.jan.supabase.auth.SessionManager
-import io.github.jan.supabase.auth.exception.NoSessionFoundException
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -16,6 +15,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import kotlinx.coroutines.CancellationException
 
 /**
  * Persists Supabase sessions as AES-256-GCM ciphertext.
@@ -47,7 +47,7 @@ class SupabaseEncryptedSessionManager(context: Context) : SessionManager {
 
     override suspend fun loadSession(): UserSession {
         val encoded = preferences.getString(SESSION_KEY, null)
-            ?: throw NoSessionFoundException()
+            ?: throw IllegalStateException("No persisted Supabase session")
         return try {
             val payload = Base64.decode(encoded, Base64.NO_WRAP)
             require(payload.size > IV_LENGTH + GCM_TAG_LENGTH_BYTES) { "Invalid encrypted session payload" }
@@ -59,12 +59,17 @@ class SupabaseEncryptedSessionManager(context: Context) : SessionManager {
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
             val plaintext = cipher.doFinal(ciphertext).toString(Charsets.UTF_8)
             json.decodeFromString<UserSession>(plaintext)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (error: Exception) {
             // A missing/invalidated key or corrupt payload must never be treated
             // as a valid login. Clear the stale blob and require fresh sign-in.
             preferences.edit().remove(SESSION_KEY).commit()
             Log.w(TAG, "Discarded an unreadable persisted Supabase session", error)
-            throw NoSessionFoundException()
+            throw IllegalStateException(
+                "Persisted Supabase session is unreadable; a fresh sign-in is required",
+                error
+            )
         }
     }
 

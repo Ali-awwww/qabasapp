@@ -32,14 +32,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.FirebaseManager
+import com.qabas.app.SupabaseServices
 import com.qabas.app.ui.theme.NotoSansFont
 
 /**
  * حالات المزامنة السحابية
  */
 enum class CloudSyncState {
-    CONNECTED,   // متصل بسحابة Firebase ومستقر
+    CONNECTED,   // متصل بسحابة Supabase ومستقر
     SYNCING,     // جاري المزامنة وحفظ البيانات
     OFFLINE      // غير متصل بالشبكة (التحول التلقائي للتخزين المحلي)
 }
@@ -92,7 +92,7 @@ private fun checkInitialNetwork(context: Context): Boolean {
 }
 
 /**
- * مكون HUD فضائي يعكس حالة المزامنة والاتصال بسحابة Firebase
+ * مكون HUD فضائي يعكس حالة المزامنة والاتصال بسحابة Supabase
  */
 @Composable
 fun CloudSyncIndicator(
@@ -102,12 +102,12 @@ fun CloudSyncIndicator(
 ) {
     val context = LocalContext.current
     val isNetworkOnline by rememberIsNetworkAvailable()
-    val isFirebaseConfigured = remember { FirebaseManager.isConfigured(context) }
+    val isSupabaseConfigured = remember { SupabaseServices.isSupabaseAvailable }
 
-    val syncState = remember(isNetworkOnline, isFirebaseConfigured, isSyncing) {
+    val syncState = remember(isNetworkOnline, isSupabaseConfigured, isSyncing) {
         when {
             isSyncing -> CloudSyncState.SYNCING
-            isNetworkOnline && isFirebaseConfigured -> CloudSyncState.CONNECTED
+            isNetworkOnline && isSupabaseConfigured -> CloudSyncState.CONNECTED
             else -> CloudSyncState.OFFLINE
         }
     }
@@ -167,8 +167,8 @@ fun CloudSyncIndicator(
         ),
         modifier = modifier.clickable {
             val msg = when (syncState) {
-                CloudSyncState.CONNECTED -> "سحابة Firebase متصلة ومستقرة ومحدثة لحظياً ✓"
-                CloudSyncState.SYNCING -> "يتم رفع ومزامنة التغييرات الآن مع خوادم Firebase السحابية..."
+                CloudSyncState.CONNECTED -> "سحابة Supabase متصلة ومستقرة ومحدثة لحظياً ✓"
+                CloudSyncState.SYNCING -> "يتم رفع ومزامنة التغييرات الآن مع خوادم Supabase السحابية..."
                 CloudSyncState.OFFLINE -> "غير متصل بالشبكة: يتم الحفظ محلياً تلقائياً وستتم المزامنة فور عودة الاتصال"
             }
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()

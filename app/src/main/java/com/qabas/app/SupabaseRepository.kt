@@ -97,23 +97,6 @@ class SupabaseRepository(
     }
 
     /**
-     * Explicitly sets the reactive auth state to Authenticated for local or fallback authenticated sessions.
-     */
-    fun emitLocalAuthenticated(email: String, name: String? = null, isAdmin: Boolean = false) {
-        val uid = getCurrentUserId() ?: email.lowercase(java.util.Locale.ROOT)
-        _authState.value = AuthState.Authenticated(
-            userRow = SupabaseServices.UserRow(
-                id = uid,
-                externalId = uid,
-                email = email,
-                name = name ?: email.substringBefore("@")
-            ),
-            session = getCurrentSession(),
-            isAdmin = isAdmin
-        )
-    }
-
-    /**
      * Explicitly sets the reactive auth state to Guest Mode (unauthenticated browsing session).
      */
     fun emitGuestMode(displayName: String = "ضيف قبس") {
@@ -122,18 +105,15 @@ class SupabaseRepository(
 
     private fun checkLocalAuthFallback() {
         val context = AppServices.appContext
-        val prefs = runCatching { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }.getOrNull()
+        val prefs = runCatching {
+            context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+        }.getOrNull()
         val isGuest = prefs?.getBoolean("is_guest", false) ?: false
-        val isLoggedInLocal = prefs?.getBoolean("is_logged_in", false) ?: false
         if (isGuest) {
             val name = prefs?.getString("user_name", "ضيف قبس") ?: "ضيف قبس"
             emitGuestMode(name)
-        } else if (isLoggedInLocal) {
-            val email = prefs?.getString("user_email", "") ?: "user@qabas.app"
-            val name = prefs?.getString("user_name", "") ?: email.substringBefore("@")
-            val isAdmin = prefs?.getBoolean("is_admin", false) ?: false
-            emitLocalAuthenticated(email, name, isAdmin)
         } else {
+            // Local flags and cached email are presentation data, never proof of authentication.
             _authState.value = AuthState.Unauthenticated
         }
     }
@@ -651,30 +631,15 @@ fun ReactiveAuthNavigationObserver(
     onAuthenticated: (isAdmin: Boolean) -> Unit,
     onUnauthenticated: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val authState by repository.authState.collectAsState()
 
     LaunchedEffect(authState) {
-        val prefs = runCatching { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }.getOrNull()
-        val isLoggedInLocal = prefs?.getBoolean("is_logged_in", false) ?: false
-        val isAdminLocal = prefs?.getBoolean("is_admin", false) ?: false
-
         when (val state = authState) {
-            is AuthState.Authenticated -> {
-                onAuthenticated(state.isAdmin)
-            }
-            is AuthState.Unauthenticated -> {
-                if (isLoggedInLocal) {
-                    onAuthenticated(isAdminLocal)
-                } else {
-                    onUnauthenticated()
-                }
-            }
-            else -> {
-                if (isLoggedInLocal) {
-                    onAuthenticated(isAdminLocal)
-                }
-            }
+            is AuthState.Authenticated -> onAuthenticated(state.isAdmin)
+            is AuthState.Loading -> Unit
+            is AuthState.Error,
+            is AuthState.Unauthenticated,
+            is AuthState.Guest -> onUnauthenticated()
         }
     }
 }

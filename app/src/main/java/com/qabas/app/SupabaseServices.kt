@@ -1181,14 +1181,34 @@ object SupabaseServices {
             }
             return runCatching {
                 val client = client ?: return false
-                val row = ProfileRow(
-                    id = userId,
-                    email = email,
-                    fullName = displayName,
-                    avatarUrl = avatarUrl,
-                    role = "user"
-                )
-                client.postgrest.from("profiles").upsert(row)
+                val existing = client.postgrest.from("profiles").select {
+                    filter { eq("id", userId) }
+                    limit(1)
+                }.decodeSingleOrNull<ProfileRow>()
+
+                if (existing == null) {
+                    // The role is assigned only on insert; updates must never demote admins.
+                    client.postgrest.from("profiles").insert(
+                        ProfileRow(
+                            id = userId,
+                            email = email,
+                            fullName = displayName,
+                            avatarUrl = avatarUrl,
+                            role = "user"
+                        )
+                    )
+                } else {
+                    val patch = buildJsonObject {
+                        email?.let { put("email", it) }
+                        displayName?.let { put("full_name", it) }
+                        avatarUrl?.let { put("avatar_url", it) }
+                    }
+                    if (patch.isNotEmpty()) {
+                        client.postgrest.from("profiles").update(patch) {
+                            filter { eq("id", userId) }
+                        }
+                    }
+                }
                 true
             }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {

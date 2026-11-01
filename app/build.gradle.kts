@@ -182,7 +182,7 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.firestore)
-  implementation(libs.firebase.auth)
+
   implementation(libs.firebase.ai)
   implementation(libs.firebase.appcheck.debug)
   implementation(libs.firebase.appcheck.playintegrity)
@@ -218,6 +218,7 @@ dependencies {
   implementation(libs.supabase.auth)
   implementation(libs.supabase.storage)
   implementation(libs.supabase.functions)
+  implementation(libs.supabase.realtime)
   implementation(libs.ktor.client.android)
   implementation(libs.ktor.client.okhttp)
   implementation(libs.kotlinx.serialization.json)

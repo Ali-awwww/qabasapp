@@ -115,8 +115,9 @@ fun SettingsScreen(
 
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
-    val isGuest = FirebaseAuthRepository.isGuest(context)
-    val isLoggedInAccount = FirebaseAuthRepository.isAuthenticatedUser(context)
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val isGuest = accountAuthState !is AuthState.Authenticated
+    val isLoggedInAccount = accountAuthState is AuthState.Authenticated
     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(userEmail)
     val isRelative = prefs.getBoolean("is_relative_user", false)
 

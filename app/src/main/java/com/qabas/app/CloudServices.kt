@@ -3,11 +3,15 @@ package com.qabas.app
 import java.util.Locale
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 import com.qabas.app.ProjectService.Project
 
@@ -35,11 +39,9 @@ object CloudServices {
 
     fun tryInitFromSavedConfig(context: Context) {}
 
-    // --- خدمة المصادقة (Auth) ---
+    // --- Supabase Auth compatibility surface ---
+    // This facade intentionally exposes no local/fabricated sign-in state.
     object Auth {
-        private val _currentUser = MutableStateFlow<User?>(null)
-        val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
-
         data class User(
             val uid: String,
             val email: String?,
@@ -51,85 +53,54 @@ object CloudServices {
             val photoUrl: String? = null
         )
 
-        fun getCurrentUserId(): String? = _currentUser.value?.uid
+        private val authScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-        suspend fun createGuestSession(): Result<User> {
-            val user = User(
-                uid = "anon_${System.currentTimeMillis()}",
-                email = null,
-                displayName = "صانع محتوى",
-                isAnonymous = true
-            )
-            _currentUser.value = user
-            return Result.success(user)
-        }
+        val currentUser: StateFlow<User?> = SupabaseRepository.getInstance().authState
+            .map { state ->
+                when (state) {
+                    is AuthState.Authenticated -> {
+                        val uid = state.session?.user?.id
+                            ?: SupabaseServices.Auth.getCurrentUserId()
+                        if (uid.isNullOrBlank()) {
+                            null
+                        } else {
+                            val email = state.userRow.email
+                                ?: SupabaseServices.Auth.getCurrentUserEmail()
+                            val role = SupabaseServices.Auth.getUserRoleFromMetadata().lowercase(Locale.ROOT)
+                            val isDeveloper = role == "developer" || role == "owner" ||
+                                state.userRow.type.equals("مطور", ignoreCase = true)
+                            val isAdmin = state.isAdmin || isDeveloper ||
+                                state.userRow.type.equals("خاص", ignoreCase = true)
+                            User(
+                                uid = uid,
+                                email = email,
+                                displayName = state.userRow.name,
+                                isAdmin = isAdmin,
+                                isDeveloper = isDeveloper,
+                                isPermanentAdmin = role == "owner" || isOwnerAccount(email),
+                                photoUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                                    ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
+                            )
+                        }
+                    }
+                    is AuthState.Guest -> User(
+                        uid = "guest",
+                        email = null,
+                        displayName = state.displayName,
+                        isAnonymous = true
+                    )
+                    else -> null
+                }
+            }
+            .stateIn(authScope, SharingStarted.Eagerly, null)
 
-        suspend fun login(email: String, pass: String): Boolean {
-            val user = User(
-                uid = "user_${email.hashCode()}",
-                email = email,
-                displayName = email.substringBefore("@")
-            )
-            _currentUser.value = user
-            return true
-        }
-
-        suspend fun signInWithEmail(email: String, pass: String): Result<User> {
-            val user = User(
-                uid = "user_${email.hashCode()}",
-                email = email,
-                displayName = email.substringBefore("@")
-            )
-            _currentUser.value = user
-            return Result.success(user)
-        }
-
-        suspend fun register(email: String, pass: String, name: String = ""): Boolean {
-            val dName = name.ifBlank { email.substringBefore("@") }
-            val user = User(
-                uid = "user_${System.currentTimeMillis()}",
-                email = email,
-                displayName = dName
-            )
-            _currentUser.value = user
-            Database.saveUser(user.uid, dName, email)
-            return true
-        }
-
-        suspend fun signUpWithEmail(email: String, pass: String, name: String): Result<User> {
-            val user = User(
-                uid = "user_${System.currentTimeMillis()}",
-                email = email,
-                displayName = name
-            )
-            _currentUser.value = user
-            Database.saveUser(user.uid, name, email)
-            return Result.success(user)
-        }
-
-        suspend fun resetPassword(email: String): Boolean {
-            return true
-        }
-
-        fun signOut() {
-            _currentUser.value = null
-        }
-
-        fun updateUserProfile(name: String, email: String) {
-            val cur = _currentUser.value ?: User(
-                uid = "user_${System.currentTimeMillis()}",
-                email = email,
-                displayName = name
-            )
-            _currentUser.value = cur.copy(displayName = name, email = email)
-        }
+        fun getCurrentUserId(): String? = SupabaseServices.Auth.getCurrentUserId()
     }
 
     suspend fun syncAdminClaimFromFirebase(context: Context) = syncAdminClaim(context)
 
     suspend fun syncAdminClaim(context: Context) {
-        val user = Auth.currentUser.value
-        val email = user?.email
+        val email = SupabaseServices.Auth.getCurrentUserEmail()
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
         // 1. Permanent Check for Owner

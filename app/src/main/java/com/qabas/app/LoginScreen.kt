@@ -434,10 +434,7 @@ fun LoginScreen(
                                         if (rememberMe) putString("saved_login_email", trimmedInput) else remove("saved_login_email")
                                         apply()
                                     }
-                                    SupabaseRepository.getInstance().emitLocalAuthenticated(
-                                        email = targetEmail,
-                                        isAdmin = finalIsAdmin
-                                    )
+                                    // SupabaseRepository already observes the active Supabase Auth session.
                                     CloudServices.syncAdminClaim(context)
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
@@ -998,16 +995,24 @@ fun LoginScreen(
                                     if (!regSuccess) {
                                         regSuccess = SupabaseServices.Auth.login(unregisteredTargetEmail, passToUse)
                                     }
-                                } else {
-                                    regSuccess = true
                                 }
 
                                 if (regSuccess) {
+                                    val authUserId = SupabaseServices.Auth.awaitCurrentUserId()
+                                    if (authUserId.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "تم إنشاء الحساب إنما لم تُنشأ جلسة دخول. تحقق من بريدك ثم سجّل الدخول.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        isQuickRegistering = false
+                                        return@launch
+                                    }
                                     val lower = unregisteredTargetEmail.lowercase(java.util.Locale.ROOT)
                                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                                     val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lower)
                                     val userType = if (isAdmin) "مطور" else "مجاني"
-                                    val userId = SupabaseServices.Auth.getCurrentUserId() ?: lower
+                                    val userId = authUserId
                                     val defaultName = unregisteredTargetEmail.substringBefore('@')
 
                                     val customId = UserIdentifierManager.getOrCreateCustomId(context, unregisteredTargetEmail, defaultName)
@@ -1072,10 +1077,7 @@ fun LoginScreen(
                                         apply()
                                     }
 
-                                    SupabaseRepository.getInstance().emitLocalAuthenticated(
-                                        email = unregisteredTargetEmail,
-                                        isAdmin = isAdmin
-                                    )
+                                    // SupabaseRepository already observes the active Supabase Auth session.
                                     CloudServices.syncAdminClaim(context)
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(

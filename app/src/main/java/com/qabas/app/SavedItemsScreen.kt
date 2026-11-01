@@ -65,7 +65,7 @@ fun SavedItemsScreen(
             SavedItemsTopBar(
                 onBack = onBack,
                 onAddInspiration = { showAddInspirationDialog = true },
-                isAuthenticated = uiState !is SavedItemsUiState.Unauthenticated
+                isAuthenticated = uiState is SavedItemsUiState.Success
             )
         }
     ) { paddingValues ->

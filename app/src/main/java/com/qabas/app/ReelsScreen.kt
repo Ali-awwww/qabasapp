@@ -346,7 +346,6 @@ fun ReelsScreen(
     val currentSupabaseId = SupabaseServices.Auth.getCurrentUserId()
     val currentUserId = currentSupabaseId
         ?: prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
-        ?: FirebaseAuthRepository.getEffectiveUserId(context)
         ?: currentUserEmail
 
     val isDeveloper = remember(currentUserEmail) {
@@ -356,11 +355,9 @@ fun ReelsScreen(
         CloudServices.isOwnerAccount(currentUserEmail)
     }
 
-    // 🛡️ فحص دقيق للجلسة في Firebase Auth والتطبيق لمنع الضيف فقط وليس الحسابات المسجلة
-    val fbUser by FirebaseAuthRepository.create(context).authStateFlow().collectAsState(initial = FirebaseAuthRepository.create(context).currentUser)
-    val isGuest = remember(fbUser, isDeveloper) {
-        FirebaseAuthRepository.isGuest(context)
-    }
+    // Account access is determined by the unified Supabase-backed account state.
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val isGuest = accountAuthState !is AuthState.Authenticated && !isDeveloper
     var showGuestLoginPrompt by remember { mutableStateOf(false) }
 
     /**
@@ -403,7 +400,7 @@ fun ReelsScreen(
         // 3. المزامنة مع الخادم السحابي
         if (ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
-                val effectiveUser = currentSupabaseId ?: FirebaseAuthRepository.getEffectiveUserId(context) ?: ""
+                val effectiveUser = currentSupabaseId ?: return@launch
                 SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
             }
         }
@@ -978,7 +975,7 @@ fun ReelsScreen(
                                 ).show()
 
                                 // مزامنة سحابية للمستخدم المصادق — مع تراجع فوري عند الفشل
-                                val authId = FirebaseAuthRepository.getEffectiveUserId(context) ?: SupabaseServices.Auth.getCurrentUserId()
+                                val authId = SupabaseServices.Auth.getCurrentUserId()
                                 if (authId != null) {
                                     // الحالة السحابية تحاكي الحالة المحلية النهائية
                                     val nowCloudSaved = nowLocalSaved

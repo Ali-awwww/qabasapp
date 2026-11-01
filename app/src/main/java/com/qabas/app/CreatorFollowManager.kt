@@ -194,29 +194,25 @@ object CreatorFollowManager {
         val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val authId = SupabaseServices.Auth.getCurrentUserId()
         val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
-        val firebaseUser = runCatching {
-            if (FirebaseManager.isConfigured(context)) FirebaseManager.getAuth().currentUser else null
-        }.getOrNull()
         val storedEmail = appPrefs.getString("user_email", null)?.takeIf { it.isNotBlank() }
         val displayName = appPrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
             ?: appPrefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
-            ?: firebaseUser?.displayName?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("full_name")
             ?: "صانع محتوى قبس"
         val avatar = appPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
-            ?: firebaseUser?.photoUrl?.toString()?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
         val localId = appPrefs.getString("local_user_id", null)?.takeIf { it.isNotBlank() }
             ?: appPrefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
             ?: appPrefs.getString("user_account_number", null)?.takeIf { it.isNotBlank() }
-        val id = listOf(authId, firebaseUser?.uid, localId, authEmail, firebaseUser?.email, storedEmail)
+        val id = listOf(authId, localId, authEmail, storedEmail)
             .firstOrNull { !it.isNullOrBlank() }
             ?: installFollowerId(context)
 
         return ViewerIdentity(
             id = id!!,
             displayName = displayName,
-            email = authEmail ?: firebaseUser?.email ?: storedEmail,
+            email = authEmail ?: storedEmail,
             avatarUrl = avatar
         )
     }
