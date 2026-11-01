@@ -731,11 +731,15 @@ object SupabaseServices {
             }.decodeList<BugReportRow>()
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
-        suspend fun getBugReportsByUser(email: String): List<BugReportRow> = runCatching {
+        suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
+            // Ownership is determined only by the authenticated Supabase UID.
+            // Never use user_email as an authorization filter: report inserts do not
+            // establish that email as the authenticated identity.
+            val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
             val client = client ?: return emptyList()
             client.postgrest.from("dev_bug_reports").select {
                 filter {
-                    ilike("user_email", email.trim().lowercase())
+                    eq("user_id", activeUserId)
                 }
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
