@@ -80,7 +80,6 @@ fun ProfileScreen(
     var userEmail by remember {
         mutableStateOf(
             SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
-                ?: runCatching { FirebaseManager.getAuth().currentUser?.email }.getOrNull()?.takeIf { it.isNotBlank() }
                 ?: prefs.getString("user_email", "user@example.com")
                 ?: "user@example.com"
         )
@@ -143,7 +142,6 @@ fun ProfileScreen(
     // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
     // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
     LaunchedEffect(userEmail) {
-        val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
         val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
         val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
             ?: SupabaseServices.Auth.getCurrentUserMeta("name")
@@ -152,7 +150,7 @@ fun ProfileScreen(
 
         // Supabase is the app's primary sign-in provider. A still-authenticated
         // Firebase user from a previous account must never override this identity.
-        val realEmail = sbEmail ?: fb?.email?.takeIf { it.isNotBlank() }
+        val realEmail = sbEmail
         val usesSupabaseIdentity = !sbEmail.isNullOrBlank()
         val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
         val activeEmail = realEmail ?: userEmail
@@ -160,9 +158,8 @@ fun ProfileScreen(
         val cloudProfile = realEmail?.takeIf { it.isNotBlank() }?.let { email ->
             SupabaseServices.Database.getUserByEmail(email, SupabaseServices.Auth.getCurrentUserId())
         }
-        val realName = cloudProfile?.name?.takeIf { it.isNotBlank() }
-            ?: if (usesSupabaseIdentity) sbName else fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = if (usesSupabaseIdentity) sbAvatar else fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        val realName = cloudProfile?.name?.takeIf { it.isNotBlank() } ?: sbName
+        val realAvatar = sbAvatar
         val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
         val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
         val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
@@ -382,17 +379,13 @@ fun ProfileScreen(
                 .putInt("user_league_points", userLeaguePoints)
                 .putInt("user_league_rank", userLeagueRank)
                 .apply()
-
-            // مزامنة الملف الشخصي تلقائياً مع Firebase Firestore
-            if (FirebaseManager.isConfigured(context)) {
-                val uid = FirebaseManager.getAuth().currentUser?.uid
-                    ?: prefs.getString("user_id", null)
-                    ?: (userEmail.ifBlank { "local_user" }.hashCode().toString())
-                FirebaseManager.syncUserToFirestore(
-                    context = context,
-                    userId = uid,
+            // Profile identity and presentation fields are synchronized through Supabase only.
+            SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { authUserId ->
+                SupabaseServices.Profiles.syncUserProfile(
+                    userId = authUserId,
                     displayName = displayName,
-                    email = userEmail
+                    email = userEmail,
+                    avatarUrl = prefs.getString("user_avatar_uri", null)
                 )
             }
         } catch (e: Exception) {
