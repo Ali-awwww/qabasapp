@@ -52,6 +52,21 @@ fun BugCameraSettingsScreen(
     BackHandler { onBack() }
 
     val context = LocalContext.current
+    val allReports by BugReportRepository.reports.collectAsState()
+    val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val cloudAuthUser by CloudServices.Auth.currentUser.collectAsState()
+    val supabaseUserId = remember(supabaseAuthUser, cloudAuthUser) {
+        SupabaseServices.Auth.getCurrentUserId()
+    }
+    val authenticatedEmail = supabaseAuthUser?.email ?: cloudAuthUser?.email
+    val myReports = remember(allReports, supabaseAuthUser, cloudAuthUser, supabaseUserId, authenticatedEmail) {
+        BugReportRepository.filterReportsForOwner(
+            source = allReports,
+            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
+            supabaseUserId = supabaseUserId,
+            authenticatedEmail = authenticatedEmail
+        )
+    }
     LaunchedEffect(Unit) {
         SpatialCameraPreferencesManager.init(context)
     }
@@ -66,8 +81,6 @@ fun BugCameraSettingsScreen(
     val hapticEnabled by SpatialCameraPreferencesManager.hapticEnabled.collectAsState()
 
     // عداد البلاغات المخزنة
-    val myReports by BugReportRepository.reports.collectAsState()
-
     // حركة أنميشن المعاينة الحية
     val infiniteTransition = rememberInfiniteTransition(label = "PreviewTransition")
     val previewRotation by infiniteTransition.animateFloat(

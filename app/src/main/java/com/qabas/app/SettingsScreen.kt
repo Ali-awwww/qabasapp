@@ -77,6 +77,23 @@ fun SettingsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val allBugReports by BugReportRepository.reports.collectAsState()
+    val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val cloudAuthUser by CloudServices.Auth.currentUser.collectAsState()
+    val supabaseUserId = remember(supabaseAuthUser, cloudAuthUser) {
+        SupabaseServices.Auth.getCurrentUserId()
+    }
+    val authenticatedEmail = supabaseAuthUser?.email ?: cloudAuthUser?.email
+    val userBugReports = remember(
+        allBugReports, supabaseAuthUser, cloudAuthUser, supabaseUserId, authenticatedEmail
+    ) {
+        BugReportRepository.filterReportsForOwner(
+            source = allBugReports,
+            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
+            supabaseUserId = supabaseUserId,
+            authenticatedEmail = authenticatedEmail
+        )
+    }
 
     // حالة الشاشة الفرعية الحالية
     var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
@@ -685,8 +702,9 @@ fun SettingsScreen(
 
                         // 2.5 مركز الدعم والدردشة المباشرة (Support Center) - يظهر للحسابات المسجلة فقط
                         if (isLoggedInAccount && !isGuest) {
-                            val allReports by BugReportRepository.reports.collectAsState()
-                            val unreadReportsCount = remember(allReports) { allReports.count { !it.isReadByUser } }
+                            val unreadReportsCount = remember(userBugReports) {
+                                userBugReports.count { !it.isReadByUser }
+                            }
                             SettingsNavigationCard(
                                 title = "مركز الدعم والدردشة المباشرة",
                                 subtitle = "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية",

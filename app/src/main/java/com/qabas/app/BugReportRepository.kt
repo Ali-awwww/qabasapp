@@ -42,6 +42,7 @@ object BugReportRepository {
     data class BugReportItem(
         val id: String = UUID.randomUUID().toString(),
         @SerialName("user_id") val userId: String? = null,
+        @SerialName("local_owner_id") val localOwnerId: String? = null,
         @SerialName("screen_name") val screenName: String = "الرئيسية",
         val description: String = "",
         @SerialName("report_type") val reportType: String = "BUG", // BUG, IMPROVEMENT, CONTENT
@@ -223,6 +224,7 @@ object BugReportRepository {
         var reportItem = BugReportItem(
             id = id,
             userId = supabaseUserId,
+            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
             screenName = screenName.ifBlank { "الرئيسية" },
             description = enrichedDescription,
             reportType = reportType.ifBlank { "BUG" },
@@ -364,6 +366,7 @@ object BugReportRepository {
                         status = c.status,
                         userEmail = c.userEmail,
                         userId = c.userId,
+                        localOwnerId = c.userId,
                         localImagePath = null,
                         imageUrl = c.imageUrl.takeIf { it.isNotBlank() },
                         appVersion = c.appVersion,
@@ -407,6 +410,7 @@ object BugReportRepository {
                         status = cloud.status,
                         userEmail = cloud.userEmail,
                         userId = cloud.userId,
+                        localOwnerId = cloud.userId,
                         appVersion = cloud.appVersion,
                         deviceModel = cloud.deviceInfo,
                         imageUrl = cloud.imageUrl,
@@ -414,6 +418,7 @@ object BugReportRepository {
                         isReadByUser = true // سيتم تحديثه لاحقاً
                     )).copy(
                         userId = cloud.userId,
+                        localOwnerId = cloud.userId,
                         status = cloud.status,
                         developerReply = cloud.developerReply,
                         imageUrl = cloud.imageUrl,
@@ -541,12 +546,57 @@ object BugReportRepository {
     }
 
     /**
+     * Filter the shared on-device cache to the active account.
+     * Explicit local-owner IDs take precedence; cloud UID is the authenticated fallback.
+     * Legacy rows without either identifier are only matched to the verified auth email,
+     * never to a value read from local preferences.
+     */
+    fun filterReportsForOwner(
+        source: List<BugReportItem>,
+        localOwnerId: String,
+        supabaseUserId: String?,
+        authenticatedEmail: String?
+    ): List<BugReportItem> {
+        val cleanEmail = authenticatedEmail?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+        return source.filter { report ->
+            when {
+                !report.localOwnerId.isNullOrBlank() ->
+                    report.localOwnerId == localOwnerId ||
+                        (!supabaseUserId.isNullOrBlank() && report.userId == supabaseUserId)
+                !report.userId.isNullOrBlank() ->
+                    !supabaseUserId.isNullOrBlank() && report.userId == supabaseUserId
+                cleanEmail.isNotBlank() ->
+                    report.userEmail.trim().lowercase(java.util.Locale.ROOT) == cleanEmail
+                else -> false
+            }
+        }
+    }
+
+    fun getReportsForCurrentUser(
+        context: Context,
+        source: List<BugReportItem> = _reports.value
+    ): List<BugReportItem> {
+        val supabaseUserId = SupabaseServices.Auth.getCurrentUserId()
+        val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            ?: CloudServices.Auth.currentUser.value?.email
+        return filterReportsForOwner(
+            source = source,
+            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
+            supabaseUserId = supabaseUserId,
+            authenticatedEmail = authenticatedEmail
+        )
+    }
+
+    /**
      * تمييز جميع البلاغات الحالية بأنها "قُرئت" من قبل المستخدم لإزالة شارة الإشعار.
      */
     suspend fun markReportsAsRead(context: Context) = withContext(Dispatchers.IO) {
         val current = _reports.value
-        if (current.any { !it.isReadByUser }) {
-            val updated = current.map { it.copy(isReadByUser = true) }
+        val ownedIds = getReportsForCurrentUser(context).mapTo(mutableSetOf()) { it.id }
+        if (current.any { it.id in ownedIds && !it.isReadByUser }) {
+            val updated = current.map { report ->
+                if (report.id in ownedIds) report.copy(isReadByUser = true) else report
+            }
             saveLocalReports(context, updated)
         }
     }
