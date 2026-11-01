@@ -342,7 +342,9 @@ object UserPreferencesManager {
             val uriStr = identityPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
                 ?: return@withContext null
             if (uriStr.startsWith("http://") || uriStr.startsWith("https://")) return@withContext uriStr
-            val storageUserId = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext null
+            val storageUserId = SupabaseServices.Auth.getCurrentUserId()
+                ?.takeIf { it == userId }
+                ?: return@withContext null
             runCatching {
                 val uri = Uri.parse(uriStr)
                 val bytes = if (uri.scheme == "content") {
