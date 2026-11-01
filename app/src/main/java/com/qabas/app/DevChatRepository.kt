@@ -119,6 +119,7 @@ object DevChatRepository {
         userEmail: String,
         text: String,
         sender: String = "user",
+        targetUserId: String? = null,
         category: String = "general",
         isTelemetry: Boolean = false,
         isUrgent: Boolean = false,
@@ -126,10 +127,17 @@ object DevChatRepository {
         audioLengthSec: Int = 0
     ): DevChatMessage = withContext(Dispatchers.IO) {
         val cleanEmail = userEmail.trim().lowercase()
+        val isUserMessage = sender.equals("user", ignoreCase = true)
+        val messageOwnerId = if (isUserMessage) {
+            SupabaseServices.Auth.getCurrentUserId()
+        } else {
+            targetUserId
+        }
         val now = System.currentTimeMillis()
         val formattedTime = timeFormat.format(Date(now))
         val newMsg = DevChatMessage(
             id = UUID.randomUUID().toString(),
+            userId = messageOwnerId,
             userEmail = cleanEmail,
             sender = sender,
             message = text.trim(),
@@ -148,9 +156,13 @@ object DevChatRepository {
         current.add(newMsg)
         saveLocalMessages(context, cleanEmail, current)
 
-        // مزامنة مع Supabase في الخلفية إن توفرت
+        // مزامنة الرسالة السحابية عند توفر هوية مالك مؤكدة.
+        // رسائل المطور بلا UID مستلم تبقى محلية ولا تُنشئ سجلات يتعذر على المستخدم قراءتها.
         try {
-            if (SupabaseServices.isSupabaseAvailable) {
+            if (SupabaseServices.isSupabaseAvailable &&
+                !messageOwnerId.isNullOrBlank() &&
+                (isUserMessage || !targetUserId.isNullOrBlank())
+            ) {
                 val prefix = when {
                     isUrgent -> "[URGENT] "
                     isTelemetry -> "[TELEMETRY] "
@@ -163,6 +175,7 @@ object DevChatRepository {
                     userEmail = cleanEmail,
                     message = prefix + text.trim(),
                     sender = sender,
+                    targetUserId = targetUserId,
                     accountNumber = accountNumber.takeIf { it.isNotBlank() }
                 )
             }
@@ -268,12 +281,14 @@ object DevChatRepository {
     /** مزامنة سحابية كاملة لمستخدم معين */
     suspend fun syncMessages(context: Context, userEmail: String): List<DevChatMessage> = withContext(Dispatchers.IO) {
         val local = getLocalMessages(context, userEmail).toMutableList()
-        if (!SupabaseServices.isSupabaseAvailable || userEmail.isBlank()) {
+        if (!SupabaseServices.isSupabaseAvailable || userEmail.isBlank() ||
+            SupabaseServices.Auth.getCurrentUserId().isNullOrBlank()
+        ) {
             return@withContext local
         }
 
         try {
-            val remote = SupabaseServices.Database.getChatMessages(userEmail)
+            val remote = SupabaseServices.Database.getChatMessagesForCurrentUser()
             if (remote.isNotEmpty()) {
                 val localTexts = local.map { it.message.trim() }.toSet()
                 var updated = false

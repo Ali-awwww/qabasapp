@@ -840,15 +840,16 @@ object SupabaseServices {
             list.groupBy { it.userEmail.lowercase().trim() }
         }.onFailure { Log.e(TAG, "getAllChatThreads failed: ${it.message}") }.getOrDefault(emptyMap())
 
-        suspend fun getChatMessages(userEmail: String): List<ChatMessageRow> = runCatching {
+        suspend fun getChatMessagesForCurrentUser(): List<ChatMessageRow> = runCatching {
+            val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
             val client = client ?: return emptyList()
             client.postgrest.from("dev_chat_messages").select {
                 filter {
-                    eq("user_email", userEmail.trim().lowercase())
+                    eq("user_id", activeUserId)
                 }
                 order("created_at", Order.ASCENDING)
             }.decodeList<ChatMessageRow>()
-        }.onFailure { Log.e(TAG, "getChatMessages failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { Log.e(TAG, "getChatMessagesForCurrentUser failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun sendChatMessage(
             userEmail: String,
@@ -860,11 +861,24 @@ object SupabaseServices {
             val client = client ?: return false
             val isUserMessage = sender.equals("user", ignoreCase = true)
             val effectiveUserId = if (isUserMessage) Auth.getCurrentUserId() else targetUserId
-            if (isUserMessage && effectiveUserId.isNullOrBlank()) return false
+            if (effectiveUserId.isNullOrBlank()) return false
+
+            // The sender identity is always taken from the Supabase session, never
+            // from the caller-supplied email. Developer replies are attached to the
+            // recipient's UID so only that account can read them.
+            val effectiveEmail = if (isUserMessage) {
+                Auth.getCurrentUserEmail()?.trim()?.lowercase(java.util.Locale.ROOT)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return false
+            } else {
+                userEmail.trim().lowercase(java.util.Locale.ROOT)
+                    .takeIf { it.isNotBlank() }
+                    ?: return false
+            }
             val row = ChatMessageRow(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
-                userEmail = userEmail,
+                userEmail = effectiveEmail,
                 accountNumber = accountNumber,
                 sender = sender,
                 message = message,
