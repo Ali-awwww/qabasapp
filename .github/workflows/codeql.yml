@@ -98,6 +98,30 @@ jobs:
         fi
         chmod +x gradlew
 
+    - name: Create non-secret placeholder environment for CodeQL
+      if: matrix.language == 'java-kotlin'
+      shell: bash
+      run: |
+        cat > .env <<'EOF'
+        AW_CLIENT_ID="ci-placeholder"
+        AW_CLIENT_SECRET="ci-placeholder"
+        AZURE_SPEECH_KEY="ci-placeholder"
+        AZURE_SPEECH_REGION="ci-placeholder"
+        COVERR_API_KEY="ci-placeholder"
+        ELEVENLABS_API_KEY="ci-placeholder"
+        GOOGLE_WEB_CLIENT_ID="ci-placeholder"
+        GROQ_API_KEY="ci-placeholder"
+        HUGGINGFACE_API_KEY="ci-placeholder"
+        OPENAI_API_KEY="ci-placeholder"
+        OPENROUTER_API_KEY="ci-placeholder"
+        PEXELS_API_KEY="ci-placeholder"
+        PIXABAY_API_KEY="ci-placeholder"
+        QF_CLIENT_ID="ci-placeholder"
+        QF_CLIENT_SECRET="ci-placeholder"
+        SUPABASE_ANON_KEY="ci-placeholder"
+        SUPABASE_URL="https://example.supabase.co"
+        EOF
+
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
     # or others). This is typically only required for manual builds.
