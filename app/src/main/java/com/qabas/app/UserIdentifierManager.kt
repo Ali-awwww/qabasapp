@@ -363,7 +363,10 @@ object UserIdentifierManager {
 
         // 2. التحقق من السحابة أولاً
         if (SupabaseServices.isSupabaseAvailable) {
-            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
+            val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
+                .takeIf { authenticatedEmail?.equals(cleanEmail, ignoreCase = true) == true }
+            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail, authenticatedUid)
             if (cloudUser != null && !cloudUser.accountNumber.isNullOrBlank()) {
                 val cloudAcc = formatAccountNumber(cloudUser.accountNumber)
                 saveAccountNumber(context, cleanEmail, cloudAcc)
