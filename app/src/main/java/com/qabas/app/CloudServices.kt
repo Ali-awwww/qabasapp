@@ -98,8 +98,7 @@ object CloudServices {
     suspend fun syncAdminClaimFromFirebase(context: Context) = syncAdminClaim(context)
 
     suspend fun syncAdminClaim(context: Context) {
-        val user = Auth.currentUser.value
-        val email = user?.email
+        val email = SupabaseServices.Auth.getCurrentUserEmail()
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
 
         // 1. Permanent Check for Owner
