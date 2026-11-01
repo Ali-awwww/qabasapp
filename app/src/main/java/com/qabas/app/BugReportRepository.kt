@@ -254,11 +254,14 @@ object BugReportRepository {
                     val imgFile = File(localImagePath)
                     if (imgFile.exists()) {
                         val remoteFileName = "${reportItem.userId}/bug_${id}.jpg"
-                        uploadedImageUrl = SupabaseServices.Storage.uploadFile(
+                        val uploadResult = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
                             path = remoteFileName,
                             data = imgFile.readBytes()
                         )
+                        if (!uploadResult.isNullOrBlank()) {
+                            uploadedImageUrl = remoteFileName
+                        }
                     }
                 }
 
@@ -390,7 +393,11 @@ object BugReportRepository {
 
             cloudItems.forEach { cloud ->
                 val existing = localList[cloud.id]
-                if (existing == null || existing.status != cloud.status || existing.developerReply != cloud.developerReply) {
+                if (existing == null ||
+                    existing.status != cloud.status ||
+                    existing.developerReply != cloud.developerReply ||
+                    existing.imageUrl != cloud.imageUrl
+                ) {
                     val isNewReply = existing != null && existing.developerReply != cloud.developerReply && !cloud.developerReply.isNullOrBlank()
                     val updated = (existing ?: BugReportItem(
                         id = cloud.id,
@@ -409,6 +416,7 @@ object BugReportRepository {
                         userId = cloud.userId,
                         status = cloud.status,
                         developerReply = cloud.developerReply,
+                        imageUrl = cloud.imageUrl,
                         syncedToCloud = true,
                         isReadByUser = if (isNewReply) false else (existing?.isReadByUser ?: true)
                     )
@@ -478,18 +486,24 @@ object BugReportRepository {
                     report.copy(userId = reportOwnerId)
                 }
 
-                var cloudImageUrl = reportToSync.imageUrl
+                var cloudImageUrl = SupabaseServices.Storage.normalizeObjectPath(
+                    bucketName = "bug_reports",
+                    value = reportToSync.imageUrl
+                )
                 if (cloudImageUrl.isNullOrBlank() &&
                     reportToSync.localImagePath != null &&
                     !reportToSync.userId.isNullOrBlank()
                 ) {
                     val file = File(reportToSync.localImagePath)
                     if (file.exists()) {
-                        cloudImageUrl = SupabaseServices.Storage.uploadFile(
+                        val uploadResult = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
                             path = "${reportToSync.userId}/bug_${reportToSync.id}.jpg",
                             data = file.readBytes()
                         )
+                        if (!uploadResult.isNullOrBlank()) {
+                            cloudImageUrl = "${reportToSync.userId}/bug_${reportToSync.id}.jpg"
+                        }
                     }
                 }
 

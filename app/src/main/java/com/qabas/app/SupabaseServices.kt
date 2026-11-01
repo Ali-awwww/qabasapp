@@ -13,6 +13,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.minutes
 
 object SupabaseServices {
     private const val TAG = "SupabaseServices"
@@ -743,12 +746,22 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "recordContentGuardCheck failed: ${it.message}") }.getOrDefault(false)
 
+        private suspend fun withSignedBugReportImage(row: BugReportRow): BugReportRow {
+            val path = Storage.normalizeObjectPath("bug_reports", row.imageUrl) ?: return row
+            val signedUrl = Storage.createSignedUrl(
+                bucketName = "bug_reports",
+                path = path
+            )
+            return if (signedUrl.isNullOrBlank()) row else row.copy(imageUrl = signedUrl)
+        }
+
         // ── Bug Reports Operations ──
         suspend fun getAllBugReports(): List<BugReportRow> = runCatching {
             val client = client ?: return emptyList()
-            client.postgrest.from("dev_bug_reports").select {
+            val rows = client.postgrest.from("dev_bug_reports").select {
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
+            rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
@@ -757,12 +770,13 @@ object SupabaseServices {
             // establish that email as the authenticated identity.
             val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
             val client = client ?: return emptyList()
-            client.postgrest.from("dev_bug_reports").select {
+            val rows = client.postgrest.from("dev_bug_reports").select {
                 filter {
                     eq("user_id", activeUserId)
                 }
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
+            rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getBugReportsByUser failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun recordBugReport(
@@ -1791,6 +1805,13 @@ object SupabaseServices {
                 ?.takeIf { it.isNotBlank() }
         }
 
+        private data class SignedUrlCacheEntry(
+            val url: String,
+            val expiresAtMillis: Long
+        )
+
+        private val signedUrlCache = ConcurrentHashMap<String, SignedUrlCacheEntry>()
+
         private val rawHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -1883,6 +1904,56 @@ object SupabaseServices {
             path: String,
             data: ByteArray
         ): String? = uploadFile(bucketName, path, data, true)
+
+        fun normalizeObjectPath(bucketName: String, value: String?): String? {
+            val raw = value?.trim().orEmpty()
+            if (raw.isBlank()) return null
+            if (!raw.startsWith("http://", ignoreCase = true) &&
+                !raw.startsWith("https://", ignoreCase = true)
+            ) return raw.removePrefix("/").substringBefore("?").takeIf { it.isNotBlank() }
+
+            val markers = listOf(
+                "/storage/v1/object/public/$bucketName/",
+                "/storage/v1/object/sign/$bucketName/",
+                "/storage/v1/object/authenticated/$bucketName/"
+            )
+            val marker = markers.firstOrNull { raw.contains(it) } ?: return null
+            return raw.substringAfter(marker).substringBefore("?")
+                .removePrefix("/")
+                .takeIf { it.isNotBlank() }
+        }
+
+        suspend fun createSignedUrl(
+            bucketName: String,
+            path: String,
+            expiresIn: kotlin.time.Duration = 15.minutes
+        ): String? {
+            return try {
+                val requesterId = Auth.getCurrentUserId() ?: return null
+                val cacheKey = "$requesterId:$bucketName:$path"
+                val now = System.currentTimeMillis()
+                signedUrlCache[cacheKey]?.takeIf { it.expiresAtMillis > now + 30_000L }?.let {
+                    return it.url
+                }
+
+                val storageClient = client ?: return null
+                val signedUrl = storageClient.storage.from(bucketName).createSignedUrl(
+                    path = path,
+                    expiresIn = expiresIn
+                )
+                val cacheLifetime = (expiresIn.inWholeMilliseconds - 30_000L).coerceAtLeast(0L)
+                signedUrlCache[cacheKey] = SignedUrlCacheEntry(
+                    url = signedUrl,
+                    expiresAtMillis = now + cacheLifetime
+                )
+                signedUrl
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e(TAG, "createSignedUrl failed for $bucketName: ${error.message}")
+                null
+            }
+        }
 
         fun getPublicUrl(bucketName: String, path: String): String? {
             val client = client ?: return null
