@@ -199,16 +199,18 @@ fun ProfileScreen(
                 }
                 // رفع سحابي: رابط عام دائم يظهر للمستخدمين الآخرين (ريلز/تعليقات/المتابعون)
                 val cloudUrl = if (SupabaseServices.isSupabaseAvailable && localFile != null) {
-                    val uploaderId = runCatching {
-                        SupabaseServices.Auth.getCurrentUserId() ?: userEmail
-                    }.getOrNull() ?: userEmail
-                    withContext(Dispatchers.IO) {
-                        SupabaseServices.Storage.uploadFileWithProgress(
-                            bucketName = "avatars",
-                            path = "user_avatars/${uploaderId.ifBlank { "local" }}/avatar_${System.currentTimeMillis()}.jpg",
-                            file = localFile,
-                            contentType = if (mime.startsWith("image/")) "image/jpeg" else mime
-                        )
+                    val uploaderId = SupabaseServices.Auth.getCurrentUserId()
+                    if (uploaderId.isNullOrBlank()) {
+                        null
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            SupabaseServices.Storage.uploadFileWithProgress(
+                                bucketName = "avatars",
+                                path = "user_avatars/$uploaderId/avatar_${System.currentTimeMillis()}.jpg",
+                                file = localFile,
+                                contentType = if (mime.startsWith("image/")) "image/jpeg" else mime
+                            )
+                        }
                     }
                 } else null
 
