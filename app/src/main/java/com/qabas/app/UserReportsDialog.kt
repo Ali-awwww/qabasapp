@@ -70,8 +70,8 @@ fun UserReportsDialog(
             BugReportRepository.loadLocalReports(context)
             // المزامنة التلقائية الدورية أثناء فتح النافذة
             while (true) {
-                currentUser?.email?.let { email ->
-                    BugReportRepository.refreshUserReports(context, email)
+                if (currentUser != null) {
+                    BugReportRepository.refreshUserReports(context)
                 }
                 kotlinx.coroutines.delay(15000) // كل 15 ثانية
             }
