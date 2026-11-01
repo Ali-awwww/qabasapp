@@ -453,12 +453,11 @@ private fun ProjectSpatialCard(
                         }
 
                         // شارة الحفظ السحابي
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        val isFirebaseActive = remember { FirebaseManager.isConfigured(context) }
+                        val isSupabaseActive = SupabaseServices.isSupabaseAvailable
                         Surface(
-                            color = if (isFirebaseActive) Color(0xFF78350F).copy(alpha = 0.25f) else Color(0xFF334155).copy(alpha = 0.25f),
+                            color = if (isSupabaseActive) Color(0xFF78350F).copy(alpha = 0.25f) else Color(0xFF334155).copy(alpha = 0.25f),
                             shape = CutCornerShape(4.dp),
-                            border = BorderStroke(0.8.dp, if (isFirebaseActive) Color(0xFFFFA000).copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f))
+                            border = BorderStroke(0.8.dp, if (isSupabaseActive) Color(0xFFFFA000).copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
@@ -466,14 +465,14 @@ private fun ProjectSpatialCard(
                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
-                                    if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.Storage,
+                                    if (isSupabaseActive) Icons.Default.CloudDone else Icons.Default.Storage,
                                     contentDescription = null,
-                                    tint = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    tint = if (isSupabaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
                                     modifier = Modifier.size(10.dp)
                                 )
                                 Text(
-                                    text = if (isFirebaseActive) "سحابي 🔥" else "محلي 💾",
-                                    color = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    text = if (isSupabaseActive) "سحابي ☁️" else "محلي 💾",
+                                    color = if (isSupabaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
                                     fontFamily = NotoSansFont,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
