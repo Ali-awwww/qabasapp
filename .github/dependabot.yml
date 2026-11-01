@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+    open-pull-requests-limit: 6
+    groups:
+      firebase:
+        patterns:
+          - "com.google.firebase:*"
+      androidX:
+        patterns:
+          - "androidx.*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:30"
+    open-pull-requests-limit: 4
