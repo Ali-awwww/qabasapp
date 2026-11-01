@@ -76,8 +76,10 @@ class SupabaseEncryptedSessionManager(context: Context) : SessionManager {
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+        val existing = runCatching { keyStore.getKey(KEY_ALIAS, null) as? SecretKey }.getOrNull()
         if (existing != null) return existing
+        // Recover from a key that was invalidated or could no longer be loaded.
+        if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS)
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         generator.init(
