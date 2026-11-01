@@ -902,7 +902,7 @@ fun ReelsScreen(
                                     )
 
                                     scope.launch {
-                                        val authId = SupabaseServices.Auth.getCurrentUserId()
+                                        val authId = SupabaseServices.Auth.awaitCurrentUserId()
                                         
                                         if (authId == null) {
                                             // تراجع فوري: لا يمكن الإعجاب سحابياً بدون جلسة Supabase نشطة (RLS Requirement)
