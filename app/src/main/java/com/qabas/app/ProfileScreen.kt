@@ -78,14 +78,21 @@ fun ProfileScreen(
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var userEmail by remember {
-        mutableStateOf(prefs.getString("user_email", "user@example.com") ?: "user@example.com")
+        mutableStateOf(
+            SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
+                ?: runCatching { FirebaseManager.getAuth().currentUser?.email }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("user_email", "user@example.com")
+                ?: "user@example.com"
+        )
     }
     val profilePrefs = remember(userEmail) { accountProfilePreferences(context, userEmail) }
 
     // User Profile State with real persistence
     var displayName by remember { 
-        val savedName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
+        val savedName = profilePrefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("user_name", "")?.takeIf {
+                prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
+            }
             ?: userEmail.substringBefore('@').takeIf { it != "user" && it != "guest" }
             ?: "صانع المحتوى الدعوي"
         mutableStateOf(savedName)
@@ -147,11 +154,21 @@ fun ProfileScreen(
         // Firebase user from a previous account must never override this identity.
         val realEmail = sbEmail ?: fb?.email?.takeIf { it.isNotBlank() }
         val usesSupabaseIdentity = !sbEmail.isNullOrBlank()
-        val realName = if (usesSupabaseIdentity) sbName else fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = if (usesSupabaseIdentity) sbAvatar else fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
         val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
-        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
+        val activeEmail = realEmail ?: userEmail
+        val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
+        val cloudProfile = realEmail?.takeIf { it.isNotBlank() }?.let { email ->
+            SupabaseServices.Database.getUserByEmail(email, SupabaseServices.Auth.getCurrentUserId())
+        }
+        val realName = cloudProfile?.name?.takeIf { it.isNotBlank() }
+            ?: if (usesSupabaseIdentity) sbName else fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
+        val realAvatar = if (usesSupabaseIdentity) sbAvatar else fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+        val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
+        val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
+            prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
+        } else null
         val nameLooksFake = nameSnapshot.isNullOrBlank() ||
             nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
 
@@ -159,14 +176,18 @@ fun ProfileScreen(
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if (identityChanged || (nameLooksFake && realName != null)) {
-            val activeName = realName ?: realEmail?.substringBefore("@") ?: userEmail.substringBefore("@")
+        if (identityChanged || nameLooksFake || savedAccountName != null) {
+            val activeName = savedAccountName ?: realName
+                ?: activeEmail.substringBefore("@").takeIf { it.isNotBlank() }
+                ?: "صانع المحتوى الدعوي"
             displayName = activeName
-            prefs.edit().putString("user_display_name", activeName).putString("user_name", activeName).apply()
+            activeProfilePrefs.edit().putString("user_name", activeName).apply()
+            if (identityChanged || globalIdentityMatches) {
+                prefs.edit().putString("user_display_name", activeName).putString("user_name", activeName).apply()
+            }
         }
 
         // Reload every account-scoped field when the authenticated identity changes.
-        val activeProfilePrefs = accountProfilePreferences(context, realEmail ?: userEmail)
         userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
         avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
         selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
