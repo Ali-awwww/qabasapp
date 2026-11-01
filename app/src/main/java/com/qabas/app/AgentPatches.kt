@@ -29,20 +29,9 @@ fun extractTargetFile(prompt: String, responseText: String): String {
         }
     }
 
-    // 3. تخمين دلالي ذكي بناءً على سياق المهمة
-    val p = prompt.lowercase()
-    return when {
-        "شاشة رئيسية" in p || "الرئيسية" in p || "home" in p -> "QabasHomeScreen.kt"
-        "تنقل" in p || "navigation" in p || "route" in p -> "AppNavigation.kt"
-        "إعدادات" in p || "settings" in p -> "SettingsScreen.kt"
-        "صوت" in p || "audio" in p || "تشغيل" in p -> "AudioPlayerManager.kt"
-        "مطور" in p || "لوحة" in p || "dashboard" in p -> "DeveloperDashboardScreen.kt"
-        "وكيل" in p || "agent" in p -> "AgentConsoleTab.kt"
-        "بناء" in p || "build" in p -> "BuildCenterSection.kt"
-        "انهيار" in p || "crash" in p || "logs" in p -> "CrashLogsHubScreen.kt"
-        "قرآن" in p || "تفسير" in p || "quran" in p -> "QuranDataProvider.kt"
-        else -> "MainActivity.kt"
-    }
+    // 3. لا نخمن ملفاً مستهدفاً عند غياب مسار صريح أو اسم ملف معروف.
+    // يُحفظ الناتج كمقترح عام منفصل بدلاً من نسبته إلى ملف مصدر غير متحقق منه.
+    return "AgentProposal.kt"
 }
 
 object AgentPatchKit {
@@ -63,7 +52,7 @@ object AgentPatchKit {
             .toList()
         if (blocks.isEmpty()) {
             if (codeText.contains("fun ") || codeText.contains("class ")) {
-                val target = runCatching { extractTargetFile(prompt, codeText) }.getOrDefault("مقترح_عام.kt")
+                val target = runCatching { extractTargetFile(prompt, codeText) }.getOrDefault("AgentProposal.kt")
                 return listOf(
                     FileDiff(
                         filePath = "app/src/main/java/com/qabas/app/$target",

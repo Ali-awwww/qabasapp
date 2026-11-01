@@ -2,6 +2,9 @@ package com.qabas.app
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.performClick
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Assert.assertEquals
@@ -9,6 +12,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -81,6 +85,12 @@ class AgentQualityTest {
         assertEquals("مراجع", name)
     }
 
+    @Test
+    fun `extractTargetFile does not guess a source file when no path is provided`() {
+        val target = extractTargetFile("أضف ميزة جديدة للمشروع", "fun newFeature() = Unit")
+        assertEquals("AgentProposal.kt", target)
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // AgentPrefs.maskSecret — إظهار آخر 4 محارف فقط
     // ═══════════════════════════════════════════════════════════════════
@@ -114,7 +124,7 @@ class AgentQualityTest {
     fun `agent screen renders deck modules and sub-tabs`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 2)
+                AiStudioAgentScreen(onBack = {}, initialTab = 5)
             }
         }
 
@@ -122,10 +132,86 @@ class AgentQualityTest {
         composeTestRule.onNodeWithTag("deck_module_02").assertExists()
         composeTestRule.onNodeWithTag("deck_module_03").assertExists()
         composeTestRule.onNodeWithTag("deck_module_04").assertExists()
+        composeTestRule.onNodeWithTag("deck_module_05").assertExists()
+        composeTestRule.onNodeWithTag("deck_module_06").assertExists()
         composeTestRule.onNodeWithTag("sub_tab_readiness").assertExists()
         composeTestRule.onNodeWithTag("sub_tab_tools").assertExists()
-
         composeTestRule.onNodeWithTag("sub_tab_readiness").performClick()
         composeTestRule.onNodeWithTag("sub_tab_tools").performClick()
+    }
+
+    @Test
+    fun `agent screen opens on developer hub overview`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 0)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_overview").assertExists()
+    }
+
+    @Test
+    fun `agent screen opens on projects section`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 3)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_projects").assertExists()
+    }
+
+    @Test
+    fun `workspace section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 1)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
+    }
+
+    @Test
+    fun `console section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 2)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_03").assertExists()
+    }
+
+    @Test
+    fun `history section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 4)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_05").assertExists()
+    }
+
+    @Test
+    fun `tools section uses the shared hub page header`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 5)
+            }
+        }
+        composeTestRule.onNodeWithTag("agent_hub_page_06").assertExists()
+    }
+
+    @Test
+    fun `empty history does not claim active runs or a perfect success rate`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        AgentRunLog.clear(context)
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                AiStudioAgentScreen(onBack = {}, initialTab = 4)
+            }
+        }
+        composeTestRule.onNodeWithText("إجمالي العمليات").assertExists()
+        composeTestRule.onNodeWithText("0 عملية").assertExists()
+        composeTestRule.onNodeWithTag("agent_history_success_rate").assertTextEquals("—")
+        composeTestRule.onNodeWithText("قيد التنفيذ").assertDoesNotExist()
     }
 }

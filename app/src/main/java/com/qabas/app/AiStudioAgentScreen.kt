@@ -83,8 +83,8 @@ fun AiStudioAgentScreen(
     val prefs = AgentPrefs.instance(context)
 
     var showExitConfirmation by remember { mutableStateOf(false) }
-    var topTab by remember { mutableStateOf(initialTab) }
-    var showDevConsole by remember { mutableStateOf(false) }
+    var topTab by remember { mutableStateOf(initialTab.coerceIn(0, 5)) }
+    var showHub by remember { mutableStateOf(true) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
     val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
@@ -101,8 +101,8 @@ fun AiStudioAgentScreen(
             showSidePanel = false
             return@BackHandler
         }
-        if (showDevConsole) {
-            showDevConsole = false
+        if (showHub) {
+            showHub = false
             return@BackHandler
         }
         if (showExitConfirmation) {
@@ -355,6 +355,7 @@ fun AiStudioAgentScreen(
     val activeEnginePair = remember { derivedStateOf { UniversalKeyBrain.getActiveEngine() } }
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
     val activeRepo = remember(context, vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
+    val savedRepositories = remember(context, vaultTrigger) { RepoVaultManager.getRepositories(context) }
 
     fun handleSendMessage(text: String) {
         val clean = text.trim()
@@ -465,7 +466,14 @@ fun AiStudioAgentScreen(
                     
                     withContext(Dispatchers.Main) {
                         val finalMsg = agentMsg.copy(
-                            text = report.leaderSynthesis.ifBlank { "تم تنفيذ المهمة بواسطة الفريق بنجاح." },
+                            sender = if (report.overallSuccess) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
+                            text = report.leaderSynthesis.ifBlank {
+                                if (report.overallSuccess) {
+                                    "اكتمل تشغيل فريق النماذج، لكن لم يصدر تقرير تلخيصي."
+                                } else {
+                                    "تعذر إكمال المهمة عبر فريق النماذج. راجع تفاصيل الخطوات والأخطاء المسجلة."
+                                }
+                            },
                             teamReport = report,
                             teamSteps = teamStepsList.toList()
                         )
@@ -479,6 +487,7 @@ fun AiStudioAgentScreen(
                     }
                 } else {
                     var finalMissionResult: AgentMissionSession? = null
+                    var missionFailure: String? = null
                     try {
                         executeAgentMission(
                             context = context,
@@ -495,12 +504,14 @@ fun AiStudioAgentScreen(
                             }
                         )
                     } catch (e: Exception) {
+                        missionFailure = e.message
                         Log.e(TAG, "Execution error: ${e.message}")
                     }
 
                     withContext(Dispatchers.Main) {
-                        val reportText = finalMissionResult?.finalReport?.ifBlank { null }
-                            ?: "تم استلام توجيهك البرمجي بنجاح وتنفيذه بواسطة الوكيل المستقل: $clean"
+                        val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
+                            ?: missionFailure?.let { "تعذر إكمال المهمة: $it" }
+                            ?: "انتهى التنفيذ دون تقرير نهائي؛ لم يتم تأكيد نجاح المهمة."
                         val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
                             FileDiff(
                                 filePath = d.filePath,
@@ -510,7 +521,7 @@ fun AiStudioAgentScreen(
                             )
                         }
                         val agentMsg = AgentChatMessage(
-                            sender = AgentChatSender.AGENT,
+                            sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
                             text = reportText,
                             diff = diff
                         )
@@ -557,6 +568,7 @@ fun AiStudioAgentScreen(
 
         val job = coroutineScope.launch(Dispatchers.IO) {
             var finalMissionResult: AgentMissionSession? = null
+            var missionFailure: String? = null
             try {
                 executeAgentMission(
                     context = context,
@@ -568,15 +580,21 @@ fun AiStudioAgentScreen(
                     onFinished = { finalMissionResult = it; currentMission = it }
                 )
             } catch (e: Exception) {
+                missionFailure = e.message
                 Log.e(TAG, "Plan execution error: ${e.message}")
             }
             withContext(Dispatchers.Main) {
-                val reportText = finalMissionResult?.finalReport?.ifBlank { null }
-                    ?: "تم تنفيذ الخطة البرمجية المعتمدة بنجاح على مشروع قبس."
+                val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
+                    ?: missionFailure?.let { "تعذر تنفيذ الخطة المعتمدة: $it" }
+                    ?: "انتهى مسار الخطة دون تقرير نهائي؛ لم يتم تأكيد نجاح التنفيذ."
                 val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
                     FileDiff(filePath = d.filePath, additions = d.additions, deletions = d.deletions, diffText = d.diffText)
                 }
-                val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = reportText, diff = diff)
+                val agentMsg = AgentChatMessage(
+                    sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
+                    text = reportText,
+                    diff = diff
+                )
                 chatMessages.add(agentMsg)
                 AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
                 isThinking = false
@@ -602,55 +620,43 @@ fun AiStudioAgentScreen(
         bottomBar = bottomBar,
         containerColor = Color(0xFF05070F),
         topBar = {
-            if (showDevConsole) {
+            if (showHub) {
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth().statusBarsPadding(),
                     backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
                     borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                onClick = { showDevConsole = false },
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.18f),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626)).testTag("agent_hub_back")
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
-                                    Text("العودة للمحادثة 💬", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                                }
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
                             }
-                            Spacer(Modifier.width(10.dp))
                             Text(
-                                "كونسول وأدوات المطور",
+                                "مركز التطوير الذكي",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 fontSize = 15.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
-                            com.qabas.app.ui.components.ModelIndicator(modifier = Modifier.padding(end = 8.dp))
-                            Surface(
-                                onClick = { showSettings = true },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF0F1B2F),
-                                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.6f)),
-                                modifier = Modifier.height(38.dp).testTag("agent_open_settings")
+                            IconButton(
+                                onClick = { showHub = false },
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF10B981).copy(alpha = 0.14f)).testTag("agent_return_chat")
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
-                                    Text("الإعدادات", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
+                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(
+                                onClick = { showSettings = true },
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1B2F)).border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape).testTag("agent_open_settings")
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -785,6 +791,18 @@ fun AiStudioAgentScreen(
                             Spacer(Modifier.width(4.dp))
 
                             IconButton(
+                                onClick = { showHub = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0F1B2F))
+                                    .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f), CircleShape)
+                                    .testTag("agent_open_hub")
+                            ) {
+                                Icon(Icons.Default.Dashboard, contentDescription = "مركز التطوير", tint = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp))
+                            }
+
+                            IconButton(
                                 onClick = { showSettings = true },
                                 modifier = Modifier
                                     .size(36.dp)
@@ -806,21 +824,21 @@ fun AiStudioAgentScreen(
             }
         }
     ) { innerPadding ->
-        if (showDevConsole) {
+        if (showHub) {
             Column(
                 Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
             ) {
-            // Cyber Live Telemetry HUD Strip (Tokens, Speed, Latency, Diagnostics)
-            CyberLiveTelemetryHud(
-                tokensIn = if (isExecuting) 1240 else 420,
-                tokensOut = if (isExecuting) 850 else 180,
-                latencyMs = geminiHealth.latencyMs,
-                tokensPerSec = if (isExecuting) 38.5f else 0f,
-                isThinking = isExecuting,
-                onRunDiagnostic = {
-                    refreshDiagnostics()
-                    Toast.makeText(context, "تم تشخيص حالة المحرك والمستودع بنجاح 🔬", Toast.LENGTH_SHORT).show()
-                },
+            // Live telemetry is sourced from the actual GitHub health check and device runtime.
+            LiveTelemetryHudStrip(
+                latencyMs = githubHealth.latencyMs,
+                isConnected = githubHealth.isConnected,
+                isPinging = isPinging,
+                activeModelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                isOfflineMode = isOfflineMode,
+                usedMemoryMb = liveUsedMemoryMb,
+                maxMemoryMb = liveMaxMemoryMb,
+                onRefresh = { refreshDiagnostics() },
+                onModelClick = { showModelPicker = true },
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
 
@@ -830,7 +848,8 @@ fun AiStudioAgentScreen(
                     isExecuting && teamProgressText.contains("تخطيط", ignoreCase = true) -> "PLAN"
                     isExecuting && teamProgressText.contains("بناء", ignoreCase = true) -> "VERIFY"
                     isExecuting -> "CODE"
-                    else -> "ANALYZE"
+                    isThinking || (isRunning && !isPaused) -> "ANALYZE"
+                    else -> "IDLE"
                 },
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
@@ -843,23 +862,38 @@ fun AiStudioAgentScreen(
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (topTab) {
-                    1 -> AgentLiveConsoleTab(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
+                    0 -> AgentHubOverview(
+                        repositoryName = activeRepo?.fullName,
+                        repositoryBranch = activeRepo?.defaultBranch,
+                        providerName = keyResolution.first.displayName,
+                        modelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
+                        isOfflineMode = isOfflineMode,
+                        isOfflineModelReady = OnDeviceModelManager.isModelInstalled(context, activeLocalModel),
+                        isProviderReady = keyResolution.third != KeySource.NONE,
+                        isGitHubReady = githubHealth.isConnected,
+                        isChecking = isPinging,
+                        isExecuting = isExecuting,
+                        isChatRunning = isRunning,
+                        activeMissionTitle = currentMission?.userPrompt,
+                        activeMissionStatus = currentMission?.status?.name,
+                        historyCount = AgentRunLog.load(context).size,
+                        onSelectTab = { topTab = it },
+                        onOpenRepository = { showRepoDialog = true },
+                        onOpenKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onRefresh = { refreshDiagnostics() }
                     )
-                    2 -> UnifiedToolsAndReadinessSection(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
-                    )
-                    3 -> TaskHistoryLogTab(context)
-                    else -> LazyColumn(
+                    1 -> LazyColumn(
                         Modifier.fillMaxSize().cyberGridBackground().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        item {
+                            AgentHubPageIntro(
+                                index = "02",
+                                title = "مساحة العمل",
+                                description = "تهيئة المهمة والتخصص والتنفيذ ومراجعة التغييرات المقترحة",
+                                icon = Icons.Default.Code
+                            )
+                        }
                         item { Spacer(Modifier.height(4.dp)) }
 
                         // Container 1: Mode & Team
@@ -1272,13 +1306,15 @@ fun AiStudioAgentScreen(
                                         onApplyDiff = { diff ->
                                             if (activeRepo == null || activeRepo.token.isBlank()) {
                                                 Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
+                                            } else if (activeRepo.defaultBranch.isBlank()) {
+                                                Toast.makeText(context, "تعذر حفظ المقترح: الفرع الافتراضي غير محدد.", Toast.LENGTH_LONG).show()
                                             } else {
                                                 applyingDiffPath = diff.filePath
                                                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                                     val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
                                                     // 🔑 نكتب المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
                                                     val safePath = AgentPatchKit.proposalPath(diff.filePath)
-                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch.ifBlank { "main" }, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
+                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
                                                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                                                         applyingDiffPath = null
                                                         if (ok) {
@@ -1317,6 +1353,28 @@ fun AiStudioAgentScreen(
 
                         item { Spacer(Modifier.height(24.dp)) }
                     }
+                    2 -> AgentLiveConsoleTab(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = { showRepoDialog = true }
+                    )
+                    3 -> AgentHubProjectsSection(
+                        repositories = savedRepositories,
+                        activeRepositoryId = activeRepo?.id,
+                        onSelectRepository = { repository ->
+                            RepoVaultManager.setActiveRepo(context, repository.id)
+                            Toast.makeText(context, "تم تحديد ${repository.fullName} كمستودع نشط", Toast.LENGTH_SHORT).show()
+                        },
+                        onAddRepository = { showRepoDialog = true }
+                    )
+                    4 -> TaskHistoryLogTab(context)
+                    5 -> UnifiedToolsAndReadinessSection(
+                        context = context,
+                        scope = coroutineScope,
+                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
+                        onJumpBuildCenter = { showRepoDialog = true }
+                    )
                 }
             }
         }
@@ -1854,7 +1912,7 @@ fun AiStudioAgentScreen(
                 showOnDeviceDialog = true
             },
             onOpenDevTools = {
-                showDevConsole = true
+                showHub = true
             }
         )
     }
@@ -2110,6 +2168,13 @@ private fun UnifiedToolsAndReadinessSection(
             .fillMaxSize()
             .background(Color(0xFF05070F))
     ) {
+        AgentHubPageIntro(
+            index = "06",
+            title = "الأدوات والجاهزية",
+            description = "إدارة قدرات الوكيل والتحقق من الاتصالات قبل التنفيذ",
+            icon = Icons.Default.Build,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

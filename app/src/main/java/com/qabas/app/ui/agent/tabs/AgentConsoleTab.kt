@@ -79,7 +79,7 @@ internal fun AgentLiveConsoleTab(
 
     var ghState by remember { mutableStateOf(GitHubConnectionState.SYNCING) }
     var ghUser by remember { mutableStateOf<String?>(null) }
-    var ghBranch by remember { mutableStateOf("main") }
+    var ghBranch by remember { mutableStateOf("غير محدد") }
     var ghLatencyMs by remember { mutableLongStateOf(0L) }
     var ghErrorMessage by remember { mutableStateOf("") }
 
@@ -97,7 +97,7 @@ internal fun AgentLiveConsoleTab(
             ghLatencyMs = (System.currentTimeMillis() - t0).coerceAtLeast(1L)
             if (user != null) {
                 ghUser = user
-                ghBranch = if (owner.isNotBlank() && repo.isNotBlank()) client.getDefaultBranch() else "main"
+                ghBranch = if (owner.isNotBlank() && repo.isNotBlank()) client.getDefaultBranch().ifBlank { "غير محدد" } else "غير محدد"
                 ghState = GitHubConnectionState.CONNECTED
                 ghErrorMessage = ""
             } else {
@@ -342,7 +342,7 @@ internal fun AgentLiveConsoleTab(
                     )
                     cmd.progress = 0.85f
                     cmd.turnsUsed = 2
-                    cmd.currentPhase = "معالجة التعديلات المستلمة من السيرفر"
+                    cmd.currentPhase = "تم استلام الرد واستخراج المقترح للمراجعة"
 
                     // فحص وجود كود لتشكيل FileDiff حقيقي
                     var realDiff: FileDiff? = null
@@ -352,7 +352,7 @@ internal fun AgentLiveConsoleTab(
                         realDiff = FileDiff(
                             filePath = "app/src/main/java/com/qabas/app/$targetFile",
                             additions = codeBlock.lines().size,
-                            deletions = 1,
+                            deletions = 0,
                             diffText = codeBlock
                         )
                         generatedDiff = realDiff
@@ -361,8 +361,8 @@ internal fun AgentLiveConsoleTab(
                     cmd.status = CommandStatus.COMPLETED
                     cmd.turnsUsed = 3
                     cmd.progress = 1.0f
-                    cmd.currentPhase = "اكتملت المهمة بنجاح ✅"
-                    cmd.resultSummary = "تم الاتصال بسيرفر ${provider.displayName} وإنجاز المهمة ($latency ms | 🪙 ${agentResponse.totalTokens} توكن فعلي)."
+                    cmd.currentPhase = "اكتمل الطلب واستُلم الرد ✅"
+                    cmd.resultSummary = "تم استلام رد من ${provider.displayName} واستخراج مقترح للمراجعة؛ لم تُعدّل ملفات المشروع ($latency ms | 🪙 ${agentResponse.totalTokens} توكن)."
 
                     chatMessages.add(
                         AgentChatMessage(
@@ -375,8 +375,8 @@ internal fun AgentLiveConsoleTab(
                     AgentRunLog.record(
                         context = context,
                         title = cmd.prompt.take(60),
-                        tools = listOf("api_call", "parse_response", "update_code"),
-                        summary = "تم إنجاز المهمة بنجاح عبر الاتصال المباشر بسيرفر ${provider.displayName} (استهلاك ${agentResponse.totalTokens} توكن).",
+                        tools = listOf("api_call", "parse_response", "proposal_extract"),
+                        summary = "تم استلام رد ناجح من ${provider.displayName} واستخراج مقترح للمراجعة؛ لم يتم تعديل ملفات المشروع (استهلاك ${agentResponse.totalTokens} توكن).",
                         ok = true
                     )
                 },
@@ -422,7 +422,7 @@ internal fun AgentLiveConsoleTab(
                 isRunning = false
                 activeCommandId = null
                 if (cmd.status == CommandStatus.COMPLETED) {
-                    Toast.makeText(context, "أنجز الوكيل المهمة بنجاح! 🚀", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "اكتمل الطلب واستلمنا رد الوكيل. راجع المقترح قبل حفظه.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -479,13 +479,22 @@ internal fun AgentLiveConsoleTab(
                 }
             } else {
                 val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق قبس (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
-                val response = try {
+                val chatResult = runCatching {
                     AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
-                } catch (e: Exception) {
-                    "تم استلام توجيهك البرمجي وجاري معالجته وتطبيقه على مشروع الكود المحلي: $clean"
                 }
                 withContext(Dispatchers.Main) {
-                    val agentMsg = AgentChatMessage(sender = AgentChatSender.AGENT, text = response)
+                    val agentMsg = if (chatResult.isSuccess) {
+                        AgentChatMessage(sender = AgentChatSender.AGENT, text = chatResult.getOrThrow())
+                    } else {
+                        val detail = chatResult.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
+                        AgentChatMessage(
+                            sender = AgentChatSender.TOOL_SYSTEM,
+                            text = buildString {
+                                append("تعذر الحصول على رد من مزود الذكاء الاصطناعي. لم تُنفّذ أي تعديلات على المشروع.")
+                                if (detail != null) append("\n\nالتفاصيل: $detail")
+                            }
+                        )
+                    }
                     chatMessages.add(agentMsg)
                     AgentChatSessionManager.saveSessionMessages(context, currentSessionId, chatMessages.toList())
                     isAgentThinkingInChat = false
@@ -514,6 +523,14 @@ internal fun AgentLiveConsoleTab(
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        item {
+            AgentHubPageIntro(
+                index = "03",
+                title = "كونسول التنفيذ",
+                description = "مراقبة الاتصال والطابور والخطوات والنتائج الفعلية",
+                icon = Icons.Default.Terminal
+            )
+        }
         // ==========================================
         // 🎯 المستودع المستهدف للتنفيذ (غرفة الوكيل = غرفة التنفيذ المربوطة بالخزانة)
         // ==========================================
@@ -594,7 +611,7 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "المستودع الرئيسي الافتراضي",
+                                if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -625,7 +642,7 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Text(
                                 when (ghState) {
-                                    GitHubConnectionState.CONNECTED -> "● جاهز للتنفيذ ⚡"
+                                    GitHubConnectionState.CONNECTED -> if (owner.isNotBlank() && repo.isNotBlank()) "● اتصال GitHub سليم" else "● GitHub متصل · اختر مستودعاً"
                                     GitHubConnectionState.SYNCING -> "○ جاري المزامنة..."
                                     GitHubConnectionState.NOT_CONFIGURED -> "⚠️ بانتظار الرمز"
                                     GitHubConnectionState.PERMISSION_ERROR -> "❌ خطأ صلاحية"
@@ -961,7 +978,7 @@ internal fun AgentLiveConsoleTab(
                             when (ghState) {
                                 GitHubConnectionState.CONNECTED -> {
                                     Text(
-                                        if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "مستودع مرتبط بنجاح",
+                                        if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
                                         color = Color.White,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
@@ -2361,10 +2378,14 @@ internal fun AgentLiveConsoleTab(
                                     return@Button
                                 }
                                 val diff = generatedDiff ?: return@Button
+                                if (ghBranch.isBlank() || ghBranch == "غير محدد") {
+                                    Toast.makeText(context, "تعذر الحفظ: لم يتم تحديد فرع المستودع.", Toast.LENGTH_LONG).show()
+                                    return@Button
+                                }
                                 isPushingToGitHub = true
                                 scope.launch(Dispatchers.IO) {
                                     val client = GitHubRepoClient(owner.trim(), repo.trim(), token.trim())
-                                    val branch = ghBranch.ifBlank { "main" }
+                                    val branch = ghBranch
                                     val commitMessage = "chore(agent): save proposal for ${diff.filePath.substringAfterLast("/")}"
                                     // 🔑 نحفظ المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
                                     val safePath = AgentPatchKit.proposalPath(diff.filePath)
