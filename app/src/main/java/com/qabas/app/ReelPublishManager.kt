@@ -390,7 +390,8 @@ object ReelPublishManager {
                 context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     .getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
             }.getOrNull()
-            ?: runCatching { FirebaseManager.getAuth().currentUser?.photoUrl?.toString() }.getOrNull()
+            ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
         // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل المحلي
         val savedReel = runCatching {
