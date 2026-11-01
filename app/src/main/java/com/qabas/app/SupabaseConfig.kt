@@ -106,10 +106,6 @@ object SupabaseConfig {
             ) {
                 install(Postgrest)
                 install(Auth) {
-                    autoLoadFromStorage = false
-                    enableLifecycleCallbacks = false
-                    alwaysAutoRefresh = false
-                    sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
                 }
                 install(Storage)
                 install(Functions)
@@ -132,10 +128,11 @@ object SupabaseConfig {
                 defaultSchema = "public"
             }
             install(Auth) {
-                autoLoadFromStorage = false
-                enableLifecycleCallbacks = false
-                alwaysAutoRefresh = false
-                sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
+                // Let supabase-kt restore the platform session and refresh tokens automatically.
+                // MemorySessionManager loses the refresh token when the process is recreated.
+                autoLoadFromStorage = true
+                enableLifecycleCallbacks = true
+                alwaysAutoRefresh = true
             }
             install(Storage)
             install(Functions)
