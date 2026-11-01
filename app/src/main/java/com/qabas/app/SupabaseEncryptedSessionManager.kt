@@ -6,7 +6,7 @@ import android.util.Log
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import io.github.jan.supabase.auth.SessionManager
-import io.github.jan.supabase.auth.exception.NoSessionFoundException
+import io.github.jan.supabase.auth.exception.AuthSessionMissingException
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -47,7 +47,7 @@ class SupabaseEncryptedSessionManager(context: Context) : SessionManager {
 
     override suspend fun loadSession(): UserSession {
         val encoded = preferences.getString(SESSION_KEY, null)
-            ?: throw NoSessionFoundException()
+            ?: throw AuthSessionMissingException()
         return try {
             val payload = Base64.decode(encoded, Base64.NO_WRAP)
             require(payload.size > IV_LENGTH + GCM_TAG_LENGTH_BYTES) { "Invalid encrypted session payload" }
@@ -64,7 +64,7 @@ class SupabaseEncryptedSessionManager(context: Context) : SessionManager {
             // as a valid login. Clear the stale blob and require fresh sign-in.
             preferences.edit().remove(SESSION_KEY).commit()
             Log.w(TAG, "Discarded an unreadable persisted Supabase session", error)
-            throw NoSessionFoundException()
+            throw AuthSessionMissingException()
         }
     }
 
