@@ -65,13 +65,14 @@ fun UserReportsDialog(
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isGuest) {
+    LaunchedEffect(isGuest, currentUser?.email) {
         if (!isGuest) {
             BugReportRepository.loadLocalReports(context)
-            // المزامنة التلقائية الدورية أثناء فتح النافذة
+            // المزامنة التلقائية الدورية أثناء فتح النافذة.
+            // Keying the effect by the Supabase email restarts it after session restoration.
             while (true) {
-                currentUser?.email?.let { email ->
-                    BugReportRepository.refreshUserReports(context, email)
+                if (!currentUser?.email.isNullOrBlank()) {
+                    BugReportRepository.refreshUserReports(context)
                 }
                 kotlinx.coroutines.delay(15000) // كل 15 ثانية
             }
