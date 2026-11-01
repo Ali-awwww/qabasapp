@@ -321,8 +321,9 @@ class MainActivity : ComponentActivity() {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val currentEmail = prefs.getString("user_email", "") ?: ""
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val isGuestUser = FirebaseAuthRepository.isGuest(context)
-        val isRegisteredUser = FirebaseAuthRepository.isAuthenticatedUser(context)
+        val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+        val isGuestUser = accountAuthState !is AuthState.Authenticated
+        val isRegisteredUser = accountAuthState is AuthState.Authenticated
         val isCameraEnabled by SpatialCameraPreferencesManager.cameraEnabled.collectAsState()
 
         var showFab by remember { mutableStateOf(prefs.getBoolean("show_floating_debug_fabs", false)) }
