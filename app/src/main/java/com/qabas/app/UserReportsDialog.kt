@@ -57,9 +57,22 @@ fun UserReportsDialog(
 
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val cloudUser by CloudServices.Auth.currentUser.collectAsState()
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = currentUser?.email?.ifBlank { storedEmail } ?: storedEmail
     val isGuest = FirebaseAuthRepository.isGuest(context)
+    val supabaseUserId = remember(currentUser) { SupabaseServices.Auth.getCurrentUserId() }
+    val authenticatedEmail = currentUser?.email ?: cloudUser?.email
+    val userReports = remember(
+        allReports, currentUser, cloudUser, supabaseUserId, authenticatedEmail
+    ) {
+        BugReportRepository.filterReportsForOwner(
+            source = allReports,
+            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
+            supabaseUserId = supabaseUserId,
+            authenticatedEmail = authenticatedEmail
+        )
+    }
 
     var selectedFilter by remember { mutableStateOf("ALL") }
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
@@ -79,13 +92,13 @@ fun UserReportsDialog(
         }
     }
 
-    val filteredReports = remember(allReports, selectedFilter) {
+    val filteredReports = remember(userReports, selectedFilter) {
         when (selectedFilter) {
-            "BUG" -> allReports.filter { it.reportType.equals("BUG", ignoreCase = true) || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER") }
-            "DIAGNOSTIC" -> allReports.filter { it.description.contains("🔬") || it.description.contains("رصد آلي") || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER", "DIAGNOSTIC_SNAPSHOT") }
-            "IMPROVEMENT" -> allReports.filter { it.reportType.equals("IMPROVEMENT", ignoreCase = true) }
-            "CONTENT" -> allReports.filter { it.reportType.equals("CONTENT", ignoreCase = true) }
-            else -> allReports
+            "BUG" -> userReports.filter { it.reportType.equals("BUG", ignoreCase = true) || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER") }
+            "DIAGNOSTIC" -> userReports.filter { it.description.contains("🔬") || it.description.contains("رصد آلي") || it.reportType in listOf("UI_OVERFLOW", "MEMORY_PRESSURE", "NETWORK_OFFLINE", "AUDIO_ISSUE", "SLOW_RENDER", "DIAGNOSTIC_SNAPSHOT") }
+            "IMPROVEMENT" -> userReports.filter { it.reportType.equals("IMPROVEMENT", ignoreCase = true) }
+            "CONTENT" -> userReports.filter { it.reportType.equals("CONTENT", ignoreCase = true) }
+            else -> userReports
         }
     }
 
