@@ -106,6 +106,10 @@ object SupabaseConfig {
             ) {
                 install(Postgrest)
                 install(Auth) {
+                    autoLoadFromStorage = false
+                    enableLifecycleCallbacks = false
+                    alwaysAutoRefresh = false
+                    sessionManager = io.github.jan.supabase.auth.MemorySessionManager()
                 }
                 install(Storage)
                 install(Functions)
