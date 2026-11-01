@@ -59,7 +59,8 @@ fun UserReportsDialog(
     val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = currentUser?.email?.ifBlank { storedEmail } ?: storedEmail
-    val isGuest = FirebaseAuthRepository.isGuest(context)
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val isGuest = accountAuthState !is AuthState.Authenticated
 
     var selectedFilter by remember { mutableStateOf("ALL") }
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
