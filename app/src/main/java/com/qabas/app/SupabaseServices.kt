@@ -1819,11 +1819,15 @@ object SupabaseServices {
 
         suspend fun listFiles(bucketName: String, path: String = ""): List<RemoteFile> = runCatching {
             val client = client ?: return emptyList()
-            val files = client.storage.from(bucketName).list(path)
+            // The default view is scoped to this account because uploads are stored under UID folders.
+            val effectivePath = path.ifBlank { Auth.getCurrentUserId().orEmpty() }
+            if (effectivePath.isBlank()) return emptyList()
+            val files = client.storage.from(bucketName).list(effectivePath)
             files.map { f ->
+                val objectPath = "$effectivePath/${f.name}"
                 RemoteFile(
                     name = f.name,
-                    publicUrl = client.storage.from(bucketName).publicUrl(if (path.isEmpty()) f.name else "$path/${f.name}"),
+                    publicUrl = client.storage.from(bucketName).publicUrl(objectPath),
                     sizeBytes = 0L,
                     createdAt = f.createdAt?.toString()
                 )
