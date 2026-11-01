@@ -3,13 +3,16 @@ package com.qabas.app
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,9 +31,9 @@ sealed interface SavedItemsUiState {
 }
 
 class SavedItemsViewModel(
-    private val repository: SavedItemsRepository,
-    private val authRepository: FirebaseAuthRepository
+    private val repository: SavedItemsRepository
 ) : ViewModel() {
+    private val authRepository = SupabaseRepository.getInstance()
 
     private val _selectedFilter = MutableStateFlow<SavedItemType?>(null)
     val selectedFilter: StateFlow<SavedItemType?> = _selectedFilter.asStateFlow()
@@ -38,50 +41,52 @@ class SavedItemsViewModel(
     private val _syncMessage = MutableStateFlow<String?>(null)
     val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
 
-    private val _currentUser = MutableStateFlow<FirebaseUser?>(authRepository.currentUser)
-    val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
-
-    val uiState: StateFlow<SavedItemsUiState> = combine(
-        authRepository.authStateFlow(),
-        _selectedFilter
-    ) { user, filter ->
-        Pair(user, filter)
-    }.combine(
-        repository.observeSavedItems(authRepository.currentUser?.uid ?: "")
-    ) { (user, filter), allItems ->
-        if (user == null) {
-            SavedItemsUiState.Unauthenticated
-        } else {
-            val filtered = if (filter == null) allItems else allItems.filter { it.type == filter }
-            SavedItemsUiState.Success(
-                items = filtered,
-                activeFilter = filter,
-                userProfile = UserProfile(
-                    userId = user.uid,
-                    displayName = user.displayName ?: "مستخدم قبس",
-                    email = user.email ?: "",
-                    photoUrl = user.photoUrl?.toString()
-                ),
-                totalAyatCount = allItems.count { it.type == SavedItemType.QURAN_AYAH },
-                totalInspirationsCount = allItems.count { it.type == SavedItemType.INSPIRATION },
-                totalAdhkarCount = allItems.count { it.type == SavedItemType.DHIKR }
-            )
-        }
-    }.catch { error ->
-        emit(SavedItemsUiState.Error(error.localizedMessage ?: "حدث خطأ أثناء تحميل البيانات"))
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = if (authRepository.currentUser == null) SavedItemsUiState.Unauthenticated else SavedItemsUiState.Loading
-    )
-
-    init {
-        viewModelScope.launch {
-            authRepository.authStateFlow().collect { user ->
-                _currentUser.value = user
+    val uiState: StateFlow<SavedItemsUiState> = authRepository.authState
+        .flatMapLatest { authState ->
+            when (authState) {
+                is AuthState.Loading -> flowOf(SavedItemsUiState.Loading)
+                is AuthState.Error -> flowOf(SavedItemsUiState.Error(authState.message))
+                is AuthState.Authenticated -> flow {
+                    // Do not treat a local preference-only identity as a cloud owner.
+                    val userId = SupabaseServices.Auth.awaitCurrentUserId()
+                    if (userId.isNullOrBlank()) {
+                        emit(SavedItemsUiState.Unauthenticated)
+                    } else {
+                        emitAll(
+                            combine(
+                                repository.observeSavedItems(userId),
+                                _selectedFilter
+                            ) { allItems, filter ->
+                                val filtered = if (filter == null) allItems else allItems.filter { it.type == filter }
+                                val row = authState.userRow
+                                SavedItemsUiState.Success(
+                                    items = filtered,
+                                    activeFilter = filter,
+                                    userProfile = UserProfile(
+                                        userId = userId,
+                                        displayName = row.name?.takeIf { it.isNotBlank() } ?: "مستخدم قبس",
+                                        email = row.email.orEmpty(),
+                                        photoUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                                    ),
+                                    totalAyatCount = allItems.count { it.type == SavedItemType.QURAN_AYAH },
+                                    totalInspirationsCount = allItems.count { it.type == SavedItemType.INSPIRATION },
+                                    totalAdhkarCount = allItems.count { it.type == SavedItemType.DHIKR }
+                                )
+                            }
+                        )
+                    }
+                }
+                else -> flowOf(SavedItemsUiState.Unauthenticated)
             }
         }
-    }
+        .catch { error ->
+            emit(SavedItemsUiState.Error(error.localizedMessage ?: "حدث خطأ أثناء تحميل البيانات"))
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SavedItemsUiState.Loading
+        )
 
     fun setFilter(type: SavedItemType?) {
         _selectedFilter.value = type
@@ -89,27 +94,33 @@ class SavedItemsViewModel(
 
     fun signInWithGoogle(context: Context) {
         viewModelScope.launch {
-            val result = authRepository.signInWithGoogle(context)
-            if (result.isSuccess) {
-                _syncMessage.value = "تم تسجيل الدخول بنجاح ومزامنة البيانات سحابياً ✦"
+            val googleResult = GoogleAuthHelper.signInWithGoogle(context)
+            val googleCredentials = googleResult.getOrElse {
+                _syncMessage.value = it.localizedMessage ?: "تعذر إتمام تسجيل الدخول"
+                return@launch
+            }
+            val loginResult = authRepository.loginWithGoogle(googleCredentials.idToken)
+            _syncMessage.value = if (loginResult.isSuccess) {
+                "تم تسجيل الدخول بنجاح ومزامنة البيانات سحابياً ✦"
             } else {
-                val error = result.exceptionOrNull()
-                _syncMessage.value = error?.localizedMessage ?: "تعذر إتمام تسجيل الدخول"
+                loginResult.exceptionOrNull()?.localizedMessage ?: "تعذر إتمام تسجيل الدخول"
             }
         }
     }
 
     fun signOut() {
-        authRepository.signOut()
-        _syncMessage.value = "تم تسجيل الخروج"
+        viewModelScope.launch {
+            val result = authRepository.logout()
+            _syncMessage.value = if (result.isSuccess) "تم تسجيل الخروج" else "تعذر تسجيل الخروج"
+        }
     }
 
     fun deleteItem(itemId: String) {
-        val uid = authRepository.currentUser?.uid ?: return
         viewModelScope.launch {
+            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
             try {
                 repository.deleteItem(uid, itemId)
-                _syncMessage.value = "تم الحذف من السحابة والكاش المحلي"
+                _syncMessage.value = "تم الحذف من سحابة قبس"
             } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحذف: ${e.localizedMessage}"
             }
@@ -117,18 +128,17 @@ class SavedItemsViewModel(
     }
 
     fun saveAyah(surah: String, ayahNumber: Int, text: String) {
-        val uid = authRepository.currentUser?.uid ?: return
-        val id = "ayah_${surah}_$ayahNumber"
-        val item = SavedItem(
-            id = id,
-            userId = uid,
-            itemType = SavedItemType.QURAN_AYAH.rawValue,
-            title = "سورة $surah - آية $ayahNumber",
-            content = text,
-            reference = "$surah: $ayahNumber",
-            tags = listOf("قرآن كريم", surah)
-        )
         viewModelScope.launch {
+            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
+            val item = SavedItem(
+                id = "ayah_${surah}_$ayahNumber",
+                userId = uid,
+                itemType = SavedItemType.QURAN_AYAH.rawValue,
+                title = "سورة $surah - آية $ayahNumber",
+                content = text,
+                reference = "$surah: $ayahNumber",
+                tags = listOf("قرآن كريم", surah)
+            )
             try {
                 repository.saveItem(item)
                 _syncMessage.value = "تم حفظ الآية في سحابة قبس ✦"
@@ -139,18 +149,17 @@ class SavedItemsViewModel(
     }
 
     fun saveInspiration(title: String, content: String, reference: String) {
-        val uid = authRepository.currentUser?.uid ?: return
-        val id = "insp_${System.currentTimeMillis()}"
-        val item = SavedItem(
-            id = id,
-            userId = uid,
-            itemType = SavedItemType.INSPIRATION.rawValue,
-            title = title,
-            content = content,
-            reference = reference,
-            tags = listOf("إلهام", "خواطر")
-        )
         viewModelScope.launch {
+            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
+            val item = SavedItem(
+                id = "insp_${System.currentTimeMillis()}",
+                userId = uid,
+                itemType = SavedItemType.INSPIRATION.rawValue,
+                title = title,
+                content = content,
+                reference = reference,
+                tags = listOf("إلهام", "خواطر")
+            )
             try {
                 repository.saveItem(item)
                 _syncMessage.value = "تم حفظ الخاطرة في سحابة قبس ✦"
