@@ -31,7 +31,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.UUID
-import kotlin.time.Duration.Companion.hours
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.minutes
 
 object SupabaseServices {
     private const val TAG = "SupabaseServices"
@@ -724,26 +725,8 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "recordContentGuardCheck failed: ${it.message}") }.getOrDefault(false)
 
-        private fun bugReportObjectPath(value: String?): String? {
-            val raw = value?.trim().orEmpty()
-            if (raw.isBlank()) return null
-            if (!raw.startsWith("http://", ignoreCase = true) &&
-                !raw.startsWith("https://", ignoreCase = true)
-            ) return raw.removePrefix("/").substringBefore("?").takeIf { it.isNotBlank() }
-
-            val markers = listOf(
-                "/storage/v1/object/public/bug_reports/",
-                "/storage/v1/object/sign/bug_reports/",
-                "/storage/v1/object/authenticated/bug_reports/"
-            )
-            val marker = markers.firstOrNull { raw.contains(it) } ?: return null
-            return raw.substringAfter(marker).substringBefore("?")
-                .removePrefix("/")
-                .takeIf { it.isNotBlank() }
-        }
-
         private suspend fun withSignedBugReportImage(row: BugReportRow): BugReportRow {
-            val path = bugReportObjectPath(row.imageUrl) ?: return row
+            val path = Storage.normalizeObjectPath("bug_reports", row.imageUrl) ?: return row
             val signedUrl = Storage.createSignedUrl(
                 bucketName = "bug_reports",
                 path = path,
@@ -1754,6 +1737,13 @@ object SupabaseServices {
                 ?.takeIf { it.isNotBlank() }
         }
 
+        private data class SignedUrlCacheEntry(
+            val url: String,
+            val expiresAtMillis: Long
+        )
+
+        private val signedUrlCache = ConcurrentHashMap<String, SignedUrlCacheEntry>()
+
         private val rawHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -1868,13 +1858,26 @@ object SupabaseServices {
         suspend fun createSignedUrl(
             bucketName: String,
             path: String,
-            expiresIn: kotlin.time.Duration = 1.hours
+            expiresIn: kotlin.time.Duration = 15.minutes
         ): String? = runCatching {
+            val requesterId = Auth.getCurrentUserId() ?: return null
+            val cacheKey = "$requesterId:$bucketName:$path"
+            val now = System.currentTimeMillis()
+            signedUrlCache[cacheKey]?.takeIf { it.expiresAtMillis > now + 30_000L }?.let {
+                return@runCatching it.url
+            }
+
             val client = client ?: return null
-            client.storage.from(bucketName).createSignedUrl(
+            val signedUrl = client.storage.from(bucketName).createSignedUrl(
                 path = path,
                 expiresIn = expiresIn
             )
+            val cacheLifetime = (expiresIn.inWholeMilliseconds - 30_000L).coerceAtLeast(0L)
+            signedUrlCache[cacheKey] = SignedUrlCacheEntry(
+                url = signedUrl,
+                expiresAtMillis = now + cacheLifetime
+            )
+            signedUrl
         }.onFailure { Log.e(TAG, "createSignedUrl failed for $bucketName: ${it.message}") }.getOrNull()
 
         fun getPublicUrl(bucketName: String, path: String): String? {
