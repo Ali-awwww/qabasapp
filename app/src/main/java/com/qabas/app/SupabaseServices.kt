@@ -77,74 +77,31 @@ object SupabaseServices {
             val client = client ?: return null
             val cleanEmail = email?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
 
-            // 1. الحل القانوني أولاً بالبريد (case-insensitive): نفس حساب Google = صف واحد دائماً،
-            // حتى لو تغيّر الـ externalId بين الجلسات (مثلاً fallback للبريد قبل اكتمال استعادة الجلسة).
-            if (cleanEmail.isNotBlank()) {
-                val byEmail = client.postgrest.from("users").select {
-                    filter {
-                        ilike("email", cleanEmail)
-                    }
-                    order("is_eligible", Order.DESCENDING)
-                    order("created_at", Order.ASCENDING)
-                    limit(1)
-                }.decodeSingleOrNull<UserRow>()
-                if (byEmail != null) {
-                    val needsName = byEmail.name.isNullOrBlank() && !name.isNullOrBlank()
-                    if (needsName ||
-                        (byEmail.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
-                        (byEmail.accountNumber.isNullOrBlank() && !accountNumber.isNullOrBlank())) {
-                        val updated = byEmail.copy(
-                            name = byEmail.name?.takeIf { it.isNotBlank() } ?: name,
-                            customId = byEmail.customId?.takeIf { it.isNotBlank() } ?: customId,
-                            accountNumber = byEmail.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
-                        )
-                        // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
-                        val fields = mutableMapOf<String, Any>()
-                        updated.name?.takeIf { it.isNotBlank() }?.let { fields["name"] = it }
-                        updated.customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
-                        updated.accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
-                        if (fields.isNotEmpty()) {
-                            client.postgrest.from("users").update(fields) {
-                                filter {
-                                    eq("id", byEmail.id)
-                                }
-                            }
-                        }
-                        return updated
-                    }
-                    return byEmail
-                }
-            }
-
-            // 2. ثم بالمعرّف الخارجي
-            val existing = client.postgrest.from("users").select {
-                filter {
-                    eq("id", externalId)
-                }
+            // Authentication UID is the canonical owner key. Prefer it over email:
+            // legacy duplicate email rows must never make us load another profile.
+            val byId = client.postgrest.from("users").select {
+                filter { eq("id", externalId) }
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
+            if (byId != null) return@runCatching byId
 
-            if (existing != null) {
-                if ((existing.customId.isNullOrBlank() && !customId.isNullOrBlank()) ||
-                    (existing.accountNumber.isNullOrBlank() && !accountNumber.isNullOrBlank())) {
-                    val updated = existing.copy(
-                        customId = existing.customId?.takeIf { it.isNotBlank() } ?: customId,
-                        accountNumber = existing.accountNumber?.takeIf { it.isNotBlank() } ?: accountNumber
-                    )
-                    // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
-                    val fields = mutableMapOf<String, Any>()
-                    updated.customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
-                    updated.accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
-                    if (fields.isNotEmpty()) {
-                        client.postgrest.from("users").update(fields) {
-                            filter {
-                                eq("id", existing.id)
-                            }
-                        }
-                    }
-                    return updated
+            // Some legacy rows stored the Auth UID in external_id instead of id.
+            val byExternalId = client.postgrest.from("users").select {
+                filter { eq("external_id", externalId) }
+                limit(2)
+            }.decodeList<UserRow>()
+            if (byExternalId.size == 1) return@runCatching byExternalId.first()
+
+            // Email is a fallback only when it identifies exactly one row.
+            if (cleanEmail.isNotBlank()) {
+                val byEmail = client.postgrest.from("users").select {
+                    filter { ilike("email", cleanEmail) }
+                    limit(2)
+                }.decodeList<UserRow>()
+                if (byEmail.size == 1) return@runCatching byEmail.first()
+                if (byEmail.size > 1) {
+                    Log.w(TAG, "ensureUser: duplicate email rows; refusing ambiguous profile selection")
                 }
-                return existing
             }
 
             val newUser = UserRow(
@@ -162,18 +119,41 @@ object SupabaseServices {
             newUser
         }.onFailure { Log.e(TAG, "ensureUser failed: ${it.message}") }.getOrNull()
 
-        suspend fun getUserByEmail(email: String): UserRow? = runCatching {
+        suspend fun getUserByEmail(email: String, authUserId: String? = null): UserRow? = runCatching {
             val client = client ?: return null
             val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
             if (cleanEmail.isBlank()) return null
-            client.postgrest.from("users").select {
-                filter {
-                    ilike("email", cleanEmail)
+
+            // When the caller supplies the authenticated UID, never resolve by
+            // email ordering: the same email may have legacy duplicate rows.
+            if (!authUserId.isNullOrBlank()) {
+                val byId = client.postgrest.from("users").select {
+                    filter { eq("id", authUserId) }
+                    limit(1)
+                }.decodeSingleOrNull<UserRow>()
+                if (byId != null) return@runCatching byId
+
+                val byExternalId = client.postgrest.from("users").select {
+                    filter { eq("external_id", authUserId) }
+                    limit(2)
+                }.decodeList<UserRow>()
+                if (byExternalId.size == 1) return@runCatching byExternalId.first()
+                if (byExternalId.size > 1) {
+                    Log.w(TAG, "getUserByEmail: duplicate external_id rows; refusing ambiguous profile selection")
+                    return@runCatching null
                 }
+            }
+
+            val matches = client.postgrest.from("users").select {
+                filter { ilike("email", cleanEmail) }
                 order("is_eligible", Order.DESCENDING)
                 order("created_at", Order.ASCENDING)
-                limit(1)
-            }.decodeSingleOrNull<UserRow>()
+                limit(2)
+            }.decodeList<UserRow>()
+            if (matches.size == 1) matches.first() else {
+                if (matches.size > 1) Log.w(TAG, "getUserByEmail: duplicate email rows; caller must provide auth UID")
+                null
+            }
         }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByCustomId(customId: String): UserRow? = runCatching {
@@ -247,34 +227,42 @@ object SupabaseServices {
             val client = client ?: return false
             val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
 
-            // صف واحد لكل بريد: إن وُجد صف بالبريد نحدّثه بدل إنشاء صف جديد بمعرّف مختلف.
-            if (cleanEmail.isNotBlank()) {
-                val existing = client.postgrest.from("users").select {
-                    filter {
-                        ilike("email", cleanEmail)
-                    }
-                    order("is_eligible", Order.DESCENDING)
-                    order("created_at", Order.ASCENDING)
-                    limit(1)
-                }.decodeSingleOrNull<UserRow>()
+            // Resolve ownership by Auth UID first, then by a unique legacy external_id.
+            val byId = client.postgrest.from("users").select {
+                filter { eq("id", id) }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()
+            val byExternalId = if (byId == null) {
+                client.postgrest.from("users").select {
+                    filter { eq("external_id", id) }
+                    limit(2)
+                }.decodeList<UserRow>().singleOrNull()
+            } else null
 
-                if (existing != null) {
-                    val fields = mutableMapOf<String, Any>(
-                        "email" to email,
-                        "type" to type,
-                        "status" to "active"
-                    )
-                    if (name.isNotBlank()) fields["name"] = name
-                    customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
-                    accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
-                    // تحديث جزئي فقط: لا نمسّ أعمدة الجلسة النشطة
-                    client.postgrest.from("users").update(fields) {
-                        filter {
-                            eq("id", existing.id)
-                        }
-                    }
-                    return true
+            // Email fallback is safe only when it identifies one row exactly.
+            val byUniqueEmail = if (byId == null && byExternalId == null && cleanEmail.isNotBlank()) {
+                val matches = client.postgrest.from("users").select {
+                    filter { ilike("email", cleanEmail) }
+                    limit(2)
+                }.decodeList<UserRow>()
+                matches.singleOrNull()
+            } else null
+
+            val existing = byId ?: byExternalId ?: byUniqueEmail
+            if (existing != null) {
+                val fields = mutableMapOf<String, Any>(
+                    "email" to email,
+                    "type" to type,
+                    "status" to "active"
+                )
+                if (name.isNotBlank()) fields["name"] = name
+                customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
+                accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
+                // Update only the row proven to belong to this Auth UID.
+                client.postgrest.from("users").update(fields) {
+                    filter { eq("id", existing.id) }
                 }
+                return true
             }
 
             val row = UserRow(
