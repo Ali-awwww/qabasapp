@@ -83,14 +83,25 @@ object SupabaseServices {
                 filter { eq("id", externalId) }
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
-            if (byId != null) return@runCatching byId
+            if (byId != null) {
+                if (cleanEmail.isBlank() || byId.email.isNullOrBlank() ||
+                    byId.email.equals(cleanEmail, ignoreCase = true)) return@runCatching byId
+                Log.w(TAG, "ensureUser: Auth UID row email mismatch; refusing cross-account profile access")
+                return@runCatching null
+            }
 
             // Some legacy rows stored the Auth UID in external_id instead of id.
             val byExternalId = client.postgrest.from("users").select {
                 filter { eq("external_id", externalId) }
                 limit(2)
             }.decodeList<UserRow>()
-            if (byExternalId.size == 1) return@runCatching byExternalId.first()
+            if (byExternalId.size == 1) {
+                val legacyRow = byExternalId.first()
+                if (cleanEmail.isBlank() || legacyRow.email.isNullOrBlank() ||
+                    legacyRow.email.equals(cleanEmail, ignoreCase = true)) return@runCatching legacyRow
+                Log.w(TAG, "ensureUser: legacy external_id row email mismatch; refusing cross-account profile access")
+                return@runCatching null
+            }
 
             // Email is a fallback only when it identifies exactly one row.
             if (cleanEmail.isNotBlank()) {
@@ -131,13 +142,26 @@ object SupabaseServices {
                     filter { eq("id", authUserId) }
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()
-                if (byId != null) return@runCatching byId
+                if (byId != null) {
+                    if (byId.email.isNullOrBlank() || byId.email.equals(cleanEmail, ignoreCase = true)) {
+                        return@runCatching byId
+                    }
+                    Log.w(TAG, "getUserByEmail: Auth UID row email mismatch; refusing cross-account profile access")
+                    return@runCatching null
+                }
 
                 val byExternalId = client.postgrest.from("users").select {
                     filter { eq("external_id", authUserId) }
                     limit(2)
                 }.decodeList<UserRow>()
-                if (byExternalId.size == 1) return@runCatching byExternalId.first()
+                if (byExternalId.size == 1) {
+                    val legacyRow = byExternalId.first()
+                    if (legacyRow.email.isNullOrBlank() || legacyRow.email.equals(cleanEmail, ignoreCase = true)) {
+                        return@runCatching legacyRow
+                    }
+                    Log.w(TAG, "getUserByEmail: legacy external_id email mismatch; refusing cross-account profile access")
+                    return@runCatching null
+                }
                 if (byExternalId.size > 1) {
                     Log.w(TAG, "getUserByEmail: duplicate external_id rows; refusing ambiguous profile selection")
                     return@runCatching null
@@ -250,6 +274,11 @@ object SupabaseServices {
 
             val existing = byId ?: byExternalId ?: byUniqueEmail
             if (existing != null) {
+                if (!existing.email.isNullOrBlank() &&
+                    !existing.email.equals(cleanEmail, ignoreCase = true)) {
+                    Log.w(TAG, "saveUser: refusing to overwrite a row owned by a different email")
+                    return false
+                }
                 val fields = mutableMapOf<String, Any>(
                     "email" to email,
                     "type" to type,
