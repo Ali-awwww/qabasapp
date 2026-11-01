@@ -460,41 +460,54 @@ object BugReportRepository {
             val currentList = _reports.value.toMutableList()
 
             for (report in pending) {
-                // Never sync an offline report under a different account after a sign-out/switch.
-                if (report.userId != SupabaseServices.Auth.getCurrentUserId()) continue
+                val activeUserId = SupabaseServices.Auth.getCurrentUserId()
+                val activeEmail = SupabaseServices.Auth.getCurrentUserEmail()
+                    ?.trim()
+                    ?.lowercase(java.util.Locale.ROOT)
+                // Older local reports did not persist user_id. Backfill only when the
+                // current Supabase email matches the report owner; never cross accounts.
+                val reportOwnerId = report.userId ?: activeUserId?.takeIf {
+                    activeEmail == report.userEmail.trim().lowercase(java.util.Locale.ROOT)
+                }
+                if (reportOwnerId != activeUserId) continue
+                val reportToSync = if (report.userId == reportOwnerId) {
+                    report
+                } else {
+                    report.copy(userId = reportOwnerId)
+                }
 
-                var cloudImageUrl = report.imageUrl
+                var cloudImageUrl = reportToSync.imageUrl
                 if (cloudImageUrl.isNullOrBlank() &&
-                    report.localImagePath != null &&
-                    !report.userId.isNullOrBlank()
+                    reportToSync.localImagePath != null &&
+                    !reportToSync.userId.isNullOrBlank()
                 ) {
-                    val file = File(report.localImagePath)
+                    val file = File(reportToSync.localImagePath)
                     if (file.exists()) {
                         cloudImageUrl = SupabaseServices.Storage.uploadFile(
                             bucketName = "bug_reports",
-                            path = "${report.userId}/bug_${report.id}.jpg",
+                            path = "${reportToSync.userId}/bug_${reportToSync.id}.jpg",
                             data = file.readBytes()
                         )
                     }
                 }
 
                 val dbSuccess = SupabaseServices.Database.recordBugReport(
-                    userEmail = report.userEmail,
-                    screenName = report.screenName,
-                    description = report.description,
+                    userEmail = reportToSync.userEmail,
+                    screenName = reportToSync.screenName,
+                    description = reportToSync.description,
                     imageUrl = cloudImageUrl ?: "",
-                    reportType = report.reportType,
-                    appVersion = report.appVersion,
-                    deviceModel = report.deviceModel,
-                    developerReply = report.developerReply,
-                    id = report.id,
-                    userId = report.userId
+                    reportType = reportToSync.reportType,
+                    appVersion = reportToSync.appVersion,
+                    deviceModel = reportToSync.deviceModel,
+                    developerReply = reportToSync.developerReply,
+                    id = reportToSync.id,
+                    userId = reportToSync.userId
                 )
 
                 if (dbSuccess) {
-                    val idx = currentList.indexOfFirst { it.id == report.id }
+                    val idx = currentList.indexOfFirst { it.id == reportToSync.id }
                     if (idx != -1) {
-                        currentList[idx] = report.copy(
+                        currentList[idx] = reportToSync.copy(
                             imageUrl = cloudImageUrl,
                             syncedToCloud = true
                         )
