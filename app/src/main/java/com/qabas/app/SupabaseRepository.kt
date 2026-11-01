@@ -631,30 +631,15 @@ fun ReactiveAuthNavigationObserver(
     onAuthenticated: (isAdmin: Boolean) -> Unit,
     onUnauthenticated: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val authState by repository.authState.collectAsState()
 
     LaunchedEffect(authState) {
-        val prefs = runCatching { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }.getOrNull()
-        val isLoggedInLocal = prefs?.getBoolean("is_logged_in", false) ?: false
-        val isAdminLocal = prefs?.getBoolean("is_admin", false) ?: false
-
         when (val state = authState) {
-            is AuthState.Authenticated -> {
-                onAuthenticated(state.isAdmin)
-            }
-            is AuthState.Unauthenticated -> {
-                if (isLoggedInLocal) {
-                    onAuthenticated(isAdminLocal)
-                } else {
-                    onUnauthenticated()
-                }
-            }
-            else -> {
-                if (isLoggedInLocal) {
-                    onAuthenticated(isAdminLocal)
-                }
-            }
+            is AuthState.Authenticated -> onAuthenticated(state.isAdmin)
+            is AuthState.Loading -> Unit
+            is AuthState.Error,
+            is AuthState.Unauthenticated,
+            is AuthState.Guest -> onUnauthenticated()
         }
     }
 }
