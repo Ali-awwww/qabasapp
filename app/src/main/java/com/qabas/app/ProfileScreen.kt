@@ -159,9 +159,10 @@ fun ProfileScreen(
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if ((identityChanged || nameLooksFake) && realName != null) {
-            displayName = realName
-            prefs.edit().putString("user_display_name", realName).putString("user_name", realName).apply()
+        if (identityChanged || (nameLooksFake && realName != null)) {
+            val activeName = realName ?: realEmail?.substringBefore("@") ?: userEmail.substringBefore("@")
+            displayName = activeName
+            prefs.edit().putString("user_display_name", activeName).putString("user_name", activeName).apply()
         }
 
         // Reload every account-scoped field when the authenticated identity changes.
