@@ -22,10 +22,11 @@ class SavedItemsRepository(
     fun observeSavedItems(userId: String): Flow<List<SavedItem>> = flow {
         require(userId.isNotBlank()) { "User ID must not be blank" }
 
+        // RLS limits visible rows to the authenticated owner. A user-scoped
+        // channel avoids the unsupported filter-property API in supabase-kt 3.6.
         val channel = client.realtime.channel("saved-items:$userId")
         val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = TABLE
-            filter = "user_id=eq.$userId"
         }
 
         try {
