@@ -442,8 +442,9 @@ object UserIdentifierManager {
                     return normalized
                 }
 
-                val name = prefs.getString("user_name", null)
-                val newId = generateUniqueId(name ?: sessionEmail)
+                val nameSeed = if (!cleanEmail.isNullOrBlank()) cleanEmail.substringBefore("@")
+                    else prefs.getString("user_name", null) ?: sessionEmail
+                val newId = generateUniqueId(nameSeed)
                 saveCustomId(context, newId, sessionEmail)
                 return newId
             } else {
