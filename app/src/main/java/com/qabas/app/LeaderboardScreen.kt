@@ -151,21 +151,7 @@ fun LeaderboardScreen(
                 )
             }
 
-            // مزامنة المتصدرين والدوري الأسبوعي تلقائياً مع Firebase Firestore
-            if (FirebaseManager.isConfigured(context)) {
-                val uid = FirebaseManager.getAuth().currentUser?.uid
-                    ?: prefs.getString("user_id", null)
-                    ?: "usr_${currentUserName.hashCode()}"
-                val myRank = topCreators.find { it.isCurrentUser }?.rank ?: 1
-                FirebaseManager.syncLeaderboardToFirestore(
-                    context = context,
-                    userId = uid,
-                    name = currentUserName,
-                    points = currentUserPoints,
-                    rank = myRank,
-                    badge = userBadge
-                )
-            }
+            // Leaderboard reads/writes are powered by Supabase.
 
             // 3. جلب المشاريع الحقيقية للمجتمع أو مشاريع المستخدم المحفوظة
             val cloudProjects = CloudServices.Database.getFeedProjects()
