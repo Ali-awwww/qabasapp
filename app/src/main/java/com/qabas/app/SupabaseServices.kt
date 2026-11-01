@@ -12,6 +12,7 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1858,26 +1859,33 @@ object SupabaseServices {
             bucketName: String,
             path: String,
             expiresIn: kotlin.time.Duration = 15.minutes
-        ): String? = runCatching {
-            val requesterId = Auth.getCurrentUserId() ?: return null
-            val cacheKey = "$requesterId:$bucketName:$path"
-            val now = System.currentTimeMillis()
-            signedUrlCache[cacheKey]?.takeIf { it.expiresAtMillis > now + 30_000L }?.let {
-                return@runCatching it.url
-            }
+        ): String? {
+            return try {
+                val requesterId = Auth.getCurrentUserId() ?: return null
+                val cacheKey = "$requesterId:$bucketName:$path"
+                val now = System.currentTimeMillis()
+                signedUrlCache[cacheKey]?.takeIf { it.expiresAtMillis > now + 30_000L }?.let {
+                    return it.url
+                }
 
-            val client = client ?: return null
-            val signedUrl = client.storage.from(bucketName).createSignedUrl(
-                path = path,
-                expiresIn = expiresIn
-            )
-            val cacheLifetime = (expiresIn.inWholeMilliseconds - 30_000L).coerceAtLeast(0L)
-            signedUrlCache[cacheKey] = SignedUrlCacheEntry(
-                url = signedUrl,
-                expiresAtMillis = now + cacheLifetime
-            )
-            signedUrl
-        }.onFailure { Log.e(TAG, "createSignedUrl failed for $bucketName: ${it.message}") }.getOrNull()
+                val storageClient = client ?: return null
+                val signedUrl = storageClient.storage.from(bucketName).createSignedUrl(
+                    path = path,
+                    expiresIn = expiresIn
+                )
+                val cacheLifetime = (expiresIn.inWholeMilliseconds - 30_000L).coerceAtLeast(0L)
+                signedUrlCache[cacheKey] = SignedUrlCacheEntry(
+                    url = signedUrl,
+                    expiresAtMillis = now + cacheLifetime
+                )
+                signedUrl
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e(TAG, "createSignedUrl failed for $bucketName: ${error.message}")
+                null
+            }
+        }
 
         fun getPublicUrl(bucketName: String, path: String): String? {
             val client = client ?: return null
