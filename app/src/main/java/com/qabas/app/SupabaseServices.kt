@@ -9,14 +9,17 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -975,6 +978,20 @@ object SupabaseServices {
 
         fun getCurrentUserId(): String? = runCatching {
             if (!isSupabaseAvailable) null else client?.auth?.currentUserOrNull()?.id
+        }.getOrNull()
+
+        /**
+         * Waits for the persisted Supabase session to finish initializing before
+         * resolving the current UID. Prevents a first-screen tap from being
+         * mistaken for a logged-out user while storage restoration is still running.
+         */
+        suspend fun awaitCurrentUserId(timeoutMillis: Long = 5_000L): String? = runCatching {
+            val authClient = client ?: return null
+            authClient.auth.currentUserOrNull()?.id?.takeIf { it.isNotBlank() }?.let { return it }
+            withTimeoutOrNull(timeoutMillis) {
+                authClient.auth.sessionStatus.first { it !is SessionStatus.Initializing }
+                authClient.auth.currentUserOrNull()?.id?.takeIf { it.isNotBlank() }
+            }
         }.getOrNull()
 
         fun getCurrentUserEmail(): String? = runCatching {
