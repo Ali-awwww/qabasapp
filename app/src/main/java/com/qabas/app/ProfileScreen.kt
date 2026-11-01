@@ -136,40 +136,46 @@ fun ProfileScreen(
     // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
     // من جلسة الدخول الفعلية (Firebase ثم Supabase) بدل عرض بيانات كاذبة
     LaunchedEffect(userEmail) {
-        val emailLooksFake = userEmail.isBlank() ||
-            userEmail.equals("user@example.com", ignoreCase = true) ||
-            userEmail.equals("guest@qabas.studio", ignoreCase = true)
-        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
-        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
-            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
-        if (!emailLooksFake && !nameLooksFake && avatarUriString.isNotBlank() &&
-            prefs.getString("user_email", null) != null &&
-            nameSnapshot != null
-        ) return@LaunchedEffect
-
         val fb = runCatching { FirebaseManager.getAuth().currentUser }.getOrNull()
-        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
         val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
             ?: SupabaseServices.Auth.getCurrentUserMeta("name")
         val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
-        val realEmail = fb?.email?.takeIf { it.isNotBlank() } ?: sbEmail?.takeIf { it.isNotBlank() }
-        val realName = fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        // Supabase is the app's primary sign-in provider. A still-authenticated
+        // Firebase user from a previous account must never override this identity.
+        val realEmail = sbEmail ?: fb?.email?.takeIf { it.isNotBlank() }
+        val usesSupabaseIdentity = !sbEmail.isNullOrBlank()
+        val realName = if (usesSupabaseIdentity) sbName else fb?.displayName?.takeIf { it.isNotBlank() } ?: sbName
+        val realAvatar = if (usesSupabaseIdentity) sbAvatar else fb?.photoUrl?.toString()?.takeIf { it.isNotBlank() } ?: sbAvatar
+        val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
+        val nameSnapshot = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("user_display_name", "")?.takeIf { it.isNotBlank() }
+        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
+            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
 
-        if (emailLooksFake && realEmail != null) {
+        if (identityChanged && realEmail != null) {
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if (nameLooksFake && realName != null) {
+        if ((identityChanged || nameLooksFake) && realName != null) {
             displayName = realName
             prefs.edit().putString("user_display_name", realName).putString("user_name", realName).apply()
         }
+
+        // Reload every account-scoped field when the authenticated identity changes.
+        val activeProfilePrefs = accountProfilePreferences(context, realEmail ?: userEmail)
+        userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+        avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+        selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
+        userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
+            .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
+        userAccountNumber = UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
+
         if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
-            profilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
+            activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
         }
 
         // مزامنة وسحب رقم الحساب الحقيقي من السحابة لضمان الدقة وتحديث العداد
