@@ -30,6 +30,7 @@ sealed interface SavedItemsUiState {
     data class Error(val message: String) : SavedItemsUiState
 }
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SavedItemsViewModel(
     private val repository: SavedItemsRepository
 ) : ViewModel() {
