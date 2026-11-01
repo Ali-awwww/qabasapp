@@ -631,12 +631,12 @@ fun EnhancedUsersSection(
                         }
                     }
 
-                    // حالة مزامنة Firebase Firestore للحسابات والمستخدمين
-                    val isFirebaseConfigured = remember { FirebaseManager.isConfigured(context) }
+                    // حالة إدارة ملفات المستخدمين عبر Supabase
+                    val isSupabaseConfigured = SupabaseServices.isSupabaseAvailable
                     Surface(
-                        color = if (isFirebaseConfigured) Color(0xFF1E293B) else Color(0xFF0F172A),
+                        color = if (isSupabaseConfigured) Color(0xFF1E293B) else Color(0xFF0F172A),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(0.8.dp, if (isFirebaseConfigured) Color(0xFFFFA000).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
+                        border = BorderStroke(0.8.dp, if (isSupabaseConfigured) Color(0xFF10B981).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -646,21 +646,21 @@ fun EnhancedUsersSection(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Icon(
-                                    if (isFirebaseConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                    if (isSupabaseConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
                                     contentDescription = null,
-                                    tint = if (isFirebaseConfigured) Color(0xFFFFA000) else Color.Gray,
+                                    tint = if (isSupabaseConfigured) Color(0xFF10B981) else Color.Gray,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
-                                    if (isFirebaseConfigured) "سحابة Firebase Firestore: متصلة ومربوطة" else "سحابة Firebase: غير متصلة",
-                                    color = if (isFirebaseConfigured) Color(0xFFFFA000) else Color(0xFF94A3B8),
+                                    if (isSupabaseConfigured) "سحابة Supabase: متصلة ومربوطة" else "سحابة Supabase: غير متصلة",
+                                    color = if (isSupabaseConfigured) Color(0xFF10B981) else Color(0xFF94A3B8),
                                     fontFamily = CairoFont,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            if (isFirebaseConfigured) {
+                            if (isSupabaseConfigured) {
                                 Surface(
                                     color = Color(0xFF78350F).copy(alpha = 0.4f),
                                     shape = RoundedCornerShape(6.dp),
@@ -673,8 +673,8 @@ fun EnhancedUsersSection(
                                     }
                                 ) {
                                     Text(
-                                        "مزامنة الكل 🔄",
-                                        color = Color(0xFFFFA000),
+                                        "الملفات على Supabase",
+                                        color = Color(0xFF10B981),
                                         fontFamily = CairoFont,
                                         fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
