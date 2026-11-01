@@ -15,6 +15,9 @@ class QabasApplication : Application() {
         PerfTracker.onAppCreate()
         QabasCrashGuard.install(this)
 
+        // Make the application context available before Supabase Auth creates its client.
+        AppServices.init(this)
+
         // عدّاد الإقلاعات لصحة الإصدار (انهيارات / إقلاعات)
         runCatching {
             val prefs = getSharedPreferences("qabas_prefs", MODE_PRIVATE)
@@ -35,7 +38,6 @@ class QabasApplication : Application() {
         // Initialize core application services in background to avoid blocking the splash screen
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { AgentPrefs.init(this@QabasApplication) }
-            runCatching { AppServices.init(this@QabasApplication) }
             runCatching { LocalAccountRegistry.init(this@QabasApplication) }
             
             runCatching { UpdateManager.reconcilePendingInstall(this@QabasApplication) }
