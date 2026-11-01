@@ -1119,7 +1119,7 @@ private fun DeveloperChatSection(context: Context) {
     }
 
     val selectedMessages = selectedEmail?.let { threads[it].orEmpty() }.orEmpty()
-    val selectedUserId = selectedMessages.firstOrNull()?.userId
+    val selectedUserId = selectedMessages.firstOrNull { !it.userId.isNullOrBlank() }?.userId
     val chatFilterLabel = when (filterMode) {
         1 -> "العاجل"
         2 -> "الأخطاء"
@@ -1453,22 +1453,23 @@ private fun DeveloperChatSection(context: Context) {
                             val targetId = selectedUserId
                             val text = input.trim()
                             if (text.isBlank()) return@IconButton
+                            if (targetId.isNullOrBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    "لا يمكن إرسال رد سحابي لهذه المحادثة قبل تحديد معرّف صاحبها",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@IconButton
+                            }
                             isSending = true
                             scope.launch {
                                 DevChatRepository.sendMessage(
                                     context = context,
                                     userEmail = email,
                                     text = text,
-                                    sender = "developer"
+                                    sender = "developer",
+                                    targetUserId = targetId
                                 )
-                                if (!targetId.isNullOrBlank()) {
-                                    SupabaseServices.Database.sendChatMessage(
-                                        userEmail = email,
-                                        message = text,
-                                        sender = "developer",
-                                        targetUserId = targetId
-                                    )
-                                }
                                 isSending = false
                                 input = ""
                                 AppSoundManager.playSuccess()
