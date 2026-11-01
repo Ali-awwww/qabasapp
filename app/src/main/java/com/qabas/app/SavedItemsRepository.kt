@@ -4,6 +4,8 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
@@ -20,15 +22,14 @@ class SavedItemsRepository(
     fun observeSavedItems(userId: String): Flow<List<SavedItem>> = flow {
         require(userId.isNotBlank()) { "User ID must not be blank" }
 
-        val channel = client.realtime.createChannel("saved-items:$userId")
+        val channel = client.realtime.channel("saved-items:$userId")
         val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = TABLE
             filter = "user_id=eq.$userId"
         }
 
         try {
-            client.realtime.connect()
-            channel.join(blockUntilJoined = true)
+            channel.subscribe(blockUntilSubscribed = true)
             emit(fetchSavedItems(userId))
             changes.collect {
                 emit(fetchSavedItems(userId))
