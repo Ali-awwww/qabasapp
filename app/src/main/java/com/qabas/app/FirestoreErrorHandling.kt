@@ -1,8 +1,6 @@
 package com.qabas.app
 
 import android.util.Log
-import com.google.firebase.auth.FirebaseAuth
-import org.json.JSONArray
 import org.json.JSONObject
 
 enum class OperationType(val value: String) {
@@ -15,22 +13,10 @@ enum class OperationType(val value: String) {
 }
 
 fun handleFirestoreError(exception: Exception, operationType: OperationType, path: String?): String {
-    val auth = FirebaseAuth.getInstance()
-    val currentUser = auth.currentUser
-
-    val providerInfoList = currentUser?.providerData?.map { provider ->
-        JSONObject().apply {
-            put("providerId", provider.providerId)
-            put("email", provider.email)
-        }
-    } ?: emptyList()
-
     val authInfoJson = JSONObject().apply {
-        put("userId", currentUser?.uid)
-        put("email", currentUser?.email)
-        put("emailVerified", currentUser?.isEmailVerified)
-        put("tenantId", currentUser?.tenantId)
-        put("providerInfo", JSONArray(providerInfoList))
+        put("userId", SupabaseServices.Auth.getCurrentUserId())
+        put("email", SupabaseServices.Auth.getCurrentUserEmail())
+        put("provider", "supabase")
     }
 
     val errorInfoJson = JSONObject().apply {
@@ -41,7 +27,6 @@ fun handleFirestoreError(exception: Exception, operationType: OperationType, pat
     }
 
     val jsonString = errorInfoJson.toString()
-    // CRITICAL: Log every single firestore error as structured JSON payload
-    Log.e("FirestoreError", "Firestore Error: $jsonString")
+    Log.e("FirestoreError", "Legacy Firestore Error: $jsonString")
     return jsonString
 }
