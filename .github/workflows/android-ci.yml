@@ -48,7 +48,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           # Untrusted pull-request builds must not be able to poison caches used by trusted builds.
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           gradle-home-cache-cleanup: true
 
       - name: Setup Android SDK
@@ -72,7 +72,7 @@ jobs:
 
       # Pull-request source is untrusted: never materialize a repository signing secret before Gradle runs.
       - name: Restore Stable Signing Keystore
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         shell: bash
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
@@ -100,7 +100,7 @@ jobs:
           fi
 
       - name: Create ephemeral debug keystore for pull request builds
-        if: github.event_name == 'pull_request'
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
         run: |
           keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
@@ -143,7 +143,7 @@ jobs:
 
       # Keep BuildConfig generation valid without exposing repository secrets to PR-controlled code.
       - name: Create non-secret environment for pull request builds
-        if: github.event_name == 'pull_request'
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
         shell: bash
         run: |
           cat > .env <<'EOF'
@@ -167,7 +167,7 @@ jobs:
           EOF
 
       - name: Inject secrets (optional)
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -203,7 +203,7 @@ jobs:
           } > .env
 
       - name: Compute Unique Release Version (xdelta base = last successful build)
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         id: release-version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -278,7 +278,7 @@ jobs:
           retention-days: 7
 
       - name: Distribute APK to Firebase App Distribution
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -301,7 +301,7 @@ jobs:
             --release-notes "Qabas Studio CI build ${{ github.run_number }} from ${{ github.sha }}"
 
       - name: Create or Update GitHub Release
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
@@ -339,7 +339,7 @@ jobs:
           echo "✅ APK successfully attached to release $VERSION"
 
       - name: Trigger xdelta delta generation
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
