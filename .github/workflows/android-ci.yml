@@ -240,6 +240,29 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Distribute APK to Firebase App Distribution
+        if: success() && github.event_name != 'pull_request'
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FIREBASE_APP_ID" || -z "$FIREBASE_SERVICE_ACCOUNT_JSON" || -z "$FIREBASE_TESTER_GROUPS" ]]; then
+            echo "Firebase App Distribution skipped: required Actions secrets are not configured."
+            exit 0
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-service-account.json"
+          npm install --global firebase-tools
+          APK_FILE=$(find app/build/outputs/apk/debug -maxdepth 1 -name "*.apk" -print -quit)
+          test -n "$APK_FILE"
+          firebase appdistribution:distribute "$APK_FILE" \
+            --app "$FIREBASE_APP_ID" \
+            --groups "$FIREBASE_TESTER_GROUPS" \
+            --release-notes "Qabas Studio CI build ${{ github.run_number }} from ${{ github.sha }}"
+
       - name: Create or Update GitHub Release
         if: success() && github.event_name != 'pull_request'
         env:
