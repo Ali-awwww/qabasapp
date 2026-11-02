@@ -1511,12 +1511,10 @@ object SupabaseServices {
             val client = client ?: return false
             val currentAuthUid = client.auth.currentUserOrNull()?.id
             val effectiveUserId = currentAuthUid ?: userId
-            val row = mapOf("reel_id" to reelId, "user_id" to effectiveUserId)
-            client.postgrest.from("reel_likes").insert(
-                row,
-                upsert = true,
+            val row = ReelBookmarkRow(reelId = reelId, userId = effectiveUserId)
+            client.postgrest.from("reel_likes").upsert(row) {
                 onConflict = "reel_id,user_id"
-            )
+            }
             true
         }.onFailure { e -> 
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: ${e.message}")

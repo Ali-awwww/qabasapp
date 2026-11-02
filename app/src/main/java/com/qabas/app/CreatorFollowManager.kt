@@ -370,15 +370,15 @@ object CreatorFollowManager {
         val ok = runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery false
             if (follow) {
-                client.postgrest.from(TABLE).insert(
+                client.postgrest.from(TABLE).upsert(
                     CreatorFollowRow(
                         followerId = viewer.id,
                         creatorId = creatorId,
                         createdAt = java.time.Instant.now().toString()
-                    ),
-                    upsert = true,
+                    )
+                ) {
                     onConflict = "follower_id,creator_id"
-                )
+                }
             } else {
                 client.postgrest.from(TABLE).delete {
                     filter {
