@@ -1033,11 +1033,13 @@ object SupabaseServices {
                 ?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
         }.getOrNull()
 
+        /**
+         * Authorization roles must come from server-managed app_metadata.
+         * user_metadata is user-editable and must never grant privileges.
+         */
         fun getUserRoleFromMetadata(): String = runCatching {
             if (!isSupabaseAvailable) "user"
-            else {
-                client?.auth?.currentUserOrNull()?.userMetadata?.get("role")?.toString()?.replace("\"", "") ?: "user"
-            }
+            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
         }.getOrDefault("user")
 
         suspend fun refreshVerifiedRole(): String = runCatching {
