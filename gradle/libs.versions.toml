@@ -55,7 +55,7 @@ ktor = "3.0.1"
 kotlinxSerializationJson = "1.7.3"
 composeFoundation = "1.9.0"
 composeFoundationLayout = "1.9.0"
-onnxRuntime = "1.20.0"
+onnxRuntime = "1.31.1"
 securityCrypto = "1.1.0-alpha06"
 workRuntimeKtx = "2.10.0"
 
