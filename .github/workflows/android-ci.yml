@@ -224,7 +224,7 @@ jobs:
 
       - name: Upload APK artifact
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qabas-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -233,7 +233,7 @@ jobs:
 
       - name: Upload Signing Key Information
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signing-key-info
           path: signing_key_info.txt
