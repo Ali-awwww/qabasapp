@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.qabas.app
 
 import android.app.Activity
@@ -1147,10 +1149,13 @@ fun ReelsScreen(
                                 icon = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
                                 label = if (isDeveloper) "نشر 👑" else "نشر",
                                 onClick = {
-                                    checkGuestInteraction {
+                                    val authId = SupabaseServices.Auth.getCurrentUserId()
+                                    if (authId.isNullOrBlank()) {
+                                        showGuestLoginPrompt = true
+                                    } else {
                                         showPublishDialog = true
-                                        ReelPreferencesManager.triggerHaptic(context)
                                     }
+                                    ReelPreferencesManager.triggerHaptic(context)
                                 }
                             ),
                             DockTool(
@@ -1592,15 +1597,25 @@ fun ReelsScreen(
 
     // Publish Reel Screen
     if (showPublishDialog) {
-        ReelPublishScreen(
-            currentUserId = currentSupabaseId ?: "anonymous",
-            currentUserName = currentUserName,
-            currentUserEmail = currentUserEmail,
-            onDismiss = { showPublishDialog = false },
-            onPublishedSuccess = {
-                loadReels()
-            }
-        )
+        val authId = SupabaseServices.Auth.getCurrentUserId()
+        if (authId.isNullOrBlank()) {
+            showPublishDialog = false
+            showGuestLoginPrompt = true
+        } else {
+            ReelPublishScreen(
+                currentUserId = authId,
+                currentUserName = currentUserName,
+                currentUserEmail = currentUserEmail,
+                onDismiss = { showPublishDialog = false },
+                onPublishedSuccess = {
+                    loadReels()
+                },
+                onRequireLogin = {
+                    showPublishDialog = false
+                    showGuestLoginPrompt = true
+                }
+            )
+        }
     }
 
     // Settings Bottom Sheet

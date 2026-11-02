@@ -1446,19 +1446,45 @@ object SupabaseServices {
             isSilentSeed: Boolean = false,
             publishType: String = "normal",
             aspectRatio: String = "9:16"
-        ): ReelRow? = runCatching {
-            val client = client ?: return null
+        ): ReelRow {
+            val client = client ?: run {
+                val err = "خدمات سحابة Supabase غير متوفرة أو غير مهيأة"
+                Log.e("ReelPublish", err)
+                throw IllegalStateException(err)
+            }
             val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            if (currentAuthUid.isNullOrBlank()) {
+                val err = "لا توجد جلسة مصادقة نشطة (auth.uid is null). يلزم تسجيل الدخول لإدراج ريلز."
+                Log.e("ReelPublish", err)
+                throw IllegalStateException(err)
+            }
+            val effectiveUserId = currentAuthUid
+
+            if (title.isBlank()) {
+                val err = "عنوان الريلز مطلوب ولا يمكن أن يكون فارغاً (title is empty)"
+                Log.e("ReelPublish", err)
+                throw IllegalArgumentException(err)
+            }
+            if (videoUrl.isBlank()) {
+                val err = "رابط الفيديو مطلوب ولا يمكن أن يكون فارغاً (video_url is empty)"
+                Log.e("ReelPublish", err)
+                throw IllegalArgumentException(err)
+            }
+            if (effectiveUserId.isBlank()) {
+                val err = "معرف المستخدم مطلوب ولا يمكن أن يكون فارغاً (user_id is empty)"
+                Log.e("ReelPublish", err)
+                throw IllegalArgumentException(err)
+            }
+
             val now = java.time.Instant.now().toString()
-            val row = ReelRow(
+            val payload = ReelInsertPayload(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
                 userName = userName.ifBlank { "صانع محتوى" },
                 userAvatar = userAvatar,
-                title = title,
+                title = title.trim(),
                 description = description,
-                videoUrl = videoUrl,
+                videoUrl = videoUrl.trim(),
                 thumbnailUrl = thumbnailUrl,
                 tags = tags,
                 publishAt = publishAt ?: now,
@@ -1474,12 +1500,17 @@ object SupabaseServices {
                 }
             )
 
-            Log.d(TAG, "saveReel: Inserting row with user_id=$effectiveUserId (Auth UID: $currentAuthUid, Passed userId: $userId)")
+            Log.d("ReelPublish", "saveReel: Inserting row with user_id=$effectiveUserId, title=$title, video_url=$videoUrl, updated_at=$now")
 
-            client.postgrest.from("reels").insert(row) {
-                select()
-            }.decodeSingleOrNull<ReelRow>()
-        }.onFailure { Log.e(TAG, "saveReel failed: ${it.message}") }.getOrNull()
+            return try {
+                client.postgrest.from("reels").insert(payload) {
+                    select()
+                }.decodeSingle<ReelRow>()
+            } catch (e: Exception) {
+                Log.e("ReelPublish", "Supabase reels insert error: ${e.message}", e)
+                throw e
+            }
+        }
 
         suspend fun deleteReel(reelId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -2236,6 +2267,34 @@ object SupabaseServices {
         @SerialName("ai_analysis") val aiAnalysis: String? = null,
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null,
+        @SerialName("publish_type") val publishType: String? = "normal",
+        @SerialName("is_silent_seed") val isSilentSeed: Boolean = false,
+        @SerialName("is_featured_by_dev") val isFeaturedByDev: Boolean = false,
+        @SerialName("metadata") val metadata: JsonObject? = null
+    )
+
+    @Serializable
+    data class ReelInsertPayload(
+        val id: String,
+        @SerialName("user_id") val userId: String,
+        @SerialName("user_name") val userName: String = "صانع محتوى",
+        @SerialName("user_avatar") val userAvatar: String? = null,
+        val title: String,
+        val description: String? = null,
+        @SerialName("video_url") val videoUrl: String,
+        @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
+        val tags: List<String> = emptyList(),
+        @SerialName("likes_count") val likesCount: Int = 0,
+        @SerialName("comments_count") val commentsCount: Int = 0,
+        @SerialName("shares_count") val sharesCount: Int = 0,
+        @SerialName("views_count") val viewsCount: Int = 0,
+        @SerialName("is_active") val isActive: Boolean = true,
+        @SerialName("publish_at") val publishAt: String? = null,
+        @SerialName("expiry_at") val expiryAt: String? = null,
+        @SerialName("quality") val quality: String = "high",
+        @SerialName("ai_analysis") val aiAnalysis: String? = null,
+        @SerialName("created_at") val createdAt: String,
+        @SerialName("updated_at") val updatedAt: String,
         @SerialName("publish_type") val publishType: String? = "normal",
         @SerialName("is_silent_seed") val isSilentSeed: Boolean = false,
         @SerialName("is_featured_by_dev") val isFeaturedByDev: Boolean = false,

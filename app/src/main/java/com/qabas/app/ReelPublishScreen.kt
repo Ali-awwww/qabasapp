@@ -44,7 +44,8 @@ fun ReelPublishScreen(
     currentUserName: String,
     currentUserEmail: String?,
     onDismiss: () -> Unit,
-    onPublishedSuccess: () -> Unit
+    onPublishedSuccess: () -> Unit,
+    onRequireLogin: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1242,66 +1243,71 @@ fun ReelPublishScreen(
                 (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed)
 
             val doPublishAction: (Boolean) -> Unit = { asSilent ->
-                val validation = ReelPublishManager.validateContent(
-                    title = title,
-                    description = description,
-                    category = selectedCategory,
-                    videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
-                    hasAcceptedPledge = hasAcceptedPledge,
-                    isDeveloper = isDeveloper,
-                    durationSeconds = (selectedVideoDurationMs / 1000).toInt()
-                )
-                when (validation) {
-                    is ReelPublishManager.ValidationResult.Invalid -> {
-                        generalErrorMessage = validation.reason
-                    }
-                    is ReelPublishManager.ValidationResult.Valid -> {
-                        isPublishing = true
-                        isSilentSeed = asSilent
-                        generalErrorMessage = null
-                        uploadSentBytes = 0L
-                        uploadTotalBytes = 0L
-                        uploadSpeedBps = 0L
-                        uploadEtaSeconds = 0L
-                        scope.launch {
-                            val result = ReelPublishManager.publishReelWithUpload(
-                                context = context,
-                                userId = currentUserId,
-                                userName = currentUserName,
-                                email = currentUserEmail,
-                                title = title.trim(),
-                                description = description.takeIf { it.isNotBlank() },
-                                videoUri = selectedVideoUri,
-                                directUrl = directVideoUrl.takeIf { it.isNotBlank() },
-                                thumbnailBytes = selectedVideoThumbnailBytes,
-                                category = selectedCategory,
-                                isFeaturedByDev = isFeaturedByDev,
-                                isSilentSeed = asSilent,
-                                publishAt = publishAt,
-                                expiryAt = expiryAt,
-                                quality = quality,
-                                aspectRatio = aspectRatio,
-                                onProgressUpdate = { progressText ->
-                                    publishProgressText = progressText
-                                },
-                                onBytesProgress = { sent, total, _ ->
-                                    uploadSentBytes = sent
-                                    uploadTotalBytes = total
-                                }
-                            )
-                            isPublishing = false
-                            when (result) {
-                                is ReelPublishManager.PublishResult.Success -> {
-                                    val toastMsg = if (asSilent) "تم حقن مقطع الفيديو الصامت للأوفلاين بنجاح!" else "تم نشر المقطع للمجتمع بنجاح!"
-                                    Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
-                                    onPublishedSuccess()
-                                    onDismiss()
-                                }
-                                is ReelPublishManager.PublishResult.Failed -> {
-                                    generalErrorMessage = if (AdminGuard.isDashboardAccessAllowed(context)) {
-                                        "فشل النشر [${result.stage}]: ${result.devMessage}"
-                                    } else {
-                                        "تعذر نشر المقطع — تحقق من الاتصال وحاول مجدداً."
+                val authId = SupabaseServices.Auth.getCurrentUserId()
+                if (authId.isNullOrBlank()) {
+                    android.util.Log.e("ReelPublish", "doPublishAction: No active auth session. Prompting login.")
+                    Toast.makeText(context, "يجب تسجيل الدخول أولاً لتتمكن من نشر الريلز", Toast.LENGTH_LONG).show()
+                    onDismiss()
+                    onRequireLogin()
+                } else {
+                    val validation = ReelPublishManager.validateContent(
+                        title = title,
+                        description = description,
+                        category = selectedCategory,
+                        videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
+                        hasAcceptedPledge = hasAcceptedPledge,
+                        isDeveloper = isDeveloper,
+                        durationSeconds = (selectedVideoDurationMs / 1000).toInt()
+                    )
+                    when (validation) {
+                        is ReelPublishManager.ValidationResult.Invalid -> {
+                            generalErrorMessage = validation.reason
+                        }
+                        is ReelPublishManager.ValidationResult.Valid -> {
+                            isPublishing = true
+                            isSilentSeed = asSilent
+                            generalErrorMessage = null
+                            uploadSentBytes = 0L
+                            uploadTotalBytes = 0L
+                            uploadSpeedBps = 0L
+                            uploadEtaSeconds = 0L
+                            scope.launch {
+                                val result = ReelPublishManager.publishReelWithUpload(
+                                    context = context,
+                                    userId = authId,
+                                    userName = currentUserName,
+                                    email = currentUserEmail,
+                                    title = title.trim(),
+                                    description = description.takeIf { it.isNotBlank() },
+                                    videoUri = selectedVideoUri,
+                                    directUrl = directVideoUrl.takeIf { it.isNotBlank() },
+                                    thumbnailBytes = selectedVideoThumbnailBytes,
+                                    category = selectedCategory,
+                                    isFeaturedByDev = isFeaturedByDev,
+                                    isSilentSeed = asSilent,
+                                    publishAt = publishAt,
+                                    expiryAt = expiryAt,
+                                    quality = quality,
+                                    aspectRatio = aspectRatio,
+                                    onProgressUpdate = { progressText ->
+                                        publishProgressText = progressText
+                                    },
+                                    onBytesProgress = { sent, total, _ ->
+                                        uploadSentBytes = sent
+                                        uploadTotalBytes = total
+                                    }
+                                )
+                                isPublishing = false
+                                when (result) {
+                                    is ReelPublishManager.PublishResult.Success -> {
+                                        val toastMsg = if (asSilent) "تم حقن مقطع الفيديو الصامت للأوفلاين بنجاح!" else "تم نشر المقطع للمجتمع بنجاح!"
+                                        Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                        onPublishedSuccess()
+                                        onDismiss()
+                                    }
+                                    is ReelPublishManager.PublishResult.Failed -> {
+                                        android.util.Log.e("ReelPublish", "Publish failed [${result.stage}]: ${result.devMessage}")
+                                        generalErrorMessage = "فشل النشر: ${result.devMessage}"
                                     }
                                 }
                             }

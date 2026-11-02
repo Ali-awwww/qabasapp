@@ -84,6 +84,8 @@ android {
     buildConfig = true
   }
 
+
+
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {
     includeInApk = false
@@ -153,6 +155,16 @@ tasks.matching { it.name.contains("GoogleServices", ignoreCase = true) && it.nam
 
 tasks.withType<Test> {
     failFast = true
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            "-opt-in=androidx.compose.animation.ExperimentalAnimationApi"
+        )
+    }
 }
 
 dependencies {

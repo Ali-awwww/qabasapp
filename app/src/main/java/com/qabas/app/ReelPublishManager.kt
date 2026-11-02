@@ -264,6 +264,15 @@ object ReelPublishManager {
     ): PublishResult = withContext(Dispatchers.IO) {
         val isDev = isDeveloperUser(context, email)
 
+        val authUserId = SupabaseServices.Auth.getCurrentUserId()
+
+        if (authUserId.isNullOrBlank()) {
+            val err = "لا توجد جلسة مصادقة نشطة. يلزم تسجيل الدخول أولاً لنشر الريلز."
+            Log.e("ReelPublish", "Publish failed: No active auth session (user_id is missing)")
+            return@withContext PublishResult.Failed(PublishStage.SAVE_ROW, err)
+        }
+        val effectiveUserId = authUserId
+
         var finalVideoUrl = directUrl?.trim().orEmpty()
         var finalThumbUrl: String? = null
 
@@ -271,8 +280,8 @@ object ReelPublishManager {
         if (videoUri != null) {
             onProgressUpdate("جاري تجهيز وقراءة ملف الفيديو من الجهاز...")
             val timestamp = System.currentTimeMillis()
-            val fileName = "reel_${userId.take(8)}_$timestamp.mp4"
-            val thumbFileName = "thumb_${userId.take(8)}_$timestamp.jpg"
+            val fileName = "reel_${effectiveUserId.take(8)}_$timestamp.mp4"
+            val thumbFileName = "thumb_${effectiveUserId.take(8)}_$timestamp.jpg"
 
             // نسخ متدفق لملف دائم (بلا readBytes الكامل — حماية الذاكرة)
             val localReelDir = File(context.filesDir, "published_reels")
@@ -364,9 +373,24 @@ object ReelPublishManager {
             }
         }
 
+        val cleanTitle = if (isDev && isFeaturedByDev) "⭐ $title" else title
+
+        if (cleanTitle.isBlank()) {
+            val err = "عنوان المقطع مطلوب ولا يمكن تركه فارغاً"
+            Log.e("ReelPublish", "Publish failed: title is empty")
+            return@withContext PublishResult.Failed(PublishStage.READ_FILE, err)
+        }
+
         if (finalVideoUrl.isBlank()) {
-            Log.e(TAG, "Publish failed: video url is empty")
-            return@withContext PublishResult.Failed(PublishStage.READ_FILE, "لا يوجد فيديو: لم يُختر ملف ولا رابط")
+            val err = "لا يوجد فيديو: لم يُختر ملف ولا رابط صالح، أو فشل الرفع"
+            Log.e("ReelPublish", "Publish failed: finalVideoUrl is empty")
+            return@withContext PublishResult.Failed(PublishStage.UPLOAD_VIDEO, err)
+        }
+
+        if (effectiveUserId.isBlank()) {
+            val err = "معرف المستخدم فارغ"
+            Log.e("ReelPublish", "Publish failed: effectiveUserId is empty")
+            return@withContext PublishResult.Failed(PublishStage.SAVE_ROW, err)
         }
 
         onProgressUpdate("جاري توثيق المقطع في مجتمع قبس الإيماني...")
@@ -382,8 +406,6 @@ object ReelPublishManager {
             }
         }
 
-        val cleanTitle = if (isDev && isFeaturedByDev) "⭐ $title" else title
-
         // حلّ الصورة الرمزية للناشر: المعامل الممرر أولاً، ثم المحفوظة محلياً، ثم حساب Firebase
         val resolvedAvatar: String? = userAvatar?.takeIf { it.isNotBlank() }
             ?: runCatching {
@@ -394,9 +416,9 @@ object ReelPublishManager {
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
         // إعادة الصف المُدرج فعلياً — معرّفه الحقيقي يُستخدم للملكية والسجل المحلي
-        val savedReel = runCatching {
+        val savedReelResult = runCatching {
             SupabaseServices.Profiles.saveReel(
-                userId = userId,
+                userId = effectiveUserId,
                 title = cleanTitle,
                 description = description,
                 videoUrl = finalVideoUrl,
@@ -411,13 +433,17 @@ object ReelPublishManager {
                 publishType = if (isSilentSeed) "injection" else "normal",
                 aspectRatio = aspectRatio
             )
-        }.getOrNull()
+        }
 
+        val savedReel = savedReelResult.getOrNull()
         if (savedReel == null) {
-            Log.e(TAG, "Publish failed at SAVE_ROW: reels insert rejected")
+            val exception = savedReelResult.exceptionOrNull()
+            val actualErrorMessage = exception?.message?.takeIf { it.isNotBlank() }
+                ?: "رُفض إدراج الصف في جدول reels"
+            Log.e("ReelPublish", "Publish failed at SAVE_ROW: $actualErrorMessage", exception)
             return@withContext PublishResult.Failed(
                 PublishStage.SAVE_ROW,
-                "رُفض إدراج الصف في جدول reels (RLS/شبكة/أعمدة) — راجع Logcat بوسم ReelPublish"
+                actualErrorMessage
             )
         }
 
