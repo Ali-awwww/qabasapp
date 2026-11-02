@@ -141,6 +141,31 @@ jobs:
             echo "✅ Signing key information saved to: signing_key_info.txt"
           fi
 
+      # Keep BuildConfig generation valid without exposing repository secrets to PR-controlled code.
+      - name: Create non-secret environment for pull request builds
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          AW_CLIENT_ID="ci-placeholder"
+          AW_CLIENT_SECRET="ci-placeholder"
+          AZURE_SPEECH_KEY="ci-placeholder"
+          AZURE_SPEECH_REGION="ci-placeholder"
+          COVERR_API_KEY="ci-placeholder"
+          ELEVENLABS_API_KEY="ci-placeholder"
+          GOOGLE_WEB_CLIENT_ID="ci-placeholder"
+          GROQ_API_KEY="ci-placeholder"
+          HUGGINGFACE_API_KEY="ci-placeholder"
+          OPENAI_API_KEY="ci-placeholder"
+          OPENROUTER_API_KEY="ci-placeholder"
+          PEXELS_API_KEY="ci-placeholder"
+          PIXABAY_API_KEY="ci-placeholder"
+          QF_CLIENT_ID="ci-placeholder"
+          QF_CLIENT_SECRET="ci-placeholder"
+          SUPABASE_ANON_KEY="ci-placeholder"
+          SUPABASE_URL="https://example.supabase.co"
+          EOF
+
       - name: Inject secrets (optional)
         if: github.event_name != 'pull_request'
         env:
