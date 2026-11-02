@@ -1450,6 +1450,7 @@ object SupabaseServices {
             val client = client ?: return null
             val currentAuthUid = client.auth.currentUserOrNull()?.id
             val effectiveUserId = currentAuthUid ?: userId
+            val now = java.time.Instant.now().toString()
             val row = ReelRow(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
@@ -1460,13 +1461,14 @@ object SupabaseServices {
                 videoUrl = videoUrl,
                 thumbnailUrl = thumbnailUrl,
                 tags = tags,
-                publishAt = publishAt ?: java.time.Instant.now().toString(),
+                publishAt = publishAt ?: now,
                 expiryAt = expiryAt,
                 quality = quality,
                 aiAnalysis = aiAnalysis,
                 publishType = publishType,
                 isSilentSeed = isSilentSeed,
-                createdAt = java.time.Instant.now().toString(),
+                createdAt = now,
+                updatedAt = now,
                 metadata = buildJsonObject {
                     put("aspect_ratio", aspectRatio)
                 }
@@ -1510,7 +1512,11 @@ object SupabaseServices {
             val currentAuthUid = client.auth.currentUserOrNull()?.id
             val effectiveUserId = currentAuthUid ?: userId
             val row = mapOf("reel_id" to reelId, "user_id" to effectiveUserId)
-            client.postgrest.from("reel_likes").upsert(row)
+            client.postgrest.from("reel_likes").insert(
+                row,
+                upsert = true,
+                onConflict = "reel_id,user_id"
+            )
             true
         }.onFailure { e -> 
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: ${e.message}")
