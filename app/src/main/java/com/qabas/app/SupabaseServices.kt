@@ -1500,7 +1500,8 @@ object SupabaseServices {
                 }
             )
 
-            Log.d("ReelPublish", "saveReel: Inserting row with user_id=$effectiveUserId, title=$title, video_url=$videoUrl, updated_at=$now")
+            // User-supplied video URLs may contain temporary access tokens; keep them and titles out of Logcat.
+            Log.d("ReelPublish", "saveReel: Inserting reel row")
 
             return try {
                 client.postgrest.from("reels").insert(payload) {
