@@ -62,6 +62,12 @@ object SupabaseServices {
             true
         }.getOrDefault(false)
 
+        suspend fun ensureMyAccountNumberFromCloud(): String? = runCatching {
+            val client = client ?: return null
+            client.postgrest.rpc("ensure_my_account_number").decodeAs<String>()
+                .takeIf { it.isNotBlank() }
+        }.onFailure { Log.e(TAG, "ensureMyAccountNumberFromCloud failed: ${it.message}") }.getOrNull()
+
         suspend fun getNextAccountSequenceFromCloud(): Int? = runCatching {
             val client = client ?: return null
             client.postgrest.rpc("get_next_account_sequence").decodeAs<Int>()
