@@ -210,6 +210,88 @@ fun HomeScreen(
         )
     }
 
+    // 🎉 بطاقة إشعار التهنئة بالترقية لرتبة المطور سحابياً
+    val promotionCelebration by RolePromotionNotifier.celebrationEvent.collectAsState()
+    if (promotionCelebration != null) {
+        val celebration = promotionCelebration!!
+        AlertDialog(
+            onDismissRequest = { RolePromotionNotifier.dismissCelebration() },
+            containerColor = Color(0xFF0F172A),
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = GoldPrimary.copy(alpha = 0.2f),
+                    border = BorderStroke(1.5.dp, GoldPrimary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = null,
+                        tint = GoldPrimary,
+                        modifier = Modifier.padding(12.dp).size(36.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = "🎉 مبارك! تم تفعيل رتبة المطور",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = Color.White,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = celebration.message,
+                        fontFamily = CairoFont,
+                        fontSize = 13.sp,
+                        color = Color(0xFFCBD5E1),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, Color(0xFF334155))
+                    ) {
+                        Text(
+                            text = "الرتبة السحابية: ${celebration.roleTitle}",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
+                            color = GoldPrimary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        RolePromotionNotifier.dismissCelebration()
+                        onDeveloperDashboard()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("فتح لوحة المطور 🚀", color = Color(0xFF070B14), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { RolePromotionNotifier.dismissCelebration() }) {
+                    Text("إغلاق", color = Color.Gray, fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,

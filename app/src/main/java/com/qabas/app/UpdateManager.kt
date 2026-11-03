@@ -1054,9 +1054,12 @@ object UpdateManager {
         onProgress: (DownloadProgress) -> Unit
     ): File? {
         return try {
-            val binary = ensureXdeltaBinary(context, update, authToken, handle)
-                ?: run {
-                    Log.w(TAG, "⚠️ No xdelta3 binary available")
+            // فحص توفر محرك الترقيع: إما JNI C++ المدمج أو الثنائي الخارجي
+            val hasNativeEngine = XdeltaPatchEngine.isNativeEngineAvailable()
+            if (!hasNativeEngine) {
+                val binary = ensureXdeltaBinary(context, update, authToken, handle)
+                if (binary == null) {
+                    Log.w(TAG, "⚠️ Neither JNI nor static xdelta3 binary available")
                     UpdateTelemetryManager.recordFailure(
                         context = context,
                         update = update,
@@ -1066,6 +1069,9 @@ object UpdateManager {
                     )
                     return null
                 }
+            } else {
+                Log.i(TAG, "⚡ Using in-process JNI Native C++ xdelta3 engine for patching")
+            }
             if (handle.cancelled) return null
 
             val deltaFile = downloadFile(
@@ -1203,7 +1209,24 @@ object UpdateManager {
         }
     }
 
-    internal fun applyXdelta(binary: File, source: File, delta: File, output: File): Result<String> {
+    internal fun applyXdelta(binary: File?, source: File, delta: File, output: File): Result<String> {
+        if (XdeltaPatchEngine.isNativeEngineAvailable()) {
+            try {
+                val jniRes = kotlinx.coroutines.runBlocking {
+                    XdeltaPatchEngine.applyPatch(source, delta, output)
+                }
+                if (jniRes.isSuccess && output.exists() && output.length() > 1000) {
+                    return Result.success("xdelta3 applied via in-process JNI Native C++")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ JNI Native C++ patch attempt failed in applyXdelta: ${e.message}")
+            }
+        }
+
+        if (binary == null || !binary.exists()) {
+            return Result.failure(IllegalStateException("تعذر تطبيق الرقعة: محرك JNI والثنائي الخارجي غير متوفرين"))
+        }
+
         val args = listOf(
             "-d",
             "-s", source.absolutePath,

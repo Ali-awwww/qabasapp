@@ -150,16 +150,14 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 .edit().remove("dev_dash_target").apply()
         }
     }
-    // حارس الوصول: اللوحة للمالك فقط (لا يُمنح علم is_developer افتراضياً لأجهزة جديدة)
+    // حارس الوصول: التحقق السحابي الحصري (لا يُسمح بأي تجاوزات محلية)
     var accessAllowed by remember { mutableStateOf(AdminGuard.isDashboardAccessAllowed(gateContext)) }
     
-    // تأكيد إضافي عبر بيانات Supabase Auth الوصفية (Metadata)
+    // تأكيد إضافي عبر بيانات Supabase Auth الوصفية (Metadata والرتبة السحابية)
     LaunchedEffect(Unit) {
         if (SupabaseServices.isSupabaseAvailable) {
             val isAuthAdmin = AdminGuard.isAuthAdmin()
-            if (isAuthAdmin) {
-                accessAllowed = true
-            }
+            accessAllowed = isAuthAdmin || AdminGuard.isDashboardAccessAllowed(gateContext)
         }
     }
 
@@ -171,10 +169,11 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
         ) {
             Icon(Icons.Default.Lock, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(48.dp))
             Spacer(modifier = Modifier.height(12.dp))
-            Text("لوحة تحكم المطور محمية 🔒", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("لوحة تحكم المطور محمية سحابياً 🔒", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(modifier = Modifier.height(6.dp))
+            val currentRole = SupabaseServices.Auth.getUserRoleFromMetadata()
             Text(
-                "الوصول مخصص لحساب المالك فقط. سجّل الدخول ببريد المالك، أو استخدم جهازاً يحمل علم is_developer المكتوب سابقاً.",
+                "الوصول مخصص لحسابات المطورين المعتمدة سحابياً. رتبتك السحابية الحالية ($currentRole). سجّل الدخول بحسابك المرقّى إلى رتبة developer / مطور في سحابة Supabase.",
                 color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )

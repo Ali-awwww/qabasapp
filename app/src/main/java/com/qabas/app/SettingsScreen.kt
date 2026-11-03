@@ -251,13 +251,11 @@ fun SettingsScreen(
     var showPassphraseDialog by remember { mutableStateOf(false) }
     var passphraseInput by remember { mutableStateOf("") }
     var passphraseError by remember { mutableStateOf(false) }
-    var isDevMode by remember {
-        mutableStateOf(prefs.getBoolean("is_developer", false))
-    }
-    val isDeveloperAccount = isAdmin || isDevMode || AdminGuard.isDashboardAccessAllowed(context)
+    val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
+    val isDevMode = isDeveloperAccount
 
     // الحسابات الرسمية
-    val canManageChannels = isAdmin || isDevMode
+    val canManageChannels = isDeveloperAccount
     var officialChannels by remember { mutableStateOf(SocialAccountManager.getOfficialChannels(context)) }
     fun refreshChannels() {
         officialChannels = SocialAccountManager.getOfficialChannels(context)
@@ -1200,25 +1198,18 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val devPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                        val salt = "Qbs" + "::DevGate::" + "v1"
-                        val digest = java.security.MessageDigest.getInstance("SHA-256")
-                            .digest((passphraseInput + salt).toByteArray())
-                            .joinToString("") { "%02x".format(it) }
-                        val expected = "284308ac" + "cd46b74003578263" + "92758c1e0d189e543" + "43d3777156a550cbb123bfa"
-                        if (digest == expected) {
-                            devPrefs.edit().putBoolean("is_developer", true).apply()
-                            isDevMode = true
-                            showPassphraseDialog = false
-                            passphraseInput = ""
-                            Toast.makeText(context, "تم تفعيل وضع المطور! 🛠️", Toast.LENGTH_LONG).show()
+                        val isAllowed = AdminGuard.isDashboardAccessAllowed(context)
+                        showPassphraseDialog = false
+                        if (isAllowed) {
+                            Toast.makeText(context, "تم التحقق السحابي: حسابك مفعل برتبة مطور! 🛠️", Toast.LENGTH_LONG).show()
                         } else {
-                            passphraseError = true
+                            val currentRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+                            Toast.makeText(context, "الرتبة السحابية الحالية ($currentRole): تفعيل لوحة المطور يتم حصرياً عبر Supabase.", Toast.LENGTH_LONG).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AiViolet)
                 ) {
-                    Text("تفعيل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("فحص السحابة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

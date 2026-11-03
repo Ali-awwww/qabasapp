@@ -108,7 +108,7 @@ fun AboutUsAndVersionScreen(
     var devTapCount by remember { mutableIntStateOf(0) }
     var devPassInput by remember { mutableStateOf("") }
     var devPassError by remember { mutableStateOf(false) }
-    var isDevMode by remember { mutableStateOf(prefs.getBoolean("is_developer", false)) }
+    val isDevMode = remember(context) { AdminGuard.isDashboardAccessAllowed(context) }
     var customPrivacyUrl by remember { mutableStateOf(prefs.getString("custom_privacy_url", "") ?: "") }
 
     // حالة فحص التحديثات
@@ -1277,24 +1277,19 @@ fun AboutUsAndVersionScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val salt = "Qbs::DevGate::v1"
-                            val digest = java.security.MessageDigest.getInstance("SHA-256")
-                                .digest((devPassInput + salt).toByteArray())
-                                .joinToString("") { "%02x".format(it) }
-                            val expected = "284308ac" + "cd46b74003578263" + "92758c1e0d189e543" + "43d3777156a550cbb123bfa"
-                            if (digest == expected) {
-                                prefs.edit().putBoolean("is_developer", true).apply()
-                                isDevMode = true
-                                showDeveloperGateDialog = false
-                                devPassInput = ""
-                                Toast.makeText(context, "تم تفعيل وضع المطور بنجاح! 🚀", Toast.LENGTH_LONG).show()
+                            val allowed = AdminGuard.isDashboardAccessAllowed(context)
+                            showDeveloperGateDialog = false
+                            devPassInput = ""
+                            if (allowed) {
+                                Toast.makeText(context, "تم التحقق السحابي: حسابك مفعل برتبة مطور! 🚀", Toast.LENGTH_LONG).show()
                             } else {
-                                devPassError = true
+                                val currentRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+                                Toast.makeText(context, "الرتبة السحابية الحالية ($currentRole): تفعيل رتبة المطور محصور بسحابة Supabase.", Toast.LENGTH_LONG).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
                     ) {
-                        Text("تفعيل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Text("فحص السحابة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {

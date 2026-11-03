@@ -996,10 +996,45 @@ object SupabaseServices {
                 ?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
         }.getOrNull()
 
+        /**
+         * قراءة الرتبة الرسمية الموثقة سحابياً من app_metadata في جلسة Supabase Auth
+         * (حيث يتم حقن role: "developer" عند ترقية الحساب من لوحة التحكم أو SQL).
+         */
+        fun getCurrentUserAppRole(): String? = runCatching {
+            if (!isSupabaseAvailable) null
+            else {
+                val user = client?.auth?.currentUserOrNull()
+                val role = user?.appMetadata?.get("role")?.toString()?.trim('"')
+                role?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+            }
+        }.getOrNull()
+
+        fun isDeveloperRole(role: String?): Boolean {
+            if (role.isNullOrBlank()) return false
+            val clean = role.trim().lowercase(java.util.Locale.ROOT)
+            return clean in setOf("developer", "admin", "owner", "مطور", "مكور")
+        }
+
         fun getUserRoleFromMetadata(): String = runCatching {
             if (!isSupabaseAvailable) "user"
             else {
-                client?.auth?.currentUserOrNull()?.userMetadata?.get("role")?.toString()?.replace("\"", "") ?: "user"
+                val user = client?.auth?.currentUserOrNull()
+                // 1. فحص app_metadata أولاً (الرتبة الموثقة من السحابة)
+                val appRole = user?.appMetadata?.get("role")?.toString()?.trim('"')
+                if (!appRole.isNullOrBlank() && !appRole.equals("null", ignoreCase = true)) {
+                    return@runCatching appRole
+                }
+                // 2. فحص عمود type في جدول users في قاعدة البيانات
+                val dbType = currentUser.value?.type
+                if (!dbType.isNullOrBlank() && !dbType.equals("null", ignoreCase = true) && !dbType.equals("مجاني", ignoreCase = true)) {
+                    return@runCatching dbType
+                }
+                // 3. فحص user_metadata كخيار إضافي
+                val userRole = user?.userMetadata?.get("role")?.toString()?.trim('"')
+                if (!userRole.isNullOrBlank() && !userRole.equals("null", ignoreCase = true)) {
+                    return@runCatching userRole
+                }
+                "user"
             }
         }.getOrDefault("user")
 
@@ -1009,7 +1044,9 @@ object SupabaseServices {
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
             val role = getUserRoleFromMetadata()
-            role == "admin" || role == "developer" || role == "owner"
+            val appRole = getCurrentUserAppRole()
+            val dbType = currentUser.value?.type
+            isDeveloperRole(role) || isDeveloperRole(appRole) || isDeveloperRole(dbType)
         }.getOrDefault(false)
 
         suspend fun register(email: String, pass: String, customId: String? = null): Boolean = runCatching {

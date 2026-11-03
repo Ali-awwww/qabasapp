@@ -657,6 +657,22 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        Text("محرك C++ JNI المدمج:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text(
+                            text = if (XdeltaPatchEngine.isNativeEngineAvailable()) "جاهز ومدمج (In-Process Native) ✓" else "ثنائي xdelta3-$deviceAbi",
+                            color = if (XdeltaPatchEngine.isNativeEngineAvailable()) Color(0xFF10B981) else Color(0xFF00E5FF),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text("متوسط توفير البيانات:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
                         Text("85% - 95% مقارنة بـ APK كامل ⚡", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }

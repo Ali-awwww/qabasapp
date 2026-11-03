@@ -33,3 +33,19 @@ else()
 endif()
 
 target_link_libraries(llama_jni ${log-lib})
+
+# xdelta3 JNI native library for differential binary updates
+add_library(qabas_xdelta SHARED
+    xdelta3_jni.cpp
+    xdelta3.c
+)
+target_compile_definitions(qabas_xdelta PRIVATE
+    XD3_MAIN=1
+    XD3_INCLUDE_MAIN=1
+    SECONDARY_FGK=0
+    SECONDARY_DJW=0
+    SECONDARY_LZMA=0
+    EXTERNAL_COMPRESSION=0
+)
+target_include_directories(qabas_xdelta PRIVATE .)
+target_link_libraries(qabas_xdelta ${log-lib})

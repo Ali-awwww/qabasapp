@@ -209,6 +209,8 @@ class MainActivity : ComponentActivity() {
                             runCatching {
                                 LeagueService.checkAndProcessWeeklyLeague(this@MainActivity)
                                 PointsManager.checkAndAwardDailyLogin(this@MainActivity)
+                                // 👑 التحقق السحابي الحصري من رتبة المستخدم وإشعار التهنئة فور الإقلاع
+                                AdminGuard.isDashboardAccessAllowed(this@MainActivity)
                             }
                         }
 

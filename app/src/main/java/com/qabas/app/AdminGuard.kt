@@ -27,21 +27,51 @@ object AdminGuard {
         }
     }
 
-    /** العلم المحلي يُمنح فقط لمن كُتب له صراحةً — الجديد لا يحصل عليه. */
-    private fun localDeveloperFlag(context: Context): Boolean {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        return prefs.contains("is_developer") && prefs.getBoolean("is_developer", false)
+    /**
+     * هل الوصول إلى لوحة المطور مسموح؟
+     * محصور حصرياً بالسحابة (Supabase RBAC) دون أي تجاوزات محلية:
+     * 1) أن يكون مالك التطبيق السحابي.
+     * 2) أو أن تكون رتبته في السحابة (app_metadata.role أو user_metadata أو users.type)
+     *    ضمن الرتب المعتمدة: developer, admin, owner, مطور, مكور.
+     */
+    fun isDashboardAccessAllowed(context: Context): Boolean {
+        if (isCloudUserOwner()) {
+            RolePromotionNotifier.checkAndNotifyPromotion(context, "owner")
+            return true
+        }
+
+        val appRole = SupabaseServices.Auth.getCurrentUserAppRole()
+        if (SupabaseServices.Auth.isDeveloperRole(appRole)) {
+            RolePromotionNotifier.checkAndNotifyPromotion(context, appRole)
+            return true
+        }
+
+        val metaRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+        if (SupabaseServices.Auth.isDeveloperRole(metaRole)) {
+            RolePromotionNotifier.checkAndNotifyPromotion(context, metaRole)
+            return true
+        }
+
+        val verifiedRole = SupabaseServices.Auth.verifiedRole.value
+        if (SupabaseServices.Auth.isDeveloperRole(verifiedRole)) {
+            RolePromotionNotifier.checkAndNotifyPromotion(context, verifiedRole)
+            return true
+        }
+
+        val dbType = SupabaseServices.Auth.currentUser.value?.type
+        if (SupabaseServices.Auth.isDeveloperRole(dbType)) {
+            RolePromotionNotifier.checkAndNotifyPromotion(context, dbType)
+            return true
+        }
+
+        return false
     }
 
-    fun isDashboardAccessAllowed(context: Context): Boolean =
-        isCloudUserOwner() || localDeveloperFlag(context) || (SupabaseServices.Auth.verifiedRole.value in setOf("admin", "developer", "owner"))
-
     /**
-     * Checks if the user is an admin based on Supabase Auth metadata.
-     * This is the preferred method for modern security checks.
+     * فحص صلاحيات الإدارة للمهام السحابية الحساسة بناءً على السحابة حصرياً.
      */
     suspend fun isAuthAdmin(): Boolean {
-        return SupabaseServices.Auth.isAuthAdmin()
+        return SupabaseServices.Auth.isAuthAdmin() || isCloudUserOwner()
     }
 
     fun currentIdentity(context: Context): String {

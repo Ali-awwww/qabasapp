@@ -85,26 +85,31 @@ object PatchManager {
         // المسار الأساسي هو الـ APK الحالي المثبت
         val sourceApk = File(context.packageCodePath)
         
-        // 3. جلب محرك xdelta (Lib)
-        val xdeltaBinary = ensureBinary(context, update)
-        if (xdeltaBinary == null) {
-            val errMsg = "تعذر تشغيل محرك التحديث على هذا الجهاز"
-            _patchState.value = PatchState.Error(errMsg)
-            UpdateTelemetryManager.recordFailure(
-                context = context,
-                update = update,
-                phase = "BINARY_RESOLVE",
-                throwable = null,
-                customMessage = "تعذر تأمين محرك xdelta3 المناسب لمعمارية الجهاز لتطبيق التحديث"
-            )
-            return@withContext false
+        // 3. تنفيذ عملية الرقعة عبر JNI Native C++ أولاً (الأسرع والأكثر أماناً)
+        var patchApplied = false
+        if (XdeltaPatchEngine.isNativeEngineAvailable()) {
+            val jniResult = XdeltaPatchEngine.applyPatch(sourceApk, deltaFile, outputApk)
+            if (jniResult.isSuccess && outputApk.exists() && outputApk.length() > 1_000_000) {
+                patchApplied = true
+                Log.i(TAG, "⚡ Applied patch using in-process JNI Native C++ successfully")
+            } else {
+                Log.w(TAG, "⚠️ JNI Native patch failed, attempting fallback runner: ${jniResult.exceptionOrNull()?.message}")
+            }
         }
 
-        // 4. تنفيذ عملية الرقعة
-        val result = UpdateManager.applyXdelta(xdeltaBinary, sourceApk, deltaFile, outputApk)
-        
-        if (result.isSuccess && outputApk.exists() && outputApk.length() > 1_000_000) {
-            // 5. التحقق من الـ APK الناتج
+        // المسار الاحتياطي: في حال تعذر JNI، محاولة تشغيل الثنائي
+        if (!patchApplied) {
+            val xdeltaBinary = ensureBinary(context, update)
+            if (xdeltaBinary != null) {
+                val result = UpdateManager.applyXdelta(xdeltaBinary, sourceApk, deltaFile, outputApk)
+                if (result.isSuccess && outputApk.exists() && outputApk.length() > 1_000_000) {
+                    patchApplied = true
+                }
+            }
+        }
+
+        if (patchApplied && outputApk.exists() && outputApk.length() > 1_000_000) {
+            // 4. التحقق من الـ APK الناتج
             if (UpdateManager.isApkValid(context, outputApk, update.versionCode)) {
                 if (outputApk.renameTo(finalApk)) {
                     _patchState.value = PatchState.Success(finalApk)
@@ -122,19 +127,21 @@ object PatchManager {
                 )
             }
         } else {
-            val failureReason = result.exceptionOrNull()?.message ?: "خطأ غير معروف في المعالجة"
+            val failureReason = "فشل تطبيق الرقعة عبر محرك JNI Native والثنائي الاحتياطي"
+            outputApk.delete()
+            _patchState.value = PatchState.Error(failureReason)
             UpdateTelemetryManager.recordFailure(
                 context = context,
                 update = update,
                 phase = "PATCH_APPLY",
-                throwable = result.exceptionOrNull(),
-                customMessage = "فشل تنفيذ رقعة xdelta3 على الحزمة المصدرية: $failureReason"
+                throwable = null,
+                customMessage = failureReason
             )
+            return@withContext false
         }
 
-        val failureReason = result.exceptionOrNull()?.message ?: "خطأ غير معروف في المعالجة"
         outputApk.delete()
-        _patchState.value = PatchState.Error("فشلت معالجة الرقعة: $failureReason")
+        _patchState.value = PatchState.Error("فشلت معالجة الرقعة")
         false
     }
 
