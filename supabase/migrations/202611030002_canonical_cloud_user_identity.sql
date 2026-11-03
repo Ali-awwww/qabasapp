@@ -507,6 +507,33 @@ CREATE POLICY users_admin_update
         lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
     );
 
+-- The interaction services use upsert for likes and bookmarks.
+-- Keep the upsert conflict path owner-scoped by RLS and grant only the columns
+-- required by the conflict update.
+GRANT SELECT, INSERT, DELETE ON TABLE public.reel_likes TO authenticated;
+GRANT UPDATE (reel_id, user_id) ON TABLE public.reel_likes TO authenticated;
+
+DROP POLICY IF EXISTS reel_likes_update_own ON public.reel_likes;
+CREATE POLICY reel_likes_update_own
+    ON public.reel_likes
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT auth.uid())::text = user_id)
+    WITH CHECK ((SELECT auth.uid())::text = user_id);
+
+GRANT SELECT, INSERT, DELETE ON TABLE public.reel_bookmarks TO authenticated;
+GRANT UPDATE (reel_id, user_id) ON TABLE public.reel_bookmarks TO authenticated;
+
+DROP POLICY IF EXISTS reel_bookmarks_update_own ON public.reel_bookmarks;
+CREATE POLICY reel_bookmarks_update_own
+    ON public.reel_bookmarks
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT auth.uid())::text = user_id)
+    WITH CHECK ((SELECT auth.uid())::text = user_id);
+
+GRANT SELECT, INSERT, DELETE ON TABLE public.reel_comments TO authenticated;
+
 -- The follow client uses upsert, which requires SELECT/INSERT/UPDATE and
 -- the matching owner-scoped UPDATE policy for the conflict path.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.creator_follows TO authenticated;
