@@ -114,8 +114,8 @@ fun QabasApp() {
     }
 
     LaunchedEffect(Unit) {
-        AppNavigator.pendingChatInfo.collect { (email, requestId) ->
-            viewModel.updateState { copy(selectedRequestId = requestId, appState = AppState.REQUEST_CHAT) }
+        AppNavigator.pendingChatInfo.collect { (_, _) ->
+            viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
         }
     }
 

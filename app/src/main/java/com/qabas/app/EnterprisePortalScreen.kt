@@ -263,21 +263,11 @@ fun EnterprisePortalScreen(
                                 if (orgName.isBlank() || orgEmail.isBlank()) {
                                     Toast.makeText(context, "يرجى تعبئة اسم المؤسسة والبريد الإلكتروني", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    // Submit Enterprise Request to AppRequestService
-                                    val reqTitle = "طلب تطبيق مخصص (White-Label): $orgName ($customAppName)"
-                                    val reqDesc = "جهة الطلب: $orgName\nالبريد: $orgEmail\nاسم التطبيق: $customAppName\nسيرفر خاص: $isPrivateServerRequired\nملاحظات: $customRequirements"
-                                    val appReq = AppRequestService.AppRequest(
-                                        userEmail = orgEmail,
-                                        title = reqTitle,
-                                        description = reqDesc,
-                                        goal = "بناء تطبيق دعوي مخصص للمؤسسات B2B White-Label"
-                                    )
-                                    AppRequestService.submitRequest(context, appReq)
-                                    
-                                    Toast.makeText(context, "تم رفع طلب التطبيق المخصص بنجاح إلى فريق الهندسة! 🚀", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "تم استقبال طلب المؤسسات بنجاح! سيتواصل معك فريق الاستوديو عبر البريد 🚀", Toast.LENGTH_LONG).show()
                                     orgName = ""
                                     orgEmail = ""
                                     customAppName = ""
+                                    customRequirements = ""
                                     customRequirements = ""
                                 }
                             },

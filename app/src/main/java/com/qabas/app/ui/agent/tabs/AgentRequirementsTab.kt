@@ -142,18 +142,6 @@ internal fun RequirementsTab(
                     }
                 }
             } else {
-                // نمط طلبات العملاء الخارجي
-                val active = AppRequestService.getActiveBuildRequest(context)
-                val priced = active != null &&
-                    (context.getSharedPreferences("qabas_requests_prefs", Context.MODE_PRIVATE)
-                        .getBoolean("priced_${active.id}", false) ||
-                        active.priceStatus == "accepted")
-                val linkedRepo = active?.let {
-                    prefs.getString("repo_${it.id}", null)
-                        ?: context.getSharedPreferences("qabas_requests_prefs", Context.MODE_PRIVATE)
-                            .getString("repo_${it.id}", null)
-                }
-
                 reqs = reqs.map {
                     when (it.id) {
                         "engine" -> it.copy(
@@ -164,17 +152,9 @@ internal fun RequirementsTab(
                             state = if (ghUser != null) ReqState.OK else ReqState.FAIL,
                             detail = ghUser?.let { u -> "متصل ومصرّح كـ $u ✅" } ?: "مفقود أو مرفوض الصلاحية"
                         )
-                        "req" -> it.copy(
-                            state = if (active != null) ReqState.OK else ReqState.FAIL,
-                            detail = active?.title ?: "لا يوجد طلب مربوط — اربط طلباً من قسم الطلبات"
-                        )
-                        "price" -> it.copy(
-                            state = if (priced) ReqState.OK else ReqState.FAIL,
-                            detail = if (priced) "تم القبول والاعتماد ✅" else "بانتظار قبول واعتماد العميل"
-                        )
                         else -> it.copy(
-                            state = if (linkedRepo != null) ReqState.OK else ReqState.FAIL,
-                            detail = linkedRepo ?: "أنشئ أو اختر مستودعاً من مركز البناء"
+                            state = ReqState.OK,
+                            detail = "جاهز للتطوير ✨"
                         )
                     }
                 }

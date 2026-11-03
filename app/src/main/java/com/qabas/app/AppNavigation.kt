@@ -106,7 +106,6 @@ fun AppNavigation(
             AppState.AZKAR to AppState.HASANAT_HUB,
             AppState.PRAYER_TIMES to AppState.HASANAT_HUB,
             AppState.ISLAMIC_LIBRARY to AppState.HASANAT_HUB,
-            AppState.REQUEST_DETAILS to AppState.REQUEST_CHAT,
             AppState.UPDATE_HISTORY to AppState.ABOUT_US
         )
     }
@@ -275,8 +274,8 @@ fun AppNavigation(
         AppState.DEVELOPER_DASHBOARD -> {
             DeveloperDashboardScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenChat = { reqId ->
-                    viewModel.updateState { copy(appState = AppState.REQUEST_CHAT, selectedRequestId = reqId) }
+                onOpenChat = { _ ->
+                    viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
                 },
                 onNavigateTo = { viewModel.updateState { copy(appState = it) } }
             )
@@ -976,29 +975,6 @@ fun AppNavigation(
                 videoQuality = state.videoQuality,
                 onQualityChange = { q -> viewModel.updateState { copy(videoQuality = q) } },
                 videoStyleAnalysis = state.videoStyleAnalysis
-            )
-        }
-        AppState.APP_IDEA_FORM -> {
-            AppIdeaFormScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onSubmitSuccess = { viewModel.updateState { copy(appState = AppState.HOME) } }
-            )
-        }
-        AppState.REQUEST_CHAT -> {
-            RequestChatScreen(
-                requestId = state.selectedRequestId ?: "",
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenDashboardSection = { section ->
-                    viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) }
-                },
-                onOpenDetails = { viewModel.updateState { copy(appState = AppState.REQUEST_DETAILS) } }
-            )
-        }
-        AppState.REQUEST_DETAILS -> {
-            RequestDetailsScreen(
-                requestId = state.selectedRequestId ?: "",
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenChat = { viewModel.updateState { copy(appState = AppState.REQUEST_CHAT) } }
             )
         }
         AppState.SAVE_PROJECT -> {

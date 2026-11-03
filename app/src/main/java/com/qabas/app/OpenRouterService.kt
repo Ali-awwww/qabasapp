@@ -34,12 +34,12 @@ object OpenRouterService {
         .build()
 
     /** يولّد خطة برمجة عربية عبر OpenRouter — يُعيد null عند أي فشل. */
-    suspend fun generatePlan(request: AppRequestService.AppRequest, apiKey: String): String? =
+    suspend fun generatePlan(title: String, description: String, apiKey: String): String? =
         withContext(Dispatchers.IO) {
             if (apiKey.isBlank()) return@withContext null
             val prompt = """
                 أنت خبير هندسة برمجيات Android (Kotlin + Jetpack Compose).
-                طلب العميل: الاسم: ${request.title} | الوصف: ${request.description} | الهدف: ${request.goal}
+                فكرة المشروع: العنوان: $title | التفاصيل: $description
                 اكتب خطة عمل عربية احترافية: إعدادات مقترحة، تحليل المشروع، الهندسة والشاشات،
                 ثم 3 برومبتات جاهزة للنسخ (بيانات/واجهة/منطق)، وقائمة اختبار قبل التسليم.
             """.trimIndent()
@@ -200,14 +200,16 @@ object OpenRouterService {
 
     /** يولّد هيكل مشروع أندرويد أدنى **قابل للبناء**: gradle + manifest + كود + CI. */
     suspend fun generateStarterFiles(
-        request: AppRequestService.AppRequest,
+        title: String,
+        description: String = "",
+        goal: String = "",
         plan: String,
         apiKey: String
     ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext emptyList()
         val prompt = """
             أنت مهندس Android (Kotlin + Jetpack Compose). ابدأ مشروع تطبيق جديد قابل للبناء فعلاً عبر GitHub Actions:
-            الاسم: ${request.title} | الوصف: ${request.description} | الهدف: ${request.goal}
+            الاسم: $title | الوصف: $description | الهدف: $goal
             الخطة المعتمدة:
             ${plan.take(2500)}
             ولّد هذه الملفات العشرة بالضبط (package ثابت: com.client.app) — ملف CI يُحقن تلقائياً فلا تولّده:
@@ -369,17 +371,19 @@ object OpenRouterService {
         chatWithHistory(k, system, history, model)
     }
 
-    suspend fun generatePlanPooled(request: AppRequestService.AppRequest): String? =
+    suspend fun generatePlanPooled(title: String, description: String = ""): String? =
         KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            generatePlan(request, k)
+            generatePlan(title, description, k)
         }
 
     suspend fun generateStarterFilesPooled(
-        request: AppRequestService.AppRequest,
+        title: String,
+        description: String = "",
+        goal: String = "",
         plan: String
     ): List<Pair<String, String>> =
         KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            generateStarterFiles(request, plan, k).takeIf { it.isNotEmpty() }
+            generateStarterFiles(title, description, goal, plan, k).takeIf { it.isNotEmpty() }
         } ?: emptyList()
 
     suspend fun chatWithToolsPooled(

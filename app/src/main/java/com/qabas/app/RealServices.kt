@@ -759,10 +759,10 @@ object RealGeminiService {
         }
     }
 
-    suspend fun generateDeveloperPrompts(request: AppRequestService.AppRequest): String = withContext(Dispatchers.IO) {
+    suspend fun generateDeveloperPrompts(title: String, description: String = "", goal: String = ""): String = withContext(Dispatchers.IO) {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
-            val fbPlan = FirebaseAiService.generateDeveloperPlan(request.description)
+            val fbPlan = FirebaseAiService.generateDeveloperPlan(if (description.isNotBlank()) description else title)
             SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
             return@withContext fbPlan
         } catch (e: Exception) {
@@ -772,20 +772,20 @@ object RealGeminiService {
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
             // بلا Gemini: جرّب OpenRouter المجاني (مع تجاوز المسبح) ثم المخطط المحلي
-            OpenRouterService.generatePlanPooled(request)?.let { return@withContext it }
-            return@withContext LocalPromptPlanner.generatePlan(request)
+            OpenRouterService.generatePlanPooled(title, description)?.let { return@withContext it }
+            return@withContext LocalPromptPlanner.generatePlan(title, description)
         }
         
         return@withContext NetworkUtils.safeApiCall(
             context = AppServices.appContext,
-            fallback = { LocalPromptPlanner.generatePlan(request) }
+            fallback = { LocalPromptPlanner.generatePlan(title, description) }
         ) {
             val systemPrompt = """
                 أنت خبير في هندسة البرمجيات وتطوير تطبيقات Android باستخدام Jetpack Compose.
                 طلب العميل هو كالتالي:
-                الاسم: ${request.title}
-                الوصف: ${request.description}
-                الهدف: ${request.goal}
+                الاسم: $title
+                الوصف: $description
+                الهدف: $goal
                 
                 قم بكتابة خطة عمل متكاملة لمبرمج يستخدم منصة Google AI Studio، تتضمن التالي:
                 1. إعدادات منصة Google AI Studio (Configurations): حدد النموذج الأفضل (مثلاً Gemini 1.5 Pro للبرمجة)، ودرجة الحرارة (Temperature) المناسبة، وتعليمات النظام (System Instructions) التي يجب وضعها قبل البدء.
@@ -821,8 +821,8 @@ object RealGeminiService {
             val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(httpRequest).execute() }
             if (!response.isSuccessful) {
                 // فشل Gemini: OpenRouter المجاني (مع تجاوز المسبح) ثم المحلي
-                OpenRouterService.generatePlanPooled(request)?.let { return@safeApiCall it }
-                return@safeApiCall LocalPromptPlanner.generatePlan(request)
+                OpenRouterService.generatePlanPooled(title, description)?.let { return@safeApiCall it }
+                return@safeApiCall LocalPromptPlanner.generatePlan(title, description)
             }
             
             val responseData = response.body?.string() ?: ""
@@ -838,8 +838,8 @@ object RealGeminiService {
                     if (text.isNotBlank()) return@safeApiCall text
                 }
             }
-            OpenRouterService.generatePlanPooled(request)?.let { return@safeApiCall it }
-            LocalPromptPlanner.generatePlan(request)
+            OpenRouterService.generatePlanPooled(title, description)?.let { return@safeApiCall it }
+            LocalPromptPlanner.generatePlan(title, description)
         }
     }
 }
@@ -1921,8 +1921,8 @@ object AppServices {
         }
     }
 
-    suspend fun generateDeveloperPrompts(request: AppRequestService.AppRequest): String {
-        return RealGeminiService.generateDeveloperPrompts(request)
+    suspend fun generateDeveloperPrompts(title: String, description: String = "", goal: String = ""): String {
+        return RealGeminiService.generateDeveloperPrompts(title, description, goal)
     }
 
     /**

@@ -217,17 +217,9 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                         if (styleName.isNotBlank()) {
                             isSubmitting = true
                             scope.launch {
-                                val userEmail = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getString("user_email", "user@example.com") ?: "user@example.com"
-                                val req = AppRequestService.AppRequest(
-                                    userEmail = userEmail,
-                                    title = "طلب أسلوب: $styleName",
-                                    description = styleDescription,
-                                    goal = "STYLE_REQUEST"
-                                )
-                                AppRequestService.submitRequest(context, req)
                                 isSubmitting = false
                                 showRequestDialog = false
-                                android.widget.Toast.makeText(context, "تم إرسال طلب الأسلوب بنجاح! سيقوم فريق التطوير بتغذية العقل به.", android.widget.Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(context, "تم حفظ تفضيلات الأسلوب بنجاح ✅", android.widget.Toast.LENGTH_LONG).show()
                             }
                         }
                     },

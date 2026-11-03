@@ -88,12 +88,6 @@ fun StyleBrainSection(
     val isApiKeyAvailable by brainViewModel.isApiKeyAvailable.collectAsState()
 
     val isFirebaseActive = CloudServices.isFirebaseInitialized
-    var styleRequests by remember {
-        mutableStateOf(
-            AppRequestService.getRequests(context, isDeveloper = true)
-                .filter { it.goal == "STYLE_REQUEST" && it.status != "completed" }
-        )
-    }
 
     // فحص المفتاح وإصلاح فوري عند فتح الشاشة: صفر القوة الوهمية + عرض صحيح
     LaunchedEffect(Unit) {

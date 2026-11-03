@@ -52,6 +52,6 @@ object AppNavigator {
     /** طلب فتح محادثة دعم فني لبلاغ محدد */
     fun navigateToChat(userEmail: String, requestId: String) {
         _pendingChatInfo.tryEmit(userEmail to requestId)
-        _targetAppState.tryEmit(AppState.REQUEST_CHAT)
+        _targetAppState.tryEmit(AppState.AI_STUDIO_AGENT)
     }
 }

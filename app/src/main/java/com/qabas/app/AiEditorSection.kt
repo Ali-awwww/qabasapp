@@ -344,16 +344,8 @@ fun AiEditorSection(
         messages = messages + ChatMsg(fromUser = false, text = "…", thinking = true)
         busy = true
         scope.launch {
-            // سياق طلب البناء النشط (إن وُجد) — يُحقن في البرومبت
-            val activeReq = AppRequestService.getActiveBuildRequest(context)
             val prompt = buildString {
                 append("أنت محرر كود خبير في مشروع أندرويد (Kotlin + Jetpack Compose).\n")
-                if (activeReq != null) {
-                    append("سياق مهمة البناء الحالية — طلب العميل: «${activeReq.title}»: ${activeReq.description} (الهدف: ${activeReq.goal}).\n")
-                    if (!activeReq.generatedPrompts.isNullOrBlank()) {
-                        append("خطة التنفيذ المعتمدة:\n${activeReq.generatedPrompts.take(2000)}\n")
-                    }
-                }
                 append("الملف: $filePath\n")
                 append("محتواه الحالي كاملاً:\n```\n$loadedFileContent\n```\n")
                 append("طلب المستخدم: $finalOrder\n\n")
@@ -578,26 +570,7 @@ fun AiEditorSection(
                 }
             }
         }
-        // ── سياق مهمة البناء (من قسم الطلبات) ──
-        val linkedReq = remember { AppRequestService.getActiveBuildRequest(context) }
-        if (linkedReq != null && !opMode) {
-            Surface(
-                color = GoldPrimary.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Build, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "تبني: ${linkedReq.title} — أوامرك تُغذّى بخطة الطلب تلقائياً",
-                        color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
+
         if (opMode) {
             Text(
                 "المحادثة تعمل بلا مفتاح ذكاء اصطناعي (نموذج مجاني، ثم مفاتيحك إن وُجدت). الحفظ يحتاج رمز PAT بصلاحية Contents: Write.",
