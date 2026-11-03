@@ -348,26 +348,14 @@ object UserIdentifierManager {
             return@withContext stable
         }
 
-        // The database sequence is atomic. Gaps are acceptable; duplicate numbers are not.
-        val next = SupabaseServices.Database.getNextAccountSequenceFromCloud()
+        val assigned = SupabaseServices.Database.ensureMyAccountNumberFromCloud()
             ?: return@withContext ""
-        val generated = "#QBS-" + String.format(Locale.ROOT, "%04d", next)
-        val username = profile.customId?.takeIf { it.isNotBlank() }
-            ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
-
-        val saved = SupabaseServices.Database.saveUser(
-            id = authUid,
-            name = profile.name?.takeIf { it.isNotBlank() } ?: displayName ?: "مستخدم قبس",
-            email = cleanEmail,
-            type = profile.type.ifBlank { "مجاني" },
-            customId = username,
-            accountNumber = generated
-        )
-        if (!saved) return@withContext ""
-
-        saveCustomId(context, username, cleanEmail)
-        saveAccountNumber(context, cleanEmail, generated)
-        generated
+        val stable = formatAccountNumber(assigned)
+        saveAccountNumber(context, cleanEmail, stable)
+        profile.customId?.takeIf { it.isNotBlank() }?.let {
+            saveCustomId(context, it, cleanEmail)
+        }
+        stable
     }
 
     /**
