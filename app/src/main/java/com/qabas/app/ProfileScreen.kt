@@ -2477,35 +2477,58 @@ fun ProfileScreen(
                                 }
                                 is UserIdentifierManager.CustomIdAvailabilityResult.Available,
                                 is UserIdentifierManager.CustomIdAvailabilityResult.CurrentUserOwnsIt -> {
-                                    displayName = tempName.ifBlank { "مستخدم قبس" }
-                                    userCustomTag = UserIdentifierManager.formatDisplay(cleanId)
+                                    val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                    if (authUid.isNullOrBlank()) {
+                                        isCheckingTag = false
+                                        tagError = "يجب تسجيل الدخول إلى السحابة لتعديل ملفك الشخصي."
+                                        return@launch
+                                    }
+
+                                    val nextDisplayName = tempName.ifBlank { "مستخدم قبس" }
+                                    val saved = SupabaseServices.Database.saveUser(
+                                        id = authUid,
+                                        name = nextDisplayName,
+                                        email = userEmail,
+                                        customId = cleanId
+                                    )
+                                    val cloudUser = if (saved) {
+                                        SupabaseServices.Database.ensureUser(
+                                            externalId = authUid,
+                                            email = userEmail,
+                                            name = nextDisplayName
+                                        )
+                                    } else null
+
+                                    if (cloudUser?.id != authUid ||
+                                        !cloudUser.customId.equals(cleanId, ignoreCase = true) ||
+                                        cloudUser.accountNumber.isNullOrBlank()
+                                    ) {
+                                        isCheckingTag = false
+                                        tagError = "تعذر حفظ اليوزر في السحابة. لم يتم اعتماد التغيير."
+                                        Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
+                                        return@launch
+                                    }
+
+                                    displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName
+                                    userCustomTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)
                                     userBio = tempBio
-                                    UserIdentifierManager.saveCustomId(context, cleanId, userEmail)
+                                    UserIdentifierManager.saveCustomId(context, cloudUser.customId, userEmail)
+                                    UserIdentifierManager.saveAccountNumber(context, userEmail, cloudUser.accountNumber!!)
 
                                     profilePrefs.edit().putString("user_name", displayName).apply()
                                     prefs.edit()
+                                        .putString("user_id", authUid)
                                         .putString("user_display_name", displayName)
                                         .putString("user_name", displayName)
                                         .putString("user_tag", userCustomTag)
-                                        .putString("user_custom_id", cleanId)
+                                        .putString("user_custom_id", cloudUser.customId)
+                                        .putString("user_account_number", cloudUser.accountNumber)
                                         .apply()
                                     profilePrefs.edit().putString("user_bio", userBio).apply()
 
-                                    if (SupabaseServices.isSupabaseAvailable && userEmail.isNotBlank()) {
-                                        val userId = SupabaseServices.Auth.getCurrentUserId() ?: userEmail
-                                        SupabaseServices.Database.saveUser(
-                                            id = userId,
-                                            name = displayName,
-                                            email = userEmail,
-                                            type = prefs.getString("user_type", "مجاني") ?: "مجاني",
-                                            customId = cleanId,
-                                            accountNumber = activeAccountNumber
-                                        )
-                                    }
-
                                     isCheckingTag = false
                                     showEditProfileDialog = false
-                                    Toast.makeText(context, "تم حفظ الملف الشخصي وتأكيد المعرّف بنجاح! 💾", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
