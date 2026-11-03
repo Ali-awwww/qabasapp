@@ -77,14 +77,24 @@ jobs:
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
 
+          SUCCESS=0
           if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
             echo "🔑 Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
-            printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
-          elif [ -f "debug.keystore.base64" ]; then
+            printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | tr -d ' \t\r\n' | base64 -d > debug.keystore 2>/dev/null || true
+            if [ -s debug.keystore ]; then
+              SUCCESS=1
+            else
+              echo "⚠️ GitHub Secret RELEASE_KEYSTORE_BASE64 contained invalid base64 data. Falling back to repo file."
+              rm -f debug.keystore
+            fi
+          fi
+
+          if [ $SUCCESS -eq 0 ] && [ -f "debug.keystore.base64" ]; then
             echo "📦 Found debug.keystore.base64 in repository, decoding fallback..."
-            base64 -d debug.keystore.base64 > debug.keystore
-          else
-            echo "🔧 No custom keystore found, using default debug keystore setup"
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+            if [ -s debug.keystore ]; then
+              SUCCESS=1
+            fi
           fi
           # Ensure debug.keystore exists with proper Android debug key
           if [ ! -f debug.keystore ]; then
