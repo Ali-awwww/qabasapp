@@ -592,13 +592,6 @@ fun DevHubScaffold(
                 .padding(padding)
                 .background(DeepSlate)
         ) {
-            // Spatial Navigation Quick-Bar across all 6 hubs
-            if (currentHub != null && onNavigateSection != null) {
-                SpatialHubNavigationStrip(
-                    currentHub = currentHub,
-                    onSelectHub = onNavigateSection
-                )
-            }
 
             Surface(
                 color = CardSurface,

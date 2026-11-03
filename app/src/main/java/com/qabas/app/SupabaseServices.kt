@@ -75,6 +75,21 @@ object SupabaseServices {
                 .decodeSingleOrNull<ActiveUpdate>()
         }.onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }.getOrNull()
 
+        /**
+         * Checks if the email or custom_id is already taken in the cloud database.
+         * Authorized for anonymous access.
+         */
+        suspend fun checkAccountAvailability(email: String?, customId: String?): Result<AccountAvailabilityResponse> = withContext(Dispatchers.IO) {
+            runCatching {
+                val client = client ?: throw IllegalStateException("Supabase is not configured")
+                val params = buildJsonObject {
+                    put("p_email", email ?: "")
+                    put("p_custom_id", customId ?: "")
+                }
+                client.postgrest.rpc("check_account_availability", params).decodeAs<AccountAvailabilityResponse>()
+            }
+        }
+
         suspend fun ensureUser(
             externalId: String,
             email: String?,
@@ -2509,3 +2524,8 @@ data class ActiveUpdate(
     val fileSizeBytes: Long get() = file_size_bytes
     val isActive: Boolean get() = is_active
 }
+@Serializable
+data class AccountAvailabilityResponse(
+    @SerialName("email_taken") val emailTaken: Boolean,
+    @SerialName("custom_id_taken") val customIdTaken: Boolean
+)

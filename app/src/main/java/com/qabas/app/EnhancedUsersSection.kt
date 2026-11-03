@@ -54,10 +54,6 @@ fun EnhancedUsersSection(
     var confirmNewRole by remember { mutableStateOf<String?>(null) }
     var tempRoleDays by remember { mutableStateOf(0) }
     var roleMenuUser by remember { mutableStateOf<DevUser?>(null) }
-    var showAddUserDialog by remember { mutableStateOf(false) }
-    var newUserName by remember { mutableStateOf("") }
-    var newUserEmail by remember { mutableStateOf("") }
-    var newUserType by remember { mutableStateOf("مجاني") }
     val coroutineScope = rememberCoroutineScope()
 
     var isGeneratingHadiths by remember { mutableStateOf(false) }
@@ -106,93 +102,6 @@ fun EnhancedUsersSection(
         }
     }
 
-    // Dialogs stay at top level of Composable
-    if (showAddUserDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddUserDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.PersonAdd, contentDescription = null, tint = GoldPrimary)
-                    Text("إضافة مستخدم جديد", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 17.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = newUserName,
-                        onValueChange = { newUserName = it },
-                        label = { Text("الاسم الكامل", color = Color.Gray, fontFamily = CairoFont) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = newUserEmail,
-                        onValueChange = { newUserEmail = it },
-                        label = { Text("البريد الإلكتروني", color = Color.Gray, fontFamily = CairoFont) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("الرتبة الممنوحة:", color = GoldSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("مجاني", "خاص", "مطور").forEach { role ->
-                                val isSelected = newUserType == role
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { newUserType = role },
-                                    label = { Text(role, fontFamily = CairoFont, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = GoldPrimary,
-                                        selectedLabelColor = Color.Black
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newUserName.isBlank() || newUserEmail.isBlank()) {
-                            Toast.makeText(context, "يرجى إدخال الاسم والبريد الإلكتروني", Toast.LENGTH_SHORT).show()
-                        } else {
-                            // Accounts must originate from Supabase Auth. The admin
-                            // dashboard must not fabricate UUIDs or local-only users.
-                            Toast.makeText(
-                                context,
-                                "لا يمكن إنشاء مستخدم يدوياً من هذه الشاشة. يجب أن يُنشأ الحساب عبر مسار التسجيل السحابي أولاً.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("إضافة المستخدم", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddUserDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = CardSurface,
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
 
     confirmRoleUser?.let { user ->
         AlertDialog(
@@ -242,10 +151,13 @@ fun EnhancedUsersSection(
                                 if (idx != -1) {
                                     devUsers[idx] = devUsers[idx].copy(type = if (days > 0) "$newType (مؤقت $days يوم)" else newType)
                                 }
+                                if (user.email.equals(SupabaseServices.Auth.getCurrentUserEmail(), ignoreCase = true)) {
+                                    AdminGuard.isDashboardAccessAllowed(context)
+                                }
                                 AuditLogger.log(context, "user_role_change", "${user.email} -> $newType" + if (days > 0) " ($days يوم)" else "")
-                                Toast.makeText(context, "تم تغيير الرتبة بنجاح وحفظها سحابياً ✅", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "تم ترقية الحساب وحفظ الرتبة ($newType) في السحابة بنجاح 🚀", Toast.LENGTH_LONG).show()
                             } else {
-                                Toast.makeText(context, "فشل تغيير الرتبة: تحقق من الاتصال", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "فشل تغيير الرتبة: تحقق من الاتصال بالسحابة", Toast.LENGTH_LONG).show()
                             }
                         }
                         confirmRoleUser = null
@@ -742,41 +654,21 @@ fun EnhancedUsersSection(
             Spacer(modifier = Modifier.height(8.dp))
 
             // ── شريط الإجراءات والتحكم المتناسق ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Button(
+                onClick = {
+                    if (filteredUsers.isEmpty()) {
+                        Toast.makeText(context, "لا توجد حسابات للتصدير حالياً", Toast.LENGTH_SHORT).show()
+                    } else {
+                        csvExport.launch("qabas_users_${System.currentTimeMillis()}.csv")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Button(
-                    onClick = {
-                        AppSoundManager.playTab()
-                        showAddUserDialog = true
-                    },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("مستخدم جديد", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        if (filteredUsers.isEmpty()) {
-                            Toast.makeText(context, "لا توجد حسابات للتصدير حالياً", Toast.LENGTH_SHORT).show()
-                        } else {
-                            csvExport.launch("qabas_users_${System.currentTimeMillis()}.csv")
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("تصدير CSV", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
+                Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("تصدير سجل المستخدمين (CSV)", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
 

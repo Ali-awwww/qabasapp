@@ -77,12 +77,12 @@ jobs:
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
 
-          if [ -f "debug.keystore.base64" ]; then
-            echo "Found debug.keystore.base64 in repository, decoding..."
-            base64 -d debug.keystore.base64 > debug.keystore
-          elif [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "🔑 Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
             printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+          elif [ -f "debug.keystore.base64" ]; then
+            echo "📦 Found debug.keystore.base64 in repository, decoding fallback..."
+            base64 -d debug.keystore.base64 > debug.keystore
           else
             echo "🔧 No custom keystore found, using default debug keystore setup"
           fi
