@@ -27,17 +27,46 @@ begin
 end;
 $$;
 
-create or replace function public.get_next_account_sequence()
-returns integer
-language sql
+create or replace function public.ensure_my_account_number()
+returns text
+language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
-    select nextval('public.qabas_account_number_seq')::integer;
-$$;
+as $
+declare
+    authenticated_uid text := auth.uid()::text;
+    current_number text;
+begin
+    if authenticated_uid is null then
+        raise exception 'Authentication is required';
+    end if;
 
-revoke all on function public.get_next_account_sequence() from public, anon;
-grant execute on function public.get_next_account_sequence() to authenticated;
+    select account_number
+      into current_number
+      from public.users
+     where id = authenticated_uid
+     for update;
+
+    if not found then
+        raise exception 'Authenticated user profile is missing';
+    end if;
+
+    if current_number is not null and btrim(current_number) <> '' then
+        return current_number;
+    end if;
+
+    current_number := '#QBS-' || lpad(nextval('public.qabas_account_number_seq')::text, 4, '0');
+
+    update public.users
+       set account_number = current_number
+     where id = authenticated_uid;
+
+    return current_number;
+end;
+$;
+
+revoke all on function public.ensure_my_account_number() from public, anon;
+grant execute on function public.ensure_my_account_number() to authenticated;
 
 -- Enforce case-insensitive username uniqueness at the database boundary.
 do $$
