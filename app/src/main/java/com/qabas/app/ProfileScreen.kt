@@ -2499,7 +2499,8 @@ fun ProfileScreen(
                                         )
                                     } else null
 
-                                    if (cloudUser?.id != authUid ||
+                                    if (cloudUser == null ||
+                                        cloudUser.id != authUid ||
                                         !cloudUser.customId.equals(cleanId, ignoreCase = true) ||
                                         cloudUser.accountNumber.isNullOrBlank()
                                     ) {

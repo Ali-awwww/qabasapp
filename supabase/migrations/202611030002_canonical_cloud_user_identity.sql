@@ -267,9 +267,12 @@ BEGIN
 
         IF NULLIF(btrim(NEW.custom_id), '') IS NULL THEN
             v_slug := lower(regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9]+', '_', 'g'));
-            v_slug := left(trim(both '_' from v_slug), 12);
             IF v_slug = '' THEN v_slug := 'user'; END IF;
-            NEW.custom_id := v_slug || '_' || substr(replace(v_auth_uid, '-', ''), 1, 8);
+            -- The sequence is globally unique, so it also guarantees a unique
+            -- automatically-issued handle; trim the slug to keep the whole
+            -- handle within the application's 25-character limit.
+            v_slug := left(trim(both '_' from v_slug), GREATEST(1, 24 - length(v_sequence::TEXT)));
+            NEW.custom_id := v_slug || '_' || v_sequence::TEXT;
         ELSE
             NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
             IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN

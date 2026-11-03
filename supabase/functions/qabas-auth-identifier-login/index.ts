@@ -30,6 +30,10 @@ async function resolveEmail(identifier: string): Promise<string | null> {
   if (!clean || clean.length > 64) return null;
 
   // Usernames are resolved only inside this server-side function.
+  // A numeric or QBS-form identifier is handled only by the account-number branch.
+  const accountNumberInput = /^#?QBS-\\d+$/i.test(clean) || /^\\d+$/.test(clean);
+  if (accountNumberInput) return null;
+
   const handle = clean.replace(/^@/, "").toLowerCase();
   const byHandle = await admin
     .from("users")
