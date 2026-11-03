@@ -128,6 +128,9 @@ object SupabaseServices {
                 existing = readCanonical()
             } else {
                 val patch = buildMap<String, Any> {
+                    if (!existing.email.equals(authEmail, ignoreCase = true)) {
+                        put("email", authEmail)
+                    }
                     if (existing.name.isNullOrBlank() && !name.isNullOrBlank()) {
                         put("name", name.trim())
                     }
@@ -1541,65 +1544,60 @@ object SupabaseServices {
 
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
-            lastInteractionError = null // Clear previous error
+            lastInteractionError = null
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
-            val effectiveUserId = authUid ?: userId
-            
-            if (authUid == null) {
-                Log.w(TAG, "likeReel: unauthenticated session for reel $reelId")
-                lastInteractionError = "يجب تسجيل الدخول للإعجاب"
+                ?: run {
+                    lastInteractionError = "يجب تسجيل الدخول للإعجاب"
+                    return false
+                }
+            if (authUid != userId) {
+                lastInteractionError = "هوية المستخدم لا تطابق جلسة المصادقة الحالية"
                 return false
             }
 
-            if (reelId.startsWith("qabas_")) {
-                ensureStarterReel(reelId, effectiveUserId)
+            if (reelId.startsWith("qabas_") && !ensureStarterReel(reelId, authUid)) {
+                lastInteractionError = "تعذر تجهيز المقطع السحابي للتفاعل"
+                return false
             }
 
-            val row = ReelBookmarkRow(reelId = reelId, userId = effectiveUserId)
+            val row = ReelBookmarkRow(reelId = reelId, userId = authUid)
             client.postgrest.from("reel_likes").upsert(row) {
                 onConflict = "reel_id,user_id"
             }
             true
-        }.onFailure { e -> 
+        }.onFailure { e ->
             val msg = e.message.orEmpty()
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: $msg", e)
             lastInteractionError = msg
-        }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) {
-                Log.i(TAG, "Starter reel like accepted locally due to fallback")
-                true
-            } else false
-        }
+        }.getOrDefault(false)
 
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
-            val effectiveUserId = authUid ?: userId
-
-            if (authUid == null) {
-                lastInteractionError = "يجب تسجيل الدخول"
+                ?: run {
+                    lastInteractionError = "يجب تسجيل الدخول"
+                    return false
+                }
+            if (authUid != userId) {
+                lastInteractionError = "هوية المستخدم لا تطابق جلسة المصادقة الحالية"
                 return false
             }
 
             client.postgrest.from("reel_likes").delete {
                 filter {
                     eq("reel_id", reelId)
-                    eq("user_id", effectiveUserId)
+                    eq("user_id", authUid)
                 }
             }
             true
-        }.onFailure { e -> 
+        }.onFailure { e ->
             val msg = e.message.orEmpty()
             Log.e(TAG, "unlikeReel failed for reel $reelId, user $userId: $msg")
             lastInteractionError = msg
-        }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) true
-            else false
-        }
+        }.getOrDefault(false)
+
         suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
             val client = client ?: return null
             client.postgrest.from("reel_comments").select {
@@ -1614,38 +1612,38 @@ object SupabaseServices {
             lastInteractionError = null
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
-            val effectiveUserId = authUid ?: userId
-            if (authUid == null) {
-                lastInteractionError = "يجب تسجيل الدخول"
+                ?: run {
+                    lastInteractionError = "يجب تسجيل الدخول"
+                    return false
+                }
+            if (authUid != userId) {
+                lastInteractionError = "هوية المستخدم لا تطابق جلسة المصادقة الحالية"
                 return false
             }
-            if (reelId.startsWith("qabas_")) {
-                ensureStarterReel(reelId, effectiveUserId)
+            if (reelId.startsWith("qabas_") && !ensureStarterReel(reelId, authUid)) {
+                lastInteractionError = "تعذر تجهيز المقطع السحابي للحفظ"
+                return false
             }
-            val row = ReelBookmarkRow(reelId = reelId, userId = effectiveUserId)
+            val row = ReelBookmarkRow(reelId = reelId, userId = authUid)
             client.postgrest.from("reel_bookmarks").upsert(row) {
                 onConflict = "reel_id,user_id"
             }
             true
-        }.onFailure { e -> 
+        }.onFailure { e ->
             val msg = e.message.orEmpty()
-            Log.e(TAG, "addReelBookmark failed: $msg") 
+            Log.e(TAG, "addReelBookmark failed: $msg")
             lastInteractionError = msg
-        }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) true
-            else false
-        }
+        }.getOrDefault(false)
 
         suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
-            val effectiveUserId = authUid ?: userId
-            if (authUid == null) return false
+                ?: return false
+            if (authUid != userId) return false
             client.postgrest.from("reel_bookmarks").delete {
                 filter {
                     eq("reel_id", reelId)
-                    eq("user_id", effectiveUserId)
+                    eq("user_id", authUid)
                 }
             }
             true
@@ -1654,18 +1652,21 @@ object SupabaseServices {
         suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
             val client = client ?: return null
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
-            val effectiveUserId = authUid ?: userId
+                ?: return null
+            if (authUid != userId) {
+                Log.w(TAG, "addReelComment rejected non-canonical caller identity")
+                return null
+            }
 
-            if (authUid == null) return null
-
-            if (reelId.startsWith("qabas_")) {
-                ensureStarterReel(reelId, effectiveUserId)
+            if (reelId.startsWith("qabas_") && !ensureStarterReel(reelId, authUid)) {
+                Log.w(TAG, "addReelComment could not ensure cloud starter reel")
+                return null
             }
 
             val comment = ReelCommentRow(
                 id = java.util.UUID.randomUUID().toString(),
                 reelId = reelId,
-                userId = effectiveUserId,
+                userId = authUid,
                 commentText = commentText,
                 likesCount = 0,
                 createdAt = java.time.Instant.now().toString()

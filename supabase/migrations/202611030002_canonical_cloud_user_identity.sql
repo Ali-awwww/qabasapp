@@ -267,9 +267,9 @@ BEGIN
 
         IF NULLIF(btrim(NEW.custom_id), '') IS NULL THEN
             v_slug := lower(regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9]+', '_', 'g'));
-            v_slug := left(trim(both '_' from v_slug), 10);
+            v_slug := left(trim(both '_' from v_slug), 12);
             IF v_slug = '' THEN v_slug := 'user'; END IF;
-            NEW.custom_id := v_slug || '_' || lpad(v_sequence::TEXT, 6, '0');
+            NEW.custom_id := v_slug || '_' || substr(replace(v_auth_uid, '-', ''), 1, 8);
         ELSE
             NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
             IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN
@@ -291,7 +291,11 @@ BEGIN
         NEW.created_at := OLD.created_at;
         -- Email is owned by Supabase Auth; updating another user's profile must
         -- never replace their email with the administrator's auth email.
-        NEW.email := OLD.email;
+        IF OLD.id = v_auth_uid THEN
+            NEW.email := COALESCE(v_auth_email, OLD.email);
+        ELSE
+            NEW.email := OLD.email;
+        END IF;
 
         IF v_role NOT IN ('admin', 'developer', 'owner') THEN
             NEW.type := OLD.type;
