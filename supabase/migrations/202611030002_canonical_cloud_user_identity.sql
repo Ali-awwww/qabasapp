@@ -87,6 +87,13 @@ candidates AS (
     SELECT lower(btrim(u.email)) AS alias_id, a.auth_uid
     FROM public.users u JOIN auth_emails a ON a.email = lower(btrim(u.email))
     WHERE a.auth_count = 1
+
+    UNION ALL
+    -- Also migrate legacy ownership values equal to a verified Auth email,
+    -- even when the old public.users profile row is missing.
+    SELECT a.email AS alias_id, a.auth_uid
+    FROM auth_emails a
+    WHERE a.auth_count = 1
 )
 SELECT alias_id, MIN(auth_uid) AS auth_uid
 FROM candidates
@@ -176,7 +183,6 @@ BEGIN
             ('reels', 'user_id'),
             ('reel_comments', 'user_id'),
             ('reel_history', 'user_id'),
-            ('saved_items', 'user_id'),
             ('chat_messages', 'user_id'),
             ('dev_chat_messages', 'user_id'),
             ('dev_bug_reports', 'user_id'),
@@ -201,7 +207,182 @@ BEGIN
         );
     END LOOP;
 END
+$;
+
+-- saved_items.user_id is UUID (unlike most legacy ownership columns which
+-- are TEXT), so compare as text and cast only a validated Auth UUID.
+UPDATE public.saved_items target
+   SET user_id = map.auth_uid::UUID
+  FROM qbas_identity_aliases map
+ WHERE target.user_id::TEXT = map.alias_id
+   AND map.auth_uid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-- non-selected legacy rows are preserved unchanged for manual review.
+UPDATE public.users u
+   SET id = c.auth_uid, external_id = c.auth_uid, email = c.email
+  FROM qbas_identity_canonical c
+ WHERE u.id = c.profile_id
+   AND u.id <> c.auth_uid
+   AND NOT EXISTS (SELECT 1 FROM public.users existing WHERE existing.id = c.auth_uid);
+
+UPDATE public.users u
+   SET external_id = u.id
+  FROM qbas_identity_canonical c
+ WHERE u.id = c.auth_uid AND u.external_id IS DISTINCT FROM u.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_custom_id_lower_unique
+    ON public.users (lower(btrim(custom_id)));
+CREATE UNIQUE INDEX IF NOT EXISTS users_account_number_lower_unique
+    ON public.users (lower(regexp_replace(btrim(account_number), '^#', '')));
+
+CREATE OR REPLACE FUNCTION qabas_identity_private.enforce_user_identity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, qabas_identity_private
+AS $$
+DECLARE
+    v_auth_uid TEXT;
+    v_auth_email TEXT;
+    v_role TEXT;
+    v_sequence BIGINT;
+    v_slug TEXT;
+BEGIN
+    v_auth_uid := auth.uid()::TEXT;
+    IF v_auth_uid IS NULL OR v_auth_uid = '' THEN
+        RAISE EXCEPTION 'A valid Supabase Auth session is required to write a user profile'
+            USING ERRCODE = '42501';
+    END IF;
+
+    v_auth_email := NULLIF(lower(btrim(auth.jwt() ->> 'email')), '');
+
+    IF TG_OP = 'INSERT' THEN
+        NEW.id := v_auth_uid;
+        NEW.external_id := v_auth_uid;
+        NEW.email := COALESCE(v_auth_email, NULLIF(lower(btrim(NEW.email)), ''));
+        IF NEW.email IS NULL THEN
+            RAISE EXCEPTION 'The authenticated account must have an email address'
+                USING ERRCODE = '23502';
+        END IF;
+
+        v_role := lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', 'user'));
+        NEW.type := CASE
+            WHEN v_role IN ('developer', 'owner') THEN 'مطور'
+            WHEN v_role IN ('admin', 'special') THEN 'خاص'
+            ELSE 'مجاني'
+        END;
+        NEW.status := 'active';
+        NEW.strikes := 0;
+        NEW.is_eligible := TRUE;
+
+        v_sequence := nextval('qabas_identity_private.account_number_seq'::regclass);
+        NEW.account_number := '#QBS-' || lpad(v_sequence::TEXT, 4, '0');
+
+        IF NULLIF(btrim(NEW.custom_id), '') IS NULL THEN
+            v_slug := lower(regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9]+', '_', 'g'));
+            IF v_slug = '' THEN v_slug := 'user'; END IF;
+            -- The sequence is globally unique, so it also guarantees a unique
+            -- automatically-issued handle; trim the slug to keep the whole
+            -- handle within the application's 25-character limit.
+            v_slug := left(trim(both '_' from v_slug), GREATEST(1, 24 - length(v_sequence::TEXT)));
+            NEW.custom_id := v_slug || '_' || v_sequence::TEXT;
+        ELSE
+            NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
+            IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN
+                RAISE EXCEPTION 'The requested username is invalid' USING ERRCODE = '22023';
+            END IF;
+        END IF;
+
+        NEW.created_at := COALESCE(NEW.created_at, now());
+        NEW.updated_at := now();
+    ELSE
+        v_role := lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', ''));
+        IF OLD.id <> v_auth_uid AND v_role NOT IN ('admin', 'developer', 'owner') THEN
+            RAISE EXCEPTION 'A user may only update their own profile' USING ERRCODE = '42501';
+        END IF;
+
+        NEW.id := OLD.id;
+        NEW.external_id := OLD.external_id;
+        NEW.account_number := OLD.account_number;
+        NEW.created_at := OLD.created_at;
+        -- Email is owned by Supabase Auth; updating another user's profile must
+        -- never replace their email with the administrator's auth email.
+        IF OLD.id = v_auth_uid THEN
+            NEW.email := COALESCE(v_auth_email, OLD.email);
+        ELSE
+            NEW.email := OLD.email;
+        END IF;
+
+        IF v_role NOT IN ('admin', 'developer', 'owner') THEN
+            NEW.type := OLD.type;
+            NEW.status := OLD.status;
+            NEW.strikes := OLD.strikes;
+            NEW.is_eligible := OLD.is_eligible;
+        END IF;
+
+        IF NULLIF(btrim(NEW.custom_id), '') IS NOT NULL THEN
+            NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
+            IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN
+                RAISE EXCEPTION 'The requested username is invalid' USING ERRCODE = '22023';
+            END IF;
+        ELSE
+            NEW.custom_id := OLD.custom_id;
+        END IF;
+        NEW.updated_at := now();
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
+
+REVOKE ALL ON FUNCTION qabas_identity_private.enforce_user_identity()
+    FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS enforce_user_identity_before_write ON public.users;
+CREATE TRIGGER enforce_user_identity_before_write
+    BEFORE INSERT OR UPDATE ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION qabas_identity_private.enforce_user_identity();
+
+-- Authenticated users can read their own row; trusted app_metadata roles may
+-- read/update the user directory for the developer dashboard.
+DROP POLICY IF EXISTS users_admin_select ON public.users;
+CREATE POLICY users_admin_select
+    ON public.users
+    FOR SELECT
+    TO authenticated
+    USING (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    );
+
+DROP POLICY IF EXISTS users_admin_update ON public.users;
+CREATE POLICY users_admin_update
+    ON public.users
+    FOR UPDATE
+    TO authenticated
+    USING (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    )
+    WITH CHECK (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    );
+
+-- The follow client uses upsert, which requires SELECT/INSERT/UPDATE and
+-- the matching owner-scoped UPDATE policy for the conflict path.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.creator_follows TO authenticated;
+
+DROP POLICY IF EXISTS creator_follows_update_self ON public.creator_follows;
+CREATE POLICY creator_follows_update_self
+    ON public.creator_follows
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT auth.uid())::text = follower_id)
+    WITH CHECK ((SELECT auth.uid())::text = follower_id);
+
+GRANT SELECT, INSERT, UPDATE ON TABLE public.users TO authenticated;
+REVOKE DELETE ON TABLE public.users FROM authenticated;
+REVOKE ALL ON FUNCTION public.get_next_account_sequence() FROM PUBLIC, anon, authenticated;
+
+COMMIT;
+
+   AND map.alias_id <> map.auth_uid;
 
 -- Promote the selected profile row to Auth UID. Ambiguous emails and
 -- non-selected legacy rows are preserved unchanged for manual review.
