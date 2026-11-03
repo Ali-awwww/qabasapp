@@ -44,10 +44,6 @@ object UserIdentifierManager {
     }
 
     /**
-     * استرجاع أو إنشاء رقم الحساب الرسمي الحقيقي والمتسلسل للمستخدم.
-     * ملاحظة: يفضل استخدام ensureCloudAccountNumber لضمان المزامنة مع السحابة.
-     */
-    /**
      * Legacy compatibility accessor. This value is only a cache of a cloud-issued
      * number; a cache miss never allocates or guesses an account number.
      */
