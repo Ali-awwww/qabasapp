@@ -1139,7 +1139,7 @@ object UpdateManager {
                 Log.w(TAG, "⚠️ PatchManager failed: $errorMsg")
                 
                 withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "فشل التحديث التفاضلي: $errorMsg", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, "تعذّر تطبيق التحديث التفاضلي، جاري تحويل التنزيل إلى الحزمة الكاملة تلقائياً...", android.widget.Toast.LENGTH_SHORT).show()
                 }
                 return null
             }

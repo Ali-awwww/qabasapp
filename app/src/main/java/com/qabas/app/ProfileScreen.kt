@@ -2508,24 +2508,28 @@ fun ProfileScreen(
                                         return@launch
                                     }
 
+                                    val sessionEmail = SupabaseServices.Auth.getCurrentUserEmail()?.trim()?.lowercase(java.util.Locale.ROOT)
+                                    val activeEmail = sessionEmail ?: userEmail
+                                    val normalizedCleanId = UserIdentifierManager.normalize(cleanId)
+
                                     val nextDisplayName = tempName.ifBlank { "مستخدم قبس" }
                                     val saved = SupabaseServices.Database.saveUser(
                                         id = authUid,
                                         name = nextDisplayName,
-                                        email = userEmail,
-                                        customId = cleanId
+                                        email = activeEmail,
+                                        customId = normalizedCleanId
                                     )
                                     val cloudUser = SupabaseServices.Database.ensureUser(
                                         externalId = authUid,
-                                        email = userEmail,
+                                        email = activeEmail,
                                         name = nextDisplayName,
-                                        customId = cleanId
+                                        customId = normalizedCleanId
                                     )
 
+                                    val returnedCustomId = cloudUser?.customId?.let { UserIdentifierManager.normalize(it) } ?: ""
                                     if (cloudUser == null ||
                                         cloudUser.id != authUid ||
-                                        !cloudUser.customId.equals(cleanId, ignoreCase = true) ||
-                                        cloudUser.accountNumber.isNullOrBlank()
+                                        returnedCustomId != normalizedCleanId
                                     ) {
                                         isCheckingTag = false
                                         tagError = "تعذر حفظ اليوزر في السحابة. لم يتم اعتماد التغيير."
@@ -2536,11 +2540,15 @@ fun ProfileScreen(
                                     // Save bio directly to Supabase cloud
                                     SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
 
+                                    val resolvedAccNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
+                                        ?: UserIdentifierManager.getAccountNumber(context, activeEmail)
+                                        ?: "QBS-0001"
+
                                     displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName
                                     userCustomTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)
                                     userBio = tempBio
-                                    UserIdentifierManager.saveCustomId(context, cloudUser.customId, userEmail)
-                                    UserIdentifierManager.saveAccountNumber(context, userEmail, cloudUser.accountNumber!!)
+                                    UserIdentifierManager.saveCustomId(context, cloudUser.customId, activeEmail)
+                                    UserIdentifierManager.saveAccountNumber(context, activeEmail, resolvedAccNumber)
 
                                     profilePrefs.edit().putString("user_name", displayName).apply()
                                     prefs.edit()

@@ -343,16 +343,10 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     )
                 }
 
-                // 1. غرفة الوكيل ومركز البناء
                 DashboardSection.AGENT_BUILD_HUB, DashboardSection.AGENT_ROOM, DashboardSection.BUILD_CENTER -> {
-                    val initialTab = if (currentSection == DashboardSection.BUILD_CENTER) 1 else 0
-                    AgentBuildHubScreen(
-                        initialTab = initialTab,
-                        context = context,
-                        onBack = { currentSection = DashboardSection.MAIN },
-                        onNavigateSection = { currentSection = it },
-                        onNavigateTo = onNavigateTo
-                    )
+                    LaunchedEffect(Unit) {
+                        onNavigateTo(AppState.AI_STUDIO_AGENT)
+                    }
                 }
 
                 // 2. مركز المفاتيح والربط السحابي
@@ -465,7 +459,6 @@ fun SpatialHubNavigationStrip(
     )
 
     val hubs = listOf(
-        Triple(DashboardSection.AGENT_BUILD_HUB, "🤖 الوكيل والبناء", Color(0xFF8B5CF6)),
         Triple(DashboardSection.CLOUD_API_HUB, "⚡ المفاتيح والسحابة", GoldPrimary),
         Triple(DashboardSection.HEALTH_DIAGNOSTICS_HUB, "🩺 التشخيص والصحة", Color(0xFF0EA5E9)),
         Triple(DashboardSection.USERS_COMMUNITY_HUB, "👥 المستخدمون", Color(0xFF10B981)),
@@ -634,236 +627,6 @@ fun DevHubScaffold(
 }
 
 @Composable
-fun AgentBuildHubScreen(
-    initialTab: Int = 0,
-    context: Context,
-    onBack: () -> Unit,
-    onNavigateSection: (DashboardSection) -> Unit,
-    onNavigateTo: (AppState) -> Unit
-) {
-    var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🤖 مركز الوكيل (شاشة موحدة)", "🏗️ مركز البناء و APK (Build Center)")
-
-    // رجوع ذكي: إذا كان في تبويب فرعي، العودة للتبويب الرئيسي أولاً
-    androidx.activity.compose.BackHandler(enabled = selectedTab != 0) {
-        selectedTab = 0
-    }
-
-    val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
-    val activeRepo = remember(vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
-    val (engineProvider, _) = remember(vaultTrigger) { UniversalKeyBrain.getActiveEngine() }
-
-    DevHubScaffold(
-        title = "غرفة الوكيل ومركز البناء",
-        subtitle = "التطوير الذكي المباشر والأتمتة وبناء حزم APK",
-        icon = Icons.Default.SmartToy,
-        accentColor = Color(0xFF8B5CF6),
-        tabs = tabs,
-        selectedTab = selectedTab,
-        onTabSelected = { selectedTab = it },
-        onBack = onBack,
-        currentHub = DashboardSection.AGENT_BUILD_HUB,
-        onNavigateSection = onNavigateSection
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // ══════════════════════════════════════════════════════════════
-            // 🌌 شريط التحكم والجاهزية السيبراني الموحد (SPATIAL MISSION CONTROL HUD)
-            // ══════════════════════════════════════════════════════════════
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                color = Color(0xEE060C18),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFF00F0FF).copy(alpha = 0.5f),
-                            Color(0xFF8B5CF6).copy(alpha = 0.35f),
-                            Color(0xFF10B981).copy(alpha = 0.4f)
-                        )
-                    )
-                )
-            ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFF00F0FF).copy(alpha = 0.25f))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // مؤشر المحرك الذكي النشط
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (engineProvider != DetectedProvider.NONE) Color(0xFF10B981) else Color(0xFFEF4444))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                if (engineProvider != DetectedProvider.NONE) "محرك: ${engineProvider.displayName}" else "المحرك: غير متصل",
-                                color = if (engineProvider != DetectedProvider.NONE) Color(0xFF6EE7B7) else Color(0xFFFCA5A5),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.5.sp
-                            )
-                        }
-
-                        // مؤشر المستودع النشط
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Code, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                activeRepo?.let { "${it.owner}/${it.repo}" } ?: "لم يُحدد مستودع",
-                                color = Color.White,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 10.5.sp,
-                                maxLines = 1
-                            )
-                        }
-
-                        // أزرار التنقل السريعة بين الأدوات
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                color = if (selectedTab == 0) Color(0xFF0F3A2A) else Color(0xFF131F33),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, if (selectedTab == 0) Color(0xFF10B981) else Color(0xFF334155)),
-                                modifier = Modifier.clickable { onNavigateTo(AppState.AI_STUDIO_AGENT) }
-                            ) {
-                                Text(
-                                    "⚡ الوكيل ↗",
-                                    color = if (selectedTab == 0) Color(0xFF34D399) else Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.5.sp,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-
-                            Surface(
-                                color = if (selectedTab == 1) Color(0xFF311042) else Color(0xFF131F33),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, if (selectedTab == 1) Color(0xFFA855F7) else Color(0xFF334155)),
-                                modifier = Modifier.clickable { selectedTab = 1 }
-                            ) {
-                                Text(
-                                    "🏗️ البناء",
-                                    color = if (selectedTab == 1) Color(0xFFC084FC) else Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.5.sp,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Surface(
-                                color = Color(0xFF0C243B),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, Color(0xFF00E5FF)),
-                                modifier = Modifier.clickable { onNavigateTo(AppState.AI_STUDIO_AGENT) }
-                            ) {
-                                Text(
-                                    "🛸 AI Studio",
-                                    color = Color(0xFF00E5FF),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.5.sp,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                when (selectedTab) {
-                    0 -> AgentRoomRedirectCard(
-                        onOpenAgentScreen = { onNavigateTo(AppState.AI_STUDIO_AGENT) },
-                        onJumpKeys = { onNavigateSection(DashboardSection.CLOUD_API_HUB) }
-                    )
-                    1 -> BuildCenterSection(
-                        context = context,
-                        onNavigateTo = onNavigateTo,
-                        onJumpAgentRoom = { onNavigateTo(AppState.AI_STUDIO_AGENT) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * بطاقة التحويل الموحدة: لوحة المطور لم تعد تستضيف نسخة ثانية من غرفة الوكيل.
- * كل منطق الوكيل يعيش في شاشة واحدة هي AiStudioAgentScreen.
- */
-@Composable
-fun AgentRoomRedirectCard(
-    onOpenAgentScreen: () -> Unit,
-    onJumpKeys: () -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(AgentDesign.Backdrop)
-            .padding(AgentDesign.SpaceLg),
-        verticalArrangement = Arrangement.spacedBy(AgentDesign.SpaceMd)
-    ) {
-        AgentNeonCard(accent = AgentDesign.Primary) {
-            AgentSectionHeader(index = "00", title = "مركز الوكيل الذكي", accent = AgentDesign.Primary)
-            Spacer(Modifier.height(AgentDesign.SpaceMd))
-            Text(
-                "تم توحيد غرفة الوكيل في شاشة واحدة: المهمة، الطابور الحي، الأدوات والجاهزية، والسجل — بتبويبات هندسية واحدة.",
-                color = AgentDesign.TextSecondary,
-                fontFamily = CairoFont,
-                fontSize = AgentDesign.FontXs
-            )
-            Spacer(Modifier.height(AgentDesign.SpaceLg))
-            Row(horizontalArrangement = Arrangement.spacedBy(AgentDesign.SpaceSm)) {
-                AgentNeonButton(
-                    text = "فتح مركز الوكيل",
-                    onClick = onOpenAgentScreen,
-                    accent = AgentDesign.Primary,
-                    icon = Icons.Default.Bolt
-                )
-                AgentNeonButton(
-                    text = "مفاتيح API",
-                    onClick = onJumpKeys,
-                    accent = AgentDesign.Secondary,
-                    icon = Icons.Default.VpnKey
-                )
-            }
-        }
-
-        AgentNeonCard(accent = AgentDesign.Secondary) {
-            AgentSectionHeader(index = "01", title = "لماذا شاشة واحدة؟", accent = AgentDesign.Secondary)
-            Spacer(Modifier.height(AgentDesign.SpaceSm))
-            Text(
-                "نسخة واحدة من الحالة (سياق التنفيذ، الفريق، النموذج، السجل) تعني سلوكاً متسقاً وسجلاً حقيقياً لكل تشغيل، بدل نسختين متشابهتين تتباعدان مع الوقت.",
-                color = AgentDesign.TextSecondary,
-                fontFamily = CairoFont,
-                fontSize = AgentDesign.FontXs
-            )
-            Spacer(Modifier.height(AgentDesign.SpaceSm))
-            Text(
-                "مركز البناء و APK يبقى هنا في التبويب الثاني، ويفتح مركز الوكيل عند الحاجة للتشغيل.",
-                color = AgentDesign.TextSecondary,
-                fontFamily = CairoFont,
-                fontSize = AgentDesign.FontXs
-            )
-        }
-    }
-}
-
-@Composable
 fun CloudApiHubScreen(
     initialTab: Int = 0,
     context: Context,
@@ -889,7 +652,7 @@ fun CloudApiHubScreen(
             0 -> ApiKeysScreen(onBack = onBack)
             1 -> DeveloperKeyStatusHub(onBack = onBack)
             2 -> ConnectorsSection(
-                onJumpBuildCenter = { onNavigateSection(DashboardSection.AGENT_BUILD_HUB) },
+                onJumpBuildCenter = { selectedTab = 0 },
                 onJumpKeys = { selectedTab = 0 },
                 onJumpHealth = { onNavigateSection(DashboardSection.HEALTH_DIAGNOSTICS_HUB) },
                 onJumpDeltaMonitoring = { selectedTab = 4 }
@@ -1732,16 +1495,6 @@ fun DashboardMainGrid(
     )
 
     val allHubs = listOf(
-        CommandHubCardData(
-            id = 1,
-            title = "غرفة الوكيل ومركز البناء",
-            subtitle = "وكيل ReAct البرمجي • إدارة Git • بناء وتجميع APK وتتبع المهام",
-            badge = "تطوير وبرمجة ⚡",
-            techTag = "// REACT AGENT + GIT PIPELINE",
-            icon = Icons.Default.SmartToy,
-            accent = Violet,
-            onClick = onAgentBuildHub
-        ),
         CommandHubCardData(
             id = 2,
             title = "مركز المفاتيح والربط السحابي",

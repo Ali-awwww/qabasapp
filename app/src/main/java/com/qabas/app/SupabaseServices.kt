@@ -124,13 +124,15 @@ object SupabaseServices {
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()
 
+            val normalizedInputId = customId?.let { UserIdentifierManager.normalize(it) }?.takeIf { it.isNotBlank() }
+
             var existing = readCanonical()
             if (existing == null) {
                 val payload = UserProfileInsert(
                     id = authUid,
                     email = authEmail,
                     name = name?.trim()?.takeIf { it.isNotBlank() },
-                    customId = customId?.trim()?.takeIf { it.isNotBlank() }
+                    customId = normalizedInputId ?: UserIdentifierManager.generateUniqueId(name ?: authEmail)
                 )
                 runCatching {
                     client.postgrest.from("users").insert(payload) {
@@ -149,10 +151,12 @@ object SupabaseServices {
                     if (!name.isNullOrBlank() && !name.trim().equals(existing.name?.trim(), ignoreCase = false)) {
                         put("name", name.trim())
                     }
-                    if (!customId.isNullOrBlank() &&
-                        !customId.equals(existing.customId, ignoreCase = true)
+                    if (!normalizedInputId.isNullOrBlank() &&
+                        !normalizedInputId.equals(UserIdentifierManager.normalize(existing.customId ?: ""), ignoreCase = true)
                     ) {
-                        put("custom_id", customId.trim().removePrefix("@"))
+                        put("custom_id", normalizedInputId)
+                    } else if (existing.customId.isNullOrBlank()) {
+                        put("custom_id", UserIdentifierManager.generateUniqueId(existing.name ?: authEmail))
                     }
                 }
                 if (patch.isNotEmpty()) {
@@ -163,10 +167,19 @@ object SupabaseServices {
                 }
             }
 
+            if (existing != null && existing.accountNumber.isNullOrBlank()) {
+                val newAcc = "QBS-" + String.format(java.util.Locale.ROOT, "%04d", (1000..9999).random())
+                runCatching {
+                    client.postgrest.from("users").update(mapOf("account_number" to newAcc)) {
+                        filter { eq("id", authUid) }
+                    }
+                    existing = readCanonical()
+                }
+            }
+
             existing?.takeIf {
                 it.id == authUid &&
-                    !it.customId.isNullOrBlank() &&
-                    !it.accountNumber.isNullOrBlank()
+                    !it.customId.isNullOrBlank()
             } ?: run {
                 Log.e(TAG, "ensureUser: canonical cloud profile is missing identity fields")
                 null
@@ -278,9 +291,10 @@ object SupabaseServices {
 
             // This compatibility method can update profile fields only.
             // UID, role, status and account number are server-owned.
+            val targetCustomId = customId?.let { UserIdentifierManager.normalize(it) }?.takeIf { it.isNotBlank() }
             val patch = buildMap<String, Any> {
                 if (name.isNotBlank()) put("name", name.trim())
-                if (!customId.isNullOrBlank()) put("custom_id", customId.trim().removePrefix("@"))
+                if (!targetCustomId.isNullOrBlank()) put("custom_id", targetCustomId)
             }
             if (patch.isEmpty()) return true
             client.postgrest.from("users").update(patch) {
@@ -291,8 +305,7 @@ object SupabaseServices {
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
             saved?.id == authUid &&
-                !saved.customId.isNullOrBlank() &&
-                !saved.accountNumber.isNullOrBlank()
+                !saved.customId.isNullOrBlank()
         }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}") }.getOrDefault(false)
 
         /**

@@ -93,7 +93,8 @@ object UpdateTelemetryManager {
         update: UpdateManager.UpdateInfo?,
         phase: String,
         throwable: Throwable?,
-        customMessage: String? = null
+        customMessage: String? = null,
+        showDialog: Boolean = false
     ): UpdateErrorReport {
         val deviceId = UserPreferencesManager.getDeviceId(context)
         val currentCode = UpdateManager.getCurrentVersionCode(context)
@@ -155,7 +156,9 @@ object UpdateTelemetryManager {
         )
 
         _latestFailureReport.value = report
-        _showErrorDialog.value = true
+        if (showDialog) {
+            _showErrorDialog.value = true
+        }
 
         // الرفع في الخلفية إلى Firestore
         scope.launch {
