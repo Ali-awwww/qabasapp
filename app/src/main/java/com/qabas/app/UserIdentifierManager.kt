@@ -327,51 +327,47 @@ object UserIdentifierManager {
         email: String?,
         displayName: String? = null
     ): String = withContext(Dispatchers.IO) {
-        if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
+        if (email.isNullOrBlank() || email.equals("guest@qabas.studio", ignoreCase = true) ||
+            email.equals("guest", ignoreCase = true) || !SupabaseServices.isSupabaseAvailable) {
             return@withContext ""
         }
+
         val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        val authUid = SupabaseServices.Auth.awaitCurrentUserId()
+            ?.takeIf { SupabaseServices.Auth.getCurrentUserEmail()?.equals(cleanEmail, ignoreCase = true) == true }
+            ?: return@withContext ""
 
-        // 1. حساب المالك الرئيسي دائماً #QBS-0001
-        if (CloudServices.isOwnerAccount(cleanEmail) || cleanEmail.contains("mousa.alharbi.pro@gmail.com")) {
-            val firstAcc = "#QBS-0001"
-            saveAccountNumber(context, cleanEmail, firstAcc)
-            return@withContext firstAcc
+        // Never allocate an identity for an email-only or local account.
+        val profile = SupabaseServices.Database.ensureUser(authUid, cleanEmail, displayName)
+            ?.takeIf { it.id == authUid }
+            ?: return@withContext ""
+
+        profile.accountNumber?.takeIf { it.isNotBlank() }?.let { existing ->
+            val stable = formatAccountNumber(existing)
+            saveAccountNumber(context, cleanEmail, stable)
+            return@withContext stable
         }
 
-        // 2. التحقق من السحابة أولاً
-        if (SupabaseServices.isSupabaseAvailable) {
-            val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
-            val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
-                .takeIf { authenticatedEmail?.equals(cleanEmail, ignoreCase = true) == true }
-            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail, authenticatedUid)
-            if (cloudUser != null && !cloudUser.accountNumber.isNullOrBlank()) {
-                val cloudAcc = formatAccountNumber(cloudUser.accountNumber)
-                saveAccountNumber(context, cleanEmail, cloudAcc)
-                return@withContext cloudAcc
-            }
+        // The database sequence is atomic. Gaps are acceptable; duplicate numbers are not.
+        val next = SupabaseServices.Database.getNextAccountSequenceFromCloud()
+            ?: return@withContext ""
+        val generated = "#QBS-" + String.format(Locale.ROOT, "%04d", next)
+        val username = profile.customId?.takeIf { it.isNotBlank() }
+            ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
 
-            // مستخدم ليس لديه رقم مسجل في السحابة -> استدعاء تسلسل العداد السحابي مباشرة
-            val cloudSeq = SupabaseServices.Database.getNextAccountSequenceFromCloud()
-            val generatedAcc = "#QBS-" + String.format(Locale.ROOT, "%04d", cloudSeq)
-            saveAccountNumber(context, cleanEmail, generatedAcc)
+        val saved = SupabaseServices.Database.saveUser(
+            id = authUid,
+            name = profile.name?.takeIf { it.isNotBlank() } ?: displayName ?: "مستخدم قبس",
+            email = cleanEmail,
+            type = profile.type.ifBlank { "مجاني" },
+            customId = username,
+            accountNumber = generated
+        )
+        if (!saved) return@withContext ""
 
-            // تثبيته في السحابة في جدول المستخدمين
-            val userId = cloudUser?.id ?: SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
-            val currentCustomId = cloudUser?.customId ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
-            SupabaseServices.Database.saveUser(
-                id = userId,
-                name = cloudUser?.name ?: displayName ?: "مستخدم قبس",
-                email = cleanEmail,
-                type = cloudUser?.type ?: "مجاني",
-                customId = currentCustomId,
-                accountNumber = generatedAcc
-            )
-            return@withContext generatedAcc
-        }
-
-        // 3. كاش محلي كخيار احتياطي في حال عدم الاتصال
-        getOrCreateAccountNumber(context, cleanEmail, displayName)
+        saveCustomId(context, username, cleanEmail)
+        saveAccountNumber(context, cleanEmail, generated)
+        generated
     }
 
     /**
