@@ -1009,8 +1009,8 @@ object SupabaseServices {
             role == "admin" || role == "developer" || role == "owner"
         }.getOrDefault(false)
 
-        suspend fun register(email: String, pass: String): Boolean = runCatching {
-            val res = SupabaseRepository.getInstance().register(email, pass)
+        suspend fun register(email: String, pass: String, customId: String? = null): Boolean = runCatching {
+            val res = SupabaseRepository.getInstance().register(email, pass, customId)
             res.isSuccess
         }.getOrDefault(false)
 
