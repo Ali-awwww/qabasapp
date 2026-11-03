@@ -347,7 +347,7 @@ object UserIdentifierManager {
      * Returns the last cloud-issued handle cached for this account.
      * It intentionally does not generate an identifier on the device.
      */
-    fun getOrCreateCustomId(context: Context, email: String): String =
+    fun getOrCreateCustomId(context: Context, email: String?, displayName: String? = null): String =
         getCustomId(context, email)
 
 
