@@ -29,7 +29,7 @@ async function resolveEmail(identifier: string): Promise<string | null> {
   const clean = identifier.trim();
   if (!clean || clean.length > 64) return null;
 
-  const isAccountNumber = /^#?QBS-\\d+$/i.test(clean) || /^\\d+$/.test(clean);
+  const isAccountNumber = /^#?QBS-\d+$/i.test(clean) || /^\d+$/.test(clean);
 
   if (!isAccountNumber) {
     // Usernames are resolved only inside this server-side function.
@@ -49,7 +49,7 @@ async function resolveEmail(identifier: string): Promise<string | null> {
   }
 
   // Accept #QBS-0012, QBS-0012, or 0012 as the account number.
-  const digits = clean.replace(/\\D/g, "");
+  const digits = clean.replace(/\D/g, "");
   if (!digits) return null;
   const normalized = digits.padStart(4, "0");
   const numberForms = [...new Set([
