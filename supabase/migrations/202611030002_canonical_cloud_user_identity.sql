@@ -261,6 +261,40 @@ UPDATE public.saved_items target
    AND map.auth_uid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
    AND map.alias_id <> map.auth_uid;
 
+-- Platform-curated starter reels are system-owned, never owned by the
+-- first viewer who happens to like/comment/bookmark them.
+INSERT INTO public.reels (
+    id, user_id, user_name, title, description, video_url, thumbnail_url,
+    tags, publish_at, quality, publish_type, is_silent_seed,
+    is_featured_by_dev, is_active
+)
+VALUES
+(
+    'qabas_quran_recitation_starter',
+    'qabas_system',
+    'استوديو قبس',
+    '﴿الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ﴾ 🌿 تلاوة خاشعة وسكينة',
+    'تلاوة قرآنية مباركة تأخذ القلب إلى آفاق الطمأنينة والسكينة في رحاب كلام الله تبارك وتعالى.',
+    'https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4',
+    'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80',
+    '["قرآن","تلاوة","خشوع","سكينة","ذكر"]'::jsonb,
+    now(), 'high', 'normal', false, true, true
+),
+(
+    'qabas_faith_lecture_starter',
+    'qabas_system',
+    'استوديو قبس',
+    'هادم اللذات 📜 وقفة صادقة مع الآخرة وزوال الدنيا',
+    'موعظة مؤثرة تدق أبواب القلوب: تذكير بزوال الدنيا وسرعة الرحيل إلى الله سبحانه وتعالى.',
+    'https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4',
+    'https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80',
+    '["مواعظ","تذكير","آخرة","زهد","قلب"]'::jsonb,
+    now(), 'high', 'normal', false, true, true
+)
+ON CONFLICT (id) DO UPDATE
+SET user_id = EXCLUDED.user_id,
+    user_name = EXCLUDED.user_name;
+
 -- Promote the selected profile row to Auth UID. Ambiguous emails and
 -- non-selected legacy rows are preserved unchanged for manual review.
 UPDATE public.users u

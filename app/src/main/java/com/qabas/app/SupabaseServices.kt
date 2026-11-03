@@ -1501,47 +1501,21 @@ object SupabaseServices {
 
         private suspend fun ensureStarterReel(reelId: String, creatorId: String): Boolean = runCatching {
             val client = client ?: return false
-            val starterPayload = when (reelId) {
-                "qabas_quran_recitation_starter" -> ReelInsertPayload(
-                    id = "qabas_quran_recitation_starter",
-                    userId = creatorId,
-                    title = "﴿الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ﴾ 🌿 تلاوة خاشعة وسكينة",
-                    description = "تلاوة قرآنية مباركة تأخذ القلب إلى آفاق الطمأنينة والسكينة في رحاب كلام الله تبارك وتعالى.",
-                    videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4",
-                    thumbnailUrl = "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80",
-                    tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر")
-                )
-                "qabas_faith_lecture_starter" -> ReelInsertPayload(
-                    id = "qabas_faith_lecture_starter",
-                    userId = creatorId,
-                    title = "هادم اللذات 📜 وقفة صادقة مع الآخرة وزوال الدنيا",
-                    description = "موعظة مؤثرة تدق أبواب القلوب: تذكير بزوال الدنيا وسرعة الرحيل إلى الله سبحانه وتعالى.",
-                    videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4",
-                    thumbnailUrl = "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80",
-                    tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب")
-                )
-                else -> null
-            } ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return false
+            if (authUid != creatorId) return false
 
-            // Check if it exists first to avoid RLS conflicts if another user "owns" it
-            val exists = try {
-                val resp = client.postgrest.from("reels").select {
-                    filter { eq("id", reelId) }
-                    limit(1)
-                }
-                resp.decodeList<ReelRow>().isNotEmpty()
-            } catch (e: Exception) {
-                false
-            }
-
-            if (!exists) {
-                client.postgrest.from("reels").insert(starterPayload)
-            }
-            true
-        }.onFailure { e -> 
-            Log.d(TAG, "ensureStarterReel notice for $reelId: ${e.message}") 
+            // Seed reels are provisioned once by the database migration under the
+            // platform-owned "qabas_system" identity. A viewer must never create
+            // a platform reel or become its owner as a side effect of interacting.
+            val rows = client.postgrest.from("reels").select {
+                filter { eq("id", reelId) }
+                limit(1)
+            }.decodeList<ReelRow>()
+            rows.isNotEmpty()
+        }.onFailure { e ->
+            Log.w(TAG, "ensureStarterReel failed for $reelId: ${e.message}")
         }.getOrDefault(false)
-
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
