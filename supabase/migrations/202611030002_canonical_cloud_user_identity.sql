@@ -207,7 +207,7 @@ BEGIN
         );
     END LOOP;
 END
-$;
+$$;
 
 -- saved_items.user_id is UUID (unlike most legacy ownership columns which
 -- are TEXT), so compare as text and cast only a validated Auth UUID.
@@ -215,7 +215,11 @@ UPDATE public.saved_items target
    SET user_id = map.auth_uid::UUID
   FROM qbas_identity_aliases map
  WHERE target.user_id::TEXT = map.alias_id
-   AND map.auth_uid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-- non-selected legacy rows are preserved unchanged for manual review.
+   AND map.auth_uid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+   AND map.alias_id <> map.auth_uid;
+
+-- Promote the selected profile row to Auth UID. Ambiguous emails and
+-- non-selected legacy rows are preserved unchanged for manual review.
 UPDATE public.users u
    SET id = c.auth_uid, external_id = c.auth_uid, email = c.email
   FROM qbas_identity_canonical c
