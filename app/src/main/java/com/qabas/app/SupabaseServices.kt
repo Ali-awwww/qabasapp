@@ -95,7 +95,7 @@ object SupabaseServices {
                 return null
             }
 
-            val authEmail = authUser.email?.trim()?.lowercase(java.util.Locale.ROOT)
+            val authEmail = authUser?.email?.trim()?.lowercase(java.util.Locale.ROOT)
                 ?: email?.trim()?.lowercase(java.util.Locale.ROOT)
                 ?: return null
             if (!email.isNullOrBlank() && !email.trim().equals(authEmail, ignoreCase = true)) {
