@@ -216,49 +216,29 @@ object UserIdentifierManager {
         email: String,
         displayName: String? = null
     ): Pair<String, String>? = withContext(Dispatchers.IO) {
-        if (email.isBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio") return@withContext null
-        if (!SupabaseServices.isSupabaseAvailable) return@withContext null
+        if (email.isBlank() || !SupabaseServices.isSupabaseAvailable) return@withContext null
 
+        val authUid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@withContext null
+        val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            ?.trim()?.lowercase(Locale.ROOT)
+            ?: return@withContext null
         val cleanEmail = email.trim().lowercase(Locale.ROOT)
-        val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail)
+        if (cleanEmail != authEmail) return@withContext null
 
-        val localCustomId = getCustomId(context, cleanEmail).ifBlank { getOrCreateCustomId(context, cleanEmail, displayName) }
-        val localAccountNumber = getOrCreateAccountNumber(context, cleanEmail, displayName)
+        val cloudUser = SupabaseServices.Database.ensureUser(
+            externalId = authUid,
+            email = authEmail,
+            name = displayName
+        ) ?: return@withContext null
 
-        if (cloudUser != null) {
-            val resolvedCustomId = cloudUser.customId?.takeIf { it.isNotBlank() } ?: localCustomId
-            val resolvedAccountNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() } ?: localAccountNumber
+        val resolvedCustomId = cloudUser.customId?.takeIf { it.isNotBlank() }
+            ?: return@withContext null
+        val resolvedAccountNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
+            ?: return@withContext null
 
-            saveCustomId(context, resolvedCustomId, cleanEmail)
-            saveAccountNumber(context, cleanEmail, resolvedAccountNumber)
-
-            // إثراء السجل السحابي إذا كانت الحقول فارغة فيه
-            if (cloudUser.customId.isNullOrBlank() || cloudUser.accountNumber.isNullOrBlank()) {
-                val userId = cloudUser.id.ifBlank { SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail }
-                SupabaseServices.Database.saveUser(
-                    id = userId,
-                    name = cloudUser.name ?: displayName ?: "مستخدم قبس",
-                    email = cleanEmail,
-                    type = cloudUser.type,
-                    customId = resolvedCustomId,
-                    accountNumber = resolvedAccountNumber
-                )
-            }
-
-            Pair(resolvedCustomId, resolvedAccountNumber)
-        } else {
-            // مستخدم جديد في السحابة
-            val userId = SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
-            SupabaseServices.Database.saveUser(
-                id = userId,
-                name = displayName ?: "مستخدم قبس",
-                email = cleanEmail,
-                type = "مجاني",
-                customId = localCustomId,
-                accountNumber = localAccountNumber
-            )
-            Pair(localCustomId, localAccountNumber)
-        }
+        saveCustomId(context, resolvedCustomId, authEmail)
+        saveAccountNumber(context, authEmail, resolvedAccountNumber)
+        Pair(resolvedCustomId, resolvedAccountNumber)
     }
 
     sealed class CustomIdAvailabilityResult {
@@ -327,51 +307,27 @@ object UserIdentifierManager {
         email: String?,
         displayName: String? = null
     ): String = withContext(Dispatchers.IO) {
-        if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
-            return@withContext ""
-        }
-        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        val cleanEmail = email?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        if (cleanEmail.isBlank() || !SupabaseServices.isSupabaseAvailable) return@withContext ""
 
-        // 1. حساب المالك الرئيسي دائماً #QBS-0001
-        if (CloudServices.isOwnerAccount(cleanEmail) || cleanEmail.contains("mousa.alharbi.pro@gmail.com")) {
-            val firstAcc = "#QBS-0001"
-            saveAccountNumber(context, cleanEmail, firstAcc)
-            return@withContext firstAcc
-        }
+        val authUid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@withContext ""
+        val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            ?.trim()?.lowercase(Locale.ROOT)
+            ?: return@withContext ""
+        if (authEmail != cleanEmail) return@withContext ""
 
-        // 2. التحقق من السحابة أولاً
-        if (SupabaseServices.isSupabaseAvailable) {
-            val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
-            val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
-                .takeIf { authenticatedEmail?.equals(cleanEmail, ignoreCase = true) == true }
-            val cloudUser = SupabaseServices.Database.getUserByEmail(cleanEmail, authenticatedUid)
-            if (cloudUser != null && !cloudUser.accountNumber.isNullOrBlank()) {
-                val cloudAcc = formatAccountNumber(cloudUser.accountNumber)
-                saveAccountNumber(context, cleanEmail, cloudAcc)
-                return@withContext cloudAcc
-            }
+        val cloudUser = SupabaseServices.Database.ensureUser(
+            externalId = authUid,
+            email = authEmail,
+            name = displayName
+        ) ?: return@withContext ""
 
-            // مستخدم ليس لديه رقم مسجل في السحابة -> استدعاء تسلسل العداد السحابي مباشرة
-            val cloudSeq = SupabaseServices.Database.getNextAccountSequenceFromCloud()
-            val generatedAcc = "#QBS-" + String.format(Locale.ROOT, "%04d", cloudSeq)
-            saveAccountNumber(context, cleanEmail, generatedAcc)
-
-            // تثبيته في السحابة في جدول المستخدمين
-            val userId = cloudUser?.id ?: SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
-            val currentCustomId = cloudUser?.customId ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
-            SupabaseServices.Database.saveUser(
-                id = userId,
-                name = cloudUser?.name ?: displayName ?: "مستخدم قبس",
-                email = cleanEmail,
-                type = cloudUser?.type ?: "مجاني",
-                customId = currentCustomId,
-                accountNumber = generatedAcc
-            )
-            return@withContext generatedAcc
-        }
-
-        // 3. كاش محلي كخيار احتياطي في حال عدم الاتصال
-        getOrCreateAccountNumber(context, cleanEmail, displayName)
+        val accountNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
+            ?: return@withContext ""
+        val customId = cloudUser.customId?.takeIf { it.isNotBlank() }
+        if (customId != null) saveCustomId(context, customId, authEmail)
+        saveAccountNumber(context, authEmail, accountNumber)
+        accountNumber
     }
 
     /**
@@ -379,63 +335,17 @@ object UserIdentifierManager {
      * لا يقوم بتوليد يوزر وهمي عشوائي للمستخدمين غير المسجلين.
      */
     fun getCustomId(context: Context, email: String? = null): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val cleanEmail = email?.trim()?.lowercase(Locale.ROOT)
-        if (!cleanEmail.isNullOrBlank()) {
-            // المعرّف مربوط بالبريد أولاً: لا نعيد معرّف حساب آخر مسجّل على نفس الجهاز
-            val perEmail = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
-            if (!perEmail.isNullOrBlank() && !perEmail.equals("guest", ignoreCase = true) && !perEmail.equals("ضيف", ignoreCase = true)) {
-                return normalize(perEmail)
-            }
-        }
-        val savedId = prefs.getString(KEY_CUSTOM_ID, null)
-        val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val sessionEmail = cleanEmail ?: prefs.getString("user_email", null)?.trim()?.lowercase(Locale.ROOT)
-        val isGuestSession = sessionEmail.isNullOrBlank() || sessionEmail.contains("guest") || sessionEmail == "guest@qabas.studio"
-        val isSavedIdGuest = savedId.equals("guest", ignoreCase = true) || savedId.equals("ضيف", ignoreCase = true)
+            ?: return ""
+        if (cleanEmail.isBlank()) return ""
 
-        if (!savedId.isNullOrBlank() && (!isSavedIdGuest || isGuestSession) && (isLoggedIn || !sessionEmail.isNullOrBlank())) {
-            if (cleanEmail.isNullOrBlank() && !isSavedIdGuest) return savedId
-            val ownerEmail = prefs.getString(KEY_MAP_PREFIX + normalize(savedId), null)
-                ?.trim()?.lowercase(Locale.ROOT)
-            // An unmapped legacy identifier has no provable owner. Do not attach it
-            // to a different signed-in account just because it exists on this device.
-            if (ownerEmail == cleanEmail) {
-                if (!isSavedIdGuest || isGuestSession) return savedId
-            }
-        }
-
-        // فحص بديل من user_tag القديم فقط إذا كان هناك جلسة نشطة
-        if (isLoggedIn || !sessionEmail.isNullOrBlank()) {
-            if (!isGuestSession) {
-                val oldTag = prefs.getString(KEY_USER_TAG, null)?.removePrefix("@")
-                val oldTagOwner = oldTag?.let {
-                    prefs.getString(KEY_MAP_PREFIX + normalize(it), null)
-                        ?.trim()?.lowercase(Locale.ROOT)
-                }
-                if (oldTagOwner == cleanEmail && !oldTag.isNullOrBlank() &&
-                    oldTag != "qabas_creator" && oldTag != "user" &&
-                    !oldTag.equals("guest", ignoreCase = true) &&
-                    !oldTag.equals("ضيف", ignoreCase = true)
-                ) {
-                    val normalized = normalize(oldTag)
-                    saveCustomId(context, normalized, cleanEmail)
-                    return normalized
-                }
-
-                val nameSeed = if (!cleanEmail.isNullOrBlank()) {
-                    if (cleanEmail.contains("@")) cleanEmail.substringBefore("@") else cleanEmail
-                } else prefs.getString("user_name", null) ?: "مستخدم"
-                val newId = generateUniqueId(nameSeed)
-                saveCustomId(context, newId, sessionEmail)
-                return newId
-            } else {
-                return "guest"
-            }
-        }
-
-        // المستخدم غير مسجل ولا توجد جلسة: الحقل فارغ تماماً ولا يولد اسماً عشوائياً
-        return ""
+        // This is a cache lookup only. A missing value must be fetched from
+        // the authenticated cloud profile; the device never invents a handle.
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val cached = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
+            ?.takeIf { it.isNotBlank() && !it.equals("guest", ignoreCase = true) && !it.equals("ضيف", ignoreCase = true) }
+            ?: return ""
+        return normalize(cached)
     }
 
     /**
@@ -463,36 +373,14 @@ object UserIdentifierManager {
      * إنشاء أو استعادة المعرّف مع ربطه ببريد Gmail المحدد.
      * المعرّف يُحفظ لكل بريد على حدة حتى لا يتغيّر عند تسجيل الدخول مجدداً.
      */
-    fun getOrCreateCustomId(context: Context, email: String?, displayName: String? = null): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val cleanEmail = email?.trim()?.lowercase(Locale.ROOT)
+    /**
+     * Returns the last cloud-issued handle cached for this account.
+     * It intentionally does not generate an identifier on the device.
+     */
+    fun getOrCreateCustomId(context: Context, email: String): String =
+        getCustomId(context, email)
 
-        if (!cleanEmail.isNullOrBlank()) {
-            val perEmail = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)
-            if (!perEmail.isNullOrBlank()) {
-                val normalized = normalize(perEmail)
-                prefs.edit()
-                    .putString(KEY_CUSTOM_ID, normalized)
-                    .apply()
-                return normalized
-            }
-        }
 
-        val existing = prefs.getString(KEY_CUSTOM_ID, null)
-        if (!existing.isNullOrBlank()) {
-            if (cleanEmail.isNullOrBlank()) return existing
-            val ownerEmail = prefs.getString(KEY_MAP_PREFIX + existing, null)
-                ?.trim()?.lowercase(Locale.ROOT)
-            if (ownerEmail == cleanEmail) {
-                saveCustomId(context, existing, cleanEmail)
-                return existing
-            }
-        }
-
-        val generated = generateUniqueId(displayName ?: cleanEmail)
-        saveCustomId(context, generated, cleanEmail)
-        return generated
-    }
 
     /**
      * فك شفرة المدخل (سواء كان بريداً أو معرّفاً خاصاً) إلى البريد الإلكتروني الفعلي للمصادقة.
