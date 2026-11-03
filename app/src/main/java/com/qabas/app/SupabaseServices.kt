@@ -62,11 +62,11 @@ object SupabaseServices {
             true
         }.getOrDefault(false)
 
-        suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
-            val client = client ?: return 1
-            // Use the new secure RPC to get the next sequence
+        suspend fun getNextAccountSequenceFromCloud(): Int? = runCatching {
+            val client = client ?: return null
             client.postgrest.rpc("get_next_account_sequence").decodeAs<Int>()
-        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrDefault(1)
+                .takeIf { it > 0 }
+        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrNull()
 
         suspend fun getLatestActiveUpdate(): ActiveUpdate? = runCatching {
             val client = client ?: return null
