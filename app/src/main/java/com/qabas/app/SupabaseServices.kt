@@ -1015,12 +1015,8 @@ object SupabaseServices {
          * resolving the current UID. Prevents a first-screen tap from being
          * mistaken for a logged-out user while storage restoration is still running.
          */
-        suspend fun awaitCurrentUserId(timeoutMillis: Long = 5_000L): String? = runCatching {
+        suspend fun awaitCurrentUserId(timeoutMillis: Long = 8_000L): String? = runCatching {
             SupabaseRepository.getInstance().ensureAuthenticatedSession(timeoutMillis)
-                ?: runCatching {
-                    val authClient = client ?: return@runCatching null
-                    authClient.auth.currentUserOrNull()?.id?.takeIf { it.isNotBlank() }
-                }.getOrNull()
         }.getOrNull()
 
         fun getCurrentUserEmail(): String? = runCatching {
@@ -1567,17 +1563,30 @@ object SupabaseServices {
                 else -> null
             } ?: return false
 
-            client.postgrest.from("reels").upsert(starterPayload) {
-                onConflict = "id"
+            // Check if it exists first to avoid RLS conflicts if another user "owns" it
+            val exists = try {
+                val resp = client.postgrest.from("reels").select {
+                    filter { eq("id", reelId) }
+                    limit(1)
+                }
+                resp.decodeList<ReelRow>().isNotEmpty()
+            } catch (e: Exception) {
+                false
+            }
+
+            if (!exists) {
+                client.postgrest.from("reels").insert(starterPayload)
             }
             true
-        }.onFailure { Log.d(TAG, "ensureStarterReel notice: ${it.message}") }.getOrDefault(false)
+        }.onFailure { e -> 
+            Log.d(TAG, "ensureStarterReel notice for $reelId: ${e.message}") 
+        }.getOrDefault(false)
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: SupabaseRepository.getInstance().ensureAuthenticatedSession()
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
             val effectiveUserId = authUid ?: userId
+            
             if (authUid == null) {
                 Log.w(TAG, "likeReel: unauthenticated session for reel $reelId")
                 return false
@@ -1598,16 +1607,18 @@ object SupabaseServices {
         }.let { res ->
             if (res.isSuccess) true
             else if (reelId.startsWith("qabas_")) {
-                Log.i(TAG, "Starter reel like accepted locally")
+                Log.i(TAG, "Starter reel like accepted locally due to fallback")
                 true
             } else false
         }
 
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: SupabaseRepository.getInstance().ensureAuthenticatedSession()
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
             val effectiveUserId = authUid ?: userId
+
+            if (authUid == null) return false
+
             client.postgrest.from("reel_likes").delete {
                 filter {
                     eq("reel_id", reelId)
@@ -1622,7 +1633,6 @@ object SupabaseServices {
             else if (reelId.startsWith("qabas_")) true
             else false
         }
-
         suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
             val client = client ?: return null
             client.postgrest.from("reel_comments").select {
@@ -1633,12 +1643,56 @@ object SupabaseServices {
             }.decodeList<ReelCommentRow>()
         }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
+        suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val effectiveUserId = authUid ?: userId
+            if (authUid == null) return false
+            if (reelId.startsWith("qabas_")) {
+                ensureStarterReel(reelId, effectiveUserId)
+            }
+            val row = ReelBookmarkRow(reelId = reelId, userId = effectiveUserId)
+            client.postgrest.from("reel_bookmarks").upsert(row) {
+                onConflict = "reel_id,user_id"
+            }
+            true
+        }.onFailure { e -> Log.e(TAG, "addReelBookmark failed: ${e.message}") }.let { res ->
+            if (res.isSuccess) true
+            else if (reelId.startsWith("qabas_")) true
+            else false
+        }
+
+        suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val effectiveUserId = authUid ?: userId
+            if (authUid == null) return false
+            client.postgrest.from("reel_bookmarks").delete {
+                filter {
+                    eq("reel_id", reelId)
+                    eq("user_id", effectiveUserId)
+                }
+            }
+            true
+        }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.let { res ->
+            if (res.isSuccess) true
+            else if (reelId.startsWith("qabas_")) true
+            else false
+        }
+
         suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
             val client = client ?: return null
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val effectiveUserId = authUid ?: userId
+
+            if (authUid == null) return null
+
+            if (reelId.startsWith("qabas_")) {
+                ensureStarterReel(reelId, effectiveUserId)
+            }
+
             val comment = ReelCommentRow(
-                id = UUID.randomUUID().toString(),
+                id = java.util.UUID.randomUUID().toString(),
                 reelId = reelId,
                 userId = effectiveUserId,
                 commentText = commentText,
@@ -1660,41 +1714,6 @@ object SupabaseServices {
                 }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
         }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
-
-        suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
-            val client = client ?: return false
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: SupabaseRepository.getInstance().ensureAuthenticatedSession()
-            val effectiveUserId = authUid ?: userId
-            if (authUid == null) return false
-            if (reelId.startsWith("qabas_")) {
-                ensureStarterReel(reelId, effectiveUserId)
-            }
-            client.postgrest.from("reel_bookmarks").upsert(ReelBookmarkRow(reelId = reelId, userId = effectiveUserId))
-            true
-        }.onFailure { Log.e(TAG, "addReelBookmark failed: ${it.message}") }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) true
-            else false
-        }
-
-        suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
-            val client = client ?: return false
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: SupabaseRepository.getInstance().ensureAuthenticatedSession()
-            val effectiveUserId = authUid ?: userId
-            client.postgrest.from("reel_bookmarks").delete {
-                filter {
-                    eq("reel_id", reelId)
-                    eq("user_id", effectiveUserId)
-                }
-            }
-            true
-        }.onFailure { Log.e(TAG, "removeReelBookmark failed: ${it.message}") }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) true
-            else false
-        }
 
         // ==========================================
         // سجل المشاهدات السحابي (reel_history)

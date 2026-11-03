@@ -914,7 +914,7 @@ fun ReelsScreen(
                                     )
 
                                     scope.launch {
-                                        val authId = SupabaseServices.Auth.awaitCurrentUserId()
+                                        val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
                                         
                                         if (authId == null) {
                                             // حفظ العملية في الانتظار وعرض حوار تسجيل الدخول بدلاً من مجرد التراجع
@@ -933,7 +933,7 @@ fun ReelsScreen(
                                                 likedReelIds[reel.id] = newLikedState
                                                 dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
                                                 scope.launch {
-                                                    val resId = SupabaseServices.Auth.awaitCurrentUserId()
+                                                    val resId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
                                                     if (resId != null) {
                                                         if (newLikedState) SupabaseServices.Profiles.likeReel(reel.id, resId)
                                                         else SupabaseServices.Profiles.unlikeReel(reel.id, resId)
@@ -946,7 +946,7 @@ fun ReelsScreen(
                                         }
 
                                         val ok = runCatching {
-                                            withTimeoutOrNull(6000L) {
+                                            withTimeoutOrNull(10_000L) {
                                                 if (newLikedState) {
                                                     SupabaseServices.Profiles.likeReel(reel.id, authId)
                                                 } else {
@@ -955,27 +955,25 @@ fun ReelsScreen(
                                             } ?: false
                                         }.getOrDefault(false)
 
-                                        if (authId != null && !ok) {
-                                            // فشل التسجيل السحابي: تراجع فوري فقط إذا لم يكن مقطع محلي/بداية
-                                            if (!reel.id.startsWith("qabas_")) {
-                                                likedReelIds[reel.id] = !newLikedState
-                                                dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
-                                                ReelPreferencesManager.toggleLiked(
-                                                    context = context,
-                                                    reelId = reel.id,
-                                                    title = reel.title,
-                                                    userName = reel.userName,
-                                                    userAvatar = reel.userAvatar,
-                                                    videoUrl = reel.videoUrl,
-                                                    category = selectedCategory
-                                                )
-                                                val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
-                                                    "الخدمات السحابية غير متوفرة حالياً"
-                                                } else {
-                                                    "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
-                                                }
-                                                Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                                        if (!ok && !reel.id.startsWith("qabas_")) {
+                                            // فشل التسجيل السحابي لمقطع غير أصيل: تراجع فوري
+                                            likedReelIds[reel.id] = !newLikedState
+                                            dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
+                                            ReelPreferencesManager.toggleLiked(
+                                                context = context,
+                                                reelId = reel.id,
+                                                title = reel.title,
+                                                userName = reel.userName,
+                                                userAvatar = reel.userAvatar,
+                                                videoUrl = reel.videoUrl,
+                                                category = selectedCategory
+                                            )
+                                            val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
+                                                "الخدمات السحابية غير متوفرة حالياً"
+                                            } else {
+                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
                                             }
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                         }
                                         likeInFlight[reel.id] = false
                                     }
@@ -1010,7 +1008,7 @@ fun ReelsScreen(
                                     if (nowCloudSaved) cloudBookmarks = cloudBookmarks + reel.id else cloudBookmarks = cloudBookmarks - reel.id
                                     scope.launch {
                                         val ok = runCatching {
-                                            withTimeoutOrNull(5000L) {
+                                            withTimeoutOrNull(10_000L) {
                                                 if (nowCloudSaved) {
                                                     SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
                                                 } else {

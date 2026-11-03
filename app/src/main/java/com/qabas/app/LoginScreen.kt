@@ -436,7 +436,12 @@ fun LoginScreen(
                                     }
                                     // SupabaseRepository already observes the active Supabase Auth session.
                                     CloudServices.syncAdminClaim(context)
-                                    SupabaseRepository.getInstance().checkAuthState()
+                                    val sessionUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                                    if (sessionUid == null) {
+                                        android.util.Log.w("LoginScreen", "Supabase session not confirmed after login, manual check required")
+                                        SupabaseRepository.getInstance().checkAuthState()
+                                    }
+                                    
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
                                         context, 

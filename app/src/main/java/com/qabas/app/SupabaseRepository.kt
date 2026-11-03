@@ -242,20 +242,20 @@ class SupabaseRepository(
      * If the session has a valid token, it refreshes/validates if needed.
      * Returns the valid Supabase auth UID, or null if unauthenticated.
      */
-    suspend fun ensureAuthenticatedSession(timeoutMillis: Long = 5_000L): String? = withContext(Dispatchers.IO) {
+    suspend fun ensureAuthenticatedSession(timeoutMillis: Long = 8_000L): String? = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext null
         runCatching {
-            var currentSession = client.auth.currentSessionOrNull()
-            var uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
-
-            if (uid.isNullOrBlank()) {
+            // Wait for initialization if necessary
+            if (client.auth.sessionStatus.value is SessionStatus.Initializing) {
                 kotlinx.coroutines.withTimeoutOrNull(timeoutMillis) {
                     client.auth.sessionStatus.first { it !is SessionStatus.Initializing }
                 }
-                currentSession = client.auth.currentSessionOrNull()
-                uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
             }
 
+            var currentSession = client.auth.currentSessionOrNull()
+            var uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
+
+            // If UID is null, try to refresh or restore
             if (uid.isNullOrBlank()) {
                 runCatching { client.auth.refreshCurrentSession() }
                 currentSession = client.auth.currentSessionOrNull()
@@ -263,14 +263,20 @@ class SupabaseRepository(
             }
 
             if (!uid.isNullOrBlank()) {
+                // Ensure local state is synced with this real session
                 refreshUserAndEmitAuthenticated(uid, currentSession)
                 syncLocalAuthSuccess(uid, currentSession?.user?.email)
                 uid
             } else {
+                // Definitely unauthenticated
                 checkLocalAuthFallback()
                 null
             }
-        }.getOrNull()
+        }.getOrElse { e ->
+            Log.e(TAG, "ensureAuthenticatedSession failed: ${e.message}")
+            checkLocalAuthFallback()
+            null
+        }
     }
 
     // ==========================================
