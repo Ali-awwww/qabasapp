@@ -69,7 +69,6 @@ fun RegisterScreen(
         }
     }
 
-    val nextAccountNumber = remember { UserIdentifierManager.peekNextAccountNumber(context) }
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
@@ -228,9 +227,9 @@ fun RegisterScreen(
                                             fontSize = 9.sp
                                         )
                                         Text(
-                                            text = nextAccountNumber,
+                                            text = "جاري التوليد...",
                                             color = GoldPrimary,
-                                            fontFamily = RobotoMonoFont,
+                                            fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             maxLines = 1

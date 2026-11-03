@@ -45,7 +45,7 @@ object UserIdentifierManager {
 
     /**
      * استرجاع أو إنشاء رقم الحساب الرسمي الحقيقي والمتسلسل للمستخدم.
-     * الحساب الأول في النظام (أو حساب المالك الأساسي) يحصل دائماً على #QBS-0001
+     * ملاحظة: يفضل استخدام ensureCloudAccountNumber لضمان المزامنة مع السحابة.
      */
     fun getOrCreateAccountNumber(context: Context, email: String?, displayName: String? = null): String {
         if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
@@ -72,14 +72,13 @@ object UserIdentifierManager {
             return firstAcc
         }
 
-        // 3. فحص عداد الحسابات المتسلسل في التطبيق لتعيين الرقم الحقيقي التالي
+        // 3. فحص السجل المحلي (كاش)
         val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
-
-        // 3أ. إن كان الحساب مسجلاً مسبقاً برقم معتمد، أعده كما هو (يمنع تضخم الترقيم بعد حذف البيانات)
         val existingNumber = existingAccounts
             .firstOrNull { it.email.equals(cleanEmail, ignoreCase = true) }
             ?.accountNumber?.takeIf { it.isNotBlank() }
             ?.let { formatAccountNumber(it) }
+        
         if (!existingNumber.isNullOrBlank()) {
             prefs.edit()
                 .putString(KEY_ACCOUNT_NUMBER, existingNumber)
@@ -88,24 +87,8 @@ object UserIdentifierManager {
             return existingNumber
         }
 
-        val isFirstInRegistry = existingAccounts.isEmpty() || (existingAccounts.size == 1 && existingAccounts.first().email.equals(cleanEmail, ignoreCase = true))
-
-        val currentSeq = prefs.getInt(KEY_NEXT_ACCOUNT_SEQ, 0)
-        val assignedSeq = if (isFirstInRegistry && currentSeq <= 1) {
-            1
-        } else {
-            val next = if (currentSeq < 1) 2 else currentSeq + 1
-            next
-        }
-
-        prefs.edit().putInt(KEY_NEXT_ACCOUNT_SEQ, maxOf(currentSeq, assignedSeq)).apply()
-
-        val generatedAcc = "#QBS-" + String.format(Locale.ROOT, "%04d", assignedSeq)
-        prefs.edit()
-            .putString(KEY_ACCOUNT_NUMBER, generatedAcc)
-            .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, generatedAcc)
-            .apply()
-        return generatedAcc
+        // في حال عدم وجود رقم محلي، نعيد فراغاً ليتم جلبه لاحقاً من السحابة عبر ensureCloudAccountNumber
+        return ""
     }
 
     /**
@@ -215,18 +198,11 @@ object UserIdentifierManager {
     }
 
     /**
-     * استعراض رقم الحساب الرسمي القادم المتوقع للمستخدم الجديد دون تثبيته في العداد بعد.
+     * (ملغى) كان يستخدم للتنبؤ برقم الحساب محلياً.
+     * تم إيقافه لضمان أن رقم الحساب يأتي من السحابة فقط بعد نجاح العملية.
      */
     fun peekNextAccountNumber(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
-        val currentSeq = prefs.getInt(KEY_NEXT_ACCOUNT_SEQ, 0)
-        val candidateSeq = if (existingAccounts.isEmpty() && currentSeq <= 1) {
-            1
-        } else {
-            if (currentSeq < 1) 2 else currentSeq + 1
-        }
-        return "#QBS-" + String.format(Locale.ROOT, "%04d", candidateSeq)
+        return "جاري التوليد..."
     }
 
     /**

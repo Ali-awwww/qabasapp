@@ -716,7 +716,7 @@ fun ProfileScreen(
                         // 2. Mandatory Account Number Chip (Always visible & Cloud Verified - Non-Editable)
                         val effectiveAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
                             ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-                            ?: UserIdentifierManager.peekNextAccountNumber(context)
+                            ?: "بانتظار المزامنة..."
 
                         Spacer(modifier = Modifier.width(8.dp))
 
