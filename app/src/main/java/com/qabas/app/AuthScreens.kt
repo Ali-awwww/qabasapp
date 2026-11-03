@@ -492,7 +492,7 @@ fun RegisterScreen(
                                 }
                                 isLoading = false
                             }
-
+                        },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
                         shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
