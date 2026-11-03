@@ -235,6 +235,27 @@ UPDATE public.users u
   FROM qbas_identity_canonical c
  WHERE u.id = c.auth_uid AND u.external_id IS DISTINCT FROM u.id;
 
+-- The counter is updated inside the profile INSERT transaction. Unlike a
+-- PostgreSQL sequence, a rolled-back registration does not consume a number.
+CREATE TABLE IF NOT EXISTS qabas_identity_private.account_number_counter (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    last_value BIGINT NOT NULL CHECK (last_value >= 0)
+);
+REVOKE ALL ON TABLE qabas_identity_private.account_number_counter
+    FROM PUBLIC, anon, authenticated;
+
+INSERT INTO qabas_identity_private.account_number_counter (singleton, last_value)
+SELECT TRUE,
+       COALESCE(MAX(NULLIF(regexp_replace(account_number, '[^0-9]', '', 'g'), '')::BIGINT), 0)
+FROM public.users
+ON CONFLICT (singleton) DO UPDATE
+SET last_value = GREATEST(
+    qabas_identity_private.account_number_counter.last_value,
+    EXCLUDED.last_value
+);
+
+DROP SEQUENCE IF EXISTS qabas_identity_private.account_number_seq;
+
 CREATE UNIQUE INDEX IF NOT EXISTS users_custom_id_lower_unique
     ON public.users (lower(btrim(custom_id)));
 CREATE UNIQUE INDEX IF NOT EXISTS users_account_number_numeric_unique
@@ -285,7 +306,16 @@ BEGIN
         NEW.strikes := 0;
         NEW.is_eligible := TRUE;
 
-        v_sequence := nextval('qabas_identity_private.account_number_seq'::regclass);
+        UPDATE qabas_identity_private.account_number_counter
+           SET last_value = last_value + 1
+         WHERE singleton = TRUE
+         RETURNING last_value INTO v_sequence;
+
+        IF v_sequence IS NULL THEN
+            RAISE EXCEPTION 'The account number counter is not initialized'
+                USING ERRCODE = '55000';
+        END IF;
+
         NEW.account_number := '#QBS-' || lpad(v_sequence::TEXT, 4, '0');
 
         IF NULLIF(btrim(NEW.custom_id), '') IS NULL THEN
