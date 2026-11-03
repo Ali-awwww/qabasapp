@@ -35,6 +35,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Gradle executes code from pull requests; do not persist a repository token in the checkout.
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -45,7 +47,8 @@ jobs:
       - name: Setup Gradle (Cache & Build Setup)
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: false
+          # Untrusted pull-request builds must not be able to poison caches used by trusted builds.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           gradle-home-cache-cleanup: true
 
       - name: Setup Android SDK
@@ -67,7 +70,9 @@ jobs:
           python3 -c "import zipfile; zipfile.ZipFile('gradle/wrapper/gradle-wrapper.jar').namelist(); print('wrapper jar OK')"
           chmod +x gradlew
 
+      # Pull-request source is untrusted: never materialize a repository signing secret before Gradle runs.
       - name: Restore Stable Signing Keystore
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         shell: bash
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
@@ -93,6 +98,11 @@ jobs:
             echo "❌ Keystore restoration failed"
             exit 1
           fi
+
+      - name: Create ephemeral debug keystore for pull request builds
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Extract & Display Signing Key Fingerprint
         run: |
@@ -131,7 +141,33 @@ jobs:
             echo "✅ Signing key information saved to: signing_key_info.txt"
           fi
 
+      # Keep BuildConfig generation valid without exposing repository secrets to PR-controlled code.
+      - name: Create non-secret environment for pull request builds
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          AW_CLIENT_ID="ci-placeholder"
+          AW_CLIENT_SECRET="ci-placeholder"
+          AZURE_SPEECH_KEY="ci-placeholder"
+          AZURE_SPEECH_REGION="ci-placeholder"
+          COVERR_API_KEY="ci-placeholder"
+          ELEVENLABS_API_KEY="ci-placeholder"
+          GOOGLE_WEB_CLIENT_ID="ci-placeholder"
+          GROQ_API_KEY="ci-placeholder"
+          HUGGINGFACE_API_KEY="ci-placeholder"
+          OPENAI_API_KEY="ci-placeholder"
+          OPENROUTER_API_KEY="ci-placeholder"
+          PEXELS_API_KEY="ci-placeholder"
+          PIXABAY_API_KEY="ci-placeholder"
+          QF_CLIENT_ID="ci-placeholder"
+          QF_CLIENT_SECRET="ci-placeholder"
+          SUPABASE_ANON_KEY="ci-placeholder"
+          SUPABASE_URL="https://example.supabase.co"
+          EOF
+
       - name: Inject secrets (optional)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -167,6 +203,7 @@ jobs:
           } > .env
 
       - name: Compute Unique Release Version (xdelta base = last successful build)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         id: release-version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -241,7 +278,7 @@ jobs:
           retention-days: 7
 
       - name: Distribute APK to Firebase App Distribution
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -264,7 +301,7 @@ jobs:
             --release-notes "Qabas Studio CI build ${{ github.run_number }} from ${{ github.sha }}"
 
       - name: Create or Update GitHub Release
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
@@ -302,7 +339,7 @@ jobs:
           echo "✅ APK successfully attached to release $VERSION"
 
       - name: Trigger xdelta delta generation
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
