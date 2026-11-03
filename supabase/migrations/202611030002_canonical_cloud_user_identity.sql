@@ -70,6 +70,16 @@ UPDATE public.users
        '#QBS-' || lpad(nextval('qabas_identity_private.account_number_seq')::TEXT, 4, '0')
  WHERE account_number IS NULL OR btrim(account_number) = '';
 
+-- An exact users.id -> auth.users.id match is stronger than email.
+-- Refresh the email snapshot on that row from Auth, including email changes.
+UPDATE public.users u
+   SET external_id = a.id::TEXT,
+       email = lower(btrim(a.email))
+  FROM auth.users a
+ WHERE u.id = a.id::TEXT
+   AND a.email IS NOT NULL
+   AND btrim(a.email) <> '';
+
 -- Build a conservative alias map only when the Supabase Auth email is unique.
 CREATE TEMP TABLE qbas_identity_aliases ON COMMIT DROP AS
 WITH auth_emails AS (
@@ -79,6 +89,14 @@ WITH auth_emails AS (
     GROUP BY lower(btrim(email))
 ),
 candidates AS (
+    -- Exact Auth UID relations are unambiguous even if a user changed email.
+    SELECT u.id AS alias_id, a.id::TEXT AS auth_uid
+    FROM public.users u JOIN auth.users a ON u.id = a.id::TEXT
+    UNION ALL
+    SELECT u.external_id AS alias_id, a.id::TEXT AS auth_uid
+    FROM public.users u JOIN auth.users a ON u.external_id = a.id::TEXT
+    WHERE u.external_id IS NOT NULL AND btrim(u.external_id) <> ''
+    UNION ALL
     SELECT u.id AS alias_id, a.auth_uid
     FROM public.users u JOIN auth_emails a ON a.email = lower(btrim(u.email))
     WHERE a.auth_count = 1
@@ -113,18 +131,40 @@ WITH auth_emails AS (
     WHERE email IS NOT NULL AND btrim(email) <> ''
     GROUP BY lower(btrim(email))
 ),
-ranked AS (
+direct_ranked AS (
+    SELECT a.id::TEXT AS auth_uid,
+           lower(btrim(a.email)) AS email,
+           u.id AS profile_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY a.id
+               ORDER BY (u.id = a.id::TEXT) DESC,
+                        u.is_eligible DESC, u.created_at ASC NULLS LAST, u.id
+           ) AS rn
+    FROM auth.users a
+    JOIN public.users u
+      ON u.id = a.id::TEXT OR u.external_id = a.id::TEXT
+    WHERE a.email IS NOT NULL AND btrim(a.email) <> ''
+),
+email_ranked AS (
     SELECT a.auth_uid, a.email, u.id AS profile_id,
            ROW_NUMBER() OVER (
                PARTITION BY a.auth_uid
-               ORDER BY (u.id = a.auth_uid) DESC,
-                        u.is_eligible DESC, u.created_at ASC NULLS LAST, u.id
+               ORDER BY u.is_eligible DESC, u.created_at ASC NULLS LAST, u.id
            ) AS rn
     FROM auth_emails a
     JOIN public.users u ON lower(btrim(u.email)) = a.email
     WHERE a.auth_count = 1
+      AND NOT EXISTS (
+          SELECT 1 FROM direct_ranked d WHERE d.auth_uid = a.auth_uid
+      )
 )
-SELECT auth_uid, email, profile_id FROM ranked WHERE rn = 1;
+SELECT auth_uid, email, profile_id
+FROM direct_ranked
+WHERE rn = 1
+UNION ALL
+SELECT auth_uid, email, profile_id
+FROM email_ranked
+WHERE rn = 1;
 CREATE UNIQUE INDEX ON qbas_identity_canonical(auth_uid);
 CREATE UNIQUE INDEX ON qbas_identity_canonical(profile_id);
 
