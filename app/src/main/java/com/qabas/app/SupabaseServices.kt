@@ -146,7 +146,7 @@ object SupabaseServices {
                     if (!existing.email.equals(authEmail, ignoreCase = true)) {
                         put("email", authEmail)
                     }
-                    if (existing.name.isNullOrBlank() && !name.isNullOrBlank()) {
+                    if (!name.isNullOrBlank() && !name.trim().equals(existing.name?.trim(), ignoreCase = false)) {
                         put("name", name.trim())
                     }
                     if (!customId.isNullOrBlank() &&
@@ -271,7 +271,7 @@ object SupabaseServices {
                 return false
             }
 
-            val authEmail = client.auth.currentUserOrNull()?.email
+            val authEmail = (client.auth.currentUserOrNull()?.email ?: client.auth.currentSessionOrNull()?.user?.email)
                 ?.trim()?.lowercase(java.util.Locale.ROOT)
                 ?: return false
             if (!authEmail.equals(email.trim(), ignoreCase = true)) return false
@@ -1075,8 +1075,8 @@ object SupabaseServices {
             isDeveloperRole(role) || isDeveloperRole(appRole) || isDeveloperRole(dbType)
         }.getOrDefault(false)
 
-        suspend fun register(email: String, pass: String, customId: String? = null): Boolean = runCatching {
-            val res = SupabaseRepository.getInstance().register(email, pass, customId)
+        suspend fun register(email: String, pass: String, customId: String? = null, displayName: String? = null): Boolean = runCatching {
+            val res = SupabaseRepository.getInstance().register(email, pass, customId, displayName)
             res.isSuccess
         }.getOrDefault(false)
 
@@ -1724,6 +1724,17 @@ object SupabaseServices {
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
         }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
 
+        suspend fun getLikedReelIds(userId: String): Set<String>? = runCatching {
+            val client = client ?: return null
+            val authUid = client.auth.currentUserOrNull()?.id
+                ?: client.auth.currentSessionOrNull()?.user?.id
+                ?: return null
+            if (authUid != userId) return null
+            client.postgrest.from("reel_likes").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
+                filter { eq("user_id", authUid) }
+            }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
+        }.onFailure { Log.e(TAG, "getLikedReelIds failed: ${it.message}") }.getOrNull()
+
         // ==========================================
         // سجل المشاهدات السحابي (reel_history)
         // ==========================================
@@ -1815,6 +1826,33 @@ object SupabaseServices {
                     Log.e(TAG, "getUserSettings failed: ${err.message}")
                 }
             }.getOrNull()
+        }
+
+        suspend fun saveUserBio(userId: String, bio: String): Boolean {
+            val existing = getUserSettings(userId)
+            val json = try {
+                val currentObj = if (!existing?.preferencesJson.isNullOrBlank()) {
+                    org.json.JSONObject(existing!!.preferencesJson)
+                } else {
+                    org.json.JSONObject()
+                }
+                currentObj.put("bio", bio)
+                currentObj.toString()
+            } catch (e: Exception) {
+                org.json.JSONObject().put("bio", bio).toString()
+            }
+            return saveUserSettings(userId, json)
+        }
+
+        suspend fun getUserBio(userId: String): String? {
+            val existing = getUserSettings(userId) ?: return null
+            if (existing.preferencesJson.isBlank()) return null
+            return try {
+                val obj = org.json.JSONObject(existing.preferencesJson)
+                if (obj.has("bio")) obj.optString("bio", "") else null
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 

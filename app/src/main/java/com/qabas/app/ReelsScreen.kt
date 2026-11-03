@@ -173,8 +173,6 @@ fun ReelsScreen(
     val playbackSpeed by ReelPreferencesManager.playbackSpeed.collectAsState()
     val showCaptions by ReelPreferencesManager.showCaptions.collectAsState()
     val doubleTapAction by ReelPreferencesManager.doubleTapAction.collectAsState()
-    val savedReels by ReelPreferencesManager.savedReels.collectAsState()
-    val likedReels by ReelPreferencesManager.likedReels.collectAsState()
     val watchHistory by ReelPreferencesManager.watchHistory.collectAsState()
     val alAtharEnabled by ReelPreferencesManager.alAtharEnabled.collectAsState()
 
@@ -336,8 +334,14 @@ fun ReelsScreen(
     }
 
     val likedReelIds = remember { mutableStateMapOf<String, Boolean>() }
-    val dynamicLikeCounts = remember { mutableStateMapOf<String, Int>() }
-    val dynamicViewCounts = remember { mutableStateMapOf<String, Int>() }
+
+    // 📡 مراقب حالة الاتصال بالشبكة لفرض وضع الأثر دون اتصال وإتاحة الحرية عند عودته
+    val connectivityObserver = remember { NetworkConnectivityObserver(context) }
+    val networkStatus by connectivityObserver.observe().collectAsState(
+        initial = if (NetworkUtils.isNetworkAvailable(context)) ConnectivityObserver.Status.Available else ConnectivityObserver.Status.Unavailable
+    )
+    val isOnline = networkStatus == ConnectivityObserver.Status.Available
+    var wasEverOffline by remember { mutableStateOf(!NetworkUtils.isNetworkAvailable(context)) }
 
     // User details for comments & cloud syncing
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -387,32 +391,15 @@ fun ReelsScreen(
     }
 
     /**
-     * إثبات المشاهدة: تسجيل محلي + سحابي وتحديث العداد الحي المباشر للفيديو.
+     * إثبات المشاهدة: تسجيل سحابي حصري في Supabase دون أي زيادة محلية وهمية في الذاكرة.
      */
     fun finalizeWatch(reelId: String?) {
         val rid = reelId ?: return
         val secs = watchSeconds[rid] ?: 0
         if (secs <= 0) return
-        val reel = allReels.find { it.id == rid } ?: return
 
-        // 1. زيادة العداد الحي محلياً فوراً لمنع بقاء العداد على 0
-        val curViews = dynamicViewCounts[rid] ?: reel.viewsCount
-        dynamicViewCounts[rid] = curViews + 1
-
-        // 2. حفظ المشاهدة في التفضيلات المحلية
-        ReelPreferencesManager.recordWatch(
-            context = context,
-            reelId = rid,
-            title = reel.title,
-            userName = reel.userName,
-            userAvatar = reel.userAvatar,
-            videoUrl = reel.videoUrl,
-            category = selectedCategory,
-            durationSec = secs
-        )
-
-        // 3. المزامنة مع الخادم السحابي
-        if (ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+        // تم حذف النظام المحلي: لا زيادة وهمية للعداد محلياً ولا كتابة محلية
+        if (isOnline && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
                 val effectiveUser = currentSupabaseId ?: return@launch
                 SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
@@ -529,13 +516,6 @@ fun ReelsScreen(
             loadingProgress = 0.88f
             allReels = effectiveReels
             canLoadMore = (remoteReels?.size ?: 0) >= REELS_PAGE_SIZE
-            allReels.forEach { r ->
-                dynamicLikeCounts[r.id] = r.likesCount
-                likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
-                if (!dynamicViewCounts.containsKey(r.id)) {
-                    dynamicViewCounts[r.id] = r.viewsCount
-                }
-            }
             loadingProgress = 0.98f
             lastWatchedReelId = null
             watchSeconds.clear()
@@ -550,11 +530,32 @@ fun ReelsScreen(
             if (authId != null) {
                 runCatching {
                     withTimeoutOrNull(5000L) {
-                        SupabaseServices.Profiles.getBookmarkedReelIds(authId)
+                        SupabaseServices.Profiles.getBookmarkedReelIds(authId)?.let { ids ->
+                            if (ids.isNotEmpty()) cloudBookmarks = ids
+                        }
+                        SupabaseServices.Profiles.getLikedReelIds(authId)?.let { ids ->
+                            likedReelIds.clear()
+                            ids.forEach { likedReelIds[it] = true }
+                        }
                     }
-                }.getOrNull()?.let { ids ->
-                    if (ids.isNotEmpty()) cloudBookmarks = ids
                 }
+            }
+        }
+    }
+
+    // ⚡ التوجيه الإجباري لوضع الأثر عند انقطاع الاتصال واستعادة الحرية فورا عند عودته
+    LaunchedEffect(isOnline) {
+        if (!isOnline) {
+            wasEverOffline = true
+            selectedTab = 2 // توجيه إجباري إلى تبويب الأثر
+            isAlAtharMode = true
+            isOfflineMode = true
+        } else {
+            isOfflineMode = false
+            if (wasEverOffline) {
+                Toast.makeText(context, "عادت الشبكة ✦ يمكنك الآن التنقل بحرية والتفاعل ✨", Toast.LENGTH_LONG).show()
+                loadReels()
+                wasEverOffline = false
             }
         }
     }
@@ -587,15 +588,7 @@ fun ReelsScreen(
             if (newOnes.isNotEmpty()) {
                 val updatedList = allReels + newOnes
                 allReels = updatedList
-                // تحديث الكاش المحلي بالقائمة الموسعة
                 ReelPreferencesManager.saveCachedReels(context, updatedList)
-                newOnes.forEach { r ->
-                    if (!dynamicLikeCounts.containsKey(r.id)) {
-                        dynamicLikeCounts[r.id] = r.likesCount
-                        likedReelIds[r.id] = likedReels.any { it.reelId == r.id }
-                        dynamicViewCounts[r.id] = r.viewsCount
-                    }
-                }
             }
         }
     }
@@ -644,8 +637,9 @@ fun ReelsScreen(
                                 )
                     }
                     2 -> {
-                        // Al-Athar tab: show silent seeds or offline-injected reels
-                        reel.isSilentSeed || reel.publishType == "injection" || reel.tags.contains("أثر")
+                        // Al-Athar tab: show silent seeds or offline-injected reels, or all available offline reels when offline
+                        if (!isOnline || isOfflineMode) true
+                        else reel.isSilentSeed || reel.publishType == "injection" || reel.tags.contains("أثر")
                     }
                     else -> true // For You tab
                 }
@@ -890,148 +884,98 @@ fun ReelsScreen(
                         val reel = displayReels[page]
                         val isPageVisible = pagerState.currentPage == page
                         val isLiked = likedReelIds[reel.id] == true
-                        // محفوظ محلياً أو في المحفوظات السحابية (مزامنة عبر الأجهزة)
-                        val isSaved = savedReels.any { it.reelId == reel.id } || cloudBookmarks.contains(reel.id)
-                        val currentLikes = dynamicLikeCounts[reel.id] ?: reel.likesCount
+                        val isSaved = cloudBookmarks.contains(reel.id)
+                        val currentLikes = reel.likesCount
 
                         val handleToggleLike: () -> Unit = {
-                            checkGuestInteraction {
-                                if (ReelSafetyGuardrails.canPerformLike(reel.id) && likeInFlight[reel.id] != true) {
-                                    val newLikedState = !isLiked
-                                    likeInFlight[reel.id] = true
-                                    likedReelIds[reel.id] = newLikedState
-                                    dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
+                            if (!isAlAtharMode && selectedTab != 2) {
+                                checkGuestInteraction {
+                                    if (ReelSafetyGuardrails.canPerformLike(reel.id) && likeInFlight[reel.id] != true) {
+                                        val newLikedState = !isLiked
+                                        likeInFlight[reel.id] = true
+                                        likedReelIds[reel.id] = newLikedState
+                                        val updatedCount = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
+                                        allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = updatedCount) else it }
 
-                                    ReelPreferencesManager.toggleLiked(
-                                        context = context,
-                                        reelId = reel.id,
-                                        title = reel.title,
-                                        userName = reel.userName,
-                                        userAvatar = reel.userAvatar,
-                                        videoUrl = reel.videoUrl,
-                                        category = selectedCategory
-                                    )
-
-                                    scope.launch {
-                                        val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                        
-                                        if (authId == null) {
-                                            // حفظ العملية في الانتظار وعرض حوار تسجيل الدخول بدلاً من مجرد التراجع
-                                            likedReelIds[reel.id] = !newLikedState
-                                            dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
-                                            ReelPreferencesManager.toggleLiked(
-                                                context = context,
-                                                reelId = reel.id,
-                                                title = reel.title,
-                                                userName = reel.userName,
-                                                userAvatar = reel.userAvatar,
-                                                videoUrl = reel.videoUrl,
-                                                category = selectedCategory
-                                            )
-                                            pendingInteractionAction = {
-                                                likedReelIds[reel.id] = newLikedState
-                                                dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
-                                                scope.launch {
-                                                    val resId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                                    if (resId != null) {
-                                                        if (newLikedState) SupabaseServices.Profiles.likeReel(reel.id, resId)
-                                                        else SupabaseServices.Profiles.unlikeReel(reel.id, resId)
+                                        scope.launch {
+                                            val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                            if (authId == null) {
+                                                likedReelIds[reel.id] = !newLikedState
+                                                allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = currentLikes) else it }
+                                                pendingInteractionAction = {
+                                                    likedReelIds[reel.id] = newLikedState
+                                                    val pendingCount = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
+                                                    allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = pendingCount) else it }
+                                                    scope.launch {
+                                                        val resId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                                        if (resId != null) {
+                                                            if (newLikedState) SupabaseServices.Profiles.likeReel(reel.id, resId)
+                                                            else SupabaseServices.Profiles.unlikeReel(reel.id, resId)
+                                                        }
                                                     }
                                                 }
+                                                showGuestLoginPrompt = true
+                                                likeInFlight[reel.id] = false
+                                                return@launch
                                             }
-                                            showGuestLoginPrompt = true
-                                            likeInFlight[reel.id] = false
-                                            return@launch
-                                        }
 
-                                        val ok = runCatching {
-                                            withTimeoutOrNull(10_000L) {
-                                                if (newLikedState) {
-                                                    SupabaseServices.Profiles.likeReel(reel.id, authId)
+                                            val ok = runCatching {
+                                                withTimeoutOrNull(10_000L) {
+                                                    if (newLikedState) {
+                                                        SupabaseServices.Profiles.likeReel(reel.id, authId)
+                                                    } else {
+                                                        SupabaseServices.Profiles.unlikeReel(reel.id, authId)
+                                                    }
+                                                } ?: false
+                                            }.getOrDefault(false)
+
+                                            if (!ok) {
+                                                likedReelIds[reel.id] = !newLikedState
+                                                allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = currentLikes) else it }
+                                                val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
+                                                    "الخدمات السحابية غير متوفرة حالياً"
                                                 } else {
-                                                    SupabaseServices.Profiles.unlikeReel(reel.id, authId)
+                                                    val raw = SupabaseServices.lastInteractionError ?: ""
+                                                    val suffix = if (raw.isNotBlank()) "\n($raw)" else ""
+                                                    "تعذر تحديث الإعجاب سحابياً$suffix"
                                                 }
-                                            } ?: false
-                                        }.getOrDefault(false)
-
-                                        if (!ok) {
-                                            // فشل التسجيل السحابي لمقطع غير أصيل: تراجع فوري
-                                            likedReelIds[reel.id] = !newLikedState
-                                            dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
-                                            ReelPreferencesManager.toggleLiked(
-                                                context = context,
-                                                reelId = reel.id,
-                                                title = reel.title,
-                                                userName = reel.userName,
-                                                userAvatar = reel.userAvatar,
-                                                videoUrl = reel.videoUrl,
-                                                category = selectedCategory
-                                            )
-                                            val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
-                                                "الخدمات السحابية غير متوفرة حالياً"
-                                            } else {
-                                                val raw = SupabaseServices.lastInteractionError ?: ""
-                                                val suffix = if (raw.isNotBlank()) "\n($raw)" else ""
-                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك$suffix"
+                                                Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                             }
-                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                                            likeInFlight[reel.id] = false
                                         }
-                                        likeInFlight[reel.id] = false
                                     }
                                 }
                             }
                         }
 
                         val handleToggleSave: () -> Unit = {
-                            checkGuestInteraction {
-                                val wasCloudSaved = cloudBookmarks.contains(reel.id)
-                                val wasLocalSaved = savedReels.any { it.reelId == reel.id }
-                                val nowLocalSaved = ReelPreferencesManager.toggleSave(
-                                    context = context,
-                                    reelId = reel.id,
-                                    title = reel.title,
-                                    userName = reel.userName,
-                                    userAvatar = reel.userAvatar,
-                                    videoUrl = reel.videoUrl,
-                                    category = selectedCategory
-                                )
-                                Toast.makeText(
-                                    context,
-                                    if (nowLocalSaved) "تم حفظ المقطع في المحفوظات 🔖" else "تمت إزالة المقطع من المحفوظات",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            if (!isAlAtharMode && selectedTab != 2) {
+                                checkGuestInteraction {
+                                    val wasCloudSaved = cloudBookmarks.contains(reel.id)
+                                    val nowCloudSaved = !wasCloudSaved
+                                    cloudBookmarks = if (nowCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
+                                    Toast.makeText(
+                                        context,
+                                        if (nowCloudSaved) "تم حفظ المقطع في المحفوظات السحابية 🔖" else "تمت إزالة المقطع من المحفوظات",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
 
-                                // مزامنة سحابية للمستخدم المصادق — مع تراجع فوري عند الفشل
-                                val authId = SupabaseServices.Auth.getCurrentUserId()
-                                if (authId != null) {
-                                    // الحالة السحابية تحاكي الحالة المحلية النهائية
-                                    val nowCloudSaved = nowLocalSaved
-                                    if (nowCloudSaved) cloudBookmarks = cloudBookmarks + reel.id else cloudBookmarks = cloudBookmarks - reel.id
-                                    scope.launch {
-                                        val ok = runCatching {
-                                            withTimeoutOrNull(10_000L) {
-                                                if (nowCloudSaved) {
-                                                    SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
-                                                } else {
-                                                    SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
-                                                }
-                                            } ?: false
-                                        }.getOrDefault(false)
-                                        if (!ok && !reel.id.startsWith("qabas_")) {
-                                            // تراجع سحابي + تراجع محلي (اتساق كامل بين الطبقتين)
-                                            cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
-                                            if (nowLocalSaved != wasLocalSaved) {
-                                                ReelPreferencesManager.toggleSave(
-                                                    context = context,
-                                                    reelId = reel.id,
-                                                    title = reel.title,
-                                                    userName = reel.userName,
-                                                    userAvatar = reel.userAvatar,
-                                                    videoUrl = reel.videoUrl,
-                                                    category = selectedCategory
-                                                )
+                                    val authId = SupabaseServices.Auth.getCurrentUserId()
+                                    if (authId != null) {
+                                        scope.launch {
+                                            val ok = runCatching {
+                                                withTimeoutOrNull(10_000L) {
+                                                    if (nowCloudSaved) {
+                                                        SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
+                                                    } else {
+                                                        SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
+                                                    }
+                                                } ?: false
+                                            }.getOrDefault(false)
+                                            if (!ok) {
+                                                cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
+                                                Toast.makeText(context, "تعذر مزامنة المحفوظات مع السحابة", Toast.LENGTH_SHORT).show()
                                             }
-                                            Toast.makeText(context, "تعذر مزامنة المحفوظات مع السحابة", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -1065,7 +1009,9 @@ fun ReelsScreen(
                                     }
                                 } else null,
                                 onDoubleTapLike = {
-                                    if (isGuest) {
+                                    if (selectedTab == 2 || isAlAtharMode) {
+                                        // وضع الأثر مخصص للمشاهدة فقط — لا يوجد تفاعل
+                                    } else if (isGuest) {
                                         showGuestLoginPrompt = true
                                     } else {
                                         when (doubleTapAction) {
@@ -1123,7 +1069,9 @@ fun ReelsScreen(
                                 onLike = handleToggleLike,
                                 onSave = handleToggleSave,
                                 onComment = {
-                                    checkGuestInteraction { activeCommentReel = reel }
+                                    if (!isAlAtharMode && selectedTab != 2) {
+                                        checkGuestInteraction { activeCommentReel = reel }
+                                    }
                                 },
                                 onAudioClick = {
                                     activeAudioReel = reel
@@ -1154,7 +1102,8 @@ fun ReelsScreen(
                                 },
                                 onOpenCreatorProfile = { cId: String, cName: String, cAvatar: String? ->
                                     activeCreatorProfile = Triple(cId, cName, cAvatar)
-                                }
+                                },
+                                isAlAtharMode = isAlAtharMode || selectedTab == 2
                             )
                         }
                     }
@@ -1303,21 +1252,25 @@ fun ReelsScreen(
                                                 RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
-                                                selectedTab = 0
-                                                isAlAtharMode = false
+                                                if (!isOnline) {
+                                                    Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) ✦ التبويب يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    selectedTab = 0
+                                                    isAlAtharMode = false
+                                                }
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
                                             .padding(horizontal = 10.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "لك ✦",
+                                            text = if (!isOnline) "لك 🔒" else "لك ✦",
                                             fontFamily = CairoFont,
                                             fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
                                             fontSize = 11.sp,
                                             softWrap = false,
                                             maxLines = 1,
-                                            color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = 0.7f)
+                                            color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = if (!isOnline) 0.4f else 0.7f)
                                         )
                                     }
 
@@ -1333,23 +1286,27 @@ fun ReelsScreen(
                                                 RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
-                                                checkGuestInteraction {
-                                                    selectedTab = 1
-                                                    isAlAtharMode = false
-                                                    ReelPreferencesManager.triggerHaptic(context)
+                                                if (!isOnline) {
+                                                    Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) ✦ التبويب يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    checkGuestInteraction {
+                                                        selectedTab = 1
+                                                        isAlAtharMode = false
+                                                        ReelPreferencesManager.triggerHaptic(context)
+                                                    }
                                                 }
                                             }
                                             .padding(horizontal = 10.dp, vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "متابعون",
+                                            text = if (!isOnline) "متابعون 🔒" else "متابعون",
                                             fontFamily = CairoFont,
                                             fontWeight = if (selectedTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
                                             fontSize = 11.sp,
                                             softWrap = false,
                                             maxLines = 1,
-                                            color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = 0.7f)
+                                            color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = if (!isOnline) 0.4f else 0.7f)
                                         )
                                     }
 
@@ -1365,12 +1322,8 @@ fun ReelsScreen(
                                                 RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
-                                                if (!alAtharEnabled) {
-                                                    showAlAtharExplanation = true
-                                                } else {
-                                                    selectedTab = 2
-                                                    isAlAtharMode = true
-                                                }
+                                                selectedTab = 2
+                                                isAlAtharMode = true
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }
                                             .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -1393,9 +1346,9 @@ fun ReelsScreen(
                             Spacer(modifier = Modifier.size(38.dp))
                         }
 
-                        // 📡 شريط تنبيه هادئ عند تصفح الكاش المحلي بدون إنترنت (وضع غير متصل)
+                        // 📡 شريط تنبيه هادئ عند تصفح وضع الأثر أو انقطاع الاتصال
                         AnimatedVisibility(
-                            visible = isOfflineMode,
+                            visible = !isOnline || isAlAtharMode,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -1410,7 +1363,11 @@ fun ReelsScreen(
                                     color = Color(0xFF0F172A).copy(alpha = 0.90f),
                                     border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
                                     modifier = Modifier.clickable {
-                                        loadReels()
+                                        if (isOnline) {
+                                            loadReels(true)
+                                        } else {
+                                            Toast.makeText(context, "لا يوجد اتصال بالإنترنت — وضع الأثر نشط للمشاهدة فقط ✦", Toast.LENGTH_SHORT).show()
+                                        }
                                         ReelPreferencesManager.triggerHaptic(context)
                                     }
                                 ) {
@@ -1419,7 +1376,7 @@ fun ReelsScreen(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                                     ) {
                                         Text(
-                                            text = if (isAlAtharMode) "« وضع الأثر ✦ نفحات من وحي السكينة دون اتصال »" else "📡 أنت تتصفح المحفوظات المخزنة محلياً (وضع غير متصل)",
+                                            text = if (!isOnline) "« وضع الأثر الإجباري ✦ مشاهدة هادئة دون اتصال ودون تفاعل »" else "« وضع الأثر ✦ نفحات من وحي السكينة دون تفاعل »",
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 11.5.sp,
@@ -1427,13 +1384,15 @@ fun ReelsScreen(
                                             maxLines = 1,
                                             softWrap = false
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "إعادة الاتصال",
-                                            tint = GoldPrimary,
-                                            modifier = Modifier.size(13.dp)
-                                        )
+                                        if (isOnline) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "إعادة الاتصال",
+                                                tint = GoldPrimary,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1560,22 +1519,36 @@ fun ReelsScreen(
 
     // More Options Bottom Sheet
     activeMoreOptionsReel?.let { reel ->
-        val isSaved = savedReels.any { it.reelId == reel.id }
+        val isSaved = cloudBookmarks.contains(reel.id)
         ReelMoreOptionsSheet(
             reel = reel,
             isSaved = isSaved,
             currentUserEmail = currentUserEmail,
             currentUserId = currentUserId,
             onToggleSave = {
-                ReelPreferencesManager.toggleSave(
-                    context = context,
-                    reelId = reel.id,
-                    title = reel.title,
-                    userName = reel.userName,
-                    userAvatar = reel.userAvatar,
-                    videoUrl = reel.videoUrl,
-                    category = selectedCategory
-                )
+                val wasCloudSaved = cloudBookmarks.contains(reel.id)
+                val nowCloudSaved = !wasCloudSaved
+                cloudBookmarks = if (nowCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
+                Toast.makeText(
+                    context,
+                    if (nowCloudSaved) "تم حفظ المقطع في المحفوظات السحابية 🔖" else "تمت إزالة المقطع من المحفوظات",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                val authId = SupabaseServices.Auth.getCurrentUserId()
+                if (authId != null) {
+                    scope.launch {
+                        val ok = runCatching {
+                            withTimeoutOrNull(10_000L) {
+                                if (nowCloudSaved) SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
+                                else SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
+                            } ?: false
+                        }.getOrDefault(false)
+                        if (!ok) {
+                            cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
+                        }
+                    }
+                }
             },
             onSpeedSelected = { newSpeed ->
                 ReelPreferencesManager.setPlaybackSpeed(context, newSpeed)
@@ -1707,13 +1680,14 @@ fun ReelsScreen(
     activeDetailsReel?.let { reel ->
         ReelDetailsBottomSheet(
             reel = reel,
-            liveViews = dynamicViewCounts[reel.id] ?: reel.viewsCount,
-            liveLikes = dynamicLikeCounts[reel.id] ?: reel.likesCount,
+            liveViews = reel.viewsCount,
+            liveLikes = reel.likesCount,
             onOpenCreatorProfile = { id, name, avatar ->
                 activeDetailsReel = null
                 activeCreatorProfile = Triple(id, name, avatar)
             },
-            onDismiss = { activeDetailsReel = null }
+            onDismiss = { activeDetailsReel = null },
+            isAlAtharMode = isAlAtharMode || selectedTab == 2
         )
     }
 
@@ -1891,7 +1865,8 @@ fun ReelSpatialHUDOverlays(
     activeDetailsReel: SupabaseServices.ReelRow?,
     onShare: () -> Unit,
     onMoreOptions: () -> Unit,
-    onOpenCreatorProfile: (creatorId: String, creatorName: String, creatorAvatar: String?) -> Unit
+    onOpenCreatorProfile: (creatorId: String, creatorName: String, creatorAvatar: String?) -> Unit,
+    isAlAtharMode: Boolean = false
 ) {
     // Disc rotation animation
     val infiniteTransition = rememberInfiniteTransition(label = "disc_spin")
@@ -1938,10 +1913,7 @@ fun ReelSpatialHUDOverlays(
                 .padding(start = 14.dp, end = 66.dp, bottom = 96.dp)
                 .fillMaxWidth()
         ) {
-            // Details are now shown in ReelDetailsBottomSheet triggered by the Details arrow button
-            // This block is removed from the HUD overlay to prevent redundancy and clutter.
             Spacer(modifier = Modifier.height(10.dp))
-
             Spacer(modifier = Modifier.height(6.dp))
 
             // Audio track badge
@@ -1974,79 +1946,81 @@ fun ReelSpatialHUDOverlays(
             }
         }
 
-        // Bottom-left vertical geometric action rail (collapsible)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 10.dp, bottom = 84.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            AnimatedVisibility(
-                visible = actionsExpanded,
-                enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+        // أزرار التفاعل الجانبية: مخفية كلياً في وضع الأثر (مشاهدة وسكينة فقط)
+        if (!isAlAtharMode) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 10.dp, bottom = 84.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                AnimatedVisibility(
+                    visible = actionsExpanded,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
                 ) {
-                    // مُرتّبة حسب الأهمية: إعجاب ← تعليق ← حفظ ← مشاركة ← المزيد
-                    ReelRailButton(
-                        icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        label = formatCount(likesCount),
-                        tint = if (isLiked) Color(0xFFEF4444) else Color.White,
-                        onClick = onLike
-                    )
-                    ReelRailButton(
-                        icon = Icons.Default.Comment,
-                        label = formatCount(commentsCount),
-                        tint = Color.White,
-                        onClick = onComment
-                    )
-                    ReelRailButton(
-                        icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        label = if (isSaved) "محفوظ" else "حفظ",
-                        tint = if (isSaved) GoldPrimary else Color.White,
-                        onClick = onSave
-                    )
-                    ReelRailButton(
-                        icon = Icons.Default.Share,
-                        label = formatCount(reel.sharesCount),
-                        tint = Color.White,
-                        onClick = onShare
-                    )
-                    ReelRailButton(
-                        icon = Icons.Default.MoreHoriz,
-                        label = "المزيد",
-                        tint = Color.White.copy(alpha = 0.85f),
-                        onClick = onMoreOptions
-                    )
-
-                    // 🎵 Spinning audio disc (geometric hub)
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 2.dp)
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0F172A).copy(alpha = 0.85f))
-                            .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
-                            .rotate(rotation)
-                            .clickable { onAudioClick() },
-                        contentAlignment = Alignment.Center
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // مُرتّبة حسب الأهمية: إعجاب ← تعليق ← حفظ ← مشاركة ← المزيد
+                        ReelRailButton(
+                            icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            label = formatCount(likesCount),
+                            tint = if (isLiked) Color(0xFFEF4444) else Color.White,
+                            onClick = onLike
+                        )
+                        ReelRailButton(
+                            icon = Icons.Default.Comment,
+                            label = formatCount(commentsCount),
+                            tint = Color.White,
+                            onClick = onComment
+                        )
+                        ReelRailButton(
+                            icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            label = if (isSaved) "محفوظ" else "حفظ",
+                            tint = if (isSaved) GoldPrimary else Color.White,
+                            onClick = onSave
+                        )
+                        ReelRailButton(
+                            icon = Icons.Default.Share,
+                            label = formatCount(reel.sharesCount),
+                            tint = Color.White,
+                            onClick = onShare
+                        )
+                        ReelRailButton(
+                            icon = Icons.Default.MoreHoriz,
+                            label = "المزيد",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            onClick = onMoreOptions
+                        )
+
+                        // 🎵 Spinning audio disc (geometric hub)
                         Box(
                             modifier = Modifier
-                                .size(14.dp)
+                                .padding(end = 2.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(GoldPrimary)
-                        )
+                                .background(Color(0xFF0F172A).copy(alpha = 0.85f))
+                                .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
+                                .rotate(rotation)
+                                .clickable { onAudioClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(GoldPrimary)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // الأسهم الثلاثة بنفس القياس وبنفس الارتفاع مع اسم كل سهم أسفله
+        // الأسهم السفلية: إخفاء سهم التفاعل تماما في وضع الأثر
         Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -2059,11 +2033,13 @@ fun ReelSpatialHUDOverlays(
                 label = "التفاصيل",
                 onClick = onOpenDetails
             )
-            ReelArrowButton(
-                expanded = actionsExpanded,
-                label = "التفاعل",
-                onClick = { actionsExpanded = !actionsExpanded }
-            )
+            if (!isAlAtharMode) {
+                ReelArrowButton(
+                    expanded = actionsExpanded,
+                    label = "التفاعل",
+                    onClick = { actionsExpanded = !actionsExpanded }
+                )
+            }
         }
     }
 }
@@ -3114,7 +3090,8 @@ fun ReelDetailsBottomSheet(
     liveViews: Int = reel.viewsCount,
     liveLikes: Int = reel.likesCount,
     onOpenCreatorProfile: (String, String, String?) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isAlAtharMode: Boolean = false
 ) {
     val context = LocalContext.current
     val hudViewer = remember { CreatorFollowManager.currentViewer(context) }
@@ -3325,32 +3302,62 @@ fun ReelDetailsBottomSheet(
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
-            // ── 5. بطاقات الإحصائيات الهندسية المترابطة بالعداد الحقيقي ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                GeometricStatCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Visibility,
-                    count = liveViews,
-                    label = "مشاهدة",
-                    accentColor = Color(0xFF00E5FF)
-                )
-                GeometricStatCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Favorite,
-                    count = liveLikes,
-                    label = "إعجاب",
-                    accentColor = Color(0xFFEF4444)
-                )
-                GeometricStatCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Comment,
-                    count = reel.commentsCount,
-                    label = "تعليق",
-                    accentColor = GoldPrimary
-                )
+            // ── 5. بطاقات الإحصائيات أو شارة السكينة في وضع الأثر ──
+            if (isAlAtharMode) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = GoldPrimary.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Spa,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "« وضع الأثر ✦ مساحة للسكينة والتدبر دون تفاعل »",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = GoldPrimary
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    GeometricStatCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Visibility,
+                        count = liveViews,
+                        label = "مشاهدة",
+                        accentColor = Color(0xFF00E5FF)
+                    )
+                    GeometricStatCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Favorite,
+                        count = liveLikes,
+                        label = "إعجاب",
+                        accentColor = Color(0xFFEF4444)
+                    )
+                    GeometricStatCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Comment,
+                        count = reel.commentsCount,
+                        label = "تعليق",
+                        accentColor = GoldPrimary
+                    )
+                }
             }
         }
     }

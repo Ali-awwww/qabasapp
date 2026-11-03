@@ -152,8 +152,11 @@ fun ProfileScreen(
         val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
         val activeEmail = realEmail ?: userEmail
         val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
-        val cloudProfile = realEmail?.takeIf { it.isNotBlank() }?.let { email ->
-            SupabaseServices.Database.getUserByEmail(email, SupabaseServices.Auth.getCurrentUserId())
+        val authUid = SupabaseServices.Auth.getCurrentUserId()
+        val cloudProfile = if (!authUid.isNullOrBlank()) {
+            SupabaseServices.Database.getUserByEmail(activeEmail, authUid)
+        } else realEmail?.takeIf { it.isNotBlank() }?.let { email ->
+            SupabaseServices.Database.getUserByEmail(email, null)
         }
         val realName = cloudProfile?.name?.takeIf { it.isNotBlank() } ?: sbName
         val realAvatar = sbAvatar
@@ -170,24 +173,45 @@ fun ProfileScreen(
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if (identityChanged || nameIsPlaceholder || savedAccountName != null) {
-            // If the current name is the legacy placeholder "علي وليد", ignore it and prefer realName or "مستخدم قبس"
+
+        // Prioritize authoritative cloud name over local cache
+        val effectiveName = if (!cloudProfile?.name.isNullOrBlank()) {
+            cloudProfile!!.name!!.trim()
+        } else {
             val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
-            val activeName = baseName ?: realName ?: "مستخدم قبس"
-            displayName = activeName
-            activeProfilePrefs.edit().putString("user_name", activeName).apply()
-            if (identityChanged || globalIdentityMatches) {
-                prefs.edit().putString("user_display_name", activeName).putString("user_name", activeName).apply()
-            }
+            baseName ?: realName ?: "مستخدم قبس"
+        }
+        displayName = effectiveName
+        activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
+        if (identityChanged || globalIdentityMatches) {
+            prefs.edit().putString("user_display_name", effectiveName).putString("user_name", effectiveName).apply()
         }
 
-        // Reload every account-scoped field when the authenticated identity changes.
-        userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+        // Fetch cloud bio from user_settings in Supabase
+        val cloudBio = if (!authUid.isNullOrBlank()) {
+            SupabaseServices.UserSettings.getUserBio(authUid)
+        } else null
+
+        if (!cloudBio.isNullOrBlank()) {
+            userBio = cloudBio
+            activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
+        } else {
+            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+        }
+
+        // Fetch cloud custom ID / tag
+        if (!cloudProfile?.customId.isNullOrBlank()) {
+            userCustomTag = UserIdentifierManager.formatDisplay(cloudProfile.customId!!)
+            UserIdentifierManager.saveCustomId(context, cloudProfile.customId, activeEmail)
+        } else {
+            userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
+                .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
+        }
+
         avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
         selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
-        userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
-            .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
-        userAccountNumber = UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
+        userAccountNumber = cloudProfile?.accountNumber?.takeIf { it.isNotBlank() }
+            ?: UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
 
         if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
@@ -2491,13 +2515,12 @@ fun ProfileScreen(
                                         email = userEmail,
                                         customId = cleanId
                                     )
-                                    val cloudUser = if (saved) {
-                                        SupabaseServices.Database.ensureUser(
-                                            externalId = authUid,
-                                            email = userEmail,
-                                            name = nextDisplayName
-                                        )
-                                    } else null
+                                    val cloudUser = SupabaseServices.Database.ensureUser(
+                                        externalId = authUid,
+                                        email = userEmail,
+                                        name = nextDisplayName,
+                                        customId = cleanId
+                                    )
 
                                     if (cloudUser == null ||
                                         cloudUser.id != authUid ||
@@ -2509,6 +2532,9 @@ fun ProfileScreen(
                                         Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
                                         return@launch
                                     }
+
+                                    // Save bio directly to Supabase cloud
+                                    SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
 
                                     displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName
                                     userCustomTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)

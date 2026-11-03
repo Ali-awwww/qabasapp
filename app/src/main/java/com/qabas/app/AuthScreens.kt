@@ -307,8 +307,16 @@ fun RegisterScreen(
 
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
-                        label = { Text("الاسم الكامل", fontFamily = CairoFont, fontSize = 12.sp) },
+                        onValueChange = { newName ->
+                            name = newName
+                            if (customId.isBlank() || customId == "qbs_user") {
+                                val norm = UserIdentifierManager.normalize(newName)
+                                if (norm.isNotBlank()) {
+                                    customId = norm
+                                }
+                            }
+                        },
+                        label = { Text("الاسم الكامل / اسم الحساب", fontFamily = CairoFont, fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = primaryColor,
@@ -326,9 +334,9 @@ fun RegisterScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         OutlinedTextField(
                             value = customId,
-                            onValueChange = { customId = it.trim().replace(" ", "_") },
-                            label = { Text("المعرّف الخاص (User ID / Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
-                            placeholder = { Text("مثال: qbs_ahmed أو QBS-7821", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
+                            onValueChange = { customId = it.trim().removePrefix("@").replace(" ", "_") },
+                            label = { Text("اسم المستخدم / المعرّف (اليوزر - Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
+                            placeholder = { Text("مثال: aliwalead أو qbs_ahmed", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
                             leadingIcon = {
                                 Icon(Icons.Default.Person, contentDescription = null, tint = primaryColor.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                             },
@@ -469,13 +477,17 @@ fun RegisterScreen(
                                 return@Button
                             }
 
-                            val requestedCustomId = customId.trim().takeIf { it.isNotBlank() }
-                                ?.let { UserIdentifierManager.normalize(it) }
+                            val rawCustom = customId.trim().ifBlank {
+                                val fromName = UserIdentifierManager.normalize(name)
+                                if (fromName.isNotBlank()) fromName else trimmedEmail.substringBefore("@")
+                            }
+                            val requestedCustomId = UserIdentifierManager.normalize(rawCustom)
+                                .takeIf { it.isNotBlank() }
                             if (requestedCustomId != null &&
                                 (requestedCustomId.length !in 3..25 ||
                                     !requestedCustomId.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_-]{2,24}$")))
                             ) {
-                                Toast.makeText(context, "المعرّف يجب أن يكون بين 3 و25 حرفاً أو رقماً", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "المعرّف يجب أن يكون بين 3 و25 حرفاً أو رقماً بالإنجليزية", Toast.LENGTH_LONG).show()
                                 return@Button
                             }
 
@@ -502,7 +514,12 @@ fun RegisterScreen(
                                 // The server performs the final unique check and atomically
                                 // allocates the account number. A local pre-check is not authoritative.
                                 val success = SupabaseServices.isSupabaseAvailable &&
-                                    SupabaseServices.Auth.register(trimmedEmail, password.trim(), requestedCustomId)
+                                    SupabaseServices.Auth.register(
+                                        email = trimmedEmail,
+                                        pass = password.trim(),
+                                        customId = requestedCustomId,
+                                        displayName = name.trim()
+                                    )
 
                                 if (success) {
                                     val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)

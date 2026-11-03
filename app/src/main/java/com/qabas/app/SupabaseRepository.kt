@@ -189,11 +189,16 @@ class SupabaseRepository(
     /**
      * Refreshes user profile and admin status, then broadcasts [AuthState.Authenticated].
      */
-    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?, requestedCustomId: String? = null): Boolean =
+    private suspend fun refreshUserAndEmitAuthenticated(
+        uid: String,
+        session: UserSession?,
+        requestedCustomId: String? = null,
+        requestedDisplayName: String? = null
+    ): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
                 val email = session?.user?.email ?: client.auth.currentUserOrNull()?.email
-                val name = email?.substringBefore("@")
+                val name = requestedDisplayName?.trim()?.takeIf { it.isNotBlank() } ?: email?.substringBefore("@")
                 val userRow = SupabaseServices.Database.ensureUser(uid, email, name, requestedCustomId)
                     ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
                 if (userRow.id != uid ||
@@ -340,7 +345,12 @@ class SupabaseRepository(
     }
 
     /** Sign up with email and password and broadcast updated auth state. */
-    suspend fun register(email: String, pass: String, customId: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun register(
+        email: String,
+        pass: String,
+        customId: String? = null,
+        displayName: String? = null
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         _authState.value = AuthState.Loading
         runCatching {
@@ -351,7 +361,7 @@ class SupabaseRepository(
             val session = client.auth.currentSessionOrNull()
             val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
                 ?: throw IllegalStateException("EMAIL_CONFIRMATION_REQUIRED")
-            if (!refreshUserAndEmitAuthenticated(uid, session, customId)) {
+            if (!refreshUserAndEmitAuthenticated(uid, session, customId, displayName)) {
                 throw IllegalStateException("تعذر حفظ ملف الحساب في السحابة")
             }
             syncLocalAuthSuccess(uid, session?.user?.email)
