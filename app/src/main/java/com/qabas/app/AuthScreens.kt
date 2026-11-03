@@ -408,42 +408,59 @@ fun RegisterScreen(
                                     return@launch
                                 }
 
-                                var success = false
-                                if (SupabaseServices.isSupabaseAvailable) {
-                                    success = SupabaseServices.Auth.register(trimmedEmail, password.trim())
-                                    if (!success) {
-                                        success = SupabaseServices.Auth.login(trimmedEmail, password.trim())
-                                    }
+                                val registered = SupabaseServices.isSupabaseAvailable &&
+                                    SupabaseServices.Auth.register(trimmedEmail, password.trim())
+                                val authUid = if (registered) SupabaseServices.Auth.awaitCurrentUserId() else null
+
+                                if (registered && authUid.isNullOrBlank()) {
+                                    Toast.makeText(
+                                        context,
+                                        "تم استلام طلب التسجيل. تحقق من بريدك الإلكتروني ثم سجّل الدخول لتفعيل الحساب.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    isLoading = false
+                                    return@launch
                                 }
-                                if (!success && !SupabaseServices.isSupabaseAvailable) success = true
 
-                                if (success) {
+                                if (registered && !authUid.isNullOrBlank()) {
                                     val lowerEmail = trimmedEmail.lowercase(java.util.Locale.ROOT)
-                                    val isAdmin = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
+                                    val isAdmin = CloudServices.isOwnerAccount(lowerEmail)
                                     val userType = if (isAdmin) "مطور" else "مجاني"
-                                    val userId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
-                                    // جلب رقم الحساب من عداد السحابة لضمان الترقيم الموحد
-                                    val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, trimmedEmail, name.trim())
-
-                                    UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
-
-                                    var canonicalUserId = userId
+                                    val userId = authUid
                                     var effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
 
-                                    if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(userId, lowerEmail, effectiveManualName, finalCustomId, accountNumber)
-                                        if (existing != null) {
-                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
-                                            if (!existing.name.isNullOrBlank()) effectiveManualName = existing.name
-                                        }
-                                        SupabaseServices.Database.saveUser(
-                                            id = canonicalUserId,
+                                    val existing = SupabaseServices.Database.ensureUser(
+                                        userId, lowerEmail, effectiveManualName, finalCustomId
+                                    )?.takeIf { it.id == userId }
+                                    if (existing != null && !existing.name.isNullOrBlank()) {
+                                        effectiveManualName = existing.name
+                                    }
+                                    if (existing == null) {
+                                        Toast.makeText(context, "تعذر إنشاء ملفك السحابي. لم يتم تفعيل الحساب محلياً.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+
+                                    val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(
+                                        context, trimmedEmail, effectiveManualName
+                                    )
+                                    if (accountNumber.isBlank()) {
+                                        Toast.makeText(context, "تعذر تخصيص رقم الحساب من السحابة. حاول مجدداً.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+                                    UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
+                                    if (!SupabaseServices.Database.saveUser(
+                                            id = userId,
                                             name = effectiveManualName,
                                             email = trimmedEmail,
                                             type = userType,
                                             customId = finalCustomId,
                                             accountNumber = accountNumber
-                                        )
+                                        )) {
+                                        Toast.makeText(context, "تعذر حفظ ملفك السحابي. لم يكتمل التسجيل.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
                                     }
 
                                     // جلسة نشطة واحدة فقط لكل حساب
