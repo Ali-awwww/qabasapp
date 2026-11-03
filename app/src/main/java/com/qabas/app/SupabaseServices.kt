@@ -62,12 +62,6 @@ object SupabaseServices {
             true
         }.getOrDefault(false)
 
-        suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
-            val client = client ?: return 1
-            // Use the new secure RPC to get the next sequence
-            client.postgrest.rpc("get_next_account_sequence").decodeAs<Int>()
-        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrDefault(1)
-
         suspend fun getLatestActiveUpdate(): ActiveUpdate? = runCatching {
             val client = client ?: return null
             client.postgrest.from("app_updates")
@@ -89,59 +83,76 @@ object SupabaseServices {
             accountNumber: String? = null
         ): UserRow? = runCatching {
             val client = client ?: return null
-            val cleanEmail = email?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+            val authUser = client.auth.currentUserOrNull()
+            val authUid = authUser?.id
+                ?: client.auth.currentSessionOrNull()?.user?.id
+                ?: return null
 
-            // Authentication UID is the canonical owner key. Prefer it over email:
-            // legacy duplicate email rows must never make us load another profile.
-            val byId = client.postgrest.from("users").select {
-                filter { eq("id", externalId) }
-                limit(1)
-            }.decodeSingleOrNull<UserRow>()
-            if (byId != null) {
-                if (cleanEmail.isBlank() || byId.email.isNullOrBlank() ||
-                    byId.email.equals(cleanEmail, ignoreCase = true)) return@runCatching byId
-                Log.w(TAG, "ensureUser: Auth UID row email mismatch; refusing cross-account profile access")
-                return@runCatching null
+            // Auth UID is the only accepted profile key; never fall back to email,
+            // an old external_id, or a local identifier.
+            if (externalId != authUid) {
+                Log.w(TAG, "ensureUser: rejected non-canonical profile identifier")
+                return null
             }
 
-            // Some legacy rows stored the Auth UID in external_id instead of id.
-            val byExternalId = client.postgrest.from("users").select {
-                filter { eq("external_id", externalId) }
-                limit(2)
-            }.decodeList<UserRow>()
-            if (byExternalId.size == 1) {
-                val legacyRow = byExternalId.first()
-                if (cleanEmail.isBlank() || legacyRow.email.isNullOrBlank() ||
-                    legacyRow.email.equals(cleanEmail, ignoreCase = true)) return@runCatching legacyRow
-                Log.w(TAG, "ensureUser: legacy external_id row email mismatch; refusing cross-account profile access")
-                return@runCatching null
+            val authEmail = authUser.email?.trim()?.lowercase(java.util.Locale.ROOT)
+                ?: email?.trim()?.lowercase(java.util.Locale.ROOT)
+                ?: return null
+            if (!email.isNullOrBlank() && !email.trim().equals(authEmail, ignoreCase = true)) {
+                Log.w(TAG, "ensureUser: session email does not match requested profile")
+                return null
             }
 
-            // Email is a fallback only when it identifies exactly one row.
-            if (cleanEmail.isNotBlank()) {
-                val byEmail = client.postgrest.from("users").select {
-                    filter { ilike("email", cleanEmail) }
-                    limit(2)
-                }.decodeList<UserRow>()
-                if (byEmail.size == 1) return@runCatching byEmail.first()
-                if (byEmail.size > 1) {
-                    Log.w(TAG, "ensureUser: duplicate email rows; refusing ambiguous profile selection")
+            suspend fun readCanonical(): UserRow? =
+                client.postgrest.from("users").select {
+                    filter { eq("id", authUid) }
+                    limit(1)
+                }.decodeSingleOrNull<UserRow>()
+
+            var existing = readCanonical()
+            if (existing == null) {
+                val payload = UserProfileInsert(
+                    id = authUid,
+                    email = authEmail,
+                    name = name?.trim()?.takeIf { it.isNotBlank() },
+                    customId = customId?.trim()?.takeIf { it.isNotBlank() }
+                )
+                runCatching {
+                    client.postgrest.from("users").insert(payload) {
+                        select()
+                    }.decodeSingleOrNull<UserRow>()
+                }.onFailure {
+                    // Concurrent devices may race to create the same UID row.
+                    Log.w(TAG, "ensureUser insert raced or failed: ${it.message}")
+                }
+                existing = readCanonical()
+            } else {
+                val patch = buildMap<String, Any> {
+                    if (existing.name.isNullOrBlank() && !name.isNullOrBlank()) {
+                        put("name", name.trim())
+                    }
+                    if (!customId.isNullOrBlank() &&
+                        !customId.equals(existing.customId, ignoreCase = true)
+                    ) {
+                        put("custom_id", customId.trim().removePrefix("@"))
+                    }
+                }
+                if (patch.isNotEmpty()) {
+                    client.postgrest.from("users").update(patch) {
+                        filter { eq("id", authUid) }
+                    }
+                    existing = readCanonical()
                 }
             }
 
-            val newUser = UserRow(
-                id = externalId,
-                externalId = externalId,
-                email = cleanEmail.ifBlank { email },
-                name = if (name == "علي وليد") "مستخدم قبس" else (name ?: "مستخدم قبس"),
-                type = "مجاني",
-                status = "active",
-                customId = customId,
-                accountNumber = accountNumber,
-                createdAt = java.time.Instant.now().toString()
-            )
-            client.postgrest.from("users").upsert(newUser)
-            newUser
+            existing?.takeIf {
+                it.id == authUid &&
+                    !it.customId.isNullOrBlank() &&
+                    !it.accountNumber.isNullOrBlank()
+            } ?: run {
+                Log.e(TAG, "ensureUser: canonical cloud profile is missing identity fields")
+                null
+            }
         }.onFailure { Log.e(TAG, "ensureUser failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByEmail(email: String, authUserId: String? = null): UserRow? = runCatching {
@@ -149,36 +160,18 @@ object SupabaseServices {
             val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
             if (cleanEmail.isBlank()) return null
 
-            // When the caller supplies the authenticated UID, never resolve by
-            // email ordering: the same email may have legacy duplicate rows.
+            // Authenticated profile reads are strictly UID-scoped.
             if (!authUserId.isNullOrBlank()) {
+                val currentUid = client.auth.currentUserOrNull()?.id
+                    ?: client.auth.currentSessionOrNull()?.user?.id
+                if (currentUid != authUserId) return null
                 val byId = client.postgrest.from("users").select {
                     filter { eq("id", authUserId) }
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()
-                if (byId != null) {
-                    if (byId.email.isNullOrBlank() || byId.email.equals(cleanEmail, ignoreCase = true)) {
-                        return@runCatching byId
-                    }
-                    Log.w(TAG, "getUserByEmail: Auth UID row email mismatch; refusing cross-account profile access")
-                    return@runCatching null
-                }
-
-                val byExternalId = client.postgrest.from("users").select {
-                    filter { eq("external_id", authUserId) }
-                    limit(2)
-                }.decodeList<UserRow>()
-                if (byExternalId.size == 1) {
-                    val legacyRow = byExternalId.first()
-                    if (legacyRow.email.isNullOrBlank() || legacyRow.email.equals(cleanEmail, ignoreCase = true)) {
-                        return@runCatching legacyRow
-                    }
-                    Log.w(TAG, "getUserByEmail: legacy external_id email mismatch; refusing cross-account profile access")
-                    return@runCatching null
-                }
-                if (byExternalId.size > 1) {
-                    Log.w(TAG, "getUserByEmail: duplicate external_id rows; refusing ambiguous profile selection")
-                    return@runCatching null
+                return@runCatching byId?.takeIf {
+                    it.id == authUserId &&
+                        (it.email.isNullOrBlank() || it.email.equals(cleanEmail, ignoreCase = true))
                 }
             }
 
@@ -188,13 +181,7 @@ object SupabaseServices {
                 order("created_at", Order.ASCENDING)
                 limit(2)
             }.decodeList<UserRow>()
-            if (matches.size == 1) {
-                val match = matches.first()
-                if (match.name == "علي وليد") match.copy(name = "مستخدم قبس") else match
-            } else {
-                if (matches.size > 1) Log.w(TAG, "getUserByEmail: duplicate email rows; caller must provide auth UID")
-                null
-            }
+            if (matches.size == 1) matches.first() else null
         }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByCustomId(customId: String): UserRow? = runCatching {
@@ -258,63 +245,36 @@ object SupabaseServices {
             accountNumber: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
-            val cleanEmail = email.trim().lowercase(java.util.Locale.ROOT)
-
-            // Resolve ownership by Auth UID first, then by a unique legacy external_id.
-            val byId = client.postgrest.from("users").select {
-                filter { eq("id", id) }
-                limit(1)
-            }.decodeSingleOrNull<UserRow>()
-            val byExternalId = if (byId == null) {
-                client.postgrest.from("users").select {
-                    filter { eq("external_id", id) }
-                    limit(2)
-                }.decodeList<UserRow>().singleOrNull()
-            } else null
-
-            // Email fallback is safe only when it identifies one row exactly.
-            val byUniqueEmail = if (byId == null && byExternalId == null && cleanEmail.isNotBlank()) {
-                val matches = client.postgrest.from("users").select {
-                    filter { ilike("email", cleanEmail) }
-                    limit(2)
-                }.decodeList<UserRow>()
-                matches.singleOrNull()
-            } else null
-
-            val existing = byId ?: byExternalId ?: byUniqueEmail
-            if (existing != null) {
-                if (!existing.email.isNullOrBlank() &&
-                    !existing.email.equals(cleanEmail, ignoreCase = true)) {
-                    Log.w(TAG, "saveUser: refusing to overwrite a row owned by a different email")
-                    return false
-                }
-                val fields = mutableMapOf<String, Any>(
-                    "email" to email,
-                    "type" to type,
-                    "status" to "active"
-                )
-                if (name.isNotBlank()) fields["name"] = name
-                customId?.takeIf { it.isNotBlank() }?.let { fields["custom_id"] = it }
-                accountNumber?.takeIf { it.isNotBlank() }?.let { fields["account_number"] = it }
-                // Update only the row proven to belong to this Auth UID.
-                client.postgrest.from("users").update(fields) {
-                    filter { eq("id", existing.id) }
-                }
-                return true
+            val authUid = client.auth.currentUserOrNull()?.id
+                ?: client.auth.currentSessionOrNull()?.user?.id
+                ?: return false
+            if (id != authUid) {
+                Log.w(TAG, "saveUser: rejected write for a non-authenticated user")
+                return false
             }
 
-            val row = UserRow(
-                id = id,
-                externalId = id,
-                name = name,
-                email = email,
-                type = type,
-                customId = customId,
-                accountNumber = accountNumber,
-                status = "active"
-            )
-            client.postgrest.from("users").upsert(row)
-            true
+            val authEmail = client.auth.currentUserOrNull()?.email
+                ?.trim()?.lowercase(java.util.Locale.ROOT)
+                ?: return false
+            if (!authEmail.equals(email.trim(), ignoreCase = true)) return false
+
+            // This compatibility method can update profile fields only.
+            // UID, role, status and account number are server-owned.
+            val patch = buildMap<String, Any> {
+                if (name.isNotBlank()) put("name", name.trim())
+                if (!customId.isNullOrBlank()) put("custom_id", customId.trim().removePrefix("@"))
+            }
+            if (patch.isEmpty()) return true
+            client.postgrest.from("users").update(patch) {
+                filter { eq("id", authUid) }
+            }
+            val saved = client.postgrest.from("users").select {
+                filter { eq("id", authUid) }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()
+            saved?.id == authUid &&
+                !saved.customId.isNullOrBlank() &&
+                !saved.accountNumber.isNullOrBlank()
         }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}") }.getOrDefault(false)
 
         /**
@@ -1689,11 +1649,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.let { res ->
-            if (res.isSuccess) true
-            else if (reelId.startsWith("qabas_")) true
-            else false
-        }
+        }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.getOrDefault(false)
 
         suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
             val client = client ?: return null
@@ -1721,12 +1677,12 @@ object SupabaseServices {
 
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
-            val effectiveUserId = currentAuthUid ?: userId
+            val authUid = client.auth.currentUserOrNull()?.id
+                ?: client.auth.currentSessionOrNull()?.user?.id
+                ?: return null
+            if (authUid != userId) return null
             client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
-                filter {
-                    eq("user_id", effectiveUserId)
-                }
+                filter { eq("user_id", authUid) }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
         }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
 
@@ -1739,11 +1695,13 @@ object SupabaseServices {
          */
         suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Boolean = runCatching {
             val client = client ?: return false
-            if (userId.isNotBlank() && !isSyntheticOrLocalUserId(userId)) {
+            val authUid = client.auth.currentUserOrNull()?.id
+                ?: client.auth.currentSessionOrNull()?.user?.id
+            if (!authUid.isNullOrBlank() && authUid == userId) {
                 client.postgrest.from("reel_history").insert(
                     mapOf(
                         "reel_id" to reelId,
-                        "user_id" to userId,
+                        "user_id" to authUid,
                         "watched_duration_sec" to watchedDurationSec.coerceIn(0, 3600)
                     )
                 )
@@ -2182,6 +2140,14 @@ object SupabaseServices {
     // ==========================================
     // Model Definitions
     // ==========================================
+    @Serializable
+    data class UserProfileInsert(
+        val id: String,
+        val email: String,
+        val name: String? = null,
+        @SerialName("custom_id") val customId: String? = null
+    )
+
     @Serializable
     data class UserRow(
         val id: String = "",

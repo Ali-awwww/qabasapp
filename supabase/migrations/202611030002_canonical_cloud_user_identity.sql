@@ -1,0 +1,324 @@
+-- Canonical cloud identity for Qabas users.
+-- Auth UID is the only owner key. Usernames and account numbers are allocated
+-- centrally by PostgreSQL and are never accepted from an untrusted client.
+
+BEGIN;
+
+CREATE SCHEMA IF NOT EXISTS qabas_identity_private;
+REVOKE ALL ON SCHEMA qabas_identity_private FROM PUBLIC, anon, authenticated;
+
+CREATE SEQUENCE IF NOT EXISTS qabas_identity_private.account_number_seq
+    AS BIGINT INCREMENT BY 1 MINVALUE 1 NO MAXVALUE START WITH 1 CACHE 1;
+REVOKE ALL ON SEQUENCE qabas_identity_private.account_number_seq
+    FROM PUBLIC, anon, authenticated;
+
+-- Continue after the highest existing QBS number. nextval() is atomic; gaps
+-- are acceptable and allocated numbers are never reused.
+DO $$
+DECLARE v_max BIGINT;
+BEGIN
+    SELECT MAX(NULLIF(regexp_replace(account_number, '[^0-9]', '', 'g'), '')::BIGINT)
+      INTO v_max
+      FROM public.users;
+    IF COALESCE(v_max, 0) > 0 THEN
+        PERFORM setval('qabas_identity_private.account_number_seq'::regclass, v_max, TRUE);
+    ELSE
+        PERFORM setval('qabas_identity_private.account_number_seq'::regclass, 1, FALSE);
+    END IF;
+END
+$$;
+
+-- Repair duplicate handles without deleting historical profile rows.
+WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (
+        PARTITION BY lower(btrim(custom_id))
+        ORDER BY is_eligible DESC, created_at ASC NULLS LAST, id
+    ) AS rn
+    FROM public.users
+    WHERE custom_id IS NOT NULL AND btrim(custom_id) <> ''
+)
+UPDATE public.users u
+   SET custom_id = 'legacy_' || substr(md5(u.id), 1, 16)
+  FROM ranked r
+ WHERE u.id = r.id AND r.rn > 1;
+
+UPDATE public.users
+   SET custom_id = 'legacy_' || substr(md5(id), 1, 16)
+ WHERE custom_id IS NULL OR btrim(custom_id) = '';
+
+-- Retain one existing number per duplicate group; allocate permanent new
+-- numbers to the other historical rows.
+WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (
+        PARTITION BY lower(regexp_replace(btrim(account_number), '^#', ''))
+        ORDER BY is_eligible DESC, created_at ASC NULLS LAST, id
+    ) AS rn
+    FROM public.users
+    WHERE account_number IS NOT NULL AND btrim(account_number) <> ''
+)
+UPDATE public.users u
+   SET account_number =
+       '#QBS-' || lpad(nextval('qabas_identity_private.account_number_seq')::TEXT, 4, '0')
+  FROM ranked r
+ WHERE u.id = r.id AND r.rn > 1;
+
+UPDATE public.users
+   SET account_number =
+       '#QBS-' || lpad(nextval('qabas_identity_private.account_number_seq')::TEXT, 4, '0')
+ WHERE account_number IS NULL OR btrim(account_number) = '';
+
+-- Build a conservative alias map only when the Supabase Auth email is unique.
+CREATE TEMP TABLE qbas_identity_aliases ON COMMIT DROP AS
+WITH auth_emails AS (
+    SELECT lower(btrim(email)) AS email, MIN(id::TEXT) AS auth_uid, COUNT(*) AS auth_count
+    FROM auth.users
+    WHERE email IS NOT NULL AND btrim(email) <> ''
+    GROUP BY lower(btrim(email))
+),
+candidates AS (
+    SELECT u.id AS alias_id, a.auth_uid
+    FROM public.users u JOIN auth_emails a ON a.email = lower(btrim(u.email))
+    WHERE a.auth_count = 1
+    UNION ALL
+    SELECT u.external_id AS alias_id, a.auth_uid
+    FROM public.users u JOIN auth_emails a ON a.email = lower(btrim(u.email))
+    WHERE a.auth_count = 1 AND u.external_id IS NOT NULL AND btrim(u.external_id) <> ''
+    UNION ALL
+    SELECT lower(btrim(u.email)) AS alias_id, a.auth_uid
+    FROM public.users u JOIN auth_emails a ON a.email = lower(btrim(u.email))
+    WHERE a.auth_count = 1
+)
+SELECT alias_id, MIN(auth_uid) AS auth_uid
+FROM candidates
+WHERE alias_id IS NOT NULL AND btrim(alias_id) <> ''
+GROUP BY alias_id
+HAVING COUNT(DISTINCT auth_uid) = 1;
+CREATE UNIQUE INDEX ON qbas_identity_aliases(alias_id);
+
+-- Select one canonical profile per unambiguously matched Auth account.
+CREATE TEMP TABLE qbas_identity_canonical ON COMMIT DROP AS
+WITH auth_emails AS (
+    SELECT lower(btrim(email)) AS email, MIN(id::TEXT) AS auth_uid, COUNT(*) AS auth_count
+    FROM auth.users
+    WHERE email IS NOT NULL AND btrim(email) <> ''
+    GROUP BY lower(btrim(email))
+),
+ranked AS (
+    SELECT a.auth_uid, a.email, u.id AS profile_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY a.auth_uid
+               ORDER BY (u.id = a.auth_uid) DESC,
+                        u.is_eligible DESC, u.created_at ASC NULLS LAST, u.id
+           ) AS rn
+    FROM auth_emails a
+    JOIN public.users u ON lower(btrim(u.email)) = a.email
+    WHERE a.auth_count = 1
+)
+SELECT auth_uid, email, profile_id FROM ranked WHERE rn = 1;
+CREATE UNIQUE INDEX ON qbas_identity_canonical(auth_uid);
+CREATE UNIQUE INDEX ON qbas_identity_canonical(profile_id);
+
+-- Preserve one row when an old alias and the canonical UID already liked or
+-- bookmarked the same item. No comments or user-authored content are removed.
+DELETE FROM public.reel_likes old_row
+USING qbas_identity_aliases m
+WHERE old_row.user_id = m.alias_id AND old_row.user_id <> m.auth_uid
+  AND EXISTS (
+      SELECT 1 FROM public.reel_likes current_row
+      WHERE current_row.reel_id = old_row.reel_id AND current_row.user_id = m.auth_uid
+  );
+UPDATE public.reel_likes x
+   SET user_id = m.auth_uid
+  FROM qbas_identity_aliases m
+ WHERE x.user_id = m.alias_id AND m.alias_id <> m.auth_uid;
+
+DELETE FROM public.reel_bookmarks old_row
+USING qbas_identity_aliases m
+WHERE old_row.user_id = m.alias_id AND old_row.user_id <> m.auth_uid
+  AND EXISTS (
+      SELECT 1 FROM public.reel_bookmarks current_row
+      WHERE current_row.reel_id = old_row.reel_id AND current_row.user_id = m.auth_uid
+  );
+UPDATE public.reel_bookmarks x
+   SET user_id = m.auth_uid
+  FROM qbas_identity_aliases m
+ WHERE x.user_id = m.alias_id AND m.alias_id <> m.auth_uid;
+
+DELETE FROM public.creator_follows old_row
+USING qbas_identity_aliases m
+WHERE old_row.follower_id = m.alias_id AND old_row.follower_id <> m.auth_uid
+  AND EXISTS (
+      SELECT 1 FROM public.creator_follows current_row
+      WHERE current_row.follower_id = m.auth_uid AND current_row.creator_id = old_row.creator_id
+  );
+UPDATE public.creator_follows x
+   SET follower_id = m.auth_uid
+  FROM qbas_identity_aliases m
+ WHERE x.follower_id = m.alias_id AND m.alias_id <> m.auth_uid;
+
+DELETE FROM public.creator_follows old_row
+USING qbas_identity_aliases m
+WHERE old_row.creator_id = m.alias_id AND old_row.creator_id <> m.auth_uid
+  AND EXISTS (
+      SELECT 1 FROM public.creator_follows current_row
+      WHERE current_row.creator_id = m.auth_uid AND current_row.follower_id = old_row.follower_id
+  );
+UPDATE public.creator_follows x
+   SET creator_id = m.auth_uid
+  FROM qbas_identity_aliases m
+ WHERE x.creator_id = m.alias_id AND m.alias_id <> m.auth_uid;
+
+DO $$
+DECLARE v_item RECORD;
+BEGIN
+    FOR v_item IN
+        SELECT * FROM (VALUES
+            ('reels', 'user_id'),
+            ('reel_comments', 'user_id'),
+            ('reel_history', 'user_id'),
+            ('saved_items', 'user_id'),
+            ('chat_messages', 'user_id'),
+            ('dev_chat_messages', 'user_id'),
+            ('dev_bug_reports', 'user_id'),
+            ('projects', 'user_id'),
+            ('projects', 'external_id'),
+            ('styles', 'user_id'),
+            ('master_styles', 'user_id'),
+            ('audio_tracks', 'user_id'),
+            ('content_guard_logs', 'user_id'),
+            ('league_leaderboard', 'user_id'),
+            ('promo_code_redemptions', 'user_id'),
+            ('scholar_proposals', 'user_id'),
+            ('transactions', 'user_id'),
+            ('app_reviews', 'user_id')
+        ) AS t(table_name, column_name)
+    LOOP
+        EXECUTE format(
+            'UPDATE public.%I AS target SET %I = map.auth_uid
+              FROM qbas_identity_aliases AS map
+             WHERE target.%I = map.alias_id AND map.alias_id <> map.auth_uid',
+            v_item.table_name, v_item.column_name, v_item.column_name
+        );
+    END LOOP;
+END
+$$;
+
+-- Promote the selected profile row to Auth UID. Ambiguous emails and
+-- non-selected legacy rows are preserved unchanged for manual review.
+UPDATE public.users u
+   SET id = c.auth_uid, external_id = c.auth_uid, email = c.email
+  FROM qbas_identity_canonical c
+ WHERE u.id = c.profile_id
+   AND u.id <> c.auth_uid
+   AND NOT EXISTS (SELECT 1 FROM public.users existing WHERE existing.id = c.auth_uid);
+
+UPDATE public.users u
+   SET external_id = u.id
+  FROM qbas_identity_canonical c
+ WHERE u.id = c.auth_uid AND u.external_id IS DISTINCT FROM u.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_custom_id_lower_unique
+    ON public.users (lower(btrim(custom_id)));
+CREATE UNIQUE INDEX IF NOT EXISTS users_account_number_lower_unique
+    ON public.users (lower(regexp_replace(btrim(account_number), '^#', '')));
+
+CREATE OR REPLACE FUNCTION qabas_identity_private.enforce_user_identity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, qabas_identity_private
+AS $$
+DECLARE
+    v_auth_uid TEXT;
+    v_auth_email TEXT;
+    v_role TEXT;
+    v_sequence BIGINT;
+    v_slug TEXT;
+BEGIN
+    v_auth_uid := auth.uid()::TEXT;
+    IF v_auth_uid IS NULL OR v_auth_uid = '' THEN
+        RAISE EXCEPTION 'A valid Supabase Auth session is required to write a user profile'
+            USING ERRCODE = '42501';
+    END IF;
+
+    v_auth_email := NULLIF(lower(btrim(auth.jwt() ->> 'email')), '');
+
+    IF TG_OP = 'INSERT' THEN
+        NEW.id := v_auth_uid;
+        NEW.external_id := v_auth_uid;
+        NEW.email := COALESCE(v_auth_email, NULLIF(lower(btrim(NEW.email)), ''));
+        IF NEW.email IS NULL THEN
+            RAISE EXCEPTION 'The authenticated account must have an email address'
+                USING ERRCODE = '23502';
+        END IF;
+
+        v_role := lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', 'user'));
+        NEW.type := CASE
+            WHEN v_role IN ('developer', 'owner') THEN 'مطور'
+            WHEN v_role IN ('admin', 'special') THEN 'خاص'
+            ELSE 'مجاني'
+        END;
+        NEW.status := 'active';
+        NEW.strikes := 0;
+        NEW.is_eligible := TRUE;
+
+        v_sequence := nextval('qabas_identity_private.account_number_seq'::regclass);
+        NEW.account_number := '#QBS-' || lpad(v_sequence::TEXT, 4, '0');
+
+        IF NULLIF(btrim(NEW.custom_id), '') IS NULL THEN
+            v_slug := lower(regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9]+', '_', 'g'));
+            v_slug := left(trim(both '_' from v_slug), 10);
+            IF v_slug = '' THEN v_slug := 'user'; END IF;
+            NEW.custom_id := v_slug || '_' || lpad(v_sequence::TEXT, 6, '0');
+        ELSE
+            NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
+            IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN
+                RAISE EXCEPTION 'The requested username is invalid' USING ERRCODE = '22023';
+            END IF;
+        END IF;
+
+        NEW.created_at := COALESCE(NEW.created_at, now());
+        NEW.updated_at := now();
+    ELSE
+        IF OLD.id <> v_auth_uid THEN
+            RAISE EXCEPTION 'A user may only update their own profile' USING ERRCODE = '42501';
+        END IF;
+
+        NEW.id := OLD.id;
+        NEW.external_id := OLD.external_id;
+        NEW.account_number := OLD.account_number;
+        NEW.type := OLD.type;
+        NEW.status := OLD.status;
+        NEW.strikes := OLD.strikes;
+        NEW.is_eligible := OLD.is_eligible;
+        NEW.created_at := OLD.created_at;
+        NEW.email := COALESCE(v_auth_email, OLD.email);
+
+        IF NULLIF(btrim(NEW.custom_id), '') IS NOT NULL THEN
+            NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
+            IF NEW.custom_id !~ '^[a-z0-9][a-z0-9_-]{2,24}$' THEN
+                RAISE EXCEPTION 'The requested username is invalid' USING ERRCODE = '22023';
+            END IF;
+        ELSE
+            NEW.custom_id := OLD.custom_id;
+        END IF;
+        NEW.updated_at := now();
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION qabas_identity_private.enforce_user_identity()
+    FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS enforce_user_identity_before_write ON public.users;
+CREATE TRIGGER enforce_user_identity_before_write
+    BEFORE INSERT OR UPDATE ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION qabas_identity_private.enforce_user_identity();
+
+GRANT SELECT, INSERT, UPDATE ON TABLE public.users TO authenticated;
+REVOKE DELETE ON TABLE public.users FROM authenticated;
+REVOKE ALL ON FUNCTION public.get_next_account_sequence() FROM PUBLIC, anon, authenticated;
+
+COMMIT;

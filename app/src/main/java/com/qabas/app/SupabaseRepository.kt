@@ -171,35 +171,35 @@ class SupabaseRepository(
     /**
      * Refreshes user profile and admin status, then broadcasts [AuthState.Authenticated].
      */
-    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?) {
+    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
                 val email = session?.user?.email ?: client.auth.currentUserOrNull()?.email
                 val name = email?.substringBefore("@")
-                val userRow = SupabaseServices.Database.ensureUser(uid, email, name) ?: SupabaseServices.UserRow(
-                    id = uid,
-                    externalId = uid,
-                    email = email,
-                    name = name
-                )
-                val role = SupabaseServices.Auth.getUserRoleFromMetadata()
-                val isAdmin = role == "admin" || role == "developer" || role == "owner" || CloudServices.isOwnerAccount(email)
+                val userRow = SupabaseServices.Database.ensureUser(uid, email, name)
+                    ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
+                if (userRow.id != uid ||
+                    userRow.customId.isNullOrBlank() ||
+                    userRow.accountNumber.isNullOrBlank()
+                ) {
+                    throw IllegalStateException("ملف المستخدم السحابي لا يحتوي هوية مكتملة")
+                }
 
+                val role = SupabaseServices.Auth.getUserRoleFromMetadata()
+                val isAdmin = role == "admin" || role == "developer" || role == "owner" ||
+                    CloudServices.isOwnerAccount(email)
                 _authState.value = AuthState.Authenticated(
                     userRow = userRow,
                     session = session,
                     isAdmin = isAdmin
                 )
-            }.onFailure { e ->
-                Log.w(TAG, "Failed to load user row for $uid: ${e.message}")
-                _authState.value = AuthState.Authenticated(
-                    userRow = SupabaseServices.UserRow(id = uid, externalId = uid),
-                    session = session,
-                    isAdmin = false
-                )
+                true
+            }.getOrElse { e ->
+                Log.e(TAG, "Failed to persist or load canonical profile for $uid: ${e.message}")
+                _authState.value = AuthState.Error("تعذر تحميل ملف حسابك السحابي. حاول مجدداً.")
+                false
             }
         }
-    }
 
     private fun syncLocalAuthSuccess(uid: String, email: String?) {
         val context = AppServices.appContext
@@ -227,10 +227,9 @@ class SupabaseRepository(
         }
         val currentSession = client.auth.currentSessionOrNull()
         val uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
-        if (uid != null) {
-            refreshUserAndEmitAuthenticated(uid, currentSession)
+        if (uid != null && refreshUserAndEmitAuthenticated(uid, currentSession)) {
             syncLocalAuthSuccess(uid, currentSession?.user?.email)
-        } else {
+        } else if (uid == null) {
             checkLocalAuthFallback()
         }
         _authState.value
@@ -264,9 +263,12 @@ class SupabaseRepository(
 
             if (!uid.isNullOrBlank()) {
                 // Ensure local state is synced with this real session
-                refreshUserAndEmitAuthenticated(uid, currentSession)
-                syncLocalAuthSuccess(uid, currentSession?.user?.email)
-                uid
+                if (refreshUserAndEmitAuthenticated(uid, currentSession)) {
+                    syncLocalAuthSuccess(uid, currentSession?.user?.email)
+                    uid
+                } else {
+                    null
+                }
             } else {
                 // Definitely unauthenticated
                 checkLocalAuthFallback()
@@ -304,7 +306,13 @@ class SupabaseRepository(
                 this.email = email
                 this.password = pass
             }
-            checkAuthState()
+            val session = client.auth.currentSessionOrNull()
+            val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                ?: throw IllegalStateException("EMAIL_CONFIRMATION_REQUIRED")
+            if (!refreshUserAndEmitAuthenticated(uid, session)) {
+                throw IllegalStateException("تعذر حفظ ملف الحساب في السحابة")
+            }
+            syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
             _authState.value = AuthState.Error(e.message ?: "Registration failed")
@@ -333,7 +341,13 @@ class SupabaseRepository(
                 this.email = email
                 this.password = pass
             }
-            checkAuthState()
+            val session = client.auth.currentSessionOrNull()
+            val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                ?: throw IllegalStateException("لم تُنشأ جلسة مصادقة صالحة")
+            if (!refreshUserAndEmitAuthenticated(uid, session)) {
+                throw IllegalStateException("تعذر تحميل ملف الحساب السحابي")
+            }
+            syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
             _authState.value = AuthState.Error(e.message ?: "Login failed")
