@@ -954,7 +954,7 @@ fun ReelsScreen(
                                             } ?: false
                                         }.getOrDefault(false)
 
-                                        if (!ok && !reel.id.startsWith("qabas_")) {
+                                        if (!ok) {
                                             // فشل التسجيل السحابي لمقطع غير أصيل: تراجع فوري
                                             likedReelIds[reel.id] = !newLikedState
                                             dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
