@@ -383,6 +383,33 @@ CREATE TRIGGER enforce_user_identity_before_write
     FOR EACH ROW
     EXECUTE FUNCTION qabas_identity_private.enforce_user_identity();
 
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS users_select_own ON public.users;
+CREATE POLICY users_select_own
+    ON public.users
+    FOR SELECT
+    TO authenticated
+    USING ((SELECT auth.uid())::text = id);
+
+DROP POLICY IF EXISTS users_insert_own ON public.users;
+CREATE POLICY users_insert_own
+    ON public.users
+    FOR INSERT
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid())::text = id);
+
+DROP POLICY IF EXISTS users_update_own ON public.users;
+CREATE POLICY users_update_own
+    ON public.users
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT auth.uid())::text = id)
+    WITH CHECK ((SELECT auth.uid())::text = id);
+
+-- User deletion is an account-lifecycle action and is not exposed to clients.
+DROP POLICY IF EXISTS users_delete_own ON public.users;
+
 -- Authenticated users can read their own row; trusted app_metadata roles may
 -- read/update the user directory for the developer dashboard.
 DROP POLICY IF EXISTS users_admin_select ON public.users;
