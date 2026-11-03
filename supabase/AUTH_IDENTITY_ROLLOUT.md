@@ -14,8 +14,8 @@ This change makes Supabase Auth the source of truth for Qabas account identity.
 ## Deployment order
 
 1. Take a database backup and test against a staging project first.
-2. **Reconcile migration history before applying this migration.** At implementation time, the connected project had older applied migrations while repository migrations `20261102172825_repair_reels_and_social_permissions.sql` and `202611030001_fix_social_permissions_and_sequencing.sql` were not present in the remote migration history. Do not run a blind production `supabase db push`; inspect the pending migration list and apply/reconcile each migration in order in staging.
-3. Apply `202611030002_canonical_cloud_user_identity.sql` only after the earlier migrations are understood and validated.
+2. **Reconcile migration history before applying this migration.** The connected production project currently has a recorded migration named `harden_qabas_support_admin_search_path` (20261103124618), and the repository now tracks that exact change. Several older repository migrations are still absent from the remote history. At implementation time, the connected project had older applied migrations while repository migrations `20261102172825_repair_reels_and_social_permissions.sql` and `202611030001_fix_social_permissions_and_sequencing.sql` were not present in the remote migration history. Do not run a blind production `supabase db push`; inspect the pending migration list and apply/reconcile each migration in order in staging.
+3. Apply `20261103130000_canonical_cloud_user_identity.sql` only after the earlier migrations are understood and validated.
 4. Deploy the identifier-login function:
    `supabase functions deploy qabas-auth-identifier-login --project-ref egkgygbvoeevakwkbvfu`
 5. Confirm the Edge Function runtime has the standard `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` environment variables. The service-role key must remain server-side and must never be added to the Android build or app config.
