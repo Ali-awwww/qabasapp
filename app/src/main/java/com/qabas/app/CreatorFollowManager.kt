@@ -14,7 +14,6 @@ import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
-import java.util.UUID
 
 /**
  * مدير المتابعة الموحّد لملفات صنّاع المحتوى.
@@ -29,7 +28,6 @@ object CreatorFollowManager {
     private const val LEGACY_PREFIX = "follow_"
     private const val FOLLOW_IDS_KEY = "followed_creators"
     private const val METADATA_KEY = "followed_creator_metadata_v1"
-    private const val INSTALL_ID_KEY = "creator_follow_install_id"
     private const val CLOUD_STATE_PREFIX = "creator_follow_cloud_"
     private const val TABLE = "creator_follows"
 
@@ -180,15 +178,6 @@ object CreatorFollowManager {
     }
 
     // ───────── الهوية المحلية ─────────
-
-    private fun installFollowerId(context: Context): String {
-        val prefs = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
-        val existing = prefs.getString(INSTALL_ID_KEY, null)?.takeIf { it.isNotBlank() }
-        if (existing != null) return existing
-        val created = "local-" + UUID.randomUUID().toString()
-        prefs.edit().putString(INSTALL_ID_KEY, created).apply()
-        return created
-    }
 
     fun currentViewer(context: Context): ViewerIdentity {
         val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

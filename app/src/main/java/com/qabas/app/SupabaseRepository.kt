@@ -209,6 +209,30 @@ class SupabaseRepository(
                     session = session,
                     isAdmin = isAdmin
                 )
+
+                // Local preferences are only a cache of values that the cloud
+                // profile has already issued. Restore them after every session load
+                // so a second device never invents a different handle or number.
+                val appContext = AppServices.appContext
+                val profileEmail = userRow.email ?: email
+                if (!profileEmail.isNullOrBlank()) {
+                    userRow.customId?.takeIf { it.isNotBlank() }?.let {
+                        UserIdentifierManager.saveCustomId(appContext, it, profileEmail)
+                    }
+                    userRow.accountNumber?.takeIf { it.isNotBlank() }?.let {
+                        UserIdentifierManager.saveAccountNumber(appContext, profileEmail, it)
+                    }
+                    appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("user_id", uid)
+                        .putString("user_email", profileEmail)
+                        .putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))
+                        .putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))
+                        .putString("user_custom_id", userRow.customId)
+                        .putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })
+                        .putString("user_account_number", userRow.accountNumber)
+                        .apply()
+                }
                 true
             }.getOrElse { e ->
                 Log.e(TAG, "Failed to persist or load canonical profile for $uid: ${e.message}")

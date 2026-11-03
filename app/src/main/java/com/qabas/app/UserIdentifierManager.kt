@@ -62,17 +62,10 @@ object UserIdentifierManager {
             return formatted
         }
 
-        // 2. إذا كان حساب المالك الأساسي للمنصة، يحصل حصرياً على الحساب رقم 1
-        if (CloudServices.isOwnerAccount(cleanEmail) || cleanEmail.contains("mousa.alharbi.pro@gmail.com")) {
-            val firstAcc = "#QBS-0001"
-            prefs.edit()
-                .putString(KEY_ACCOUNT_NUMBER, firstAcc)
-                .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, firstAcc)
-                .apply()
-            return firstAcc
-        }
+        // The device cache is only a replica of a cloud-issued account number.
+        // No account number is hard-coded or allocated locally.
 
-        // 3. فحص السجل المحلي (كاش)
+        // فحص السجل المحلي (كاش)
         val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
         val existingNumber = existingAccounts
             .firstOrNull { it.email.equals(cleanEmail, ignoreCase = true) }
