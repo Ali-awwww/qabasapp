@@ -953,134 +953,20 @@ fun LoginScreen(
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit()
                         .putString("draft_register_email", unregisteredTargetEmail)
-                        .putString("draft_register_password", unregisteredTargetPassword)
+                        .remove("draft_register_password")
                         .apply()
                     onNavigateToRegister()
                 },
                 onQuickRegister = {
-                    val passToUse = unregisteredTargetPassword.trim()
-                    if (passToUse.isBlank()) {
-                        Toast.makeText(context, "يرجى كتابة كلمة مرور جديدة لحسابك، أو الانتقال لشاشة التسجيل الكاملة ⚠️", Toast.LENGTH_LONG).show()
-                    } else if (passToUse.length < 8) {
-                        Toast.makeText(context, "يجب أن تتكون كلمة المرور من 8 خانات على الأقل لضمان أمان الحساب", Toast.LENGTH_LONG).show()
-                    } else {
-                        isQuickRegistering = true
-                        coroutineScope.launch {
-                            try {
-                                var regSuccess = false
-                                if (SupabaseServices.isSupabaseAvailable) {
-                                    regSuccess = SupabaseServices.Auth.register(unregisteredTargetEmail, passToUse)
-                                    if (!regSuccess) {
-                                        regSuccess = SupabaseServices.Auth.login(unregisteredTargetEmail, passToUse)
-                                    }
-                                }
-
-                                if (regSuccess) {
-                                    val authUserId = SupabaseServices.Auth.awaitCurrentUserId()
-                                    if (authUserId.isNullOrBlank()) {
-                                        Toast.makeText(
-                                            context,
-                                            "تم إنشاء الحساب إنما لم تُنشأ جلسة دخول. تحقق من بريدك ثم سجّل الدخول.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        isQuickRegistering = false
-                                        return@launch
-                                    }
-                                    val lower = unregisteredTargetEmail.lowercase(java.util.Locale.ROOT)
-                                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                                    val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lower)
-                                    val userType = if (isAdmin) "مطور" else "مجاني"
-                                    val userId = authUserId
-                                    val defaultName = unregisteredTargetEmail.substringBefore('@')
-
-                                    val customId = UserIdentifierManager.getOrCreateCustomId(context, unregisteredTargetEmail, defaultName)
-                                    val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, unregisteredTargetEmail, defaultName)
-
-                                    var canonicalUserId = userId
-                                    var effectiveName = defaultName
-
-                                    if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(userId, lower, defaultName, customId, accountNumber)
-                                        if (existing != null) {
-                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
-                                            if (!existing.name.isNullOrBlank()) effectiveName = existing.name
-                                        }
-                                        SupabaseServices.Database.saveUser(
-                                            id = canonicalUserId,
-                                            name = effectiveName,
-                                            email = unregisteredTargetEmail,
-                                            type = userType,
-                                            customId = customId,
-                                            accountNumber = accountNumber
-                                        )
-                                    }
-
-                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
-                                        runCatching { SupabaseServices.Auth.logout() }
-                                        Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
-                                        isQuickRegistering = false
-                                        return@launch
-                                    }
-
-                                    val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveName, accountNumber)
-
-                                    LocalAccountRegistry.registerOrUpdateAccount(
-                                        context = context,
-                                        account = LocalAccountRegistry.AccountRecord(
-                                            id = unregisteredTargetEmail,
-                                            name = effectiveName,
-                                            email = unregisteredTargetEmail,
-                                            customId = customId,
-                                            accountNumber = accountNumber,
-                                            type = userType,
-                                            status = "active"
-                                        )
-                                    )
-
-                                    prefs.edit().apply {
-                                        putBoolean("is_logged_in", true)
-                                        putBoolean("is_guest", false)
-                                        putBoolean("is_admin", isAdmin)
-                                        putBoolean("is_developer", CloudServices.isOwnerAccount(lower))
-                                        putBoolean("is_premium", true)
-                                        putString("user_id", canonicalUserId)
-                                        putString("user_email", unregisteredTargetEmail)
-                                        putString("user_name", effectiveName)
-                                        putString("user_display_name", effectiveName)
-                                        putString("user_custom_id", customId)
-                                        putString("user_tag", UserIdentifierManager.formatDisplay(customId))
-                                        putString("user_account_number", accountNumber)
-                                        putString("user_name_with_account", nameWithAccount)
-                                        if (rememberMe) putString("saved_login_email", unregisteredTargetEmail) else remove("saved_login_email")
-                                        apply()
-                                    }
-
-                                    // SupabaseRepository already observes the active Supabase Auth session.
-                                    CloudServices.syncAdminClaim(context)
-                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
-                                    Toast.makeText(
-                                        context,
-                                        "تم إنشاء الحساب والتوثيق بنجاح! رقم حسابك: $accountNumber$firstBadge",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    showUnregisteredDialog = false
-                                    onLoginSuccess(isAdmin)
-                                } else {
-                                    Toast.makeText(context, "تعذر الإنشاء التلقائي. يرجى التوجه لشاشة التسجيل.", Toast.LENGTH_LONG).show()
-                                }
-                            } catch (e: Exception) {
-                                // لا نعرض تفاصيل الاستثناء (قد تحمل رابط/مضيف السحابة) — نص آمن فقط
-                                android.util.Log.e("LoginScreen", "quick register failed: ${e.message}", e)
-                                Toast.makeText(
-                                    context,
-                                    SupabaseServices.Auth.describeAuthFailure(e).message,
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } finally {
-                                isQuickRegistering = false
-                            }
-                        }
-                    }
+                    // Quick registration must use the same cloud-authoritative flow
+                    // as the full registration screen. Never persist passwords locally.
+                    showUnregisteredDialog = false
+                    val draftPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    draftPrefs.edit()
+                        .putString("draft_register_email", unregisteredTargetEmail)
+                        .remove("draft_register_password")
+                        .apply()
+                    onNavigateToRegister()
                 }
             )
         }

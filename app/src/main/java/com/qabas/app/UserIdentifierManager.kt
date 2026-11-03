@@ -386,74 +386,17 @@ object UserIdentifierManager {
      * فك شفرة المدخل (سواء كان بريداً أو معرّفاً خاصاً) إلى البريد الإلكتروني الفعلي للمصادقة.
      * يعيد Pair(البريد الإلكتروني, المعرّف الخاص المكتشف).
      */
-    suspend fun resolveIdentifierToEmail(input: String, context: Context): Pair<String, String>? = withContext(Dispatchers.IO) {
-        val trimmed = input.trim()
-        if (trimmed.isBlank()) return@withContext null
-
-        // 1. إذا كان بريداً إلكترونياً صريحاً (مثل user@gmail.com)
-        if (isEmail(trimmed)) {
-            val lower = trimmed.lowercase(Locale.ROOT)
-            return@withContext Pair(lower, "")
+    /**
+     * Email inputs are returned unchanged. A username/account number must never
+     * be resolved to an email on the client before authentication; the server-side
+     * qabas-auth-identifier-login function performs that lookup and issues the Auth session.
+     */
+    suspend fun resolveIdentifierToEmail(input: String, context: Context): Pair<String, String>? =
+        withContext(Dispatchers.IO) {
+            val trimmed = input.trim()
+            if (!isEmail(trimmed)) return@withContext null
+            Pair(trimmed.lowercase(Locale.ROOT), "")
         }
-
-        val cleanId = normalize(trimmed)
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-        // 2. التحقق إن كان المدخل رقم حساب (مثل #QBS-0001 أو QBS-0001 أو 0001)
-        val formattedAcc = formatAccountNumber(trimmed)
-        val localAccEmail = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + formattedAcc, null)
-            ?: prefs.getString(KEY_MAP_PREFIX + formattedAcc, null)
-        if (!localAccEmail.isNullOrBlank() && isEmail(localAccEmail)) {
-            val userCustomId = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + localAccEmail, "") ?: ""
-            return@withContext Pair(localAccEmail, userCustomId)
-        }
-
-        // 3. التحقق من التخزين المؤقت المحلي للمعرّف الخاص (Local Map Cache)
-        val localEmail = prefs.getString(KEY_MAP_PREFIX + cleanId, null)
-        if (!localEmail.isNullOrBlank() && isEmail(localEmail)) {
-            return@withContext Pair(localEmail, cleanId)
-        }
-
-        // فحص هل هو معرّف الحساب الحالي المخزن في التطبيق
-        val currentSavedId = prefs.getString(KEY_CUSTOM_ID, null)
-        val currentEmail = prefs.getString("user_email", null)
-        if (currentSavedId.equals(cleanId, ignoreCase = true) && !currentEmail.isNullOrBlank()) {
-            prefs.edit().putString(KEY_MAP_PREFIX + cleanId, currentEmail).apply()
-            return@withContext Pair(currentEmail, cleanId)
-        }
-
-        // فحص السجلات المحلية للحسابات
-        val localAccountMatch = LocalAccountRegistry.getAllAccounts(context).firstOrNull { acc ->
-            acc.customId.equals(cleanId, ignoreCase = true) ||
-            acc.accountNumber.equals(formattedAcc, ignoreCase = true) ||
-            acc.accountNumber.removePrefix("#").equals(trimmed.removePrefix("#"), ignoreCase = true)
-        }
-        if (localAccountMatch != null && isEmail(localAccountMatch.email)) {
-            return@withContext Pair(localAccountMatch.email, localAccountMatch.customId)
-        }
-
-        // 4. التحقق السحابي عبر Supabase Database
-        if (SupabaseServices.isSupabaseAvailable) {
-            // أ) البحث بالمعرّف الخاص أولاً
-            val remoteEmail = SupabaseServices.Database.findEmailByCustomId(cleanId)
-            if (!remoteEmail.isNullOrBlank()) {
-                prefs.edit().putString(KEY_MAP_PREFIX + cleanId, remoteEmail).apply()
-                return@withContext Pair(remoteEmail, cleanId)
-            }
-
-            // ب) البحث برقم الحساب السحابي (سواء كتب #QBS-0001 أو رقماً مجرداً 1 أو 0001)
-            val userByAcc = SupabaseServices.Database.getUserByAccountNumber(trimmed)
-            if (userByAcc != null && !userByAcc.email.isNullOrBlank()) {
-                val accEmail = userByAcc.email
-                val accCustomId = userByAcc.customId ?: ""
-                prefs.edit().putString(KEY_ACCOUNT_MAP_PREFIX + formattedAcc, accEmail).apply()
-                return@withContext Pair(accEmail, accCustomId)
-            }
-        }
-
-        // لم يتم العثور على بريد مرتبط بالمعرّف أو برقم الحساب
-        return@withContext null
-    }
 
     /**
      * نسخ المعرّف الخاص للحافظة مع إشعار للمستخدم.

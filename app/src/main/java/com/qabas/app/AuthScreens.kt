@@ -52,21 +52,18 @@ fun RegisterScreen(
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val draftEmail = remember { prefs.getString("draft_register_email", "") ?: "" }
-    val draftPass = remember { prefs.getString("draft_register_password", "") ?: "" }
-
     var name by remember { mutableStateOf("") }
     var customId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf(draftEmail) }
-    var password by remember { mutableStateOf(draftPass) }
-    var confirmPassword by remember { mutableStateOf(draftPass) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (draftEmail.isNotBlank()) {
-            prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
-        }
+        // A password must never be persisted in SharedPreferences.
+        prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
     }
 
     val primaryColor = qabasPrimary()
