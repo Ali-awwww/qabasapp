@@ -344,7 +344,7 @@ CREATE OR REPLACE FUNCTION qabas_identity_private.enforce_user_identity()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public, qabas_identity_private
+SET search_path = pg_catalog, auth, qabas_identity_private
 AS $$
 DECLARE
     v_auth_uid TEXT;
