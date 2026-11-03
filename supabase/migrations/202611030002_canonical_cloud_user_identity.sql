@@ -280,19 +280,25 @@ BEGIN
         NEW.created_at := COALESCE(NEW.created_at, now());
         NEW.updated_at := now();
     ELSE
-        IF OLD.id <> v_auth_uid THEN
+        v_role := lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', ''));
+        IF OLD.id <> v_auth_uid AND v_role NOT IN ('admin', 'developer', 'owner') THEN
             RAISE EXCEPTION 'A user may only update their own profile' USING ERRCODE = '42501';
         END IF;
 
         NEW.id := OLD.id;
         NEW.external_id := OLD.external_id;
         NEW.account_number := OLD.account_number;
-        NEW.type := OLD.type;
-        NEW.status := OLD.status;
-        NEW.strikes := OLD.strikes;
-        NEW.is_eligible := OLD.is_eligible;
         NEW.created_at := OLD.created_at;
-        NEW.email := COALESCE(v_auth_email, OLD.email);
+        -- Email is owned by Supabase Auth; updating another user's profile must
+        -- never replace their email with the administrator's auth email.
+        NEW.email := OLD.email;
+
+        IF v_role NOT IN ('admin', 'developer', 'owner') THEN
+            NEW.type := OLD.type;
+            NEW.status := OLD.status;
+            NEW.strikes := OLD.strikes;
+            NEW.is_eligible := OLD.is_eligible;
+        END IF;
 
         IF NULLIF(btrim(NEW.custom_id), '') IS NOT NULL THEN
             NEW.custom_id := lower(regexp_replace(btrim(NEW.custom_id), '^@', ''));
@@ -316,6 +322,41 @@ CREATE TRIGGER enforce_user_identity_before_write
     BEFORE INSERT OR UPDATE ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION qabas_identity_private.enforce_user_identity();
+
+-- Authenticated users can read their own row; trusted app_metadata roles may
+-- read/update the user directory for the developer dashboard.
+DROP POLICY IF EXISTS users_admin_select ON public.users;
+CREATE POLICY users_admin_select
+    ON public.users
+    FOR SELECT
+    TO authenticated
+    USING (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    );
+
+DROP POLICY IF EXISTS users_admin_update ON public.users;
+CREATE POLICY users_admin_update
+    ON public.users
+    FOR UPDATE
+    TO authenticated
+    USING (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    )
+    WITH CHECK (
+        lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
+    );
+
+-- The follow client uses upsert, which requires SELECT/INSERT/UPDATE and
+-- the matching owner-scoped UPDATE policy for the conflict path.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.creator_follows TO authenticated;
+
+DROP POLICY IF EXISTS creator_follows_update_self ON public.creator_follows;
+CREATE POLICY creator_follows_update_self
+    ON public.creator_follows
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT auth.uid())::text = follower_id)
+    WITH CHECK ((SELECT auth.uid())::text = follower_id);
 
 GRANT SELECT, INSERT, UPDATE ON TABLE public.users TO authenticated;
 REVOKE DELETE ON TABLE public.users FROM authenticated;
