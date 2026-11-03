@@ -50,7 +50,10 @@ UPDATE public.users
 -- numbers to the other historical rows.
 WITH ranked AS (
     SELECT id, ROW_NUMBER() OVER (
-        PARTITION BY lower(regexp_replace(btrim(account_number), '^#', ''))
+        PARTITION BY COALESCE(
+               NULLIF(ltrim(regexp_replace(btrim(account_number), '[^0-9]', '', 'g'), '0'), ''),
+               '0'
+           )
         ORDER BY is_eligible DESC, created_at ASC NULLS LAST, id
     ) AS rn
     FROM public.users
@@ -234,8 +237,13 @@ UPDATE public.users u
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_custom_id_lower_unique
     ON public.users (lower(btrim(custom_id)));
-CREATE UNIQUE INDEX IF NOT EXISTS users_account_number_lower_unique
-    ON public.users (lower(regexp_replace(btrim(account_number), '^#', '')));
+CREATE UNIQUE INDEX IF NOT EXISTS users_account_number_numeric_unique
+    ON public.users (
+        COALESCE(
+            NULLIF(ltrim(regexp_replace(btrim(account_number), '[^0-9]', '', 'g'), '0'), ''),
+            '0'
+        )
+    );
 
 CREATE OR REPLACE FUNCTION qabas_identity_private.enforce_user_identity()
 RETURNS TRIGGER
