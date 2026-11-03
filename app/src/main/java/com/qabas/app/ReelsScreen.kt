@@ -346,9 +346,8 @@ fun ReelsScreen(
     // 🛡️ User ID Selection - CRITICAL for RLS
     // For reads/display, we can fallback. For WRITES (Like/Save/Publish), we MUST use Supabase ID.
     val currentSupabaseId = SupabaseServices.Auth.getCurrentUserId()
-    val currentUserId = currentSupabaseId
-        ?: prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
-        ?: currentUserEmail
+    // Never use an email or locally cached account ID as an interaction owner.
+    val currentUserId = currentSupabaseId.orEmpty()
 
     val isDeveloper = remember(currentUserEmail) {
         ReelPublishManager.isDeveloperUser(context, currentUserEmail) ||

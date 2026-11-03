@@ -262,7 +262,7 @@ object ReelPublishManager {
     ): PublishResult = withContext(Dispatchers.IO) {
         val isDev = isDeveloperUser(context, email)
 
-        val authUserId = SupabaseServices.Auth.getCurrentUserId()
+        val authUserId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
 
         if (authUserId.isNullOrBlank()) {
             val err = "لا توجد جلسة مصادقة نشطة. يلزم تسجيل الدخول أولاً لنشر الريلز."
