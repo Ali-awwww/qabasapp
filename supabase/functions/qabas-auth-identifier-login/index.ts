@@ -29,26 +29,27 @@ async function resolveEmail(identifier: string): Promise<string | null> {
   const clean = identifier.trim();
   if (!clean || clean.length > 64) return null;
 
-  // Usernames are resolved only inside this server-side function.
-  // A numeric or QBS-form identifier is handled only by the account-number branch.
-  const accountNumberInput = /^#?QBS-\\d+$/i.test(clean) || /^\\d+$/.test(clean);
-  if (accountNumberInput) return null;
+  const isAccountNumber = /^#?QBS-\\d+$/i.test(clean) || /^\\d+$/.test(clean);
 
-  const handle = clean.replace(/^@/, "").toLowerCase();
-  const byHandle = await admin
-    .from("users")
-    .select("email")
-    .eq("custom_id", handle)
-    .limit(2);
+  if (!isAccountNumber) {
+    // Usernames are resolved only inside this server-side function.
+    const handle = clean.replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_-]{2,24}$/.test(handle)) return null;
 
-  if (!byHandle.error && byHandle.data?.length === 1) {
+    const byHandle = await admin
+      .from("users")
+      .select("email")
+      .eq("custom_id", handle)
+      .limit(2);
+
+    if (byHandle.error) return null;
+    if (byHandle.data?.length !== 1) return null;
     const email = byHandle.data[0].email;
     return typeof email === "string" && email.includes("@") ? email : null;
   }
-  if (!byHandle.error && (byHandle.data?.length ?? 0) > 1) return null;
 
   // Accept #QBS-0012, QBS-0012, or 0012 as the account number.
-  const digits = clean.replace(/\D/g, "");
+  const digits = clean.replace(/\\D/g, "");
   if (!digits) return null;
   const normalized = digits.padStart(4, "0");
   const numberForms = [...new Set([
