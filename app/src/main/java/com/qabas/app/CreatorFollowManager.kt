@@ -192,9 +192,8 @@ object CreatorFollowManager {
 
     fun currentViewer(context: Context): ViewerIdentity {
         val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val authId = SupabaseServices.Auth.getCurrentUserId()
+        val authId = SupabaseServices.Auth.getCurrentUserId().orEmpty()
         val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
-        val storedEmail = appPrefs.getString("user_email", null)?.takeIf { it.isNotBlank() }
         val displayName = appPrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
             ?: appPrefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("full_name")
@@ -202,17 +201,12 @@ object CreatorFollowManager {
         val avatar = appPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
-        val localId = appPrefs.getString("local_user_id", null)?.takeIf { it.isNotBlank() }
-            ?: appPrefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
-            ?: appPrefs.getString("user_account_number", null)?.takeIf { it.isNotBlank() }
-        val id = listOf(authId, localId, authEmail, storedEmail)
-            .firstOrNull { !it.isNullOrBlank() }
-            ?: installFollowerId(context)
 
+        // An empty UID deliberately prevents cloud follow writes while signed out.
         return ViewerIdentity(
-            id = id!!,
+            id = authId,
             displayName = displayName,
-            email = authEmail ?: storedEmail,
+            email = authEmail,
             avatarUrl = avatar
         )
     }
@@ -366,6 +360,10 @@ object CreatorFollowManager {
         creatorId: String,
         follow: Boolean
     ): Boolean = withContext(Dispatchers.IO) {
+        val authenticatedUid = SupabaseServices.Auth.awaitCurrentUserId()
+        if (authenticatedUid.isNullOrBlank() || authenticatedUid != viewer.id || creatorId.isBlank()) {
+            return@withContext false
+        }
         if (!cloudReady()) return@withContext false
         val ok = runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery false
