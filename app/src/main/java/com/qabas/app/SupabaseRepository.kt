@@ -397,11 +397,18 @@ class SupabaseRepository(
                     "بيانات الدخول غير صحيحة"
                 }
 
-                client.auth.importAuthToken(
-                    accessToken = tokens.accessToken,
-                    refreshToken = tokens.refreshToken,
-                    retrieveUser = true
+                client.auth.importSession(
+                    UserSession(
+                        accessToken = tokens.accessToken,
+                        refreshToken = tokens.refreshToken,
+                        expiresIn = tokens.expiresIn,
+                        tokenType = tokens.tokenType,
+                        user = null
+                    )
                 )
+                // Importing the tokens does not populate the local user object.
+                // Fetch it through Supabase Auth before using the UID for RLS.
+                client.auth.retrieveUserForCurrentSession(updateSession = true)
 
                 val session = client.auth.currentSessionOrNull()
                 val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
