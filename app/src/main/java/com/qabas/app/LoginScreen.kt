@@ -346,7 +346,14 @@ fun LoginScreen(
                                 val diagResult = SupabaseRepository.getInstance().diagnoseSignInAttempt(targetEmail, password)
 
                                 if (diagResult.isSuccess && diagResult.hasSession) {
-                                    val externalId = diagResult.userId ?: SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
+                                    val externalId = diagResult.userId?.takeIf { it.isNotBlank() }
+                                        ?: SupabaseServices.Auth.awaitCurrentUserId()
+                                        ?: run {
+                                            authErrorMessage = "لم تُنشأ جلسة سحابية صالحة. تحقق من بيانات الدخول وحاول مجدداً."
+                                            authErrorIsNetwork = false
+                                            isLoading = false
+                                            return@launch
+                                        }
                                     var userType = if (isAdmin) "مطور" else "مجاني"
 
                                     // حفظ أو استعادة المعرّف الخاص
@@ -358,34 +365,45 @@ fun LoginScreen(
                                     }
                                     var accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail)
 
-                                    var canonicalUserId = externalId
+                                    val canonicalUserId = externalId
                                     var effectiveLoginName = targetEmail.substringBefore('@')
-
-                                    if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(canonicalUserId, lowerEmail, null, finalCustomId, accountNumber)
-                                        if (existing != null) {
-                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
-                                            if (existing.type.isNotBlank()) userType = existing.type
-                                            // الاسم المخزَّن هو المصدر: لا نعيد كتابته باسم البريد عند كل دخول
-                                            if (!existing.name.isNullOrBlank()) effectiveLoginName = existing.name
-                                            if (!existing.customId.isNullOrBlank()) {
-                                                finalCustomId = existing.customId
-                                                UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
-                                            }
-                                            if (!existing.accountNumber.isNullOrBlank()) {
-                                                accountNumber = existing.accountNumber
-                                                UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
-                                            }
-                                        } else {
-                                            SupabaseServices.Database.saveUser(
-                                                id = canonicalUserId,
-                                                name = effectiveLoginName,
-                                                email = targetEmail,
-                                                type = userType,
-                                                customId = finalCustomId,
-                                                accountNumber = accountNumber
-                                            )
-                                        }
+                                    val existing = SupabaseServices.Database.ensureUser(
+                                        canonicalUserId, lowerEmail, effectiveLoginName, finalCustomId, accountNumber
+                                    )?.takeIf { it.id == canonicalUserId }
+                                    if (existing == null) {
+                                        authErrorMessage = "تعذر تحميل ملفك السحابي أو ربطه بمعرف المصادقة. لم يتم إكمال تسجيل الدخول."
+                                        authErrorIsNetwork = true
+                                        isLoading = false
+                                        return@launch
+                                    }
+                                    if (existing.type.isNotBlank()) userType = existing.type
+                                    if (!existing.name.isNullOrBlank()) effectiveLoginName = existing.name
+                                    if (!existing.customId.isNullOrBlank()) {
+                                        finalCustomId = existing.customId
+                                        UserIdentifierManager.saveCustomId(context, finalCustomId, targetEmail)
+                                    }
+                                    if (!existing.accountNumber.isNullOrBlank()) {
+                                        accountNumber = existing.accountNumber
+                                        UserIdentifierManager.saveAccountNumber(context, targetEmail, accountNumber)
+                                    }
+                                    if (accountNumber.isBlank()) {
+                                        authErrorMessage = "تعذر جلب رقم الحساب من السحابة. أعد المحاولة."
+                                        authErrorIsNetwork = true
+                                        isLoading = false
+                                        return@launch
+                                    }
+                                    if (!SupabaseServices.Database.saveUser(
+                                            id = canonicalUserId,
+                                            name = effectiveLoginName,
+                                            email = targetEmail,
+                                            type = userType,
+                                            customId = finalCustomId,
+                                            accountNumber = accountNumber
+                                        )) {
+                                        authErrorMessage = "تعذر حفظ ملفك السحابي. لم يكتمل تسجيل الدخول."
+                                        authErrorIsNetwork = true
+                                        isLoading = false
+                                        return@launch
                                     }
 
                                     // جلسة نشطة واحدة فقط: ارفض الدخول إذا كان الحساب حياً على جهاز آخر
@@ -406,7 +424,7 @@ fun LoginScreen(
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
-                                            id = targetEmail,
+                                            id = canonicalUserId,
                                             name = effectiveLoginName,
                                             email = targetEmail,
                                             customId = finalCustomId,
