@@ -1150,7 +1150,7 @@ fun UnregisteredAccountDialog(
                                 Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "إنشاء الحساب فوراً ومتابعة الدخول",
+                                    text = "إنشاء الحساب عبر المسار السحابي",
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -1176,7 +1176,7 @@ fun UnregisteredAccountDialog(
                             Icon(Icons.Default.AppRegistration, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "الانتقال لشاشة إنشاء الحساب (تخصيص البيانات)",
+                                text = "الانتقال لشاشة إنشاء الحساب",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
