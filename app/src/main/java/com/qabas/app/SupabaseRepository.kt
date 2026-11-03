@@ -12,6 +12,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.user.UserSession
+import io.github.jan.supabase.functions.functions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +25,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import io.ktor.client.call.body
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import io.github.jan.supabase.postgrest.postgrest
@@ -33,6 +41,14 @@ import io.github.jan.supabase.postgrest.query.Order
 /**
  * Reactive Authentication State representing the user's current session status.
  */
+@Serializable
+private data class IdentifierLoginResponse(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("refresh_token") val refreshToken: String,
+    @SerialName("expires_in") val expiresIn: Long = 3600L,
+    @SerialName("token_type") val tokenType: String = "bearer"
+)
+
 sealed class AuthState {
     object Loading : AuthState()
     object Unauthenticated : AuthState()
@@ -171,12 +187,12 @@ class SupabaseRepository(
     /**
      * Refreshes user profile and admin status, then broadcasts [AuthState.Authenticated].
      */
-    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?): Boolean =
+    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?, requestedCustomId: String? = null): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
                 val email = session?.user?.email ?: client.auth.currentUserOrNull()?.email
                 val name = email?.substringBefore("@")
-                val userRow = SupabaseServices.Database.ensureUser(uid, email, name)
+                val userRow = SupabaseServices.Database.ensureUser(uid, email, name, requestedCustomId)
                     ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
                 if (userRow.id != uid ||
                     userRow.customId.isNullOrBlank() ||
@@ -298,7 +314,7 @@ class SupabaseRepository(
     }
 
     /** Sign up with email and password and broadcast updated auth state. */
-    suspend fun register(email: String, pass: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun register(email: String, pass: String, customId: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         _authState.value = AuthState.Loading
         runCatching {
@@ -309,7 +325,7 @@ class SupabaseRepository(
             val session = client.auth.currentSessionOrNull()
             val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
                 ?: throw IllegalStateException("EMAIL_CONFIRMATION_REQUIRED")
-            if (!refreshUserAndEmitAuthenticated(uid, session)) {
+            if (!refreshUserAndEmitAuthenticated(uid, session, customId)) {
                 throw IllegalStateException("تعذر حفظ ملف الحساب في السحابة")
             }
             syncLocalAuthSuccess(uid, session?.user?.email)
@@ -353,6 +369,53 @@ class SupabaseRepository(
             _authState.value = AuthState.Error(e.message ?: "Login failed")
         }
     }
+
+    /**
+     * Sign in through the server-side username/account-number resolver.
+     * The server returns only a Supabase Auth session; it never exposes an
+     * unauthenticated profile/email lookup endpoint.
+     */
+    suspend fun loginWithIdentifier(identifier: String, pass: String): Result<Boolean> =
+        withContext(Dispatchers.IO) {
+            if (!isAvailable) {
+                return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
+            }
+            _authState.value = AuthState.Loading
+            runCatching {
+                val response = client.functions.invoke(
+                    function = "qabas-auth-identifier-login",
+                    body = buildJsonObject {
+                        put("identifier", identifier.trim())
+                        put("password", pass)
+                    },
+                    headers = Headers.build {
+                        append(HttpHeaders.ContentType, "application/json")
+                    }
+                )
+                val tokens = response.body<IdentifierLoginResponse>()
+                require(tokens.accessToken.isNotBlank() && tokens.refreshToken.isNotBlank()) {
+                    "بيانات الدخول غير صحيحة"
+                }
+
+                client.auth.importAuthToken(
+                    accessToken = tokens.accessToken,
+                    refreshToken = tokens.refreshToken,
+                    retrieveUser = true
+                )
+
+                val session = client.auth.currentSessionOrNull()
+                val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                    ?: throw IllegalStateException("تعذر إنشاء جلسة مصادقة")
+                if (!refreshUserAndEmitAuthenticated(uid, session)) {
+                    throw IllegalStateException("تعذر تحميل ملف الحساب السحابي")
+                }
+                syncLocalAuthSuccess(uid, session?.user?.email ?: client.auth.currentUserOrNull()?.email)
+                true
+            }.onFailure { error ->
+                Log.w(TAG, "Identifier sign-in failed: ${error.message}")
+                _authState.value = AuthState.Error("بيانات الدخول غير صحيحة أو تعذر الوصول إلى خدمة المصادقة.")
+            }
+        }
 
     /** Sign in with Google ID token and broadcast updated auth state. */
     suspend fun loginWithGoogle(idToken: String, nonce: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
