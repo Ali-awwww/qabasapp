@@ -87,4 +87,8 @@ create unique index if not exists users_custom_id_lower_uidx
     on public.users (lower(custom_id))
     where custom_id is not null and btrim(custom_id) <> '';
 
+-- Existing owner-scoped RLS policies remain authoritative; authenticated users
+-- need table privileges for their own profile INSERT/UPDATE operations.
+grant select, insert, update on table public.users to authenticated;
+
 commit;
