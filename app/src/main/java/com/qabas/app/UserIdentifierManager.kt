@@ -47,41 +47,18 @@ object UserIdentifierManager {
      * استرجاع أو إنشاء رقم الحساب الرسمي الحقيقي والمتسلسل للمستخدم.
      * ملاحظة: يفضل استخدام ensureCloudAccountNumber لضمان المزامنة مع السحابة.
      */
+    /**
+     * Legacy compatibility accessor. This value is only a cache of a cloud-issued
+     * number; a cache miss never allocates or guesses an account number.
+     */
     fun getOrCreateAccountNumber(context: Context, email: String?, displayName: String? = null): String {
-        if (email.isNullOrBlank() || email.lowercase(Locale.ROOT) == "guest@qabas.studio" || email.lowercase(Locale.ROOT) == "guest") {
-            return ""
-        }
+        if (email.isNullOrBlank()) return ""
         val cleanEmail = email.trim().lowercase(Locale.ROOT)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-        // 1. فحص هل يوجد رقم حساب محفوظ مسبقاً لهذا البريد تحديداً
-        val savedForEmail = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)
-        if (!savedForEmail.isNullOrBlank()) {
-            val formatted = formatAccountNumber(savedForEmail)
-            prefs.edit().putString(KEY_ACCOUNT_NUMBER, formatted).apply()
-            return formatted
-        }
-
-        // The device cache is only a replica of a cloud-issued account number.
-        // No account number is hard-coded or allocated locally.
-
-        // فحص السجل المحلي (كاش)
-        val existingAccounts = LocalAccountRegistry.getAllAccounts(context)
-        val existingNumber = existingAccounts
-            .firstOrNull { it.email.equals(cleanEmail, ignoreCase = true) }
-            ?.accountNumber?.takeIf { it.isNotBlank() }
-            ?.let { formatAccountNumber(it) }
-        
-        if (!existingNumber.isNullOrBlank()) {
-            prefs.edit()
-                .putString(KEY_ACCOUNT_NUMBER, existingNumber)
-                .putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, existingNumber)
-                .apply()
-            return existingNumber
-        }
-
-        // في حال عدم وجود رقم محلي، نعيد فراغاً ليتم جلبه لاحقاً من السحابة عبر ensureCloudAccountNumber
-        return ""
+        val cached = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: return ""
+        return formatAccountNumber(cached)
     }
 
     /**
