@@ -420,7 +420,13 @@ CREATE POLICY creator_follows_update_self
 
 GRANT SELECT, INSERT, UPDATE ON TABLE public.users TO authenticated;
 REVOKE DELETE ON TABLE public.users FROM authenticated;
-REVOKE ALL ON FUNCTION public.get_next_account_sequence() FROM PUBLIC, anon, authenticated;
+DO $
+BEGIN
+    IF to_regprocedure('public.get_next_account_sequence()') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL ON FUNCTION public.get_next_account_sequence() FROM PUBLIC, anon, authenticated';
+    END IF;
+END
+$;
 
 COMMIT;
 
