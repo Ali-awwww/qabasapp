@@ -133,7 +133,7 @@ object SupabaseServices {
                 id = externalId,
                 externalId = externalId,
                 email = cleanEmail.ifBlank { email },
-                name = name ?: "مستخدم قبس",
+                name = if (name == "علي وليد") "مستخدم قبس" else (name ?: "مستخدم قبس"),
                 type = "مجاني",
                 status = "active",
                 customId = customId,
@@ -188,7 +188,10 @@ object SupabaseServices {
                 order("created_at", Order.ASCENDING)
                 limit(2)
             }.decodeList<UserRow>()
-            if (matches.size == 1) matches.first() else {
+            if (matches.size == 1) {
+                val match = matches.first()
+                if (match.name == "علي وليد") match.copy(name = "مستخدم قبس") else match
+            } else {
                 if (matches.size > 1) Log.w(TAG, "getUserByEmail: duplicate email rows; caller must provide auth UID")
                 null
             }
@@ -1578,12 +1581,14 @@ object SupabaseServices {
 
 
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
+            lastInteractionError = null // Clear previous error
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
             val effectiveUserId = authUid ?: userId
             
             if (authUid == null) {
                 Log.w(TAG, "likeReel: unauthenticated session for reel $reelId")
+                lastInteractionError = "يجب تسجيل الدخول للإعجاب"
                 return false
             }
 
@@ -1599,7 +1604,6 @@ object SupabaseServices {
         }.onFailure { e -> 
             val msg = e.message.orEmpty()
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: $msg", e)
-            // Store the last error message in a thread-local or static for UI debugging if needed
             lastInteractionError = msg
         }.let { res ->
             if (res.isSuccess) true
@@ -1610,11 +1614,15 @@ object SupabaseServices {
         }
 
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
+            lastInteractionError = null
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
             val effectiveUserId = authUid ?: userId
 
-            if (authUid == null) return false
+            if (authUid == null) {
+                lastInteractionError = "يجب تسجيل الدخول"
+                return false
+            }
 
             client.postgrest.from("reel_likes").delete {
                 filter {
@@ -1624,7 +1632,9 @@ object SupabaseServices {
             }
             true
         }.onFailure { e -> 
-            Log.e(TAG, "unlikeReel failed for reel $reelId, user $userId: ${e.message}")
+            val msg = e.message.orEmpty()
+            Log.e(TAG, "unlikeReel failed for reel $reelId, user $userId: $msg")
+            lastInteractionError = msg
         }.let { res ->
             if (res.isSuccess) true
             else if (reelId.startsWith("qabas_")) true
@@ -1641,10 +1651,14 @@ object SupabaseServices {
         }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
+            lastInteractionError = null
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
             val effectiveUserId = authUid ?: userId
-            if (authUid == null) return false
+            if (authUid == null) {
+                lastInteractionError = "يجب تسجيل الدخول"
+                return false
+            }
             if (reelId.startsWith("qabas_")) {
                 ensureStarterReel(reelId, effectiveUserId)
             }
@@ -1653,7 +1667,11 @@ object SupabaseServices {
                 onConflict = "reel_id,user_id"
             }
             true
-        }.onFailure { e -> Log.e(TAG, "addReelBookmark failed: ${e.message}") }.let { res ->
+        }.onFailure { e -> 
+            val msg = e.message.orEmpty()
+            Log.e(TAG, "addReelBookmark failed: $msg") 
+            lastInteractionError = msg
+        }.let { res ->
             if (res.isSuccess) true
             else if (reelId.startsWith("qabas_")) true
             else false
