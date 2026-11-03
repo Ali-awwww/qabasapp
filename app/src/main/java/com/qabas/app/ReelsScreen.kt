@@ -971,7 +971,9 @@ fun ReelsScreen(
                                             val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
                                                 "الخدمات السحابية غير متوفرة حالياً"
                                             } else {
-                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
+                                                val raw = SupabaseServices.lastInteractionError ?: ""
+                                                val suffix = if (raw.isNotBlank()) "\n($raw)" else ""
+                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك$suffix"
                                             }
                                             Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                         }

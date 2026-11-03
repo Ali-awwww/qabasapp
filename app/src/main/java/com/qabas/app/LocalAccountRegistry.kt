@@ -37,7 +37,7 @@ object LocalAccountRegistry {
         fun toDevUser(): DevUser {
             return DevUser(
                 id = id,
-                name = name.ifBlank { email.substringBefore('@') },
+                name = name.ifBlank { "مستخدم قبس" },
                 email = email,
                 type = when (type.lowercase(java.util.Locale.ROOT)) {
                     "developer", "مطور" -> "مطور"
@@ -47,7 +47,7 @@ object LocalAccountRegistry {
                 projectCount = projectCount,
                 regDate = DevDashboardFormatters.formatRegDate(regDateMillis),
                 isSuspended = status == "suspended" || strikes >= 5,
-                customId = customId.ifBlank { email.substringBefore('@') },
+                customId = customId.ifBlank { "qbs_user" },
                 accountNumber = accountNumber.takeIf { it.isNotBlank() }
             )
         }
@@ -71,8 +71,8 @@ object LocalAccountRegistry {
         companion object {
             fun fromJson(json: JSONObject): AccountRecord {
                 val email = json.optString("email", "")
-                val name = json.optString("name", "").ifBlank { email.substringBefore('@') }
-                val customId = json.optString("custom_id", "").ifBlank { email.substringBefore('@') }
+                val name = json.optString("name", "").ifBlank { "مستخدم قبس" }
+                val customId = json.optString("custom_id", "").ifBlank { "qbs_user" }
                 val accountNumber = json.optString("account_number", "")
                 return AccountRecord(
                     id = json.optString("id", UUID.randomUUID().toString()),
@@ -154,9 +154,9 @@ object LocalAccountRegistry {
                 val role = if (isDev) "مطور" else "مجاني"
                 val currentRec = AccountRecord(
                     id = currentEmail,
-                    name = currentName.ifBlank { currentEmail.substringBefore('@') },
+                    name = currentName.ifBlank { "مستخدم قبس" },
                     email = currentEmail,
-                    customId = currentCustomId.ifBlank { UserIdentifierManager.normalize(currentName.ifBlank { currentEmail }) },
+                    customId = currentCustomId.ifBlank { UserIdentifierManager.normalize(currentName.ifBlank { "user" }) },
                     accountNumber = accNum,
                     type = role,
                     status = "active",
@@ -256,9 +256,9 @@ object LocalAccountRegistry {
                 context = context,
                 account = AccountRecord(
                     id = email,
-                    name = name.ifBlank { email.substringBefore('@') },
+                    name = name.ifBlank { "مستخدم قبس" },
                     email = email,
-                    customId = customId.ifBlank { UserIdentifierManager.normalize(name.ifBlank { email }) },
+                    customId = customId.ifBlank { UserIdentifierManager.normalize(name.ifBlank { "user" }) },
                     accountNumber = accNum,
                     type = if (isAdmin) "مطور" else "مجاني",
                     status = "active"

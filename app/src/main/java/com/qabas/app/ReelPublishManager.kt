@@ -57,9 +57,7 @@ object ReelPublishManager {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val devFlag = prefs.getBoolean("is_developer", false) || prefs.getBoolean("is_admin", false)
         val cleanEmail = email?.trim()?.lowercase().orEmpty()
-        val isDevEmail = cleanEmail == "xman88371@gmail.com" ||
-            cleanEmail == "aly750834@gmail.com" ||
-            cleanEmail.startsWith("dev@") ||
+        val isDevEmail = cleanEmail.startsWith("dev@") ||
             cleanEmail.contains("developer") ||
             cleanEmail.contains("admin") ||
             CloudServices.isOwnerAccount(cleanEmail)

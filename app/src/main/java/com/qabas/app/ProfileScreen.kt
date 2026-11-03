@@ -80,8 +80,8 @@ fun ProfileScreen(
     var userEmail by remember {
         mutableStateOf(
             SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
-                ?: prefs.getString("user_email", "user@example.com")
-                ?: "user@example.com"
+                ?: prefs.getString("user_email", "")
+                ?: ""
         )
     }
     val profilePrefs = remember(userEmail) { accountProfilePreferences(context, userEmail) }
@@ -92,8 +92,7 @@ fun ProfileScreen(
             ?: prefs.getString("user_name", "")?.takeIf {
                 prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
             }
-            ?: userEmail.substringBefore('@').takeIf { it != "user" && it != "guest" }
-            ?: "صانع المحتوى الدعوي"
+            ?: "مستخدم قبس"
         mutableStateOf(savedName)
     }
     var userBio by remember {
@@ -164,17 +163,17 @@ fun ProfileScreen(
             prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
                 ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
         } else null
-        val nameLooksFake = nameSnapshot.isNullOrBlank() ||
-            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "صانع محتوى قبس"
+        val nameIsPlaceholder = nameSnapshot.isNullOrBlank() ||
+            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "مستخدم قبس" || nameSnapshot == "علي وليد"
 
         if (identityChanged && realEmail != null) {
             userEmail = realEmail
             prefs.edit().putString("user_email", realEmail).apply()
         }
-        if (identityChanged || nameLooksFake || savedAccountName != null) {
-            val activeName = savedAccountName ?: realName
-                ?: activeEmail.substringBefore("@").takeIf { it.isNotBlank() }
-                ?: "صانع المحتوى الدعوي"
+        if (identityChanged || nameIsPlaceholder || savedAccountName != null) {
+            // If the current name is the legacy placeholder "علي وليد", ignore it and prefer realName or "مستخدم قبس"
+            val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
+            val activeName = baseName ?: realName ?: "مستخدم قبس"
             displayName = activeName
             activeProfilePrefs.edit().putString("user_name", activeName).apply()
             if (identityChanged || globalIdentityMatches) {
@@ -2478,7 +2477,7 @@ fun ProfileScreen(
                                 }
                                 is UserIdentifierManager.CustomIdAvailabilityResult.Available,
                                 is UserIdentifierManager.CustomIdAvailabilityResult.CurrentUserOwnsIt -> {
-                                    displayName = tempName.ifBlank { "صانع المحتوى الدعوي" }
+                                    displayName = tempName.ifBlank { "مستخدم قبس" }
                                     userCustomTag = UserIdentifierManager.formatDisplay(cleanId)
                                     userBio = tempBio
                                     UserIdentifierManager.saveCustomId(context, cleanId, userEmail)

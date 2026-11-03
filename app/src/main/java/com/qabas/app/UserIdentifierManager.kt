@@ -183,14 +183,16 @@ object UserIdentifierManager {
      * توليد معرّف فريد تلقائي للمستخدم اعتماداً على البريد أو الاسم أو عشوائياً.
      */
     fun generateUniqueId(seed: String? = null): String {
-        val cleanSeed = seed?.substringBefore("@")
-            ?.lowercase(Locale.ROOT)
+        val cleanSeed = if (seed?.contains("@") == true) {
+            seed.substringBefore("@")
+        } else seed
+        val normalizedSeed = cleanSeed?.lowercase(Locale.ROOT)
             ?.replace("[^a-zA-Z0-9]".toRegex(), "")
             ?.take(10)
 
-        return if (!cleanSeed.isNullOrBlank() && cleanSeed.length >= 3) {
+        return if (!normalizedSeed.isNullOrBlank() && normalizedSeed.length >= 3) {
             val randomSuffix = (1000..9999).random()
-            "${cleanSeed}_$randomSuffix"
+            "${normalizedSeed}_$randomSuffix"
         } else {
             val randomSuffix = (10000..99999).random()
             "qbs_$randomSuffix"
@@ -202,7 +204,7 @@ object UserIdentifierManager {
      * تم إيقافه لضمان أن رقم الحساب يأتي من السحابة فقط بعد نجاح العملية.
      */
     fun peekNextAccountNumber(context: Context): String {
-        return "جاري التوليد..."
+        return "يُنشأ بعد التسجيل"
     }
 
     /**
@@ -235,7 +237,7 @@ object UserIdentifierManager {
                 val userId = cloudUser.id.ifBlank { SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail }
                 SupabaseServices.Database.saveUser(
                     id = userId,
-                    name = cloudUser.name ?: displayName ?: cleanEmail.substringBefore("@"),
+                    name = cloudUser.name ?: displayName ?: "مستخدم قبس",
                     email = cleanEmail,
                     type = cloudUser.type,
                     customId = resolvedCustomId,
@@ -249,7 +251,7 @@ object UserIdentifierManager {
             val userId = SupabaseServices.Auth.getCurrentUserId() ?: cleanEmail
             SupabaseServices.Database.saveUser(
                 id = userId,
-                name = displayName ?: cleanEmail.substringBefore("@"),
+                name = displayName ?: "مستخدم قبس",
                 email = cleanEmail,
                 type = "مجاني",
                 customId = localCustomId,
@@ -359,7 +361,7 @@ object UserIdentifierManager {
             val currentCustomId = cloudUser?.customId ?: getCustomId(context, cleanEmail).ifBlank { generateUniqueId(cleanEmail) }
             SupabaseServices.Database.saveUser(
                 id = userId,
-                name = cloudUser?.name ?: displayName ?: cleanEmail.substringBefore("@"),
+                name = cloudUser?.name ?: displayName ?: "مستخدم قبس",
                 email = cleanEmail,
                 type = cloudUser?.type ?: "مجاني",
                 customId = currentCustomId,
@@ -421,8 +423,9 @@ object UserIdentifierManager {
                     return normalized
                 }
 
-                val nameSeed = if (!cleanEmail.isNullOrBlank()) cleanEmail.substringBefore("@")
-                    else prefs.getString("user_name", null) ?: sessionEmail
+                val nameSeed = if (!cleanEmail.isNullOrBlank()) {
+                    if (cleanEmail.contains("@")) cleanEmail.substringBefore("@") else cleanEmail
+                } else prefs.getString("user_name", null) ?: "مستخدم"
                 val newId = generateUniqueId(nameSeed)
                 saveCustomId(context, newId, sessionEmail)
                 return newId

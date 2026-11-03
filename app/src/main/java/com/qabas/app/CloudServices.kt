@@ -20,8 +20,8 @@ import com.qabas.app.ProjectService.Project
  */
 object CloudServices {
     /** بريد مالك التطبيق — الاستثناء الوحيد لمنح رتبة «مطور» تلقائياً (بطلب من المالك نفسه) */
-    const val OWNER_EMAIL = "aliwalead.2007@gmail.com"
-    const val TESTER_EMAIL = "xman88371@gmail.com"
+    const val OWNER_EMAIL = "admin@qabas.studio"
+    const val TESTER_EMAIL = "tester@qabas.studio"
 
     /** هل هذا حساب المالك أو المطور المرخص؟ */
     fun isOwnerAccount(email: String?): Boolean {
@@ -204,7 +204,7 @@ object CloudServices {
             return SupabaseServices.Database.getAllUsers().map {
                 mapOf(
                     "id" to it.id,
-                    "name" to (it.name ?: "مستخدم"),
+                    "name" to (it.name ?: "مستخدم قبس"),
                     "email" to (it.email ?: ""),
                     "type" to it.type,
                     "status" to (it.status ?: "active")

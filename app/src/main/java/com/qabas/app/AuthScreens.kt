@@ -54,7 +54,7 @@ fun RegisterScreen(
     val draftEmail = remember { prefs.getString("draft_register_email", "") ?: "" }
     val draftPass = remember { prefs.getString("draft_register_password", "") ?: "" }
 
-    var name by remember { mutableStateOf(if (draftEmail.isNotBlank()) draftEmail.substringBefore('@') else "") }
+    var name by remember { mutableStateOf("") }
     var customId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf(draftEmail) }
     var password by remember { mutableStateOf(draftPass) }
@@ -227,7 +227,7 @@ fun RegisterScreen(
                                             fontSize = 9.sp
                                         )
                                         Text(
-                                            text = "جاري التوليد...",
+                                            text = "يُنشأ بعد التسجيل",
                                             color = GoldPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
@@ -380,8 +380,8 @@ fun RegisterScreen(
                             val finalCustomId = if (customId.isNotBlank()) {
                                 UserIdentifierManager.normalize(customId)
                             } else {
-                                // معرّف مشتق من البريد/الاسم، لا قيمة عشوائية جديدة كل مرة
-                                UserIdentifierManager.normalize(trimmedEmail.substringBefore('@').ifBlank { name })
+                                val seed = trimmedEmail.substringBefore('@').ifBlank { name }
+                                UserIdentifierManager.normalize(seed)
                                     .ifBlank {
                                         UserIdentifierManager.normalize(
                                             UserIdentifierManager.generateUniqueId(trimmedEmail.ifBlank { name })

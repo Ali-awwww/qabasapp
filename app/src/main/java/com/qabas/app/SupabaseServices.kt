@@ -47,6 +47,8 @@ object SupabaseServices {
     val client: SupabaseClient?
         get() = if (SupabaseConfig.isConfigured) SupabaseConfig.client else null
 
+    var lastInteractionError: String? = null
+
     // ==========================================
     // Database Operations
     // ==========================================
@@ -59,6 +61,12 @@ object SupabaseServices {
             }
             true
         }.getOrDefault(false)
+
+        suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
+            val client = client ?: return 1
+            // Use the new secure RPC to get the next sequence
+            client.postgrest.rpc("get_next_account_sequence").decodeAs<Int>()
+        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrDefault(1)
 
         suspend fun getLatestActiveUpdate(): ActiveUpdate? = runCatching {
             val client = client ?: return null
@@ -125,7 +133,7 @@ object SupabaseServices {
                 id = externalId,
                 externalId = externalId,
                 email = cleanEmail.ifBlank { email },
-                name = name ?: cleanEmail.substringBefore("@").ifBlank { email?.substringBefore("@") } ?: "مستخدم قبس",
+                name = name ?: "مستخدم قبس",
                 type = "مجاني",
                 status = "active",
                 customId = customId,
@@ -237,14 +245,6 @@ object SupabaseServices {
             null
         }.onFailure { Log.e(TAG, "getUserByAccountNumber failed: ${it.message}") }.getOrNull()
 
-        suspend fun getNextAccountSequenceFromCloud(): Int = runCatching {
-            val client = client ?: return 1
-            val users = client.postgrest.from("users").select().decodeList<UserRow>()
-            val maxSeq = users.mapNotNull { user ->
-                user.accountNumber?.removePrefix("#")?.removePrefix("QBS-")?.toIntOrNull()
-            }.maxOrNull() ?: 0
-            maxSeq + 1
-        }.onFailure { Log.e(TAG, "getNextAccountSequenceFromCloud failed: ${it.message}") }.getOrDefault(1)
 
         suspend fun saveUser(
             id: String,
@@ -1477,7 +1477,7 @@ object SupabaseServices {
             val payload = ReelInsertPayload(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
-                userName = userName.ifBlank { "صانع محتوى" },
+                userName = userName.ifBlank { "مستخدم قبس" },
                 userAvatar = userAvatar,
                 title = title.trim(),
                 description = description,
@@ -1490,8 +1490,6 @@ object SupabaseServices {
                 aiAnalysis = aiAnalysis,
                 publishType = publishType,
                 isSilentSeed = isSilentSeed,
-                createdAt = now,
-                updatedAt = now,
                 metadata = buildJsonObject {
                     put("aspect_ratio", aspectRatio)
                 }
@@ -1545,9 +1543,7 @@ object SupabaseServices {
                     description = "تلاوة قرآنية مباركة تأخذ القلب إلى آفاق الطمأنينة والسكينة في رحاب كلام الله تبارك وتعالى.",
                     videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4",
                     thumbnailUrl = "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80",
-                    tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر"),
-                    createdAt = "2025-01-01T12:00:00Z",
-                    updatedAt = java.time.Instant.now().toString()
+                    tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر")
                 )
                 "qabas_faith_lecture_starter" -> ReelInsertPayload(
                     id = "qabas_faith_lecture_starter",
@@ -1556,9 +1552,7 @@ object SupabaseServices {
                     description = "موعظة مؤثرة تدق أبواب القلوب: تذكير بزوال الدنيا وسرعة الرحيل إلى الله سبحانه وتعالى.",
                     videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4",
                     thumbnailUrl = "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80",
-                    tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب"),
-                    createdAt = "2025-01-02T15:30:00Z",
-                    updatedAt = java.time.Instant.now().toString()
+                    tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب")
                 )
                 else -> null
             } ?: return false
@@ -1582,6 +1576,7 @@ object SupabaseServices {
             Log.d(TAG, "ensureStarterReel notice for $reelId: ${e.message}") 
         }.getOrDefault(false)
 
+
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
@@ -1604,6 +1599,8 @@ object SupabaseServices {
         }.onFailure { e -> 
             val msg = e.message.orEmpty()
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: $msg", e)
+            // Store the last error message in a thread-local or static for UI debugging if needed
+            lastInteractionError = msg
         }.let { res ->
             if (res.isSuccess) true
             else if (reelId.startsWith("qabas_")) {
@@ -2367,7 +2364,7 @@ object SupabaseServices {
     data class ReelInsertPayload(
         val id: String,
         @SerialName("user_id") val userId: String,
-        @SerialName("user_name") val userName: String = "صانع محتوى",
+        @SerialName("user_name") val userName: String = "مستخدم قبس",
         @SerialName("user_avatar") val userAvatar: String? = null,
         val title: String,
         val description: String? = null,
@@ -2383,8 +2380,6 @@ object SupabaseServices {
         @SerialName("expiry_at") val expiryAt: String? = null,
         @SerialName("quality") val quality: String = "high",
         @SerialName("ai_analysis") val aiAnalysis: String? = null,
-        @SerialName("created_at") val createdAt: String,
-        @SerialName("updated_at") val updatedAt: String,
         @SerialName("publish_type") val publishType: String? = "normal",
         @SerialName("is_silent_seed") val isSilentSeed: Boolean = false,
         @SerialName("is_featured_by_dev") val isFeaturedByDev: Boolean = false,
