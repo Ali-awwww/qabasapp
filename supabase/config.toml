@@ -1,0 +1,4 @@
+project_id = "egkgygbvoeevakwkbvfu"
+
+[functions.qabas-auth-identifier-login]
+verify_jwt = false

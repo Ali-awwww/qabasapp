@@ -52,21 +52,18 @@ fun RegisterScreen(
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val draftEmail = remember { prefs.getString("draft_register_email", "") ?: "" }
-    val draftPass = remember { prefs.getString("draft_register_password", "") ?: "" }
-
     var name by remember { mutableStateOf("") }
     var customId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf(draftEmail) }
-    var password by remember { mutableStateOf(draftPass) }
-    var confirmPassword by remember { mutableStateOf(draftPass) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (draftEmail.isNotBlank()) {
-            prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
-        }
+        // A password must never be persisted in SharedPreferences.
+        prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
     }
 
     val primaryColor = qabasPrimary()
@@ -377,77 +374,63 @@ fun RegisterScreen(
                                 return@Button
                             }
 
-                            val finalCustomId = if (customId.isNotBlank()) {
-                                UserIdentifierManager.normalize(customId)
-                            } else {
-                                val seed = trimmedEmail.substringBefore('@').ifBlank { name }
-                                UserIdentifierManager.normalize(seed)
-                                    .ifBlank {
-                                        UserIdentifierManager.normalize(
-                                            UserIdentifierManager.generateUniqueId(trimmedEmail.ifBlank { name })
-                                        )
-                                    }
+                            val requestedCustomId = customId.trim().takeIf { it.isNotBlank() }
+                                ?.let { UserIdentifierManager.normalize(it) }
+                            if (requestedCustomId != null &&
+                                (requestedCustomId.length !in 3..25 ||
+                                    !requestedCustomId.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_-]{2,24}$")))
+                            ) {
+                                Toast.makeText(context, "المعرّف يجب أن يكون بين 3 و25 حرفاً أو رقماً", Toast.LENGTH_LONG).show()
+                                return@Button
                             }
 
                             isLoading = true
                             coroutineScope.launch {
-                                // 1. فحص توفر المعرّف لمنع استخدام نفس المعرّف لحسابين
-                                val checkIdResult = UserIdentifierManager.checkCustomIdAvailability(
-                                    context = context,
-                                    customId = finalCustomId,
-                                    currentEmail = trimmedEmail
-                                )
-                                if (checkIdResult is UserIdentifierManager.CustomIdAvailabilityResult.Taken) {
-                                    isLoading = false
-                                    Toast.makeText(context, "⚠️ المعرّف @$finalCustomId مستخدم بالفعل، يرجى اختيار معرّف فريد آخر.", Toast.LENGTH_LONG).show()
-                                    return@launch
-                                }
-                                if (checkIdResult is UserIdentifierManager.CustomIdAvailabilityResult.Invalid) {
-                                    isLoading = false
-                                    Toast.makeText(context, "⚠️ ${checkIdResult.reason}", Toast.LENGTH_LONG).show()
-                                    return@launch
-                                }
-
-                                var success = false
-                                if (SupabaseServices.isSupabaseAvailable) {
-                                    success = SupabaseServices.Auth.register(trimmedEmail, password.trim())
-                                    if (!success) {
-                                        success = SupabaseServices.Auth.login(trimmedEmail, password.trim())
-                                    }
-                                }
-                                if (!success && !SupabaseServices.isSupabaseAvailable) success = true
+                                // The server performs the final unique check and atomically
+                                // allocates the account number. A local pre-check is not authoritative.
+                                val success = SupabaseServices.isSupabaseAvailable &&
+                                    SupabaseServices.Auth.register(trimmedEmail, password.trim(), requestedCustomId)
 
                                 if (success) {
-                                    val lowerEmail = trimmedEmail.lowercase(java.util.Locale.ROOT)
-                                    val isAdmin = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_admin", false) || CloudServices.isOwnerAccount(lowerEmail)
-                                    val userType = if (isAdmin) "مطور" else "مجاني"
-                                    val userId = SupabaseServices.Auth.getCurrentUserId() ?: lowerEmail
-                                    // جلب رقم الحساب من عداد السحابة لضمان الترقيم الموحد
-                                    val accountNumber = UserIdentifierManager.ensureCloudAccountNumber(context, trimmedEmail, name.trim())
+                                    val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                    val lowerEmail = SupabaseServices.Auth.getCurrentUserEmail()
+                                        ?.trim()?.lowercase(java.util.Locale.ROOT)
+                                        ?: trimmedEmail.lowercase(java.util.Locale.ROOT)
 
-                                    UserIdentifierManager.saveCustomId(context, finalCustomId, trimmedEmail)
-
-                                    var canonicalUserId = userId
-                                    var effectiveManualName = name.trim().ifBlank { trimmedEmail.substringBefore('@') }
-
-                                    if (SupabaseServices.isSupabaseAvailable) {
-                                        val existing = SupabaseServices.Database.ensureUser(userId, lowerEmail, effectiveManualName, finalCustomId, accountNumber)
-                                        if (existing != null) {
-                                            if (existing.id.isNotBlank()) canonicalUserId = existing.id
-                                            if (!existing.name.isNullOrBlank()) effectiveManualName = existing.name
-                                        }
-                                        SupabaseServices.Database.saveUser(
-                                            id = canonicalUserId,
-                                            name = effectiveManualName,
-                                            email = trimmedEmail,
-                                            type = userType,
-                                            customId = finalCustomId,
-                                            accountNumber = accountNumber
-                                        )
+                                    if (authUid.isNullOrBlank()) {
+                                        Toast.makeText(context, "تعذر تأكيد جلسة الحساب. سجّل الدخول بعد إكمال التحقق من البريد.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
                                     }
 
-                                    // جلسة نشطة واحدة فقط لكل حساب
-                                    if (!ActiveSessionManager.claim(context, canonicalUserId)) {
+                                    val cloudUser = SupabaseServices.Database.ensureUser(
+                                        externalId = authUid,
+                                        email = lowerEmail,
+                                        name = name.trim().ifBlank { trimmedEmail.substringBefore('@') },
+                                        customId = requestedCustomId
+                                    )
+
+                                    val canonicalUserId = cloudUser?.id
+                                    val cloudCustomId = cloudUser?.customId?.takeIf { it.isNotBlank() }
+                                    val accountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
+                                    if (canonicalUserId != authUid || cloudCustomId == null || accountNumber == null) {
+                                        runCatching { SupabaseServices.Auth.logout() }
+                                        Toast.makeText(context, "لم يتم حفظ هوية الحساب في السحابة. لم يكتمل التسجيل.", Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+
+                                    val effectiveManualName = cloudUser.name?.takeIf { it.isNotBlank() }
+                                        ?: name.trim().ifBlank { trimmedEmail.substringBefore('@') }
+                                    val userType = cloudUser.type.ifBlank { "مجاني" }
+                                    val isAdmin = userType == "مطور" || userType == "خاص"
+                                    val isDeveloper = userType == "مطور" || CloudServices.isOwnerAccount(lowerEmail)
+
+                                    UserIdentifierManager.saveCustomId(context, cloudCustomId, lowerEmail)
+                                    UserIdentifierManager.saveAccountNumber(context, lowerEmail, accountNumber)
+
+                                    // Active-session ownership is keyed by the immutable Auth UID.
+                                    if (!ActiveSessionManager.claim(context, authUid)) {
                                         runCatching { SupabaseServices.Auth.logout() }
                                         Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
                                         isLoading = false
@@ -458,10 +441,10 @@ fun RegisterScreen(
                                     LocalAccountRegistry.registerOrUpdateAccount(
                                         context = context,
                                         account = LocalAccountRegistry.AccountRecord(
-                                            id = canonicalUserId,
+                                            id = authUid,
                                             name = effectiveManualName,
-                                            email = trimmedEmail,
-                                            customId = finalCustomId,
+                                            email = lowerEmail,
+                                            customId = cloudCustomId,
                                             accountNumber = accountNumber,
                                             type = userType,
                                             status = "active",
@@ -474,27 +457,38 @@ fun RegisterScreen(
                                         putBoolean("is_logged_in", true)
                                         putBoolean("is_guest", false)
                                         putBoolean("is_admin", isAdmin)
-                                        putBoolean("is_developer", CloudServices.isOwnerAccount(lowerEmail))
-                                        putBoolean("is_premium", true)
-                                        putString("user_id", canonicalUserId)
-                                        putString("user_email", trimmedEmail)
+                                        putBoolean("is_developer", isDeveloper)
+                                        putString("user_id", authUid)
+                                        putString("user_email", lowerEmail)
                                         putString("user_name", effectiveManualName)
                                         putString("user_display_name", effectiveManualName)
-                                        putString("user_custom_id", finalCustomId)
-                                        putString("user_tag", UserIdentifierManager.formatDisplay(finalCustomId))
+                                        putString("user_custom_id", cloudCustomId)
+                                        putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))
                                         putString("user_account_number", accountNumber)
                                         putString("user_name_with_account", nameWithAccount)
                                         apply()
                                     }
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
-                                        context, 
-                                        "تم إنشاء الحساب بنجاح 🚀! اليوزر: @$finalCustomId | رقم الحساب: $accountNumber$firstBadge", 
+                                        context,
+                                        "تم إنشاء الحساب بنجاح 🚀! اليوزر: @${cloudCustomId} | رقم الحساب: $accountNumber$firstBadge",
                                         Toast.LENGTH_LONG
                                     ).show()
                                     onRegisterSuccess()
                                 } else {
-                                    Toast.makeText(context, "فشل إنشاء الحساب. تأكد من صحة البريد والشبكة", Toast.LENGTH_LONG).show()
+                                    val state = SupabaseRepository.getInstance().authState.value
+                                    val errorText = (state as? AuthState.Error)?.message.orEmpty()
+                                    val message = when {
+                                        errorText.contains("EMAIL_CONFIRMATION_REQUIRED", ignoreCase = true) ->
+                                            "تم إنشاء طلب الحساب. تحقق من بريدك الإلكتروني وأكمل تأكيده، ثم سجّل الدخول."
+                                        errorText.contains("users_custom_id_lower_unique", ignoreCase = true) ||
+                                            errorText.contains("duplicate key", ignoreCase = true) ->
+                                            "هذا اليوزر مستخدم بالفعل. اختر يوزراً آخر."
+                                        !SupabaseServices.isSupabaseAvailable ->
+                                            "الخدمات السحابية غير متاحة. لا يمكن إنشاء حساب دون اتصال بالسحابة."
+                                        else -> "تعذر إنشاء الحساب أو حفظ هويته السحابية. حاول مجدداً."
+                                    }
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                 }
                                 isLoading = false
                             }

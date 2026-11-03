@@ -166,60 +166,16 @@ fun EnhancedUsersSection(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newUserName.isNotBlank() && newUserEmail.isNotBlank()) {
-                            AppSoundManager.playSuccess()
-                            val newId = java.util.UUID.randomUUID().toString()
-                            val assignedCustomId = UserIdentifierManager.generateUniqueId(newUserName.ifBlank { newUserEmail })
-                            val newUser = DevUser(
-                                id = newId,
-                                name = newUserName.trim(),
-                                email = newUserEmail.trim(),
-                                type = newUserType,
-                                projectCount = 0,
-                                regDate = DevDashboardFormatters.formatRegDate(System.currentTimeMillis()),
-                                isSuspended = false,
-                                customId = assignedCustomId
-                            )
-                            LocalAccountRegistry.registerOrUpdateAccount(
-                                context = context,
-                                account = LocalAccountRegistry.AccountRecord(
-                                    id = newId,
-                                    name = newUser.name,
-                                    email = newUser.email,
-                                    customId = assignedCustomId,
-                                    type = newUser.type,
-                                    status = "active",
-                                    regDateMillis = System.currentTimeMillis()
-                                )
-                            )
-                            devUsers.add(0, newUser)
-                            newUserName = ""
-                            newUserEmail = ""
-                            showAddUserDialog = false
-                            coroutineScope.launch {
-                                var saved = false
-                                if (SupabaseServices.isSupabaseAvailable) {
-                                    val sbSaved = SupabaseServices.Database.saveUser(
-                                        id = newId,
-                                        name = newUser.name,
-                                        email = newUser.email,
-                                        type = newUser.type,
-                                        customId = assignedCustomId
-                                    )
-                                    if (sbSaved) saved = true
-                                }
-                                if (!saved && !SupabaseServices.isSupabaseAvailable) {
-                                    saved = true
-                                }
-                                AuditLogger.log(context, "user_add", "${newUser.email} (رتبة $newUserType)")
-                                Toast.makeText(
-                                    context,
-                                    if (saved) "تمت إضافة المستخدم وتوثيقه سحابياً ✅" else "أُضيف محلياً",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else {
+                        if (newUserName.isBlank() || newUserEmail.isBlank()) {
                             Toast.makeText(context, "يرجى إدخال الاسم والبريد الإلكتروني", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // Accounts must originate from Supabase Auth. The admin
+                            // dashboard must not fabricate UUIDs or local-only users.
+                            Toast.makeText(
+                                context,
+                                "لا يمكن إنشاء مستخدم يدوياً من هذه الشاشة. يجب أن يُنشأ الحساب عبر مسار التسجيل السحابي أولاً.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),

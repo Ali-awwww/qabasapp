@@ -14,7 +14,6 @@ import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
-import java.util.UUID
 
 /**
  * مدير المتابعة الموحّد لملفات صنّاع المحتوى.
@@ -29,7 +28,6 @@ object CreatorFollowManager {
     private const val LEGACY_PREFIX = "follow_"
     private const val FOLLOW_IDS_KEY = "followed_creators"
     private const val METADATA_KEY = "followed_creator_metadata_v1"
-    private const val INSTALL_ID_KEY = "creator_follow_install_id"
     private const val CLOUD_STATE_PREFIX = "creator_follow_cloud_"
     private const val TABLE = "creator_follows"
 
@@ -181,15 +179,6 @@ object CreatorFollowManager {
 
     // ───────── الهوية المحلية ─────────
 
-    private fun installFollowerId(context: Context): String {
-        val prefs = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
-        val existing = prefs.getString(INSTALL_ID_KEY, null)?.takeIf { it.isNotBlank() }
-        if (existing != null) return existing
-        val created = "local-" + UUID.randomUUID().toString()
-        prefs.edit().putString(INSTALL_ID_KEY, created).apply()
-        return created
-    }
-
     fun currentViewer(context: Context): ViewerIdentity {
         val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val authId = SupabaseServices.Auth.getCurrentUserId()
@@ -202,15 +191,11 @@ object CreatorFollowManager {
         val avatar = appPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
-        val localId = appPrefs.getString("local_user_id", null)?.takeIf { it.isNotBlank() }
-            ?: appPrefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
-            ?: appPrefs.getString("user_account_number", null)?.takeIf { it.isNotBlank() }
-        val id = listOf(authId, localId, authEmail, storedEmail)
-            .firstOrNull { !it.isNullOrBlank() }
-            ?: installFollowerId(context)
 
+        // A social follower must be a Supabase Auth user. Device IDs, email
+        // addresses, and account numbers are descriptive/cached values only.
         return ViewerIdentity(
-            id = id!!,
+            id = authId.orEmpty(),
             displayName = displayName,
             email = authEmail ?: storedEmail,
             avatarUrl = avatar
@@ -299,7 +284,7 @@ object CreatorFollowManager {
         follow: Boolean
     ): Boolean? {
         val cleanId = creatorId.trim()
-        if (cleanId.isBlank()) return null
+        if (cleanId.isBlank() || viewer.id.isBlank()) return null
         if (isSameAccount(cleanId, creatorName, viewer.id, viewer.displayName, viewer.email)) {
             return null
         }
@@ -366,7 +351,9 @@ object CreatorFollowManager {
         creatorId: String,
         follow: Boolean
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!cloudReady()) return@withContext false
+        if (!cloudReady() || viewer.id.isBlank()) return@withContext false
+        val authenticatedUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(8_000L)
+        if (authenticatedUid.isNullOrBlank() || authenticatedUid != viewer.id) return@withContext false
         val ok = runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery false
             if (follow) {
@@ -412,6 +399,8 @@ object CreatorFollowManager {
 
     suspend fun cloudIsFollowing(viewerId: String, creatorId: String): Boolean? = withContext(Dispatchers.IO) {
         if (!cloudReady() || viewerId.isBlank() || creatorId.isBlank()) return@withContext null
+        val authenticatedUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(8_000L)
+        if (authenticatedUid.isNullOrBlank() || authenticatedUid != viewerId) return@withContext null
         runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery null
             val rows = client.postgrest.from(TABLE).select {

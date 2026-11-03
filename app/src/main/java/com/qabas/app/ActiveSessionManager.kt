@@ -23,11 +23,10 @@ object ActiveSessionManager {
     }
 
     fun currentUserId(context: Context): String? {
-        val fromAuth = SupabaseServices.Auth.getCurrentUserId()
-        if (!fromAuth.isNullOrBlank()) return fromAuth
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString("user_id", null)?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("user_email", null)?.takeIf { it.isNotBlank() }
+        // Active-session leases are cloud authorization records. Never release
+        // or claim one using a locally cached ID/email after Auth has expired.
+        return SupabaseServices.Auth.getCurrentUserId()
+            ?.takeIf { it.isNotBlank() }
     }
 
     suspend fun claim(context: Context, userId: String): Boolean =

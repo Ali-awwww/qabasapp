@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.time.ExperimentalTime::class)
+
 package com.qabas.app
 
 import android.util.Log
@@ -12,6 +14,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.user.UserSession
+import io.github.jan.supabase.functions.functions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +27,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import io.ktor.client.call.body
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import io.github.jan.supabase.postgrest.postgrest
@@ -33,6 +43,14 @@ import io.github.jan.supabase.postgrest.query.Order
 /**
  * Reactive Authentication State representing the user's current session status.
  */
+@Serializable
+private data class IdentifierLoginResponse(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("refresh_token") val refreshToken: String,
+    @SerialName("expires_in") val expiresIn: Long = 3600L,
+    @SerialName("token_type") val tokenType: String = "bearer"
+)
+
 sealed class AuthState {
     object Loading : AuthState()
     object Unauthenticated : AuthState()
@@ -171,35 +189,59 @@ class SupabaseRepository(
     /**
      * Refreshes user profile and admin status, then broadcasts [AuthState.Authenticated].
      */
-    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?) {
+    private suspend fun refreshUserAndEmitAuthenticated(uid: String, session: UserSession?, requestedCustomId: String? = null): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
                 val email = session?.user?.email ?: client.auth.currentUserOrNull()?.email
                 val name = email?.substringBefore("@")
-                val userRow = SupabaseServices.Database.ensureUser(uid, email, name) ?: SupabaseServices.UserRow(
-                    id = uid,
-                    externalId = uid,
-                    email = email,
-                    name = name
-                )
-                val role = SupabaseServices.Auth.getUserRoleFromMetadata()
-                val isAdmin = role == "admin" || role == "developer" || role == "owner" || CloudServices.isOwnerAccount(email)
+                val userRow = SupabaseServices.Database.ensureUser(uid, email, name, requestedCustomId)
+                    ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
+                if (userRow.id != uid ||
+                    userRow.customId.isNullOrBlank() ||
+                    userRow.accountNumber.isNullOrBlank()
+                ) {
+                    throw IllegalStateException("ملف المستخدم السحابي لا يحتوي هوية مكتملة")
+                }
 
+                val role = SupabaseServices.Auth.getUserRoleFromMetadata()
+                val isAdmin = role == "admin" || role == "developer" || role == "owner" ||
+                    CloudServices.isOwnerAccount(email)
                 _authState.value = AuthState.Authenticated(
                     userRow = userRow,
                     session = session,
                     isAdmin = isAdmin
                 )
-            }.onFailure { e ->
-                Log.w(TAG, "Failed to load user row for $uid: ${e.message}")
-                _authState.value = AuthState.Authenticated(
-                    userRow = SupabaseServices.UserRow(id = uid, externalId = uid),
-                    session = session,
-                    isAdmin = false
-                )
+
+                // Local preferences are only a cache of values that the cloud
+                // profile has already issued. Restore them after every session load
+                // so a second device never invents a different handle or number.
+                val appContext = AppServices.appContext
+                val profileEmail = userRow.email ?: email
+                if (!profileEmail.isNullOrBlank()) {
+                    userRow.customId?.takeIf { it.isNotBlank() }?.let {
+                        UserIdentifierManager.saveCustomId(appContext, it, profileEmail)
+                    }
+                    userRow.accountNumber?.takeIf { it.isNotBlank() }?.let {
+                        UserIdentifierManager.saveAccountNumber(appContext, profileEmail, it)
+                    }
+                    appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("user_id", uid)
+                        .putString("user_email", profileEmail)
+                        .putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))
+                        .putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))
+                        .putString("user_custom_id", userRow.customId)
+                        .putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })
+                        .putString("user_account_number", userRow.accountNumber)
+                        .apply()
+                }
+                true
+            }.getOrElse { e ->
+                Log.e(TAG, "Failed to persist or load canonical profile for $uid: ${e.message}")
+                _authState.value = AuthState.Error("تعذر تحميل ملف حسابك السحابي. حاول مجدداً.")
+                false
             }
         }
-    }
 
     private fun syncLocalAuthSuccess(uid: String, email: String?) {
         val context = AppServices.appContext
@@ -227,10 +269,9 @@ class SupabaseRepository(
         }
         val currentSession = client.auth.currentSessionOrNull()
         val uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
-        if (uid != null) {
-            refreshUserAndEmitAuthenticated(uid, currentSession)
+        if (uid != null && refreshUserAndEmitAuthenticated(uid, currentSession)) {
             syncLocalAuthSuccess(uid, currentSession?.user?.email)
-        } else {
+        } else if (uid == null) {
             checkLocalAuthFallback()
         }
         _authState.value
@@ -264,9 +305,12 @@ class SupabaseRepository(
 
             if (!uid.isNullOrBlank()) {
                 // Ensure local state is synced with this real session
-                refreshUserAndEmitAuthenticated(uid, currentSession)
-                syncLocalAuthSuccess(uid, currentSession?.user?.email)
-                uid
+                if (refreshUserAndEmitAuthenticated(uid, currentSession)) {
+                    syncLocalAuthSuccess(uid, currentSession?.user?.email)
+                    uid
+                } else {
+                    null
+                }
             } else {
                 // Definitely unauthenticated
                 checkLocalAuthFallback()
@@ -296,7 +340,7 @@ class SupabaseRepository(
     }
 
     /** Sign up with email and password and broadcast updated auth state. */
-    suspend fun register(email: String, pass: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun register(email: String, pass: String, customId: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         _authState.value = AuthState.Loading
         runCatching {
@@ -304,7 +348,13 @@ class SupabaseRepository(
                 this.email = email
                 this.password = pass
             }
-            checkAuthState()
+            val session = client.auth.currentSessionOrNull()
+            val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                ?: throw IllegalStateException("EMAIL_CONFIRMATION_REQUIRED")
+            if (!refreshUserAndEmitAuthenticated(uid, session, customId)) {
+                throw IllegalStateException("تعذر حفظ ملف الحساب في السحابة")
+            }
+            syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
             _authState.value = AuthState.Error(e.message ?: "Registration failed")
@@ -333,12 +383,72 @@ class SupabaseRepository(
                 this.email = email
                 this.password = pass
             }
-            checkAuthState()
+            val session = client.auth.currentSessionOrNull()
+            val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                ?: throw IllegalStateException("لم تُنشأ جلسة مصادقة صالحة")
+            if (!refreshUserAndEmitAuthenticated(uid, session)) {
+                throw IllegalStateException("تعذر تحميل ملف الحساب السحابي")
+            }
+            syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
             _authState.value = AuthState.Error(e.message ?: "Login failed")
         }
     }
+
+    /**
+     * Sign in through the server-side username/account-number resolver.
+     * The server returns only a Supabase Auth session; it never exposes an
+     * unauthenticated profile/email lookup endpoint.
+     */
+    suspend fun loginWithIdentifier(identifier: String, pass: String): Result<Boolean> =
+        withContext(Dispatchers.IO) {
+            if (!isAvailable) {
+                return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
+            }
+            _authState.value = AuthState.Loading
+            runCatching {
+                val response = client.functions.invoke(
+                    function = "qabas-auth-identifier-login",
+                    body = buildJsonObject {
+                        put("identifier", identifier.trim())
+                        put("password", pass)
+                    },
+                    headers = Headers.build {
+                        append(HttpHeaders.ContentType, "application/json")
+                    }
+                )
+                val tokens = response.body<IdentifierLoginResponse>()
+                require(tokens.accessToken.isNotBlank() && tokens.refreshToken.isNotBlank()) {
+                    "بيانات الدخول غير صحيحة"
+                }
+
+                client.auth.importSession(
+                    UserSession(
+                        accessToken = tokens.accessToken,
+                        refreshToken = tokens.refreshToken,
+                        expiresIn = tokens.expiresIn,
+                        tokenType = tokens.tokenType,
+                        user = null
+                    )
+                )
+                // Importing the tokens does not populate the local user object.
+                // Fetch it through Supabase Auth before using the UID for RLS.
+                client.auth.retrieveUserForCurrentSession(updateSession = true)
+
+                val session = client.auth.currentSessionOrNull()
+                val uid = session?.user?.id ?: client.auth.currentUserOrNull()?.id
+                    ?: throw IllegalStateException("تعذر إنشاء جلسة مصادقة")
+                if (!refreshUserAndEmitAuthenticated(uid, session)) {
+                    throw IllegalStateException("تعذر تحميل ملف الحساب السحابي")
+                }
+                syncLocalAuthSuccess(uid, session?.user?.email ?: client.auth.currentUserOrNull()?.email)
+                true
+            }.onFailure { error ->
+                Log.w(TAG, "Identifier sign-in failed: ${error.message}")
+                _authState.value = AuthState.Error("بيانات الدخول غير صحيحة أو تعذر الوصول إلى خدمة المصادقة.")
+            }
+        }
 
     /** Sign in with Google ID token and broadcast updated auth state. */
     suspend fun loginWithGoogle(idToken: String, nonce: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
