@@ -361,13 +361,26 @@ fun ReelsScreen(
     val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
     val isGuest = accountAuthState !is AuthState.Authenticated && !isDeveloper
     var showGuestLoginPrompt by remember { mutableStateOf(false) }
+    var pendingInteractionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    LaunchedEffect(accountAuthState) {
+        if (accountAuthState is AuthState.Authenticated) {
+            val pending = pendingInteractionAction
+            if (pending != null) {
+                pendingInteractionAction = null
+                pending()
+                Toast.makeText(context, "تم توثيق الحساب واستئناف العملية تلقائياً ✨", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     /**
      * 🛡️ Guest Interaction Gatekeeper
-     * Intercepts actions for guests and shows login prompt.
+     * Intercepts actions for guests and shows login prompt with automatic resume.
      */
     fun checkGuestInteraction(action: () -> Unit) {
         if (isGuest) {
+            pendingInteractionAction = action
             showGuestLoginPrompt = true
         } else {
             action()
@@ -904,7 +917,7 @@ fun ReelsScreen(
                                         val authId = SupabaseServices.Auth.awaitCurrentUserId()
                                         
                                         if (authId == null) {
-                                            // تراجع فوري: لا يمكن الإعجاب سحابياً بدون جلسة Supabase نشطة (RLS Requirement)
+                                            // حفظ العملية في الانتظار وعرض حوار تسجيل الدخول بدلاً من مجرد التراجع
                                             likedReelIds[reel.id] = !newLikedState
                                             dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
                                             ReelPreferencesManager.toggleLiked(
@@ -916,13 +929,24 @@ fun ReelsScreen(
                                                 videoUrl = reel.videoUrl,
                                                 category = selectedCategory
                                             )
-                                            Toast.makeText(context, "انتهت جلسة السحابة — يرجى تسجيل الدخول مجدداً", Toast.LENGTH_SHORT).show()
+                                            pendingInteractionAction = {
+                                                likedReelIds[reel.id] = newLikedState
+                                                dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
+                                                scope.launch {
+                                                    val resId = SupabaseServices.Auth.awaitCurrentUserId()
+                                                    if (resId != null) {
+                                                        if (newLikedState) SupabaseServices.Profiles.likeReel(reel.id, resId)
+                                                        else SupabaseServices.Profiles.unlikeReel(reel.id, resId)
+                                                    }
+                                                }
+                                            }
+                                            showGuestLoginPrompt = true
                                             likeInFlight[reel.id] = false
                                             return@launch
                                         }
 
                                         val ok = runCatching {
-                                            withTimeoutOrNull(5000L) {
+                                            withTimeoutOrNull(6000L) {
                                                 if (newLikedState) {
                                                     SupabaseServices.Profiles.likeReel(reel.id, authId)
                                                 } else {
@@ -932,24 +956,26 @@ fun ReelsScreen(
                                         }.getOrDefault(false)
 
                                         if (authId != null && !ok) {
-                                            // فشل التسجيل السحابي: تراجع فوري عن التحديث المتفائل
-                                            likedReelIds[reel.id] = !newLikedState
-                                            dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
-                                            ReelPreferencesManager.toggleLiked(
-                                                context = context,
-                                                reelId = reel.id,
-                                                title = reel.title,
-                                                userName = reel.userName,
-                                                userAvatar = reel.userAvatar,
-                                                videoUrl = reel.videoUrl,
-                                                category = selectedCategory
-                                            )
-                                            val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
-                                                "الخدمات السحابية غير متوفرة حالياً"
-                                            } else {
-                                                "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
+                                            // فشل التسجيل السحابي: تراجع فوري فقط إذا لم يكن مقطع محلي/بداية
+                                            if (!reel.id.startsWith("qabas_")) {
+                                                likedReelIds[reel.id] = !newLikedState
+                                                dynamicLikeCounts[reel.id] = if (newLikedState) currentLikes else currentLikes + 1
+                                                ReelPreferencesManager.toggleLiked(
+                                                    context = context,
+                                                    reelId = reel.id,
+                                                    title = reel.title,
+                                                    userName = reel.userName,
+                                                    userAvatar = reel.userAvatar,
+                                                    videoUrl = reel.videoUrl,
+                                                    category = selectedCategory
+                                                )
+                                                val errorMsg = if (!SupabaseServices.isSupabaseAvailable) {
+                                                    "الخدمات السحابية غير متوفرة حالياً"
+                                                } else {
+                                                    "تعذر تحديث الإعجاب سحابياً — راجع اتصالك أو صلاحياتك"
+                                                }
+                                                Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                             }
-                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                         }
                                         likeInFlight[reel.id] = false
                                     }
@@ -992,7 +1018,7 @@ fun ReelsScreen(
                                                 }
                                             } ?: false
                                         }.getOrDefault(false)
-                                        if (!ok) {
+                                        if (!ok && !reel.id.startsWith("qabas_")) {
                                             // تراجع سحابي + تراجع محلي (اتساق كامل بين الطبقتين)
                                             cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
                                             if (nowLocalSaved != wasLocalSaved) {

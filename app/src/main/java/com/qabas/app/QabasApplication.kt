@@ -40,6 +40,7 @@ class QabasApplication : Application() {
             runCatching { AgentPrefs.init(this@QabasApplication) }
             runCatching { AppServices.init(this@QabasApplication) }
             runCatching { LocalAccountRegistry.init(this@QabasApplication) }
+            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
             
             runCatching { UpdateManager.reconcilePendingInstall(this@QabasApplication) }
 

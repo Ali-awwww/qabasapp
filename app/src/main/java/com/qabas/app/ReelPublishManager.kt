@@ -311,19 +311,19 @@ object ReelPublishManager {
                 onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
                 val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
                     bucketName = "reels",
-                    path = "videos/$userId/$fileName",
+                    path = "videos/$effectiveUserId/$fileName",
                     file = localVideoFile,
                     contentType = "video/mp4"
                 ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
                     ?: SupabaseServices.Storage.uploadFileWithProgress(
                         bucketName = "media-assets",
-                        path = "reels/$userId/$fileName",
+                        path = "reels/$effectiveUserId/$fileName",
                         file = localVideoFile,
                         contentType = "video/mp4"
                     ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
                     ?: SupabaseServices.Storage.uploadFileWithProgress(
                         bucketName = "user-uploads",
-                        path = "reels/$userId/$fileName",
+                        path = "reels/$effectiveUserId/$fileName",
                         file = localVideoFile,
                         contentType = "video/mp4"
                     ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
@@ -355,13 +355,13 @@ object ReelPublishManager {
                         FileOutputStream(tmpThumb).use { it.write(thumbnailBytes) }
                         val url = SupabaseServices.Storage.uploadFileWithProgress(
                             bucketName = "reels",
-                            path = "thumbnails/$userId/$thumbFileName",
+                            path = "thumbnails/$effectiveUserId/$thumbFileName",
                             file = tmpThumb,
                             contentType = "image/jpeg"
                         ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
                             ?: SupabaseServices.Storage.uploadFileWithProgress(
                                 bucketName = "media-assets",
-                                path = "thumbnails/$userId/$thumbFileName",
+                                path = "thumbnails/$effectiveUserId/$thumbFileName",
                                 file = tmpThumb,
                                 contentType = "image/jpeg"
                             ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }

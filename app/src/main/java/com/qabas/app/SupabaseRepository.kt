@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -200,6 +201,22 @@ class SupabaseRepository(
         }
     }
 
+    private fun syncLocalAuthSuccess(uid: String, email: String?) {
+        val context = AppServices.appContext
+        val prefs = runCatching {
+            context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+        }.getOrNull() ?: return
+        prefs.edit().apply {
+            putBoolean("is_logged_in", true)
+            putBoolean("is_guest", false)
+            putString("user_id", uid)
+            if (!email.isNullOrBlank()) {
+                putString("user_email", email)
+            }
+            apply()
+        }
+    }
+
     /**
      * Manually triggers an explicit check of the current authentication state.
      */
@@ -212,10 +229,48 @@ class SupabaseRepository(
         val uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
         if (uid != null) {
             refreshUserAndEmitAuthenticated(uid, currentSession)
+            syncLocalAuthSuccess(uid, currentSession?.user?.email)
         } else {
             checkLocalAuthFallback()
         }
         _authState.value
+    }
+
+    /**
+     * Verifies and ensures an active Supabase authenticated session.
+     * If the session is currently initializing, it waits for initialization to complete.
+     * If the session has a valid token, it refreshes/validates if needed.
+     * Returns the valid Supabase auth UID, or null if unauthenticated.
+     */
+    suspend fun ensureAuthenticatedSession(timeoutMillis: Long = 5_000L): String? = withContext(Dispatchers.IO) {
+        if (!isAvailable) return@withContext null
+        runCatching {
+            var currentSession = client.auth.currentSessionOrNull()
+            var uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
+
+            if (uid.isNullOrBlank()) {
+                kotlinx.coroutines.withTimeoutOrNull(timeoutMillis) {
+                    client.auth.sessionStatus.first { it !is SessionStatus.Initializing }
+                }
+                currentSession = client.auth.currentSessionOrNull()
+                uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
+            }
+
+            if (uid.isNullOrBlank()) {
+                runCatching { client.auth.refreshCurrentSession() }
+                currentSession = client.auth.currentSessionOrNull()
+                uid = currentSession?.user?.id ?: client.auth.currentUserOrNull()?.id
+            }
+
+            if (!uid.isNullOrBlank()) {
+                refreshUserAndEmitAuthenticated(uid, currentSession)
+                syncLocalAuthSuccess(uid, currentSession?.user?.email)
+                uid
+            } else {
+                checkLocalAuthFallback()
+                null
+            }
+        }.getOrNull()
     }
 
     // ==========================================

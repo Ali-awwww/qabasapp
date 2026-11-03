@@ -436,6 +436,7 @@ fun LoginScreen(
                                     }
                                     // SupabaseRepository already observes the active Supabase Auth session.
                                     CloudServices.syncAdminClaim(context)
+                                    SupabaseRepository.getInstance().checkAuthState()
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
                                     Toast.makeText(
                                         context, 
