@@ -35,8 +35,8 @@ object HadithSearchNormalizer {
     fun normalize(text: String): String {
         return text
             .let { DIACRITICS.replace(it, "") }      // إزالة التشكيل
-            .let { ALEF_VARIANTS.replace(it, "\\u0627") } // آأإٱ → ا
-            .let { HAMZA_VARIANTS.replace(it, "\\u0621") } // ؤئ → ء
+            .let { ALEF_VARIANTS.replace(it, "ا") } // آأإٱ → ا
+            .let { HAMZA_VARIANTS.replace(it, "ء") } // ؤئ → ء
             .let { TATWEEL.replace(it, "") }           // إزالة ـ
             .let { WHITESPACE.replace(it, " ") }       // توحيد المسافات
             .trim()
