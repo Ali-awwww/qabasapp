@@ -2181,10 +2181,10 @@ private fun SpatialHudStatsHeader(
     val calendar = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
     val hour = calendar.get(Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
-        in 5..11 -> "صباح الأنوار والفتح المبين 🌅"
-        in 12..16 -> "طاب يومك بنشر الخير والأثر ☀️"
-        in 17..20 -> "مساء السكينة والذكر الحكيم 🌙"
-        else -> "ليلة مباركة في ظلال الوحيين ✨"
+        in 5..11 -> "السلام عليكم ورحمة الله وبركاته، أسعد الله صباحك بطاعته وذكره 🌅"
+        in 12..16 -> "السلام عليكم ورحمة الله وبركاته، جعل الله يومك عامرًا بالخير والبركة ☀️"
+        in 17..20 -> "السلام عليكم ورحمة الله وبركاته، طابت أوقاتك بذكر الله 🌙"
+        else -> "السلام عليكم ورحمة الله وبركاته، جعل الله ليلتك سكينة وطمأنينة ✨"
     }
 
     // Time & Date Formats
