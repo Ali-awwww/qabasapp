@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -168,6 +169,7 @@ private fun MushafReaderContent(
     onOpenTafseer: (Int, Int) -> Unit
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = startPage - 1, pageCount = { MushafPageData.PAGE_COUNT })
     var showPicker by remember { mutableStateOf(false) }
@@ -260,6 +262,17 @@ private fun MushafReaderContent(
             onPrev = { scope.launch { pagerState.animateScrollToPage((currentPage - 2).coerceAtLeast(0)) } },
             onNext = { scope.launch { pagerState.animateScrollToPage((currentPage).coerceAtMost(MushafPageData.PAGE_COUNT - 1)) } },
             onPageNumberClick = { showSheet = true }
+        )
+
+        Text(
+            text = "النص العثماني: Tanzil Project · CC BY 3.0 · tanzil.net",
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { uriHandler.openUri("https://tanzil.net") }
+                .padding(vertical = 3.dp),
+            color = Color(0xFF766C58),
+            fontSize = 9.sp,
+            textAlign = TextAlign.Center
         )
     }
 
