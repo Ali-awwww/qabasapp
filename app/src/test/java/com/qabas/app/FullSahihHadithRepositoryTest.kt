@@ -193,7 +193,7 @@ class FullSahihHadithRepositoryTest {
 
         val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
             .let { index ->
-                HadithSearchNormalizer.searchWithIndex(index, firstWords)
+                HadithSearchNormalizer.searchWithIndex(index, firstWords, limit = book.hadiths.size)
             }
         assertTrue("البحث بكلمات من الحديث الأخير يجب أن يجد حديثًا واحدًا على الأقل (حصل ${results.size})", results.isNotEmpty())
         assertTrue("يجب أن يجد الحديث الأخير نفسه (id=${last.id})", results.contains(last.id))
