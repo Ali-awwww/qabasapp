@@ -55,7 +55,7 @@ data class SpatialServiceStatus(
 
 @Composable
 fun SpatialServiceDiagnosticsHub(
-    onNavigateToKeys: () -> Unit = {},
+    onNavigateToKeys: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -426,7 +426,10 @@ fun SpatialServiceDiagnosticsHub(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1424)),
                         border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.width(180.dp).clickable { onNavigateToKeys() }
+                        modifier = Modifier.width(180.dp).then(
+                            if (onNavigateToKeys != null) Modifier.clickable(onClick = onNavigateToKeys)
+                            else Modifier
+                        )
                     ) {
                         Column(
                             modifier = Modifier.padding(10.dp),
