@@ -67,6 +67,7 @@ fun StudioProEditorScreen(
     var showTransitionPicker by remember { mutableStateOf(false) }
     var showAiMagicPanel by remember { mutableStateOf(false) }
     var selectedTransitionClipId by remember { mutableStateOf<String?>(null) }
+    val selectedClipTrack = projectState.tracks.firstOrNull { track -> track.clips.any { it.id == projectState.selectedClipId } }
     
     val scope = rememberCoroutineScope()
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
@@ -267,11 +268,11 @@ fun StudioProEditorScreen(
                         Icon(Icons.Default.Movie, null, tint = Color.White.copy(alpha = 0.05f), modifier = Modifier.size(120.dp))
                         
                         // Active Text Layer or Kinetic Captions
-                        val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT }?.clips?.firstOrNull { 
+                        val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT && it.isVisible }?.clips?.firstOrNull { 
                             projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
                         }
                         
-                        val activeVideoClip = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO }?.clips?.firstOrNull { 
+                        val activeVideoClip = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible }?.clips?.firstOrNull { 
                             projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
                         }
 
@@ -548,8 +549,8 @@ fun StudioProEditorScreen(
                                     track = track, 
                                     zoom = projectState.zoomLevel,
                                     selectedClipId = projectState.selectedClipId,
-                                    onClipClick = { clipId -> 
-                                        projectState = projectState.copy(selectedClipId = clipId)
+                                    onClipClick = { clipId ->
+                                        if (!track.isLocked) projectState = projectState.copy(selectedClipId = clipId)
                                     },
                                     onTransitionClick = { clipId ->
                                         selectedTransitionClipId = clipId
@@ -617,7 +618,7 @@ fun StudioProEditorScreen(
                                 }
                             }
                         },
-                        enabled = projectState.selectedClipId != null
+                        enabled = projectState.selectedClipId != null && selectedClipTrack?.isLocked != true
                     )
                     ToolButton(Icons.Default.Audiotrack, "صوتيات", onClick = {})
                     ToolButton(Icons.Default.TextFields, "نصوص", onClick = {})
@@ -704,15 +705,48 @@ fun StudioProEditorScreen(
                             Text(track.name, color = Color.White, fontFamily = CairoFont)
                         }
                         
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            IconButton(onClick = {}) { 
-                                Icon(Icons.Default.Visibility, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) 
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = {
+                                saveToHistory()
+                                projectState = projectState.copy(tracks = projectState.tracks.map {
+                                    if (it.id == track.id) it.copy(isVisible = !it.isVisible) else it
+                                })
+                            }) {
+                                Icon(
+                                    if (track.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (track.isVisible) "إخفاء " + track.name else "إظهار " + track.name,
+                                    tint = if (track.isVisible) GoldPrimary else Color.Gray,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
-                            IconButton(onClick = {}) { 
-                                Icon(Icons.Default.VolumeUp, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) 
+                            IconButton(onClick = {
+                                saveToHistory()
+                                projectState = projectState.copy(tracks = projectState.tracks.map {
+                                    if (it.id == track.id) it.copy(isMuted = !it.isMuted) else it
+                                })
+                            }) {
+                                Icon(
+                                    if (track.isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                    contentDescription = if (track.isMuted) "إلغاء كتم " + track.name else "كتم " + track.name,
+                                    tint = if (track.isMuted) Color.Gray else GoldPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
-                            IconButton(onClick = {}) { 
-                                Icon(Icons.Default.LockOpen, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) 
+                            IconButton(onClick = {
+                                saveToHistory()
+                                projectState = projectState.copy(
+                                    tracks = projectState.tracks.map {
+                                        if (it.id == track.id) it.copy(isLocked = !it.isLocked) else it
+                                    },
+                                    selectedClipId = if (!track.isLocked && selectedClipTrack?.id == track.id) null else projectState.selectedClipId
+                                )
+                            }) {
+                                Icon(
+                                    if (track.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = if (track.isLocked) "إلغاء قفل " + track.name else "قفل " + track.name,
+                                    tint = if (track.isLocked) Color(0xFFF59E0B) else Color.Gray,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }
@@ -1130,38 +1164,86 @@ fun ExportWorkspace(onExport: () -> Unit) {
 
 @Composable
 fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<EditorTrack>) -> Unit) {
+    val audioTracks = state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
+    val hasSoloTrack = audioTracks.any { it.isSolo }
+
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
         Text("ميكسر الصوت الاحترافي (Audio Mixer)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text(
+            "إعدادات مستوى المسارات والكتم والعزل تُحفظ مع المشروع",
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontFamily = CairoFont
+        )
         Spacer(modifier = Modifier.height(24.dp))
-        
-        state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }.forEach { track ->
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(track.name, color = Color.White, fontFamily = CairoFont)
-                    Text("${(0.8f * 100).toInt()}%", color = GoldPrimary, fontSize = 12.sp)
-                }
-                Slider(
-                    value = 0.8f,
-                    onValueChange = { },
-                    colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("كتم (Mute)", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.clickable { })
-                    Text("منفرد (Solo)", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.clickable { })
+
+        if (audioTracks.isEmpty()) {
+            Text("أضف مسار فيديو أو صوتاً لبدء ضبط مستويات الصوت.", color = Color.Gray, fontFamily = CairoFont)
+        } else {
+            audioTracks.forEach { track ->
+                val effectivelyAudible = !track.isMuted && (!hasSoloTrack || track.isSolo)
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(track.name, color = Color.White, fontFamily = CairoFont)
+                        Text("${(track.volume * 100).toInt()}%", color = GoldPrimary, fontSize = 12.sp)
+                    }
+                    Slider(
+                        value = track.volume.coerceIn(0f, 1f),
+                        onValueChange = { value ->
+                            onTracksUpdated(state.tracks.map {
+                                if (it.id == track.id) it.copy(volume = value.coerceIn(0f, 1f)) else it
+                            })
+                        },
+                        enabled = !track.isMuted,
+                        colors = SliderDefaults.colors(
+                            thumbColor = GoldPrimary,
+                            activeTrackColor = GoldPrimary,
+                            disabledThumbColor = Color.Gray,
+                            disabledActiveTrackColor = Color.Gray
+                        )
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Text(
+                            if (track.isMuted) "إلغاء الكتم" else "كتم",
+                            color = if (track.isMuted) GoldPrimary else Color.Gray,
+                            fontSize = 11.sp,
+                            modifier = Modifier.clickable {
+                                onTracksUpdated(state.tracks.map {
+                                    if (it.id == track.id) it.copy(isMuted = !it.isMuted) else it
+                                })
+                            }
+                        )
+                        Text(
+                            if (track.isSolo) "إلغاء العزل" else "عزل المسار",
+                            color = if (track.isSolo) GoldPrimary else Color.Gray,
+                            fontSize = 11.sp,
+                            modifier = Modifier.clickable {
+                                onTracksUpdated(state.tracks.map {
+                                    if (it.id == track.id) it.copy(isSolo = !it.isSolo) else it
+                                })
+                            }
+                        )
+                        Text(
+                            if (effectivelyAudible) "مفعّل ضمن المزيج" else "مستبعد من المزيج",
+                            color = if (effectivelyAudible) Color(0xFF10B981) else Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { /* Master EQ logic */ },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A))
-        ) {
-            Icon(Icons.Default.GraphicEq, null, tint = Color.White)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("تعديل الـ Master EQ الذكي", color = Color.White, fontFamily = CairoFont)
-        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "ملاحظة: هذه الإعدادات تُحفظ في المشروع؛ تشغيل ومزج الصوت الفعلي يحتاج إلى محرك صوت متصل.",
+            color = Color.Gray,
+            fontSize = 10.sp,
+            fontFamily = CairoFont
+        )
     }
 }
 
