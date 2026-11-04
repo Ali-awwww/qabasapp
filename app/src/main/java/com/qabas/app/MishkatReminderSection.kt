@@ -11,14 +11,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronDown
-import androidx.compose.material.icons.filled.ChevronUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
@@ -96,7 +97,7 @@ fun MishkatReminderCard() {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                if (expanded) Icons.Default.ChevronUp else Icons.Default.ChevronDown,
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
                 tint = Color(0xFFE8D8B5),
                 modifier = Modifier.size(18.dp)
