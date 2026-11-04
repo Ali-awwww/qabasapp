@@ -3098,16 +3098,11 @@ fun MemorizationSystemView(
 
         if (activeChallenges.isEmpty()) {
             item {
-                DailyChallengeCard(
-                    challenge = QuranChallengeRecord(
-                        id = "daily_read",
-                        title = "ورد القراءة اليومي",
-                        description = "سجّل حفظ خمس آيات جديدة من أي سورة.",
-                        goalValue = 5,
-                        currentValue = 0,
-                        type = "MEMORIZATION",
-                        hasanatReward = 500
-                    )
+                Text(
+                    "لا يوجد تحدٍّ نشط حالياً. أعد فتح قسم التحفيظ لبدء تحدٍّ جديد.",
+                    color = OldInk.copy(alpha = 0.6f),
+                    fontFamily = CairoFont,
+                    fontSize = 12.sp
                 )
             }
         } else {
@@ -3343,7 +3338,7 @@ fun DailyChallengeCard(challenge: QuranChallengeRecord) {
                 Text(challenge.description, color = OldInk.copy(alpha = 0.6f), fontFamily = CairoFont, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { challenge.currentValue.toFloat() / challenge.goalValue },
+                    progress = { (challenge.currentValue.toFloat() / challenge.goalValue.coerceAtLeast(1)).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                     color = ManuscriptGold,
                     trackColor = ManuscriptGold.copy(alpha = 0.1f)
