@@ -483,13 +483,17 @@ fun StudioProEditorScreen(
                                         val animatedScale = SmartFeaturesEngine.interpolateProperty(
                                             clip.keyframes, relativeTime, "scale", 1f
                                         )
+                                        val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
+                                        val transitionAlpha = if (clip.transitionIn == "Fade In") transitionProgress else 1f
+                                        val transitionScale = if (clip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
+                                        val slideOffset = if (clip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
                                         alpha = SmartFeaturesEngine.interpolateProperty(
                                             clip.keyframes, relativeTime, "opacity", 1f
-                                        )
-                                        scaleX = clip.transform.scaleX * animatedScale
-                                        scaleY = clip.transform.scaleY * animatedScale
+                                        ) * transitionAlpha
+                                        scaleX = clip.transform.scaleX * animatedScale * transitionScale
+                                        scaleY = clip.transform.scaleY * animatedScale * transitionScale
                                         rotationZ = clip.transform.rotation
-                                        translationX = clip.transform.posX
+                                        translationX = clip.transform.posX + slideOffset
                                         translationY = clip.transform.posY
                                     }
                                 }
@@ -517,13 +521,17 @@ fun StudioProEditorScreen(
                                             val animatedScale = SmartFeaturesEngine.interpolateProperty(
                                                 overlayClip.keyframes, relativeTime, "scale", 1f
                                             )
+                                            val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
+                                            val transitionAlpha = if (overlayClip.transitionIn == "Fade In") transitionProgress else 1f
+                                            val transitionScale = if (overlayClip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
+                                            val slideOffset = if (overlayClip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
                                             alpha = SmartFeaturesEngine.interpolateProperty(
                                                 overlayClip.keyframes, relativeTime, "opacity", 1f
-                                            )
-                                            scaleX = overlayClip.transform.scaleX * animatedScale
-                                            scaleY = overlayClip.transform.scaleY * animatedScale
+                                            ) * transitionAlpha
+                                            scaleX = overlayClip.transform.scaleX * animatedScale * transitionScale
+                                            scaleY = overlayClip.transform.scaleY * animatedScale * transitionScale
                                             rotationZ = overlayClip.transform.rotation
-                                            translationX = overlayClip.transform.posX
+                                            translationX = overlayClip.transform.posX + slideOffset
                                             translationY = overlayClip.transform.posY
                                         }
                                     )
@@ -556,9 +564,13 @@ fun StudioProEditorScreen(
                                 val currentScale = SmartFeaturesEngine.interpolateProperty(
                                     textClip.keyframes, relativeTime, "scale", 1f
                                 )
+                                val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
+                                val transitionAlpha = if (textClip.transitionIn == "Fade In") transitionProgress else 1f
+                                val transitionScale = if (textClip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
+                                val slideOffset = if (textClip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
                                 val currentOpacity = SmartFeaturesEngine.interpolateProperty(
                                     textClip.keyframes, relativeTime, "opacity", 1f
-                                )
+                                ) * transitionAlpha
                                 Text(
                                     textClip.title,
                                     color = Color.White.copy(alpha = currentOpacity),
@@ -568,10 +580,10 @@ fun StudioProEditorScreen(
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.align(Alignment.Center).padding(horizontal = 20.dp)
                                         .graphicsLayer {
-                                            scaleX = textClip.transform.scaleX
-                                            scaleY = textClip.transform.scaleY
+                                            scaleX = textClip.transform.scaleX * transitionScale
+                                            scaleY = textClip.transform.scaleY * transitionScale
                                             rotationZ = textClip.transform.rotation
-                                            translationX = textClip.transform.posX
+                                            translationX = textClip.transform.posX + slideOffset
                                             translationY = textClip.transform.posY
                                         }
                                 )
