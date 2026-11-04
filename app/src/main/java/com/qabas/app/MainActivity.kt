@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import io.github.jan.supabase.auth.handleDeeplinks
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -141,10 +142,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Restore a previously verified recovery session, then handle any cold-start callback.
+        PasswordRecoveryManager.restore(this)
+        if (PasswordRecoveryManager.isRecoveryVerified.value) {
+            AppNavigator.navigateFromNotification(AppState.FORGOT_PASSWORD)
+        }
+
         // STEP 1: Configure App Check with launch intent before any UI or Firebase operations
         FirebaseAppCheckHelper.configureAppCheck(this, intent)
 
-        // Handle deep link: qabas://keys/import?gemini=...&groq=...
+        // Handle deep links, including Supabase password recovery.
         handleDeepLink(intent)
 
         // Initialize managers that are fast or critical for UI immediately
@@ -929,6 +936,52 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            return
+        }
+
+        if (uri != null &&
+            uri.scheme == SupabaseConfig.PASSWORD_RESET_SCHEME &&
+            uri.host == SupabaseConfig.PASSWORD_RESET_HOST
+        ) {
+            val callbackError = uri.getQueryParameter("error_description")
+                ?: uri.getQueryParameter("error")
+            if (!callbackError.isNullOrBlank()) {
+                Toast.makeText(this, "تعذّر التحقق من رابط الاستعادة. أرسل رابطاً جديداً.", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val code = uri.getQueryParameter("code")
+            if (code.isNullOrBlank()) {
+                Toast.makeText(this, "رابط الاستعادة غير مكتمل أو منتهي الصلاحية. أرسل رابطاً جديداً.", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            PasswordRecoveryManager.begin()
+            SupabaseConfig.client.handleDeeplinks(
+                intent = intent,
+                onSessionSuccess = {
+                    PasswordRecoveryManager.markVerified(this@MainActivity)
+                    AppNavigator.navigateFromNotification(AppState.FORGOT_PASSWORD)
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "تم التحقق من رابط الاستعادة. عيّن كلمة مرور جديدة.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                onError = { error ->
+                    PasswordRecoveryManager.clear(this@MainActivity)
+                    android.util.Log.e("PasswordRecovery", "Supabase recovery callback failed", error)
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "انتهت صلاحية رابط الاستعادة أو تعذّر التحقق منه. أرسل رابطاً جديداً.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            )
             return
         }
 
