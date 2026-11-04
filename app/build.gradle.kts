@@ -196,6 +196,7 @@ dependencies {
   implementation(libs.androidx.core.splashscreen)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.play.services.location)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)

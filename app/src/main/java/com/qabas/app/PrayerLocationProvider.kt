@@ -27,7 +27,7 @@ object PrayerLocationProvider {
             val priority = if (hasFinePermission) Priority.PRIORITY_HIGH_ACCURACY
                 else Priority.PRIORITY_BALANCED_POWER_ACCURACY
 
-            val location: Location? = try {
+            val location: Location = try {
                 withTimeoutOrNull(25_000L) {
                     suspendCancellableCoroutine<Location?> { continuation ->
                         client.getCurrentLocation(priority, cancellation.token)
