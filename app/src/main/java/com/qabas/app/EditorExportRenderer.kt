@@ -250,12 +250,12 @@ internal object EditorExportRenderer {
             )
             if (!success ||
                 !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE) ||
-                !matchesExportMetadata(output, plan, requireAudio = hasAudio && plan.includeAudio && plan.clip.volume > 0f)
+                !matchesExportMetadata(output, plan, requireAudio = sourceMetadata.hasAudio && plan.includeAudio && plan.clip.volume > 0f)
             ) {
                 output.delete()
                 throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً بالمواصفات المطلوبة")
             }
-            return output
+            output
         } finally {
             if (source.temporary) source.file.delete()
         }
