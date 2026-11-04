@@ -95,7 +95,7 @@ fun MishkatReminderCard() {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                if (expanded) Icons.Default.ChevronUp else Icons.Default.ChevronDown,
                 contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
                 tint = Color(0xFFE8D8B5),
                 modifier = Modifier.size(18.dp)
