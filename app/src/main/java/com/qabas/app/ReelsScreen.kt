@@ -1515,8 +1515,13 @@ fun ReelsScreen(
         ReelCommentsBottomSheet(
             reel = reel,
             currentUserId = currentUserId,
+            currentUserName = viewer.displayName,
             onCommentPosted = {
                 commentBumps = commentBumps + (reel.id to (commentBumps[reel.id] ?: 0) + 1)
+            },
+            onCommentDeleted = {
+                val nextDelta = ((commentBumps[reel.id] ?: 0) - 1).coerceAtLeast(-reel.commentsCount)
+                commentBumps = if (nextDelta == 0) commentBumps - reel.id else commentBumps + (reel.id to nextDelta)
             },
             onDismiss = { activeCommentReel = null }
         )
@@ -2175,7 +2180,9 @@ fun ReelRailButton(
 fun ReelCommentsBottomSheet(
     reel: SupabaseServices.ReelRow,
     currentUserId: String,
+    currentUserName: String = "مستخدم قبس",
     onCommentPosted: () -> Unit = {},
+    onCommentDeleted: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2183,6 +2190,13 @@ fun ReelCommentsBottomSheet(
     var commentText by remember { mutableStateOf("") }
     var commentsList by remember { mutableStateOf<List<SupabaseServices.ReelCommentRow>>(emptyList()) }
     var isPosting by remember { mutableStateOf(false) }
+    var commentFeedback by remember { mutableStateOf<String?>(null) }
+    var commentFeedbackIsError by remember { mutableStateOf(false) }
+    var expandedCommentMenuId by remember { mutableStateOf<String?>(null) }
+    var editingComment by remember { mutableStateOf<SupabaseServices.ReelCommentRow?>(null) }
+    var editCommentText by remember { mutableStateOf("") }
+    var pendingDeleteComment by remember { mutableStateOf<SupabaseServices.ReelCommentRow?>(null) }
+    var managingCommentId by remember { mutableStateOf<String?>(null) }
     // حالة جلب التعليقات: تحميل / فشل — يُميَّزان عن القائمة الفارغة
     var commentsLoading by remember { mutableStateOf(true) }
     var commentsError by remember { mutableStateOf(false) }
@@ -2209,18 +2223,25 @@ fun ReelCommentsBottomSheet(
             return@submit
         }
         isPosting = true
+        commentFeedback = "جارٍ إرسال التعليق..."
+        commentFeedbackIsError = false
         coroutineScope.launch {
-            // يُدرج الصف الفعلي الذي أعادته الخلفية (بمعرّفه ووقته الحقيقيين) — لا صف مختلق محلياً
+            // استخدم اسم العرض المستخرج من هوية الجلسة، لا معرّف الحساب بدلاً منه.
             val inserted = runCatching {
-                withTimeoutOrNull(6000L) {
-                    SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, sanitized)
+                withTimeoutOrNull(12_000L) {
+                    SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, currentUserName, sanitized)
                 }
             }.getOrNull()
             if (inserted != null) {
                 commentsList = commentsList + inserted
                 commentText = ""
+                commentFeedback = "تم نشر تعليقك بنجاح ✓"
+                commentFeedbackIsError = false
                 onCommentPosted()
+                Toast.makeText(context, "تم نشر التعليق بنجاح", Toast.LENGTH_SHORT).show()
             } else {
+                commentFeedback = "تعذر إرسال التعليق. تحقق من الاتصال ثم أعد المحاولة."
+                commentFeedbackIsError = true
                 Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
             }
             isPosting = false
@@ -2299,30 +2320,59 @@ fun ReelCommentsBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    items(commentsList) { c ->
-                        Row(verticalAlignment = Alignment.Top) {
+                    items(commentsList, key = { it.id }) { c ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(36.dp)
                                     .clip(CircleShape)
                                     .background(GoldPrimary.copy(alpha = 0.2f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = c.userId.take(1).uppercase(),
+                                    text = c.userName.trim().firstOrNull()?.toString() ?: "م",
                                     color = GoldPrimary,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = CairoFont
                                 )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "@${c.userId.take(10)}",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontFamily = RobotoMonoFont,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = c.userName.ifBlank {
+                                            if (c.userId == currentUserId) currentUserName else "مستخدم قبس"
+                                        },
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontFamily = CairoFont,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (c.userId == currentUserId) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "أنت",
+                                            color = GoldPrimary,
+                                            fontFamily = CairoFont,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (!c.updatedAt.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "تم التعديل",
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            fontFamily = CairoFont,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = c.commentText,
                                     color = Color.White,
@@ -2330,6 +2380,44 @@ fun ReelCommentsBottomSheet(
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(top = 2.dp)
                                 )
+                            }
+                            if (currentUserId.isNotBlank() && c.userId == currentUserId) {
+                                Box {
+                                    IconButton(
+                                        onClick = { expandedCommentMenuId = c.id },
+                                        enabled = managingCommentId == null,
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "إدارة التعليق",
+                                            tint = Color.White.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = expandedCommentMenuId == c.id,
+                                        onDismissRequest = { expandedCommentMenuId = null }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("تعديل التعليق", fontFamily = CairoFont) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                            onClick = {
+                                                expandedCommentMenuId = null
+                                                editingComment = c
+                                                editCommentText = c.commentText
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("حذف التعليق", fontFamily = CairoFont) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                            onClick = {
+                                                expandedCommentMenuId = null
+                                                pendingDeleteComment = c
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -2379,7 +2467,10 @@ fun ReelCommentsBottomSheet(
             ) {
                 OutlinedTextField(
                     value = commentText,
-                    onValueChange = { commentText = it },
+                    onValueChange = {
+                        commentText = it
+                        commentFeedback = null
+                    },
                     placeholder = {
                         Text("اكتب تعليقاً طيباً...", fontFamily = CairoFont, fontSize = 12.sp, color = Color.Gray)
                     },
@@ -2403,15 +2494,131 @@ fun ReelCommentsBottomSheet(
                         .size(44.dp)
                         .background(if (commentText.isNotBlank()) GoldPrimary else Color.White.copy(alpha = 0.1f), CircleShape)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "إرسال",
-                        tint = if (commentText.isNotBlank()) DeepSlate else Color.Gray,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (isPosting) {
+                        CircularProgressIndicator(
+                            color = DeepSlate,
+                            modifier = Modifier.size(19.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "إرسال",
+                            tint = if (commentText.isNotBlank()) DeepSlate else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
+
+            commentFeedback?.let { feedback ->
+                Text(
+                    text = feedback,
+                    color = if (commentFeedbackIsError) Color(0xFFFF8A80) else GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
+    }
+
+    editingComment?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (managingCommentId == null) editingComment = null },
+            title = { Text("تعديل التعليق", fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editCommentText,
+                    onValueChange = { editCommentText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 5,
+                    label = { Text("نص التعليق", fontFamily = CairoFont) }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = editCommentText.isNotBlank() && managingCommentId == null,
+                    onClick = {
+                        val safeText = ReelSafetyGuardrails.sanitizeCommentText(editCommentText) ?: return@TextButton
+                        managingCommentId = target.id
+                        coroutineScope.launch {
+                            val updated = runCatching {
+                                withTimeoutOrNull(12_000L) {
+                                    SupabaseServices.Profiles.updateReelComment(target.id, currentUserId, safeText)
+                                }
+                            }.getOrNull()
+                            if (updated != null) {
+                                commentsList = commentsList.map { if (it.id == updated.id) updated else it }
+                                editingComment = null
+                                Toast.makeText(context, "تم تحديث التعليق بنجاح", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "تعذر تعديل التعليق، حاول مرة أخرى", Toast.LENGTH_SHORT).show()
+                            }
+                            managingCommentId = null
+                        }
+                    }
+                ) {
+                    if (managingCommentId == target.id) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("حفظ")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = managingCommentId == null,
+                    onClick = { editingComment = null }
+                ) { Text("إلغاء") }
+            }
+        )
+    }
+
+    pendingDeleteComment?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (managingCommentId == null) pendingDeleteComment = null },
+            title = { Text("حذف التعليق؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيتم حذف تعليقك نهائياً من هذا المقطع.", fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(
+                    enabled = managingCommentId == null,
+                    onClick = {
+                        managingCommentId = target.id
+                        coroutineScope.launch {
+                            val deleted = runCatching {
+                                withTimeoutOrNull(12_000L) {
+                                    SupabaseServices.Profiles.deleteReelComment(target.id, currentUserId)
+                                } ?: false
+                            }.getOrDefault(false)
+                            if (deleted) {
+                                commentsList = commentsList.filterNot { it.id == target.id }
+                                pendingDeleteComment = null
+                                onCommentDeleted()
+                                Toast.makeText(context, "تم حذف التعليق", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "تعذر حذف التعليق، حاول مرة أخرى", Toast.LENGTH_SHORT).show()
+                            }
+                            managingCommentId = null
+                        }
+                    }
+                ) {
+                    if (managingCommentId == target.id) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("حذف")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = managingCommentId == null,
+                    onClick = { pendingDeleteComment = null }
+                ) { Text("إلغاء") }
+            }
+        )
     }
 }
 
