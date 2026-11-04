@@ -238,7 +238,11 @@ internal object EditorExportRenderer {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(file.absolutePath)
-            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+            when (val audioFlag = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)) {
+                "yes" -> true
+                "no" -> false
+                else -> throw IllegalStateException("قيمة وجود المسار الصوتي غير متاحة: $audioFlag")
+            }
         } catch (error: Exception) {
             throw IllegalStateException("تعذر فحص المسار الصوتي لملف المصدر", error)
         } finally {
