@@ -583,4 +583,33 @@ class EditorModelsTest {
         )
         assertNull(setEditorClipSpeed(locked, clip.id, 2f))
     }
+
+    @Test
+    fun movingAndTrimmingTheLastClipRecalculateProjectDuration() {
+        val clip = EditorClip(
+            id = "duration",
+            title = "Duration",
+            resourceUri = "content://duration",
+            startOffsetMs = 10000L,
+            durationMs = 5000L,
+            sourceDurationMs = 15000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val state = EditorProjectState(
+            projectId = "duration-test",
+            title = "Duration",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            totalDurationMs = 30000L,
+            isMagneticTimeline = false
+        )
+
+        val moved = moveEditorClip(state, clip.id, 2000L)!!
+        assertEquals(7000L, moved.totalDurationMs)
+
+        val trimmed = trimEditorClipEnd(state, clip.id, 12000L)!!
+        assertEquals(12000L, trimmed.totalDurationMs)
+        assertEquals(2000L, trimmed.tracks.single().clips.single().durationMs)
+    }
 }
