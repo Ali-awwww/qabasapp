@@ -51,7 +51,14 @@ class MuslimToolsEngine(context: Context) {
     // --- Fasting Tracker Logic ---
     fun getMissedFastingDays(): Int = prefs.getInt("missed_fasting_total", 0)
     fun getCompletedFastingDays(): Int = prefs.getInt("missed_fasting_completed", 0)
-    fun setMissedFastingDays(days: Int) { prefs.edit().putInt("missed_fasting_total", days).apply() }
+    fun setMissedFastingDays(days: Int) {
+        val safeTotal = days.coerceAtLeast(0)
+        val safeCompleted = getCompletedFastingDays().coerceAtMost(safeTotal)
+        prefs.edit()
+            .putInt("missed_fasting_total", safeTotal)
+            .putInt("missed_fasting_completed", safeCompleted)
+            .apply()
+    }
     fun incrementCompletedFastingDays(): Boolean {
         val total = getMissedFastingDays()
         val completed = getCompletedFastingDays()
@@ -69,10 +76,18 @@ class MuslimToolsEngine(context: Context) {
     @Serializable
     data class KhatmaPlan(val days: Int, val pagesPerDay: Double, val portionsPerDay: String)
     fun generateKhatmaPlan(days: Int): KhatmaPlan {
+        val safeDays = days.coerceAtLeast(1)
         val totalPages = 604.0
-        val perDay = totalPages / days
-        val portions = if (perDay >= 20) "${(perDay / 20).toInt()} جزء و ${(perDay % 20).toInt()} صفحة" else "${perDay.toInt()} صفحة"
-        return KhatmaPlan(days, perDay, portions)
+        val pagesPerDay = totalPages / safeDays
+        val completeJuz = (pagesPerDay / 20.0).toInt()
+        val remainingPages = pagesPerDay - (completeJuz * 20.0)
+        val portions = when {
+            completeJuz > 0 && remainingPages >= 0.05 ->
+                "$completeJuz جزء و ${String.format(Locale.US, "%.1f", remainingPages)} صفحة"
+            completeJuz > 0 -> "$completeJuz جزء"
+            else -> "${String.format(Locale.US, "%.1f", pagesPerDay)} صفحة"
+        }
+        return KhatmaPlan(safeDays, pagesPerDay, portions)
     }
 
     // --- Smart Tasbeeh Logic ---
@@ -98,15 +113,31 @@ class MuslimToolsEngine(context: Context) {
     }
     fun toggleHabit(habitId: String) {
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val habits = getHabits().map {
-            if (it.id == habitId) {
-                if (it.lastDoneDate == today) it.copy(lastDoneDate = "") else it.copy(lastDoneDate = today)
-            } else it
+        val currentHabits = getHabits()
+        val wasDoneToday = currentHabits.any { it.id == habitId && it.lastDoneDate == today }
+        val updatedHabits = currentHabits.map { habit ->
+            if (habit.id == habitId) {
+                if (wasDoneToday) habit.copy(lastDoneDate = "") else habit.copy(lastDoneDate = today)
+            } else {
+                habit
+            }
         }
-        prefs.edit().putString("habits_list", Json.encodeToString(habits)).apply()
-        if (habits.find { it.id == habitId }?.lastDoneDate == today) {
-            prefs.edit().putLong("total_hasanat_earned", prefs.getLong("total_hasanat_earned", 0) + 50).apply()
+
+        val rewardDateKey = "habit_reward_date_$habitId"
+        val editor = prefs.edit().putString("habits_list", Json.encodeToString(updatedHabits))
+
+        if (wasDoneToday) {
+            // Preserve an already-earned reward when the user unticks the habit.
+            // This also prevents legacy completions from being rewarded again after migration.
+            editor.putString(rewardDateKey, today)
+        } else if (prefs.getString(rewardDateKey, null) != today) {
+            editor.putString(rewardDateKey, today)
+            editor.putLong(
+                "total_hasanat_earned",
+                prefs.getLong("total_hasanat_earned", 0L) + 50L
+            )
         }
+        editor.apply()
     }
 
     // --- Hijri Calendar Logic ---
@@ -137,12 +168,36 @@ class MuslimToolsEngine(context: Context) {
     // --- Islamic Events ---
     @Serializable
     data class IslamicEvent(val name: String, val daysRemaining: Int, val dateHijri: String)
-    fun getUpcomingEvents(): List<IslamicEvent> = listOf(
-        IslamicEvent("شهر رمضان المبارك", 142, "1 رمضان"),
-        IslamicEvent("عيد الفطر السعيد", 172, "1 شوال"),
-        IslamicEvent("يوم عرفة", 241, "9 ذو الحجة"),
-        IslamicEvent("عيد الأضحى المبارك", 242, "10 ذو الحجة")
-    )
+
+    fun getUpcomingEvents(nowMillis: Long = System.currentTimeMillis()): List<IslamicEvent> {
+        val targets = listOf(
+            Triple("شهر رمضان المبارك", 1, "رمضان"),
+            Triple("عيد الفطر السعيد", 1, "شوال"),
+            Triple("يوم عرفة", 9, "ذو الحجة"),
+            Triple("عيد الأضحى المبارك", 10, "ذو الحجة")
+        )
+        val start = Calendar.getInstance().apply {
+            timeInMillis = nowMillis
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        return targets.mapNotNull { (name, targetDay, targetMonth) ->
+            val offset = (0..370).firstOrNull { dayOffset ->
+                val candidate = (start.clone() as Calendar).apply {
+                    add(Calendar.DAY_OF_YEAR, dayOffset)
+                }
+                val dateParts = getHijriDate(candidate.timeInMillis).split(" ")
+                dateParts.size >= 3 &&
+                    dateParts[0].toIntOrNull() == targetDay &&
+                    dateParts[1] == targetMonth
+            } ?: return@mapNotNull null
+
+            IslamicEvent(name, offset, "$targetDay $targetMonth")
+        }.sortedBy { it.daysRemaining }
+    }
 
     // --- Worship Stats ---
     data class WorshipStats(val totalTasbeeh: Int, val fastingProgress: Float, val khatmaProgress: Float, val totalHasanat: Long)
@@ -150,7 +205,8 @@ class MuslimToolsEngine(context: Context) {
         val totalTasbeeh = prefs.getInt("total_tasbeeh", 0)
         val fTotal = getMissedFastingDays()
         val fDone = getCompletedFastingDays()
-        val fProgress = if (fTotal > 0) fDone.toFloat() / fTotal else 0f
-        return WorshipStats(totalTasbeeh, fProgress, 0.45f, prefs.getLong("total_hasanat_earned", 0))
+        val fProgress = if (fTotal > 0) (fDone.toFloat() / fTotal).coerceIn(0f, 1f) else 0f
+        // No khatma reading-progress source is connected yet; report neutral progress, not a fabricated 45%.
+        return WorshipStats(totalTasbeeh, fProgress, 0f, prefs.getLong("total_hasanat_earned", 0))
     }
 }
