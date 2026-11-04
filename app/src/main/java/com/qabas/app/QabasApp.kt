@@ -53,6 +53,7 @@ fun QabasApp() {
     // Observe active animation style & speed for real-time reactivity
     val activeAnimation by AppAnimationManager.currentAnimation.collectAsState()
     val activeSpeed by AppAnimationManager.currentSpeed.collectAsState()
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
 
     val bottomNav = @Composable {
         QabasBottomNavigation(
@@ -140,7 +141,8 @@ fun QabasApp() {
             AppAnimationManager.createTransitionSpec(
                 initialState = initialState,
                 targetState = targetState,
-                creationStepsOrder = creationStepsOrder
+                creationStepsOrder = creationStepsOrder,
+                reducedMotion = reducedMotion
             )
         },
         label = "QabasRootScreenTransition_${activeAnimation.id}_${activeSpeed.id}"
