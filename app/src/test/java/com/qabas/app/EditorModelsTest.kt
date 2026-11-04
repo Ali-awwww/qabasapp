@@ -643,6 +643,7 @@ class EditorModelsTest {
         assertEquals("export-video", result.plan?.clip?.id)
         assertEquals(1080, result.plan?.width)
         assertEquals(30, result.plan?.fps)
+        assertEquals(5000L, result.plan?.durationMs)
     }
 
     @Test
@@ -717,5 +718,33 @@ class EditorModelsTest {
         assertTrue(command.contains("fps=30"))
         assertTrue(command.contains("-map 0:a:0"))
         assertTrue(command.contains("/private/output.mp4"))
+    }
+
+    @Test
+    fun editorExportPlanRejectsSourceRangeBeyondOriginalMediaDuration() {
+        val clip = EditorClip(
+            id = "out-of-range",
+            title = "Video",
+            resourceUri = "content://media/video/2",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            sourceStartMs = 2000L,
+            sourceDurationMs = 10000L,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 2f
+        )
+        val state = EditorProjectState(
+            projectId = "invalid-source-range",
+            title = "Export",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            totalDurationMs = 30000L
+        )
+
+        val result = createEditorExportPlan(state, 1080, 1920, 30)
+
+        assertTrue(result.plan == null)
+        assertTrue(result.error?.contains("يتجاوز مدة ملف المصدر") == true)
     }
 }
