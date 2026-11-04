@@ -292,6 +292,54 @@ internal fun trimEditorClipEnd(
     )
 }
 
+/** Add a selected library asset to an unlocked track, creating the required media layer when absent. */
+internal fun addEditorMediaClip(
+    state: EditorProjectState,
+    title: String,
+    resourceUri: String,
+    type: TrackType,
+    durationMs: Long
+): EditorProjectState? {
+    if (title.isBlank() || resourceUri.isBlank() || durationMs <= 0L) return null
+    val trackIndex = state.tracks.indexOfFirst { it.type == type && !it.isLocked }
+        .takeIf { it >= 0 } ?: state.tracks.size
+    val clip = EditorClip(
+        title = title.trim(),
+        resourceUri = resourceUri,
+        startOffsetMs = state.currentTimeMs.coerceAtLeast(0L),
+        durationMs = durationMs,
+        trackIndex = trackIndex,
+        type = type,
+        color = when (type) {
+            TrackType.VIDEO -> Color(0xFF3B82F6)
+            TrackType.AUDIO -> Color(0xFF10B981)
+            TrackType.TEXT -> Color(0xFFFACC15)
+            TrackType.OVERLAY -> Color(0xFF8B5CF6)
+        }
+    )
+    val updatedTracks = if (trackIndex < state.tracks.size) {
+        state.tracks.mapIndexed { index, track ->
+            if (index == trackIndex) track.copy(clips = track.clips + clip) else track
+        }
+    } else {
+        state.tracks + EditorTrack(
+            type = type,
+            name = when (type) {
+                TrackType.VIDEO -> "فيديو"
+                TrackType.AUDIO -> "صوت"
+                TrackType.TEXT -> "نصوص"
+                TrackType.OVERLAY -> "طبقات وصور"
+            },
+            clips = listOf(clip)
+        )
+    }
+    return state.copy(
+        tracks = updatedTracks,
+        totalDurationMs = maxOf(state.totalDurationMs, clip.startOffsetMs + clip.durationMs),
+        selectedClipId = clip.id
+    )
+}
+
 /** Split an unlocked clip at the playhead, keeping keyframes in each segment's local time. */
 internal fun splitEditorClip(
     state: EditorProjectState,
