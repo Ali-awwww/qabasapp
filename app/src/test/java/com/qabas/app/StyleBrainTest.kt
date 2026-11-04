@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -241,4 +242,92 @@ class StyleBrainTest {
         assertEquals(1, StyleBrain.getAllAbsorbedStyles().size)
         assertEquals(first.id, second.id)
     }
+    @Test
+    fun `repair reports and persists empty core correction`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        val storedCore = JSONObject().apply {
+            put("visualTraits", org.json.JSONArray())
+            put("motionTraits", org.json.JSONArray())
+            put("textTraits", org.json.JSONArray())
+            put("analysis", "old")
+            put("strengthScore", 73)
+            put("lastUpdated", 1L)
+            put("extensionField", "preserve")
+        }
+        assertTrue(prefs.edit().putString("qabas_core_style_json", storedCore.toString()).commit())
+
+        val result = StyleBrainLoadFix.repairPersistedEmptyCore(context)
+
+        assertEquals(StyleBrainLoadFix.CoreRepairStatus.REPAIRED, result.status)
+        val saved = JSONObject(prefs.getString("qabas_core_style_json", "{}")!!)
+        assertEquals(0, saved.getInt("strengthScore"))
+        assertEquals("preserve", saved.getString("extensionField"))
+        assertEquals(0, StyleBrain.getCoreStyle().strengthScore)
+    }
+
+    @Test
+    fun `repair clamps invalid strength without discarding existing traits`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        val storedCore = JSONObject().apply {
+            put("visualTraits", org.json.JSONArray().put("لون أخضر"))
+            put("motionTraits", org.json.JSONArray())
+            put("textTraits", org.json.JSONArray())
+            put("strengthScore", 140)
+        }
+        assertTrue(prefs.edit().putString("qabas_core_style_json", storedCore.toString()).commit())
+
+        val result = StyleBrainLoadFix.repairPersistedEmptyCore(context)
+
+        assertEquals(StyleBrainLoadFix.CoreRepairStatus.REPAIRED, result.status)
+        val saved = JSONObject(prefs.getString("qabas_core_style_json", "{}")!!)
+        assertEquals(100, saved.getInt("strengthScore"))
+        assertEquals("لون أخضر", saved.getJSONArray("visualTraits").getString(0))
+    }
+
+    @Test
+    fun `repair leaves incomplete persisted core untouched`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        val incomplete = """{"visualTraits":[],"strengthScore":80}"""
+        assertTrue(prefs.edit().putString("qabas_core_style_json", incomplete).commit())
+
+        val result = StyleBrainLoadFix.repairPersistedEmptyCore(context)
+
+        assertEquals(StyleBrainLoadFix.CoreRepairStatus.INVALID_STORED_DATA, result.status)
+        assertEquals(incomplete, prefs.getString("qabas_core_style_json", null))
+    }
+
+    @Test
+    fun `repair distinguishes missing core and already valid core`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        assertTrue(prefs.edit().remove("qabas_core_style_json").commit())
+        assertEquals(
+            StyleBrainLoadFix.CoreRepairStatus.NO_STORED_CORE,
+            StyleBrainLoadFix.repairPersistedEmptyCore(context).status
+        )
+
+        val validCore = JSONObject().apply {
+            put("visualTraits", org.json.JSONArray().put("لون أخضر"))
+            put("motionTraits", org.json.JSONArray())
+            put("textTraits", org.json.JSONArray())
+            put("strengthScore", 55)
+        }.toString()
+        assertTrue(prefs.edit().putString("qabas_core_style_json", validCore).commit())
+        assertEquals(
+            StyleBrainLoadFix.CoreRepairStatus.NO_REPAIR_NEEDED,
+            StyleBrainLoadFix.repairPersistedEmptyCore(context).status
+        )
+    }
+
+    @Test
+    fun `repair reports malformed JSON instead of claiming success`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        val malformed = "{not-json"
+        assertTrue(prefs.edit().putString("qabas_core_style_json", malformed).commit())
+
+        val result = StyleBrainLoadFix.repairPersistedEmptyCore(context)
+
+        assertEquals(StyleBrainLoadFix.CoreRepairStatus.FAILED, result.status)
+        assertEquals(malformed, prefs.getString("qabas_core_style_json", null))
+    }
+
 }
