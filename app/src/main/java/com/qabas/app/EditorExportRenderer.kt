@@ -5,6 +5,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal data class EditorExportPlan(
     val clip: EditorClip,
@@ -175,7 +177,7 @@ internal object EditorExportRenderer {
         width: Int,
         height: Int,
         fps: Int
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val result = createEditorExportPlan(state, width, height, fps)
         val plan = result.plan ?: throw IllegalArgumentException(result.error ?: "تعذر إعداد التصدير")
 
