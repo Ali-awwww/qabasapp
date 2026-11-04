@@ -2,7 +2,9 @@ package com.qabas.app
 
 import android.util.Log
 import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,13 +12,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/**
- * Safe gateway client for the Supabase Edge Function `qabas-gateway`.
- *
- * This layer ensures the app never sends API keys directly to external providers.
- * Instead, it authenticates with the Supabase session and lets the edge function
- * own the provider credentials and secrets.
- */
+data class PlatformGatewayResponse(
+    val statusCode: Int,
+    val body: JSONObject?
+) {
+    val isSuccessful: Boolean get() = statusCode in 200..299
+}
+
+/** Secure client for the Supabase Edge Function qabas-gateway. */
 object PlatformGatewayClient {
     private const val TAG = "PlatformGatewayClient"
 
@@ -30,48 +33,25 @@ object PlatformGatewayClient {
         return if (url.isBlank()) null else "$url/functions/v1/qabas-gateway"
     }
 
-    /**
-     * Reads the current Supabase JWT from the active session using reflection to avoid
-     * depending on the exact Jan Supabase property name across versions.
-     */
     private fun currentAccessToken(): String? {
         val session = runCatching { SupabaseConfig.client.auth.currentSessionOrNull() }.getOrNull() ?: return null
         val methods = session.javaClass.methods.filter { it.parameterTypes.isEmpty() }
         val tokenMethod = methods.firstOrNull { method ->
-            val name = method.name.lowercase().replace("_", "")
-            name.contains("accesstoken")
+            method.name.lowercase().replace("_", "").contains("accesstoken")
         } ?: return null
-
-        val token = runCatching { tokenMethod.invoke(session) as? String }.getOrNull()
-        return token?.takeIf { it.isNotBlank() }
+        return runCatching { tokenMethod.invoke(session) as? String }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
     }
 
-    /**
-     * Safe coroutine-enabled gateway call.
-     */
-    suspend fun proxySuspend(provider: String, payload: JSONObject): JSONObject? {
-        if (!SupabaseConfig.isConfigured) return null
-
-        val normalizedProvider = provider.trim().lowercase()
-        if (normalizedProvider.isBlank()) return null
-
+    private suspend fun callGatewaySuspend(body: JSONObject): PlatformGatewayResponse? = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isConfigured) return@withContext null
         val token = currentAccessToken() ?: run {
             Log.w(TAG, "No active Supabase session for gateway request")
-            return null
+            return@withContext null
         }
+        val functionUrl = getFunctionUrl() ?: return@withContext null
 
-        val functionUrl = getFunctionUrl() ?: run {
-            Log.w(TAG, "Supabase function URL is unavailable")
-            return null
-        }
-
-        return try {
-            val body = JSONObject().apply {
-                put("action", "proxy")
-                put("provider", normalizedProvider)
-                put("payload", payload)
-            }
-
+        try {
             val request = Request.Builder()
                 .url(functionUrl)
                 .header("Authorization", "Bearer $token")
@@ -80,29 +60,62 @@ object PlatformGatewayClient {
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Gateway ${normalizedProvider} failed with HTTP ${response.code}")
-                    return null
-                }
-                val raw = response.body?.string() ?: return null
-                if (raw.isBlank()) return null
-                JSONObject(raw)
+                val raw = response.body?.string().orEmpty()
+                val json = raw.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
+                PlatformGatewayResponse(response.code, json)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Gateway proxy failed for $normalizedProvider", e)
+            Log.w(TAG, "Gateway request failed", e)
             null
         }
     }
 
-    /**
-     * Backwards-compatible blocking wrapper for non-suspend call sites.
-     */
+    suspend fun proxySuspend(provider: String, payload: JSONObject): JSONObject? {
+        val response = callGatewaySuspend(JSONObject().apply {
+            put("action", "proxy")
+            put("provider", provider.trim().lowercase())
+            put("payload", payload)
+        }) ?: return null
+        return response.body?.takeIf { response.isSuccessful }
+    }
+
+    suspend fun proxyHiggsfieldSuspend(payload: JSONObject): PlatformGatewayResponse? =
+        callGatewaySuspend(JSONObject().apply {
+            put("action", "proxy")
+            put("provider", "higgsfield")
+            put("payload", payload)
+        })
+
+    suspend fun saveProviderKeySuspend(provider: String, key: String): Boolean {
+        if (provider.isBlank() || key.isBlank()) return false
+        val response = callGatewaySuspend(JSONObject().apply {
+            put("action", "save")
+            put("keys", JSONObject().put(provider.trim().lowercase(), key.trim()))
+        }) ?: return false
+        return response.isSuccessful && response.body?.optBoolean("ok", false) == true
+    }
+
+    suspend fun removeProviderKeySuspend(provider: String): Boolean {
+        if (provider.isBlank()) return false
+        val response = callGatewaySuspend(JSONObject().apply {
+            put("action", "delete")
+            put("service", provider.trim().lowercase())
+        }) ?: return false
+        return response.isSuccessful && response.body?.optBoolean("ok", false) == true
+    }
+
+    suspend fun providerConfiguredSuspend(provider: String): Boolean {
+        if (provider.isBlank()) return false
+        val response = callGatewaySuspend(JSONObject().apply {
+            put("action", "provider_status")
+            put("provider", provider.trim().lowercase())
+        }) ?: return false
+        return response.isSuccessful && response.body?.optBoolean("configured", false) == true
+    }
+
     fun proxy(provider: String, payload: JSONObject): JSONObject? =
         runCatching { runBlocking { proxySuspend(provider, payload) } }.getOrNull()
 
-    /**
-     * Convenience wrappers for provider-specific edge routing.
-     */
     suspend fun proxyGemini(payload: JSONObject): JSONObject? = proxySuspend("gemini", payload)
     suspend fun proxyGroq(payload: JSONObject): JSONObject? = proxySuspend("groq", payload)
     suspend fun proxyOpenAI(payload: JSONObject): JSONObject? = proxySuspend("openai", payload)
