@@ -107,6 +107,19 @@ object MushafPageData {
 
     fun isLoaded(): Boolean = pageRefs?.size == PAGE_COUNT
 
+    /**
+     * تأكد من أن كل مرجع في خريطة الصفحات يقابله نص آية محمّل،
+     * حتى لا تظهر صفحة ناقصة بسبب اختلاف نسختي البيانات.
+     */
+    fun matchesLoadedQuran(): Boolean {
+        val pages = pageRefs ?: return false
+        val refs = pages.flatten()
+        if (refs.size != 6236 || refs.distinct().size != 6236) return false
+        return refs.all { (surah, ayah) ->
+            !QuranDataProvider.getVerseText(surah, ayah).isNullOrBlank()
+        }
+    }
+
     /** مراجع (سورة، آية) لصفحة معينة (1-based). قائمة فارغة عند غياب التحميل. */
     fun getPageRefs(page: Int): List<Pair<Int, Int>> {
         val pages = pageRefs ?: return emptyList()
