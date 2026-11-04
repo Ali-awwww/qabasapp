@@ -238,13 +238,13 @@ private fun MushafReaderContent(
             onToggleBookmark = ::toggleBookmark,
             onOpenPicker = { showPicker = true },
             onOpenSearch = { showSearchDialog = true },
-            onPrevSurah = {
+            onPrevPage = {
                 scope.launch {
                     val prevPage = (currentPage - 2).coerceAtLeast(0)
                     pagerState.animateScrollToPage(prevPage)
                 }
             },
-            onNextSurah = {
+            onNextPage = {
                 scope.launch {
                     val nextPage = currentPage.coerceAtMost(MushafPageData.PAGE_COUNT - 1)
                     pagerState.animateScrollToPage(nextPage)
@@ -384,8 +384,8 @@ private fun MushafTopBar(
     onToggleBookmark: () -> Unit,
     onOpenPicker: () -> Unit,
     onOpenSearch: () -> Unit,
-    onPrevSurah: () -> Unit,
-    onNextSurah: () -> Unit,
+    onPrevPage: () -> Unit,
+    onNextPage: () -> Unit,
     onClose: () -> Unit
 ) {
     Surface(color = MushafCream, shadowElevation = 0.dp) {
@@ -429,8 +429,8 @@ private fun MushafTopBar(
 
             // اليمين: السورة + أسهم التنقل
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPrevSurah, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Black.copy(alpha = 0.5f))
+                IconButton(onClick = onPrevPage, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "الصفحة السابقة", tint = Color.Black.copy(alpha = 0.5f))
                 }
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -443,8 +443,8 @@ private fun MushafTopBar(
                         color = Color.Black, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold
                     )
                 }
-                IconButton(onClick = onNextSurah, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color.Black.copy(alpha = 0.5f))
+                IconButton(onClick = onNextPage, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "الصفحة التالية", tint = Color.Black.copy(alpha = 0.5f))
                 }
                 Spacer(Modifier.width(4.dp))
                 IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
