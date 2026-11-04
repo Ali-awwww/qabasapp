@@ -1044,7 +1044,7 @@ fun AccessibilitySettingsSection() {
         // 2. Reduced Motion
         SettingToggleRow(
             title = "تقليل الحركة (Reduced Motion)",
-            subtitle = "إيقاف أو تقليل الحركات والأنميشن لتسريع التنقل وتقليل إجهاد العين",
+            subtitle = "تعطيل انتقالات التنقل المتحركة بين شاشات التطبيق وأقسام الإعدادات لتقليل الحركة",
             checked = reducedMotion,
             onCheckedChange = { UserPreferencesManager.setReducedMotion(context, it) }
         )
