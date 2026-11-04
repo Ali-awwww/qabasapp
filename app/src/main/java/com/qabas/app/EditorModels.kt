@@ -89,6 +89,24 @@ enum class WorkspaceMode {
     EDIT, COLOR, AUDIO, EXPORT
 }
 
+/** Applies a focused update to one existing timeline track. */
+internal fun updateEditorTrack(
+    state: EditorProjectState,
+    trackId: String,
+    update: (EditorTrack) -> EditorTrack
+): EditorProjectState = state.copy(
+    tracks = state.tracks.map { track -> if (track.id == trackId) update(track) else track }
+)
+
+internal fun toggleEditorTrackVisibility(state: EditorProjectState, trackId: String) =
+    updateEditorTrack(state, trackId) { it.copy(isVisible = !it.isVisible) }
+
+internal fun toggleEditorTrackMute(state: EditorProjectState, trackId: String) =
+    updateEditorTrack(state, trackId) { it.copy(isMuted = !it.isMuted) }
+
+internal fun toggleEditorTrackLock(state: EditorProjectState, trackId: String) =
+    updateEditorTrack(state, trackId) { it.copy(isLocked = !it.isLocked) }
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
