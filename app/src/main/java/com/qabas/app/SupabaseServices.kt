@@ -1904,8 +1904,9 @@ object SupabaseServices {
 
         suspend fun getLikedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: client.auth.currentSessionOrNull()?.user?.id
+            // Use the same session-restoration path as writes. Reading immediately from
+            // currentUserOrNull can race with Supabase Auth restoring a persisted session.
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
                 ?: return null
             if (authUid != userId) return null
             client.postgrest.from("reel_likes").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
