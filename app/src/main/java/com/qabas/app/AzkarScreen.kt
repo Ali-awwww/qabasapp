@@ -553,7 +553,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "e14",
                 title = "حسبي الله لا إله إلا هو",
-                text = "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ ۖ عَلَيْهِ تَوَكَّلْتُ ۖ وَهو رَبُّ الْعَرْشِ الْعَظِيمِ.",
+                text = quranAyah(9, 129),
                 fadl = "كفاه الله ما أهمه من أمر دنياه وآخرته.",
                 source = "رواه أبو داود",
                 targetCount = 7,
