@@ -315,4 +315,98 @@ class EditorModelsTest {
         assertNull(trimEditorClipEnd(state, clip.id, 800L))
         assertNull(moveEditorClip(state, "missing", 2000L))
     }
+
+    @Test
+    fun splitClipKeepsKeyframesInEachSegmentLocalTime() {
+        val clip = EditorClip(
+            id = "split",
+            title = "Split",
+            resourceUri = "content://split",
+            startOffsetMs = 1000L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            keyframes = listOf(
+                EditorKeyframe(500L, "scale", 1f),
+                EditorKeyframe(2500L, "scale", 2f),
+                EditorKeyframe(4500L, "opacity", 0.5f)
+            )
+        )
+        val state = EditorProjectState(
+            projectId = "split-test",
+            title = "Split",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip)))
+        )
+
+        val updated = splitEditorClip(state, clip.id, 3000L)!!
+        val parts = updated.tracks.single().clips.sortedBy { it.startOffsetMs }
+
+        assertEquals(2, parts.size)
+        assertEquals(2000L, parts[0].durationMs)
+        assertEquals(4000L, parts[1].startOffsetMs)
+        assertEquals(3000L, parts[1].durationMs)
+        assertEquals(1, parts[0].keyframes.size)
+        assertEquals(2, parts[1].keyframes.size)
+        assertEquals(500L, parts[1].keyframes.first { it.property == "scale" }.timeMs)
+        assertEquals(parts[1].id, updated.selectedClipId)
+        assertNull(parts[1].transitionIn)
+    }
+
+    @Test
+    fun splitRejectsClipEdgesAndLockedTracks() {
+        val clip = EditorClip(
+            id = "split-invalid",
+            title = "Split",
+            resourceUri = "",
+            startOffsetMs = 1000L,
+            durationMs = 1000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val state = EditorProjectState(
+            projectId = "split-invalid",
+            title = "Split",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip)))
+        )
+        val locked = state.copy(tracks = listOf(state.tracks.single().copy(isLocked = true)))
+
+        assertNull(splitEditorClip(state, clip.id, 1050L))
+        assertNull(splitEditorClip(state, clip.id, 1950L))
+        assertNull(splitEditorClip(locked, clip.id, 1500L))
+    }
+
+    @Test
+    fun rippleDeleteClosesOnlyTheSelectedTrackGapAndPreservesEarlierOffsets() {
+        val first = EditorClip(
+            id = "first",
+            title = "First",
+            resourceUri = "",
+            startOffsetMs = 0L,
+            durationMs = 1000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val removed = first.copy(id = "removed", startOffsetMs = 3000L, durationMs = 2000L)
+        val later = first.copy(id = "later", startOffsetMs = 7000L)
+        val otherTrackClip = first.copy(id = "audio", startOffsetMs = 7000L, type = TrackType.AUDIO, trackIndex = 1)
+        val state = EditorProjectState(
+            projectId = "ripple-test",
+            title = "Ripple",
+            tracks = listOf(
+                EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(first, removed, later)),
+                EditorTrack(type = TrackType.AUDIO, name = "Audio", clips = listOf(otherTrackClip))
+            ),
+            selectedClipId = removed.id
+        )
+
+        val updated = deleteEditorClip(state, removed.id)!!
+
+        assertEquals(0L, updated.tracks[0].clips.first { it.id == first.id }.startOffsetMs)
+        assertEquals(5000L, updated.tracks[0].clips.first { it.id == later.id }.startOffsetMs)
+        assertEquals(7000L, updated.tracks[1].clips.single().startOffsetMs)
+        assertNull(updated.selectedClipId)
+    }
 }
