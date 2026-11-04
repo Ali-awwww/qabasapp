@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary

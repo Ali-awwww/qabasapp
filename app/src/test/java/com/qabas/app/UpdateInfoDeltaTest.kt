@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -38,5 +39,35 @@ class UpdateInfoDeltaTest {
     fun `missing or empty delta is skipped`() {
         assertFalse(info(deltaUrl = null).deltaUsable)
         assertFalse(info(deltaSize = 0L).deltaUsable)
+    }
+}
+
+
+/** مقارنة إصدار التطبيق تشمل رقم البناء حتى عند ثبات versionName. */
+class UpdateReleaseIdentityTest {
+
+    @Test
+    fun `new build with same version name is newer`() {
+        assertTrue(UpdateManager.compareReleaseVersions("1.3.6", 227, "1.3.6", 226) > 0)
+    }
+
+    @Test
+    fun `older build with same version name is not newer`() {
+        assertTrue(UpdateManager.compareReleaseVersions("1.3.6", 225, "1.3.6", 226) < 0)
+    }
+
+    @Test
+    fun `same name and build is identical`() {
+        assertEquals(0, UpdateManager.compareReleaseVersions("1.3.6", 226, "1.3.6", 226))
+    }
+
+    @Test
+    fun `higher semantic version wins regardless of build code`() {
+        assertTrue(UpdateManager.compareReleaseVersions("1.3.7", 1, "1.3.6", 999) > 0)
+    }
+
+    @Test
+    fun `lower semantic version stays older despite higher build code`() {
+        assertTrue(UpdateManager.compareReleaseVersions("1.3.5", 999, "1.3.6", 1) < 0)
     }
 }

@@ -423,9 +423,13 @@ object UpdateManager {
             }.getOrNull()
 
             if (supabaseUpdate != null && supabaseUpdate.isActive) {
-                // القاعدة الذهبية: التحديث يظهر فقط إذا زاد رقم الإصدار (versionName) لأعلى
-                val nameComparison = compareVersionNames(supabaseUpdate.versionName, currentVersionName)
-                val isNewer = nameComparison > 0
+                // قارن هوية الإصدار كاملة: versionName أولاً ثم versionCode عند تساوي الاسم.
+                val isNewer = compareReleaseVersions(
+                    supabaseUpdate.versionName,
+                    supabaseUpdate.versionCode,
+                    currentVersionName,
+                    currentVersionCode
+                ) > 0
 
                 if (isNewer) {
                     prefs.edit()
@@ -551,12 +555,21 @@ object UpdateManager {
             val releaseVersionCode = parseReleaseVersionCode(tagName)
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
-            // القاعدة الذهبية: نعتبر الإصدار جديداً فقط إذا كان اسم الإصدار (versionName) أعلى برمجياً (مثل 1.3.4 > 1.3.3)
-            // هذا يمنح المطور السيطرة التامة، ويمنع ظهور أي تحديث لمجرد بناء جديد على نفس الإصدار.
-            val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
-            val isNewer = nameComparison > 0
+            // versionName يحدد الإصدار الدلالي، وversionCode يلتقط البنيات الأحدث
+            // داخل الإصدار نفسه (مثال 1.3.6+227 أحدث من 1.3.6+226).
+            val versionComparison = compareReleaseVersions(
+                releaseVersionName,
+                releaseVersionCode,
+                currentVersionName,
+                currentVersionCode
+            )
+            val isNewer = versionComparison > 0
 
-            Log.d(TAG, "Comparing: remote=$releaseVersionName vs local=$currentVersionName => isNewer=$isNewer")
+            Log.d(
+                TAG,
+                "Comparing: remote=$releaseVersionName+$releaseVersionCode vs " +
+                    "local=$currentVersionName+$currentVersionCode => comparison=$versionComparison"
+            )
 
             if (!isNewer) continue
 
@@ -811,8 +824,12 @@ object UpdateManager {
             val releaseVersionCode = parseVersionCode(tagName)
             val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
 
-            val nameComparison = compareVersionNames(releaseVersionName, currentVersionName)
-            val finalIsNewer = nameComparison > 0
+            val finalIsNewer = compareReleaseVersions(
+                releaseVersionName,
+                releaseVersionCode,
+                currentVersionName,
+                currentVersionCode
+            ) > 0
 
             GitHubReleaseInspection(
                 tagName = tagName,
@@ -1576,6 +1593,24 @@ object UpdateManager {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
     } catch (_: PackageManager.NameNotFoundException) {
         ""
+    }
+
+    /**
+     * مقارنة هوية إصدار كاملة. عند تساوي versionName، يفصل versionCode
+     * بين البنيات المتتابعة التي تشترك في الاسم نفسه.
+     */
+    internal fun compareReleaseVersions(
+        remoteVersionName: String,
+        remoteVersionCode: Int,
+        installedVersionName: String,
+        installedVersionCode: Int
+    ): Int {
+        val nameComparison = compareVersionNames(remoteVersionName, installedVersionName)
+        return if (nameComparison != 0) {
+            nameComparison
+        } else {
+            remoteVersionCode.compareTo(installedVersionCode)
+        }
     }
 
     private fun compareVersionNames(a: String, b: String): Int {
