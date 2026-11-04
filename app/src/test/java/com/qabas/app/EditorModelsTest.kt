@@ -612,4 +612,110 @@ class EditorModelsTest {
         assertEquals(12000L, trimmed.totalDurationMs)
         assertEquals(2000L, trimmed.tracks.single().clips.single().durationMs)
     }
+
+    @Test
+    fun editorExportPlanAcceptsOneSupportedVisibleVideoClip() {
+        val clip = EditorClip(
+            id = "export-video",
+            title = "Video",
+            resourceUri = "content://media/video/1",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            sourceStartMs = 1000L,
+            sourceDurationMs = 11000L,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 2f,
+            filters = FilterParams(brightness = 1.2f, contrast = 1.1f, saturation = 0.8f)
+        )
+        val track = EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))
+        val state = EditorProjectState(
+            projectId = "export-plan",
+            title = "Export",
+            tracks = listOf(track),
+            totalDurationMs = 5000L
+        )
+
+        val result = createEditorExportPlan(state, 1080, 1920, 30)
+
+        assertTrue(result.error.isNullOrBlank())
+        assertEquals("export-video", result.plan?.clip?.id)
+        assertEquals(1080, result.plan?.width)
+        assertEquals(30, result.plan?.fps)
+    }
+
+    @Test
+    fun editorExportPlanRejectsVisibleOverlayAndSeparateAudioTracks() {
+        val video = EditorClip(
+            id = "video",
+            title = "Video",
+            resourceUri = "content://media/video/1",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val overlay = video.copy(
+            id = "overlay",
+            title = "Overlay",
+            type = TrackType.OVERLAY
+        )
+        val videoTrack = EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(video))
+        val overlayTrack = EditorTrack(type = TrackType.OVERLAY, name = "Overlay", clips = listOf(overlay))
+        val visualState = EditorProjectState(
+            projectId = "export-overlay",
+            title = "Export",
+            tracks = listOf(videoTrack, overlayTrack),
+            totalDurationMs = 5000L
+        )
+        assertTrue(createEditorExportPlan(visualState, 1080, 1920, 30).error?.contains("مقطع فيديو مرئياً واحداً") == true)
+
+        val audioTrack = EditorTrack(
+            type = TrackType.AUDIO,
+            name = "Music",
+            clips = listOf(video.copy(id = "audio", type = TrackType.AUDIO))
+        )
+        val audioState = visualState.copy(tracks = listOf(videoTrack, audioTrack))
+        assertTrue(createEditorExportPlan(audioState, 1080, 1920, 30).error?.contains("مسارات الصوت المنفصلة") == true)
+    }
+
+    @Test
+    fun editorExportCommandIncludesSourceTimingSpeedFiltersAndOutputProfile() {
+        val clip = EditorClip(
+            id = "command-video",
+            title = "Video",
+            resourceUri = "/private/input.mp4",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            sourceStartMs = 1000L,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 2f,
+            filters = FilterParams(brightness = 1.2f, contrast = 1.1f, saturation = 0.8f)
+        )
+        val track = EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))
+        val plan = createEditorExportPlan(
+            EditorProjectState(
+                projectId = "export-command",
+                title = "Export",
+                tracks = listOf(track),
+                totalDurationMs = 5000L
+            ),
+            1080,
+            1920,
+            30
+        ).plan!!
+
+        val command = buildEditorExportCommand(plan, "/private/input.mp4", "/private/output.mp4", hasAudio = true)
+
+        assertTrue(command.contains("-ss 1.0 -t 10.0"))
+        assertTrue(command.contains("setpts=PTS/2.0000"))
+        assertTrue(command.contains("eq=brightness=0.2000:contrast=1.1000:saturation=0.8000"))
+        assertTrue(command.contains("fps=30"))
+        assertTrue(command.contains("-map 0:a:0"))
+        assertTrue(command.contains("/private/output.mp4"))
+    }
 }
