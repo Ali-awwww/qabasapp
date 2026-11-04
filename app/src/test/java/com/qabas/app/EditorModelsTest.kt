@@ -808,4 +808,58 @@ class EditorModelsTest {
         assertTrue(command.contains("-t 7.5"))
         assertTrue(command.contains("tpad=start_mode=add:start_duration=2.5"))
     }
+
+    @Test
+    fun editorExportRendersSupportedFadeAndZoomTransitions() {
+        fun planFor(transition: String): EditorExportPlan {
+            val clip = EditorClip(
+                id = "transition-video",
+                title = "Transition",
+                resourceUri = "/private/input.mp4",
+                startOffsetMs = 0L,
+                durationMs = 5000L,
+                trackIndex = 0,
+                type = TrackType.VIDEO,
+                color = androidx.compose.ui.graphics.Color.Blue,
+                transitionIn = transition
+            )
+            val state = EditorProjectState(
+                projectId = "transition-export",
+                title = "Transition",
+                tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+                totalDurationMs = 5000L
+            )
+            return createEditorExportPlan(state, 1080, 1920, 30).plan!!
+        }
+
+        val fadeCommand = buildEditorExportCommand(planFor("Fade In"), "/private/input.mp4", "/private/fade.mp4", false)
+        val zoomCommand = buildEditorExportCommand(planFor("Zoom In"), "/private/input.mp4", "/private/zoom.mp4", false)
+
+        assertTrue(fadeCommand.contains("fade=t=in:st=0:d=0.6"))
+        assertTrue(zoomCommand.contains("eval=frame"))
+        assertTrue(zoomCommand.contains("0.85+0.15*min(t/0.6"))
+    }
+
+    @Test
+    fun editorExportPlanRejectsUnsupportedSlideTransition() {
+        val clip = EditorClip(
+            id = "slide-video",
+            title = "Slide",
+            resourceUri = "/private/input.mp4",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            transitionIn = "Slide In"
+        )
+        val state = EditorProjectState(
+            projectId = "slide-export",
+            title = "Slide",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            totalDurationMs = 5000L
+        )
+
+        assertTrue(createEditorExportPlan(state, 1080, 1920, 30).error?.contains("الانتقال") == true)
+    }
 }
