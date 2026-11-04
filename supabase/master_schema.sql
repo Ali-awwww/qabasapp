@@ -310,23 +310,297 @@ CREATE INDEX IF NOT EXISTS idx_scholar_proposals_upvotes ON public.scholar_propo
 -- 5. التحديثات، التقييمات، الدردشة، وتقارير الأعطال
 -- ==============================================================================
 
--- جدول تحديثات التطبيق الرسمية (app_updates)
+-- جدول تحديثات التطبيق الرسمية (app_updates): public read-only, writes through guarded RPCs.
 CREATE TABLE IF NOT EXISTS public.app_updates (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     version_code INTEGER NOT NULL,
     version_name TEXT NOT NULL,
     title TEXT DEFAULT '',
-    release_notes TEXT DEFAULT '',
+    release_notes TEXT NOT NULL DEFAULT '',
     download_url TEXT NOT NULL,
-    sha256_hash TEXT DEFAULT '',
-    is_mandatory BOOLEAN DEFAULT false,
-    is_active BOOLEAN DEFAULT true,
-    file_size_bytes BIGINT DEFAULT 0,
+    sha256_hash TEXT NOT NULL DEFAULT '',
+    is_mandatory BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
     released_at TIMESTAMPTZ DEFAULT now(),
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    github_release_url TEXT,
+    release_tag TEXT,
+    asset_name TEXT
 );
 
+ALTER TABLE public.app_updates
+    ADD COLUMN IF NOT EXISTS github_release_url TEXT,
+    ADD COLUMN IF NOT EXISTS release_tag TEXT,
+    ADD COLUMN IF NOT EXISTS asset_name TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_app_updates_version ON public.app_updates (version_code DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS app_updates_version_code_unique_idx ON public.app_updates (version_code);
+CREATE UNIQUE INDEX IF NOT EXISTS app_updates_single_active_idx
+    ON public.app_updates ((is_active)) WHERE is_active IS TRUE;
+
+alter table public.app_updates
+  add column if not exists github_release_url text,
+  add column if not exists release_tag text,
+  add column if not exists asset_name text;
+
+create unique index if not exists app_updates_single_active_idx
+  on public.app_updates ((is_active))
+  where is_active is true;
+
+create table if not exists public.app_update_audit (
+  id bigint generated always as identity primary key,
+  actor_id uuid not null references auth.users(id) on delete restrict,
+  actor_role text not null,
+  action text not null check (action in ('published', 'paused', 'activated')),
+  old_version_code integer,
+  new_version_code integer,
+  version_name text,
+  is_mandatory boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.app_update_audit enable row level security;
+revoke all on public.app_update_audit from anon, authenticated;
+grant select on public.app_update_audit to authenticated;
+
+drop policy if exists app_update_audit_developer_read on public.app_update_audit;
+create policy app_update_audit_developer_read
+  on public.app_update_audit
+  for select
+  to authenticated
+  using (
+    lower(coalesce((select auth.jwt() -> 'app_metadata' ->> 'role'), ''))
+      in ('developer', 'admin', 'owner', 'مطور', 'مكور')
+  );
+
+grant select on public.app_updates to anon, authenticated;
+revoke insert, update, delete on public.app_updates from anon, authenticated;
+
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+
+create or replace function private.publish_qabas_app_update(
+  p_version_name text,
+  p_version_code integer,
+  p_download_url text,
+  p_release_notes text,
+  p_file_size_bytes bigint,
+  p_sha256_hash text,
+  p_is_mandatory boolean,
+  p_github_release_url text,
+  p_release_tag text,
+  p_asset_name text
+)
+returns public.app_updates
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_role text := lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', ''));
+  v_old_version_code integer;
+  v_new public.app_updates;
+begin
+  if v_actor is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if v_role not in ('developer', 'admin', 'owner', 'مطور', 'مكور') then
+    raise exception 'Verified developer role required' using errcode = '42501';
+  end if;
+  if p_version_name is null or length(trim(p_version_name)) = 0
+     or p_version_code is null or p_version_code <= 0 then
+    raise exception 'Invalid version metadata' using errcode = '22023';
+  end if;
+  if p_download_url is null
+     or p_download_url !~ '^https://github[.]com/Ali-awwww/qabasapp/releases/download/[^[:space:]]+[.]apk$' then
+    raise exception 'APK URL must point to a Qabas GitHub release asset' using errcode = '22023';
+  end if;
+  if p_github_release_url is null
+     or p_github_release_url !~ '^https://github[.]com/Ali-awwww/qabasapp/releases/tag/[^[:space:]]+$' then
+    raise exception 'Invalid GitHub release URL' using errcode = '22023';
+  end if;
+  if p_file_size_bytes is null or p_file_size_bytes <= 0 then
+    raise exception 'Invalid APK file size' using errcode = '22023';
+  end if;
+  if p_sha256_hash is not null and p_sha256_hash <> ''
+     and p_sha256_hash !~ '^[0-9A-Fa-f]{64}$' then
+    raise exception 'Invalid SHA-256 digest' using errcode = '22023';
+  end if;
+  if p_asset_name is null or lower(p_asset_name) not like '%.apk' then
+    raise exception 'A valid APK asset is required' using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('qabas-app-update-publish'));
+  select version_code into v_old_version_code
+    from public.app_updates
+    where is_active is true
+    order by version_code desc
+    limit 1
+    for update;
+
+  if exists (
+    select 1 from public.app_updates
+    where version_code >= p_version_code
+  ) then
+    raise exception 'Version code must be greater than every previously published build' using errcode = '22023';
+  end if;
+
+  update public.app_updates set is_active = false where is_active is true;
+
+  insert into public.app_updates (
+    version_code, version_name, title, release_notes, download_url,
+    sha256_hash, is_mandatory, is_active, file_size_bytes, released_at,
+    github_release_url, release_tag, asset_name
+  ) values (
+    p_version_code, trim(p_version_name), 'v' || trim(p_version_name),
+    coalesce(p_release_notes, ''), p_download_url,
+    coalesce(p_sha256_hash, ''), coalesce(p_is_mandatory, false), true,
+    p_file_size_bytes, now(), p_github_release_url, p_release_tag, p_asset_name
+  )
+  returning * into v_new;
+
+  insert into public.app_update_audit (
+    actor_id, actor_role, action, old_version_code, new_version_code,
+    version_name, is_mandatory
+  ) values (
+    v_actor, v_role, 'published', v_old_version_code, p_version_code,
+    trim(p_version_name), coalesce(p_is_mandatory, false)
+  );
+
+  return v_new;
+end;
+$$;
+
+create or replace function private.set_qabas_app_update_active(
+  p_update_id text,
+  p_is_active boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_role text := lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', ''));
+  v_target public.app_updates;
+  v_old_version_code integer;
+begin
+  if v_actor is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if v_role not in ('developer', 'admin', 'owner', 'مطور', 'مكور') then
+    raise exception 'Verified developer role required' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('qabas-app-update-publish'));
+  select version_code into v_old_version_code
+    from public.app_updates where is_active is true
+    order by version_code desc limit 1 for update;
+
+  if coalesce(p_is_active, false) then
+    select * into v_target from public.app_updates where id = p_update_id;
+    if not found then
+      raise exception 'Update release not found' using errcode = '22023';
+    end if;
+    if v_target.version_code <> (select max(version_code) from public.app_updates) then
+      raise exception 'Only the newest published build can be activated' using errcode = '22023';
+    end if;
+    update public.app_updates set is_active = false where is_active is true;
+    update public.app_updates set is_active = true where id = p_update_id;
+    insert into public.app_update_audit (
+      actor_id, actor_role, action, old_version_code, new_version_code,
+      version_name, is_mandatory
+    ) values (
+      v_actor, v_role, 'activated', v_old_version_code, v_target.version_code,
+      v_target.version_name, v_target.is_mandatory
+    );
+  else
+    update public.app_updates set is_active = false where is_active is true;
+    insert into public.app_update_audit (
+      actor_id, actor_role, action, old_version_code, new_version_code,
+      version_name, is_mandatory
+    ) values (
+      v_actor, v_role, 'paused', v_old_version_code, null, null, false
+    );
+  end if;
+  return true;
+end;
+$$;
+
+revoke all on function private.publish_qabas_app_update(text, integer, text, text, bigint, text, boolean, text, text, text) from public, anon;
+revoke all on function private.set_qabas_app_update_active(text, boolean) from public, anon;
+grant execute on function private.publish_qabas_app_update(text, integer, text, text, bigint, text, boolean, text, text, text) to authenticated;
+grant execute on function private.set_qabas_app_update_active(text, boolean) to authenticated;
+
+create or replace function public.publish_qabas_app_update(
+  p_version_name text,
+  p_version_code integer,
+  p_download_url text,
+  p_release_notes text,
+  p_file_size_bytes bigint,
+  p_sha256_hash text,
+  p_is_mandatory boolean,
+  p_github_release_url text,
+  p_release_tag text,
+  p_asset_name text
+)
+returns public.app_updates
+language sql
+security invoker
+set search_path = pg_catalog
+as $$
+  select private.publish_qabas_app_update(
+    p_version_name, p_version_code, p_download_url, p_release_notes,
+    p_file_size_bytes, p_sha256_hash, p_is_mandatory,
+    p_github_release_url, p_release_tag, p_asset_name
+  );
+$$;
+
+create or replace function public.set_qabas_app_update_active(
+  p_update_id text,
+  p_is_active boolean
+)
+returns boolean
+language sql
+security invoker
+set search_path = pg_catalog
+as $$
+  select private.set_qabas_app_update_active(p_update_id, p_is_active);
+$$;
+
+revoke all on function public.publish_qabas_app_update(text, integer, text, text, bigint, text, boolean, text, text, text) from public, anon;
+revoke all on function public.set_qabas_app_update_active(text, boolean) from public, anon;
+grant execute on function public.publish_qabas_app_update(text, integer, text, text, bigint, text, boolean, text, text, text) to authenticated;
+grant execute on function public.set_qabas_app_update_active(text, boolean) to authenticated;
+
+CREATE INDEX IF NOT EXISTS app_update_audit_created_at_idx
+    ON public.app_update_audit (created_at DESC);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'app_updates_public_notes_safe'
+          AND conrelid = 'public.app_updates'::regclass
+    ) THEN
+        ALTER TABLE public.app_updates
+            ADD CONSTRAINT app_updates_public_notes_safe CHECK (
+                position('github.com/' in lower(release_notes)) = 0
+                AND position('[force]' in lower(release_notes)) = 0
+                AND position('build number:' in lower(release_notes)) = 0
+                AND position('built at:' in lower(release_notes)) = 0
+                AND position('branch:' in lower(release_notes)) = 0
+                AND position('workflow run:' in lower(release_notes)) = 0
+                AND position('workflow run url:' in lower(release_notes)) = 0
+                AND position('commit:' in lower(release_notes)) = 0
+                AND position('commit sha:' in lower(release_notes)) = 0
+            );
+    END IF;
+END $$;
 
 -- جدول مراجعات وتقييمات المستخدمين (app_reviews)
 CREATE TABLE IF NOT EXISTS public.app_reviews (
@@ -479,7 +753,7 @@ DECLARE
         'users', 'profiles', 'user_settings', 'projects', 'styles', 'master_styles',
         'promo_codes', 'transactions', 'content_guard_logs', 'reels', 'reel_likes',
         'reel_comments', 'reel_bookmarks', 'reel_history', 'reels_feed', 'audio_tracks',
-        'hadith_presets', 'scholar_lectures', 'scholar_proposals', 'app_updates',
+        'hadith_presets', 'scholar_lectures', 'scholar_proposals',
         'app_reviews', 'chat_messages',
         'bug_reports', 'user_feedbacks', 'league_leaderboard'
     ];
@@ -496,7 +770,31 @@ BEGIN
         EXECUTE format('CREATE POLICY "Public delete policy on %I" ON public.%I FOR DELETE USING (true);', tbl, tbl);
         EXECUTE format('GRANT ALL ON TABLE public.%I TO anon, authenticated, service_role;', tbl);
     END LOOP;
-END $$;
+END $;
+
+-- Controlled app update tables: clients may read releases but cannot write them directly.
+ALTER TABLE public.app_updates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select policy on app_updates" ON public.app_updates;
+DROP POLICY IF EXISTS "Public insert policy on app_updates" ON public.app_updates;
+DROP POLICY IF EXISTS "Public update policy on app_updates" ON public.app_updates;
+DROP POLICY IF EXISTS "Public delete policy on app_updates" ON public.app_updates;
+DROP POLICY IF EXISTS app_updates_public_read ON public.app_updates;
+CREATE POLICY app_updates_public_read
+    ON public.app_updates FOR SELECT TO anon, authenticated USING (true);
+REVOKE ALL ON TABLE public.app_updates FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.app_updates TO anon, authenticated;
+GRANT ALL ON TABLE public.app_updates TO service_role;
+
+ALTER TABLE public.app_update_audit ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select policy on app_update_audit" ON public.app_update_audit;
+DROP POLICY IF EXISTS "Public insert policy on app_update_audit" ON public.app_update_audit;
+DROP POLICY IF EXISTS "Public update policy on app_update_audit" ON public.app_update_audit;
+DROP POLICY IF EXISTS "Public delete policy on app_update_audit" ON public.app_update_audit;
+REVOKE ALL ON TABLE public.app_update_audit FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.app_update_audit TO authenticated;
+GRANT ALL ON TABLE public.app_update_audit TO service_role;
+
+NOTIFY pgrst, 'reload schema';
 
 -- Support inbox tables contain private user messages and diagnostic reports.
 -- They intentionally use per-user / support-admin policies instead of public CRUD.
