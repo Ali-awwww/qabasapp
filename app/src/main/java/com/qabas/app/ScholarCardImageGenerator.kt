@@ -82,10 +82,10 @@ object ScholarCardImageGenerator {
         }
 
         if (!scholar.deathScene.isNullOrBlank() || !scholar.lastWords.isNullOrBlank()) {
-            sb.append("\n🌅 ٤. مشهد الوفاة واللحظات الأخيرة:\n")
+            sb.append("\n🌅 ٤. الوفاة في المصادر التاريخية:\n")
             scholar.deathScene?.let { sb.append(it).append("\n") }
             scholar.lastWords?.let {
-                sb.append("🕊️ آخر كلماته قبل خروج الروح: « $it »\n")
+                sb.append("🕊️ قول منقول في بعض المصادر (لا يُجزم بثبوته): « $it »\n")
             }
         }
 
@@ -102,8 +102,8 @@ object ScholarCardImageGenerator {
         }
 
         scholar.messageToGrandson?.let { msg ->
-            sb.append("\n💌 وصية الإمام لك يا حفيده:\n")
-            sb.append("« $msg »\n")
+            sb.append("\n💌 عبرة مستفادة من سيرته:\n")
+            sb.append("$msg\n")
         }
 
         scholar.modernChallenge?.let { ch ->
@@ -232,11 +232,14 @@ object ScholarCardImageGenerator {
         val funeralLayout = scholar.funeralImpact?.let {
             createStaticLayout(it, paintOldInk, contentWidth - 40)
         }
-        val deathCardH = (deathLayout?.height ?: 0) + (lastWordsLayout?.height ?: 0) + (funeralLayout?.height ?: 0) + 200
+        val hasDeathDetails = deathLayout != null || lastWordsLayout != null || funeralLayout != null
+        val deathCardH = if (hasDeathDetails) {
+            (deathLayout?.height ?: 0) + (lastWordsLayout?.height ?: 0) + (funeralLayout?.height ?: 0) + 200
+        } else 0
         if (deathCardH > 0) totalHeight += deathCardH + 30
 
         val messageLayout = scholar.messageToGrandson?.let {
-            createStaticLayout("« $it »", paintQuote, contentWidth - 60)
+            createStaticLayout(it, paintOldInk, contentWidth - 60)
         }
         val challengeLayout = scholar.modernChallenge?.let {
             createStaticLayout(it, paintOldInk, contentWidth - 60)
@@ -447,7 +450,7 @@ object ScholarCardImageGenerator {
                 y = currentY,
                 width = contentWidth.toFloat(),
                 height = deathCardH.toFloat(),
-                title = "🌅 مشهد الوفاة وآخر كلماته وأثر الجنازة",
+                title = "🌅 الوفاة وما ورد في المصادر",
                 titleColor = Color.rgb(0xA8, 0x55, 0xF7),
                 borderColor = Color.argb(160, 0xA8, 0x55, 0xF7),
                 fillColor = themeColors.cardBg
@@ -478,7 +481,7 @@ object ScholarCardImageGenerator {
                         textAlign = Paint.Align.CENTER
                         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
                     }
-                    innerCanvas.drawText("🕊️ آخر كلماته قبل خروج الروح:", innerWidth / 2f, sY + 24f, lwTitlePaint)
+                    innerCanvas.drawText("🕊️ قول منقول في بعض المصادر:", innerWidth / 2f, sY + 24f, lwTitlePaint)
 
                     innerCanvas.save()
                     innerCanvas.translate(10f, sY + 34f)

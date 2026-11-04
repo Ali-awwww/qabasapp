@@ -223,7 +223,7 @@ fun ScholarBiographiesScreen(
                                         color = Color.White
                                     )
                                     Text(
-                                        "المحنة، الثبات، ومشاهد الوداع والشهادة",
+                                        "سير تاريخية مع التمييز بين الثابت والمختلف فيه",
                                         fontFamily = CairoFont,
                                         fontSize = 10.5.sp,
                                         color = GoldSecondary.copy(alpha = 0.85f)
@@ -304,7 +304,7 @@ fun ScholarBiographiesScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    "كيف عاشوا، من آذاهم وكيف؟ كيف تحمّلوا ولماذا تحمّلوا؟ وكيف كانت لحظاتهم الأخيرة وجنائزهم التي هزت التاريخ.",
+                                    "نعرض أبرز الوقائع الثابتة في حياة الصحابة والعلماء، ونحذف التفاصيل التي لا يثبت نقلها، ونشير إلى الروايات المختلف فيها دون الجزم بها.",
                                     color = OldInk.copy(alpha = 0.75f),
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
