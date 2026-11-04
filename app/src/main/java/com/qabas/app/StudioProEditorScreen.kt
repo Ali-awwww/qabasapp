@@ -1083,7 +1083,7 @@ fun StudioProEditorScreen(
                         }
                     )
                     showTransitionPicker = false
-                    Toast.makeText(context, "تم تطبيق انتقال: $transitionName ✨", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تم تعيين انتقال الدخول للمعاينة؛ التصدير النهائي لم يُربط بعد", Toast.LENGTH_LONG).show()
                 }
             )
         }
@@ -1381,17 +1381,19 @@ fun TimelineTrackRow(
                     }
                 }
                 
-                // Transition Button Indicator (Simulated)
-                if (clip.startOffsetMs + clip.durationMs < 30000) { // If not last
+                val nextClip = track.clips
+                    .filter { it.startOffsetMs >= clip.startOffsetMs + clip.durationMs }
+                    .minByOrNull { it.startOffsetMs }
+                if (nextClip != null) {
                     Box(
                         modifier = Modifier
                             .size(14.dp)
                             .offset(x = ((clip.startOffsetMs + clip.durationMs).toFloat() / 10f * zoom - 7f).dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .background(if (nextClip.transitionIn != null) GoldPrimary.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.2f))
                             .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
                             .align(Alignment.CenterStart)
-                            .clickable { onTransitionClick(clip.id) },
+                            .clickable { onTransitionClick(nextClip.id) },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(8.dp))
@@ -1506,11 +1508,9 @@ fun AiMagicPanel() {
 @Composable
 fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
     val transitions = listOf(
-        "Dissolve" to Icons.Default.AutoAwesome,
-        "Fade Black" to Icons.Default.Brightness1,
+        "Fade In" to Icons.Default.AutoAwesome,
         "Zoom In" to Icons.Default.ZoomIn,
-        "Slide Right" to Icons.AutoMirrored.Filled.ArrowForward,
-        "Glitch" to Icons.Default.FlashOn
+        "Slide In" to Icons.AutoMirrored.Filled.ArrowForward
     )
     
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
