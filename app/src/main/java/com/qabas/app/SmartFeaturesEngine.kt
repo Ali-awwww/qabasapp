@@ -70,18 +70,7 @@ object SmartFeaturesEngine {
         }
     }
 
-    /**
-     * Generates a deterministic pseudo-random waveform for an audio URI.
-     * In a real app, this would analyze the actual audio file.
-     */
-    fun generateWaveformData(uri: String, points: Int): List<Float> {
-        val seed = uri.hashCode().toLong()
-        val random = java.util.Random(seed)
-        return List(points) {
-            // Generates values between 0.1 and 1.0 with some "clumping" for realism
-            (0.2f + random.nextFloat() * 0.8f) * (if (it % 5 == 0) 0.4f else 1.0f)
-        }
-    }
+
 }
 
 data class ViralScore(
