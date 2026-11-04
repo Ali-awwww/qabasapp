@@ -89,7 +89,7 @@ internal fun buildEditorExportCommand(
     hasAudio: Boolean
 ): String {
     fun number(value: Float) = String.format(Locale.US, "%.4f", value)
-    fun quote(value: String) = "\"\${value.replace("\"", "\\\"")}\""
+    fun quote(value: String) = "\\"" + value.replace("\\"", "\\\\\\"") + "\\""
 
     val clip = plan.clip
     val speed = clip.speed.coerceIn(0.1f, 5f)
