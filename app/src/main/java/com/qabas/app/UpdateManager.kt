@@ -471,7 +471,7 @@ object UpdateManager {
                     xdeltaUrls = emptyMap(),
                     isForce = active.isMandatory,
                     checksum = active.sha256Hash?.takeIf { it.isNotBlank() },
-                    releaseUrl = active.githubReleaseUrl
+                    releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() }
                 )
             } catch (e: Exception) {
                 // Fail closed: never bypass an unavailable control plane by selecting
@@ -822,7 +822,7 @@ object UpdateManager {
                     val apkName = selectedName ?: continue
                     val apkUrl = selectedUrl ?: continue
                     val notes = release.optString("body", "")
-                    val sha = Regex("(?i)\\b[0-9a-f]{64}\\b")
+                    val sha = selectedDigest ?: Regex("(?i)\\b[0-9a-f]{64}\\b")
                         .find(notes)?.value?.lowercase()
                     val releaseUrl = release.optString("html_url", "")
                     if (!releaseUrl.startsWith("https://github.com/$targetRepo/releases/tag/")) continue
