@@ -18,6 +18,7 @@ data class EditorClip(
     val startOffsetMs: Long,
     val durationMs: Long,
     val trackIndex: Int,
+    val sourceStartMs: Long = 0L,
     val type: TrackType,
     val color: Color,
     val volume: Float = 1.0f,
@@ -264,7 +265,8 @@ internal fun trimEditorClipStart(
         .coerceIn(0L, (originalEnd - EDITOR_MIN_CLIP_DURATION_MS).coerceAtLeast(0L))
     val updatedClip = clip.copy(
         startOffsetMs = snappedStart,
-        durationMs = originalEnd - snappedStart
+        durationMs = originalEnd - snappedStart,
+        sourceStartMs = clip.sourceStartMs + (snappedStart - clip.startOffsetMs)
     )
     return updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
@@ -362,6 +364,7 @@ internal fun splitEditorClip(
         id = UUID.randomUUID().toString(),
         startOffsetMs = playheadMs,
         durationMs = clip.durationMs - splitOffsetMs,
+        sourceStartMs = clip.sourceStartMs + splitOffsetMs,
         keyframes = clip.keyframes
             .filter { it.timeMs > splitOffsetMs }
             .map { it.copy(timeMs = it.timeMs - splitOffsetMs) },
