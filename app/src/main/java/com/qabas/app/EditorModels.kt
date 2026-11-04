@@ -19,6 +19,7 @@ data class EditorClip(
     val durationMs: Long,
     val trackIndex: Int,
     val sourceStartMs: Long = 0L,
+    val sourceDurationMs: Long = 0L,
     val type: TrackType,
     val color: Color,
     val volume: Float = 1.0f,
@@ -163,8 +164,7 @@ internal fun addEditorTextClip(state: EditorProjectState, rawText: String): Edit
     val content = rawText.trim()
     if (content.isEmpty()) return null
 
-    val endLimit = state.totalDurationMs.coerceAtLeast(1L)
-    val startTime = state.currentTimeMs.coerceIn(0L, endLimit - 1L)
+    val startTime = state.currentTimeMs.coerceAtLeast(0L)
     val existingTrackIndex = state.tracks.indexOfFirst {
         it.type == TrackType.TEXT && !it.isLocked
     }
@@ -173,8 +173,9 @@ internal fun addEditorTextClip(state: EditorProjectState, rawText: String): Edit
         title = content,
         resourceUri = "",
         startOffsetMs = startTime,
-        durationMs = minOf(5000L, (endLimit - startTime).coerceAtLeast(1L)),
+        durationMs = 5000L,
         trackIndex = targetIndex,
+        sourceDurationMs = Long.MAX_VALUE,
         type = TrackType.TEXT,
         color = Color(0xFFFACC15)
     )
@@ -266,8 +267,10 @@ internal fun trimEditorClipStart(
     if (track.isLocked) return null
     val clip = track.clips.first { it.id == clipId }
     val originalEnd = clip.startOffsetMs + clip.durationMs
+    val speed = clip.speed.coerceIn(0.1f, 5f)
+    val earliestAllowedStart = (clip.startOffsetMs - (clip.sourceStartMs / speed).toLong()).coerceAtLeast(0L)
     val snappedStart = snapEditorTimelinePosition(state, clipId, requestedStartMs, snapToleranceMs)
-        .coerceIn(0L, (originalEnd - EDITOR_MIN_CLIP_DURATION_MS).coerceAtLeast(0L))
+        .coerceIn(earliestAllowedStart, (originalEnd - EDITOR_MIN_CLIP_DURATION_MS).coerceAtLeast(earliestAllowedStart))
     val removedTimelineMs = snappedStart - clip.startOffsetMs
     val updatedClip = clip.copy(
         startOffsetMs = snappedStart,
@@ -293,8 +296,20 @@ internal fun trimEditorClipEnd(
     val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
     if (track.isLocked) return null
     val clip = track.clips.first { it.id == clipId }
+    val speed = clip.speed.coerceIn(0.1f, 5f)
+    val sourceEndMs = if (clip.sourceDurationMs > 0L && clip.sourceDurationMs != Long.MAX_VALUE) {
+        clip.sourceDurationMs
+    } else {
+        clip.sourceStartMs + (clip.durationMs * speed).toLong()
+    }
+    val maximumTimelineDurationMs = ((sourceEndMs - clip.sourceStartMs).coerceAtLeast(0L) / speed)
+        .toLong().coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
+    val maximumEndMs = clip.startOffsetMs + maximumTimelineDurationMs
     val snappedEnd = snapEditorTimelinePosition(state, clipId, requestedEndMs, snapToleranceMs)
-        .coerceAtLeast(clip.startOffsetMs + EDITOR_MIN_CLIP_DURATION_MS)
+        .coerceIn(
+            clip.startOffsetMs + EDITOR_MIN_CLIP_DURATION_MS,
+            maximumEndMs.coerceAtLeast(clip.startOffsetMs + EDITOR_MIN_CLIP_DURATION_MS)
+        )
     val updatedDurationMs = snappedEnd - clip.startOffsetMs
     val updatedClip = clip.copy(
         durationMs = updatedDurationMs,
@@ -325,6 +340,7 @@ internal fun addEditorMediaClip(
         startOffsetMs = state.currentTimeMs.coerceAtLeast(0L),
         durationMs = durationMs,
         trackIndex = trackIndex,
+        sourceDurationMs = if (type == TrackType.OVERLAY) Long.MAX_VALUE else durationMs,
         type = type,
         color = when (type) {
             TrackType.VIDEO -> Color(0xFF3B82F6)
@@ -354,6 +370,32 @@ internal fun addEditorMediaClip(
         totalDurationMs = maxOf(state.totalDurationMs, clip.startOffsetMs + clip.durationMs),
         selectedClipId = clip.id
     )
+}
+
+/** Change playback speed while preserving the selected source range and recalculating timeline duration. */
+internal fun setEditorClipSpeed(
+    state: EditorProjectState,
+    clipId: String,
+    requestedSpeed: Float
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val newSpeed = requestedSpeed.coerceIn(0.1f, 5f)
+    val oldSpeed = clip.speed.coerceIn(0.1f, 5f)
+    val sourceEndMs = if (clip.sourceDurationMs > 0L && clip.sourceDurationMs != Long.MAX_VALUE) {
+        clip.sourceDurationMs
+    } else {
+        clip.sourceStartMs + (clip.durationMs * oldSpeed).toLong()
+    }
+    val availableSourceMs = (sourceEndMs - clip.sourceStartMs).coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
+    val newDurationMs = (availableSourceMs / newSpeed).toLong().coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
+    val updatedClip = clip.copy(speed = newSpeed, durationMs = newDurationMs)
+    val updated = updateEditorTrack(state, track.id) { current ->
+        current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
+    }
+    val timelineEndMs = updated.tracks.flatMap { it.clips }.maxOfOrNull { it.startOffsetMs + it.durationMs } ?: 1000L
+    return updated.copy(totalDurationMs = maxOf(1000L, timelineEndMs), selectedClipId = clipId)
 }
 
 /** Split an unlocked clip at the playhead, keeping keyframes in each segment's local time. */
