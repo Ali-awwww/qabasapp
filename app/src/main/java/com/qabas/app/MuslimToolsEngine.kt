@@ -49,8 +49,9 @@ class MuslimToolsEngine(context: Context) {
     }
 
     // --- Fasting Tracker Logic ---
-    fun getMissedFastingDays(): Int = prefs.getInt("missed_fasting_total", 0)
-    fun getCompletedFastingDays(): Int = prefs.getInt("missed_fasting_completed", 0)
+    fun getMissedFastingDays(): Int = prefs.getInt("missed_fasting_total", 0).coerceAtLeast(0)
+    fun getCompletedFastingDays(): Int =
+        prefs.getInt("missed_fasting_completed", 0).coerceIn(0, getMissedFastingDays())
     fun setMissedFastingDays(days: Int) {
         val safeTotal = days.coerceAtLeast(0)
         val safeCompleted = getCompletedFastingDays().coerceAtMost(safeTotal)
