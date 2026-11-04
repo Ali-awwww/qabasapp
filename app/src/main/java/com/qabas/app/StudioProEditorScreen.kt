@@ -1661,6 +1661,20 @@ fun ExportWorkspace(state: EditorProjectState) {
             }
         }
 
+        if (isExporting) {
+            OutlinedButton(
+                onClick = {
+                    VideoProcessor.cancelAll()
+                    statusMessage = "تم إرسال طلب إلغاء الرندر…"
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Close, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("إلغاء التصدير", fontFamily = CairoFont)
+            }
+        }
+
         statusMessage?.let { message ->
             Text(message, color = if (outputPath != null) Color(0xFF86EFAC) else Color.White, fontSize = 12.sp, fontFamily = CairoFont)
         }
