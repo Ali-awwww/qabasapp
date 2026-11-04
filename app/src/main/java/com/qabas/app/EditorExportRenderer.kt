@@ -133,8 +133,7 @@ internal fun buildEditorScaleKeyframeExpression(keyframes: List<EditorKeyframe>)
         }
         if (index == 0 && current.timeMs > 0L) {
             val firstSeconds = current.timeMs / 1000.0
-            val interpolation = "(1+(${number(current.value - 1f)})*t/$firstSeconds)"
-            expression = "if(lt(t\\,$firstSeconds)\\,$interpolation\\,$expression)"
+            expression = "if(lt(t\\,$firstSeconds)\\,${number(current.value)}\\,$expression)"
         }
     }
     return expression
