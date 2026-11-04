@@ -2477,26 +2477,12 @@ fun QuranRecitationRecordingView(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (isRecording) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.height(50.dp)
-                        ) {
-                            val waves = listOf(wave1, wave2, wave3, wave4, wave2, wave1, wave3, wave4)
-                            waves.forEach { h ->
-                                Box(
-                                    modifier = Modifier
-                                        .width(6.dp)
-                                        .height(h.dp)
-                                        .background(
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(Color(0xFFEF4444), ManuscriptGold)
-                                            ),
-                                            shape = CircleShape
-                                        )
-                                )
-                            }
-                        }
+                        Icon(
+                            Icons.Default.Mic,
+                            contentDescription = "التسجيل جارٍ",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(38.dp)
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
