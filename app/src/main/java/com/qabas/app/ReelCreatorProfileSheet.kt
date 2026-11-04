@@ -100,17 +100,19 @@ fun ReelCreatorProfileSheet(
         )
     val appPrefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val ownHandle = remember(resolvedViewer.email) {
-        resolvedViewer.email?.let { UserIdentifierManager.getAccountNumber(context, it) }.orEmpty()
+        resolvedViewer.email?.let { UserIdentifierManager.getCustomId(context, it) }.orEmpty()
     }
     val ownBio = remember {
         appPrefs.getString("user_bio", "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
             ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
     }
-    val profileHandle = if (isOwnProfile) {
-        ownHandle.ifBlank { "@${resolvedViewer.id.take(14)}" }
+    val profileCustomId = if (isOwnProfile) {
+        ownHandle.ifBlank { resolvedCommunity?.customId.orEmpty() }
     } else {
-        "@${creatorId.take(14)}"
-    }
+        resolvedCommunity?.customId.orEmpty()
+    }.trim().removePrefix("@")
+    val profileHandle = profileCustomId.takeIf { it.isNotBlank() }
+        ?.let { "@$it" } ?: "يوزر غير متاح"
 
     val creatorReels = remember(allReels, creatorId, displayName, isOwnProfile, resolvedViewer) {
         allReels.filter { reel ->
