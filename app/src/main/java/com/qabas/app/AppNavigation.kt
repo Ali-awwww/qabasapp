@@ -36,6 +36,7 @@ fun AppNavigation(
     bottomNav: @Composable () -> Unit
 ) {
     val appState = state.appState
+    var isLoggingOut by remember { mutableStateOf(false) }
 
     // Reactive Auth state observer broadcasting from SupabaseRepository
     ReactiveAuthNavigationObserver(
@@ -437,21 +438,18 @@ fun AppNavigation(
         AppState.SETTINGS -> {
             SettingsScreen(
                 onLogout = {
-                    viewModel.viewModelScope.launch {
-                        val userId = ActiveSessionManager.currentUserId(context)
-                        if (!userId.isNullOrBlank()) {
-                            runCatching { ActiveSessionManager.release(context, userId) }
+                    // Both logout controls share one guarded, sequential logout operation.
+                    if (!isLoggingOut) {
+                        isLoggingOut = true
+                        viewModel.viewModelScope.launch {
+                            try {
+                                ActiveSessionManager.endLocalSession(context)
+                            } finally {
+                                isLoggingOut = false
+                            }
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
                         }
-                        runCatching { SupabaseServices.Auth.logout() }
                     }
-                    context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
-                        .remove("is_logged_in")
-                        .remove("is_admin")
-                        .remove("is_developer")
-                        .remove("user_email")
-                        .remove("user_name")
-                        .apply()
-                    viewModel.updateState { copy(appState = AppState.LOGIN) }
                 },
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onNavigateToTasteProfile = { viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) } },

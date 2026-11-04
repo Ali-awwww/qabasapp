@@ -2236,18 +2236,9 @@ fun ProfileScreen(
                                     onClick = {
                                         showSwitchAccountDialog = false
                                         coroutineScope.launch {
-                                            val oldUserId = ActiveSessionManager.currentUserId(context)
-                                            if (!oldUserId.isNullOrBlank()) {
-                                                runCatching { ActiveSessionManager.release(context, oldUserId) }
-                                            }
-                                            // End current session and require password authentication for target account
-                                            prefs.edit()
-                                                .remove("is_logged_in")
-                                                .remove("is_admin")
-                                                .remove("is_developer")
-                                                .putString("saved_login_email", otherAcc.email)
-                                                .apply()
-                                            runCatching { SupabaseRepository.getInstance().logout() }
+                                            // Complete release, cloud sign-out, and local cleanup before navigation.
+                                            ActiveSessionManager.endLocalSession(context)
+                                            prefs.edit().putString("saved_login_email", otherAcc.email).apply()
                                             Toast.makeText(context, "يرجى تسجيل الدخول لتأكيد كلمة المرور للحساب: ${otherAcc.email} 🔐", Toast.LENGTH_LONG).show()
                                             onNavigate(AppState.LOGIN)
                                         }
@@ -2286,21 +2277,9 @@ fun ProfileScreen(
                     onClick = {
                         showSwitchAccountDialog = false
                         coroutineScope.launch {
-                            val userId = ActiveSessionManager.currentUserId(context)
-                            if (!userId.isNullOrBlank()) {
-                                runCatching { ActiveSessionManager.release(context, userId) }
-                            }
-                            runCatching { SupabaseServices.Auth.logout() }
+                            ActiveSessionManager.endLocalSession(context)
+                            onNavigate(AppState.LOGIN)
                         }
-                        prefs.edit()
-                            .remove("is_logged_in")
-                            .remove("is_admin")
-                            .remove("is_developer")
-                            .remove("user_email")
-                            .remove("user_name")
-                            .remove("user_id")
-                            .apply()
-                        onNavigate(AppState.LOGIN)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                     shape = RoundedCornerShape(8.dp)
