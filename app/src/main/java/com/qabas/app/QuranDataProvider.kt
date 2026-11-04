@@ -181,6 +181,8 @@ object QuranDataProvider {
                 tafsirMap = mutable
                 text
             }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             Log.w(TAG, "Unable to load Tafsir Muyassar for $key", error)
             null
@@ -299,6 +301,8 @@ object QuranDataProvider {
                 versesMap = parsed.groupBy { it.surah }
                 Log.i(TAG, "Downloaded and cached verified Uthmani text: 114 surahs, 6236 ayahs")
                 true
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.e(TAG, "Unable to download verified Quran dataset: ${e.message}", e)
                 false
