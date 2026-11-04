@@ -749,7 +749,7 @@ fun QuranTajweedScreen(
 
                                     scope.launch {
                                         isAnalyzingVoice = false
-                                        lastTestScore = 0
+                                        lastTestScore = null
                                         testFeedbackList = listOf(
                                             "تم حفظ التسجيل الصوتي (${fileSizeKb} KB)" to true,
                                             "تحليل التجويد الصوتي غير متاح حالياً — حُفظ التسجيل للمراجعة اليدوية" to false
@@ -803,7 +803,7 @@ fun QuranTajweedScreen(
                     }
                     Text(
                         text = tafseer.ifEmpty {
-                            "لا يتوفر تفسير ميسر لهذه الآية في النسخة المدمجة حالياً."
+                            "تعذر جلب التفسير لهذه الآية حالياً. تحقق من الاتصال وحاول مرة أخرى."
                         },
                         fontFamily = NotoSansFont,
                         fontSize = 13.sp,
@@ -1688,12 +1688,12 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
             ) {
                 TextButton(
                     onClick = {
-                        Toast.makeText(context, "🔊 استمع للتطبيق العملي لحكم: ${rule.title}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "لا يتوفر تسجيل صوتي موثّق مرتبط بهذا المثال بعد.", Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Icon(Icons.Default.VolumeUp, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(rule.audioNote, color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("التسجيل غير متاح حالياً", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
             }
         }
