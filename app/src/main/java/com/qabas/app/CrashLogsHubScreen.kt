@@ -331,16 +331,16 @@ fun CrashLogsHubScreen(
     }
 
     // Calculated Health Score
+    // This is only a rough ratio of locally stored crash files to recorded launches.
+    // Do not invent a healthy score when the launch counter is unavailable.
     val healthStabilityRate = remember(crashesList.size, launchCount) {
-        if (launchCount <= 0) {
-            if (crashesList.isEmpty()) 100.0 else 92.0
-        } else {
-            val failureRate = (crashesList.size * 100.0 / launchCount).coerceIn(0.0, 100.0)
-            (100.0 - failureRate).coerceIn(0.0, 100.0)
-        }
+        if (launchCount <= 0) null
+        else (100.0 - (crashesList.size * 100.0 / launchCount).coerceIn(0.0, 100.0))
+            .coerceIn(0.0, 100.0)
     }
 
     val stabilityColor = when {
+        healthStabilityRate == null -> Color(0xFF94A3B8)
         healthStabilityRate >= 95.0 -> HudGreen
         healthStabilityRate >= 80.0 -> HudAmber
         else -> HudPink
@@ -792,7 +792,7 @@ private fun CrashHubTopBar(
 
 @Composable
 private fun SpatialLiveOscilloscopeCard(
-    stabilityRate: Double,
+    stabilityRate: Double?,
     stabilityColor: Color,
     totalCrashes: Int,
     uniqueFamilies: Int,
@@ -800,17 +800,6 @@ private fun SpatialLiveOscilloscopeCard(
     telemetry: SystemLiveTelemetry?,
     onTriggerHeal: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse_osc")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-
     val lastCrashText = if (lastCrashTimestamp > 0L) {
         val diffMins = (System.currentTimeMillis() - lastCrashTimestamp) / 60_000
         when {
@@ -819,7 +808,7 @@ private fun SpatialLiveOscilloscopeCard(
             diffMins < 1440 -> "منذ ${diffMins / 60} س"
             else -> "منذ ${diffMins / 1440} يوم"
         }
-    } else "صفر حوادث ✦"
+    } else "لا توجد سجلات محفوظة"
 
     GlassmorphicSurface(
         modifier = Modifier
@@ -852,7 +841,7 @@ private fun SpatialLiveOscilloscopeCard(
                             .background(stabilityColor)
                     )
                     Text(
-                        "مصفوفة النبض والاستقرار الفضائي",
+                        "مؤشرات النظام والاستقرار",
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -869,7 +858,8 @@ private fun SpatialLiveOscilloscopeCard(
                         border = BorderStroke(0.8.dp, stabilityColor)
                     ) {
                         Text(
-                            "استقرار: ${"%.1f".format(stabilityRate)}%",
+                            if (stabilityRate == null) "الاستقرار: غير متاح"
+                            else "مؤشر تقديري: ${"%.1f".format(stabilityRate)}%",
                             color = stabilityColor,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
@@ -896,42 +886,20 @@ private fun SpatialLiveOscilloscopeCard(
                 }
             }
 
-            // Real-Time Animated ECG Waveform Canvas
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF060A14))
-                    .border(0.8.dp, Color(0xFF1E2D4A), RoundedCornerShape(8.dp))
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val midY = h / 2f
-                    val path = Path()
-
-                    val points = 80
-                    for (i in 0..points) {
-                        val currX = (i / points.toFloat()) * w
-                        val normalX = (i / points.toFloat()) * 4 * Math.PI.toFloat() + phase
-                        val amplitude = if (stabilityRate >= 95.0) {
-                            (h * 0.28f) * sin(normalX)
-                        } else {
-                            (h * 0.42f) * sin(normalX) + if (i % 8 == 0) (h * 0.35f) else 0f
-                        }
-                        val currY = midY + amplitude
-
-                        if (i == 0) path.moveTo(currX, currY)
-                        else path.lineTo(currX, currY)
-                    }
-
-                    drawPath(
-                        path = path,
-                        color = stabilityColor,
-                        style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
+            if (stabilityRate == null) {
+                Text(
+                    "لا تتوفر بيانات إقلاع كافية لحساب مؤشر الاستقرار.",
+                    color = Color(0xFF94A3B8),
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.sp
+                )
+            } else {
+                Text(
+                    "المؤشر تقديري ويقارن سجلات الأعطال المحلية بعدد مرات تشغيل التطبيق.",
+                    color = Color(0xFF94A3B8),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.sp
+                )
             }
 
             // Telemetry Metric Row (scrollable so pills never overlap on narrow screens)
@@ -944,8 +912,8 @@ private fun SpatialLiveOscilloscopeCard(
             ) {
                 TelemetryMetricPill(title = "الأعطال", value = "$totalCrashes", accent = if (totalCrashes > 0) HudPink else HudGreen)
                 TelemetryMetricPill(title = "الفصائل", value = "$uniqueFamilies", accent = HudCyan)
-                TelemetryMetricPill(title = "ذاكرة الهيب", value = "${telemetry?.allocatedHeapMb ?: 0}MB", accent = HudViolet)
-                TelemetryMetricPill(title = "الخيوط الحية", value = "${telemetry?.activeThreadsCount ?: 0}", accent = HudGold)
+                TelemetryMetricPill(title = "ذاكرة الهيب", value = telemetry?.let { "${it.allocatedHeapMb}MB" } ?: "—", accent = HudViolet)
+                TelemetryMetricPill(title = "الخيوط الحية", value = telemetry?.activeThreadsCount?.toString() ?: "—", accent = HudGold)
                 TelemetryMetricPill(title = "آخر حادثة", value = lastCrashText, accent = Color(0xFFA78BFA))
             }
         }
