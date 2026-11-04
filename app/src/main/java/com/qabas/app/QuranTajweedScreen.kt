@@ -1296,7 +1296,7 @@ fun GoldenMushafReaderView(
     val qabasPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     var isTajweedColored by remember { mutableStateOf(true) }
     var isMemorizationMode by remember { mutableStateOf(false) }
-    var isBookmarked by remember { mutableStateOf(qabasPrefs.getBoolean("bookmarked_surah_${surah.id}", false)) }
+    var isBookmarked by remember(surah.id) { mutableStateOf(qabasPrefs.getBoolean("bookmarked_surah_${surah.id}", false)) }
 
     val paperColor = if (isSakinaMode) Color(0xFFFDF4E3) else AgedPaper
     val textColor = if (isSakinaMode) Color(0xFF4A3728) else OldInk
@@ -1308,6 +1308,10 @@ fun GoldenMushafReaderView(
     }
 
     val listState = rememberLazyListState()
+
+    LaunchedEffect(surah.id) {
+        listState.scrollToItem(0)
+    }
 
     LaunchedEffect(surah.id, versesList, highlightVerse) {
         if (highlightVerse > 0) {
