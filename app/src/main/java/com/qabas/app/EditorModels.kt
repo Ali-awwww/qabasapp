@@ -112,7 +112,9 @@ internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
     forward: Boolean
 ): EditorClip? {
-    val clips = projectState.tracks.flatMap { it.clips }
+    val clips = projectState.tracks
+        .filterNot { it.isLocked }
+        .flatMap { it.clips }
     return if (forward) {
         clips.filter {
             it.startOffsetMs > projectState.currentTimeMs ||
