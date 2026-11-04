@@ -128,7 +128,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun quranSurahs(vararg surahIds: Int): String {
         val basmala = QuranDataProvider.getVerseText(1, 1).orEmpty()
-        val surahTexts = surahIds.mapNotNull { id ->
+        val surahTexts = surahIds.toList().mapNotNull { id ->
             QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
                 .takeIf { it.isNotEmpty() }
                 ?.joinToString(" ") { it.verseText }
