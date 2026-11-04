@@ -322,6 +322,7 @@ object WorkspaceAutoSaveManager {
                 cObj.put("volume", clip.volume.toDouble())
                 cObj.put("speed", clip.speed.toDouble())
                 cObj.put("blendMode", clip.blendMode)
+                cObj.put("transitionIn", clip.transitionIn)
 
                 // Keyframes
                 val kfArr = JSONArray()
@@ -394,6 +395,7 @@ object WorkspaceAutoSaveManager {
                                     volume = c.optDouble("volume", 1.0).toFloat(),
                                     speed = c.optDouble("speed", 1.0).toFloat(),
                                     blendMode = c.optString("blendMode", "Normal"),
+                                    transitionIn = c.optString("transitionIn").takeIf { it.isNotBlank() },
                                     keyframes = kfList
                                 )
                             )
