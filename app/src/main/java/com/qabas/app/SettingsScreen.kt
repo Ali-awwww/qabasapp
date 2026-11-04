@@ -2790,8 +2790,8 @@ fun TransitionAnimationsSubScreen(
                             targetState = simulatorStateIndex,
                             transitionSpec = {
                                 AppAnimationManager.createTransitionSpec(
-                                    initialState = if (initialState == 0) AppState.HOME else AppState.QURAN_HUB,
-                                    targetState = if (targetState == 0) AppState.HOME else AppState.QURAN_HUB,
+                                    initialState = if (initialState == 0) AppState.HOME else AppState.HASANAT_HUB,
+                                    targetState = if (targetState == 0) AppState.HOME else AppState.HASANAT_HUB,
                                     reducedMotion = reducedMotion
                                 )
                             },
