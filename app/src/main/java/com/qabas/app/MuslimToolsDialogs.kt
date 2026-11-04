@@ -225,9 +225,11 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 )
                 Button(
                     onClick = {
-                        val d = inputDays.toIntOrNull() ?: 0
+                        val d = (inputDays.toIntOrNull() ?: 0).coerceAtLeast(0)
                         engine.setMissedFastingDays(d)
-                        total = d
+                        total = engine.getMissedFastingDays()
+                        completed = engine.getCompletedFastingDays()
+                        inputDays = total.toString()
                         showEdit = false
                         AppSoundManager.playActivate()
                     },
