@@ -757,16 +757,26 @@ fun QuranTajweedScreen(
                                     val file = recorderHelper.stopRecording()
                                     isAnalyzingVoice = true
 
+                                    val recordingSaved = file?.exists() == true && (file.length() > 0L)
                                     val fileSizeKb = (file?.length() ?: 0L) / 1024
 
                                     scope.launch {
                                         isAnalyzingVoice = false
                                         lastTestScore = null
-                                        testFeedbackList = listOf(
-                                            "تم حفظ التسجيل الصوتي (${fileSizeKb} KB)" to true,
-                                            "تحليل التجويد الصوتي غير متاح حالياً — حُفظ التسجيل للمراجعة اليدوية" to false
-                                        )
-                                        Toast.makeText(context, "تم حفظ التسجيل. تحليل التجويد غير متاح حالياً.", Toast.LENGTH_LONG).show()
+                                        testFeedbackList = if (recordingSaved) {
+                                            listOf(
+                                                "تم حفظ التسجيل الصوتي (${fileSizeKb} KB)" to true,
+                                                "تحليل التجويد الصوتي غير متاح حالياً — راجع التسجيل يدوياً" to false
+                                            )
+                                        } else {
+                                            listOf("لم يُنشأ ملف تسجيل صالح؛ تحقق من إذن الميكروفون وحاول مجدداً." to false)
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            if (recordingSaved) "تم حفظ التسجيل. تحليل التجويد غير متاح حالياً."
+                                            else "تعذر حفظ التسجيل الصوتي.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 }
                             )
