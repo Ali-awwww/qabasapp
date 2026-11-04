@@ -79,7 +79,7 @@ fun HomeScreen(
     onRewards: () -> Unit = {},
     onKnowledgeHub: () -> Unit = {},
     onContentGuard: () -> Unit = {},
-    onQuranHub: () -> Unit = {},
+    onMishkatHub: () -> Unit = {},
     onHadithStudio: () -> Unit = {},
     onVideoStyleCloner: () -> Unit = {},
     onPhotoStudio: () -> Unit = {},
@@ -122,7 +122,7 @@ fun HomeScreen(
             onRewards = onRewards,
             onKnowledgeHub = onKnowledgeHub,
             onContentGuard = onContentGuard,
-            onQuranHub = onQuranHub,
+            onMishkatHub = onMishkatHub,
             onHadithStudio = onHadithStudio,
             onVideoStyleCloner = onVideoStyleCloner,
             onPhotoStudio = onPhotoStudio,
@@ -319,7 +319,7 @@ fun HomeScreen(
                     onVideoStyleCloner = onVideoStyleCloner,
                     onYouTubeStudio = onYouTubeStudio,
                     onViewProjects = onViewProjects,
-                    onQuranHub = onQuranHub,
+                    onMishkatHub = onMishkatHub,
                     onIslamicLibrary = onIslamicLibrary,
                     onAzkar = onAzkar,
                     onScholarBiographies = onScholarBiographies,
@@ -715,7 +715,7 @@ fun HomeScreen(
                                 icon = Icons.Default.Mosque,
                                 accentColor = Color(0xFF10B981),
                                 modifier = Modifier.weight(1f),
-                                onClick = onQuranHub
+                                onClick = onMishkatHub
                             )
                         }
                     }
@@ -921,15 +921,6 @@ fun HomeScreen(
                         1 -> {
                             // Sector 1: Islamic Spiritual Suite
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                SpatialHudCard(
-                                    title = "القرآن الكريم والتجويد 📖",
-                                    subtitle = "المصحف المرتل، أحكام التجويد، وتفسير الآيات",
-                                    badge = "المصحف الشريف",
-                                    badgeColor = Color(0xFF10B981),
-                                    icon = Icons.Default.MenuBook,
-                                    accentColor = Color(0xFF10B981),
-                                    onClick = onQuranHub
-                                )
                                 SpatialHudCard(
                                     title = "استوديو الحديث الشريف 📜",
                                     subtitle = "صحيح البخاري ومسلم وبطاقات 4K مع التخريج المعتمد",
@@ -1484,7 +1475,7 @@ fun QabasNavigationDrawerContent(
     onVideoStyleCloner: () -> Unit,
     onYouTubeStudio: () -> Unit,
     onViewProjects: () -> Unit,
-    onQuranHub: () -> Unit,
+    onMishkatHub: () -> Unit,
     onIslamicLibrary: () -> Unit,
     onAzkar: () -> Unit,
     onScholarBiographies: () -> Unit,
@@ -1744,14 +1735,7 @@ fun QabasNavigationDrawerContent(
                 subtitle = "واحة النور والقرآن والزاد الإيماني",
                 icon = Icons.Default.Mosque,
                 iconTint = GoldPrimary,
-                onClick = { onNavigateTo(onQuranHub) }
-            )
-            QabasDrawerItem(
-                title = "القرآن الكريم والتجويد",
-                subtitle = "المصحف الشريف، أحكام التجويد، والتلاوات الخاشعة",
-                icon = Icons.Default.MenuBook,
-                iconTint = Color(0xFF10B981),
-                onClick = { onNavigateTo(onQuranHub) }
+                onClick = { onNavigateTo(onMishkatHub) }
             )
             QabasDrawerItem(
                 title = "المكتبة الإسلامية",
