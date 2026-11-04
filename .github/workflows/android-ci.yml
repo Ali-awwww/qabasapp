@@ -57,8 +57,14 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "build-tools;36.0.0" "platforms;android-36" || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "platforms;android-36" || true
+            "platform-tools" \
+            "build-tools;36.0.0" \
+            "platforms;android-36" \
+            "cmake;3.22.1" \
+            "ndk;28.2.13676358"
+          test -d "$ANDROID_HOME/cmake/3.22.1"
+          test -d "$ANDROID_HOME/ndk/28.2.13676358"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "platforms;android-36|cmake;3.22.1|ndk;28.2.13676358"
 
       - name: Fix gradle-wrapper.jar
         run: |
@@ -257,6 +263,32 @@ jobs:
             -PappVersionName="$VERSION_NAME" \
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+
+      - name: Verify xdelta JNI is packaged
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_FILE=$(find app/build/outputs/apk/debug -maxdepth 1 -name "*.apk" -print -quit)
+          test -n "$APK_FILE"
+          python3 - "$APK_FILE" <<'PY'
+          import sys
+          import zipfile
+
+          apk = sys.argv[1]
+          expected_abis = {"arm64-v8a", "armeabi-v7a", "x86_64"}
+          with zipfile.ZipFile(apk) as archive:
+              entries = set(archive.namelist())
+          packaged = {
+              abi for abi in expected_abis
+              if f"lib/{abi}/libqabas_xdelta.so" in entries
+          }
+          missing = expected_abis - packaged
+          if missing:
+              raise SystemExit(
+                  "Missing xdelta JNI library for ABI(s): " + ", ".join(sorted(missing))
+              )
+          print("Verified libqabas_xdelta.so in APK for: " + ", ".join(sorted(packaged)))
+          PY
 
       - name: Verify APK Signature
         run: |

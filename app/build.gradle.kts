@@ -10,6 +10,8 @@ plugins {
 android {
   namespace = "com.qabas.app"
   compileSdk = 36
+  // AGP 9.1.1's tested default NDK, pinned for reproducible native builds.
+  ndkVersion = "28.2.13676358"
 
     defaultConfig {
     applicationId = "com.aistudio.qabas.kxmpzq"
@@ -100,6 +102,16 @@ android {
         "lib/x86/libc++_shared.so",
         "lib/x86_64/libc++_shared.so"
       )
+    }
+  }
+
+  // Build qabas_xdelta from app/src/main/cpp and package its JNI library.
+  // Without this block the Kotlin loader cannot find libqabas_xdelta.so
+  // and the app falls back to trying to execute a writable private-dir binary.
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
     }
   }
 }

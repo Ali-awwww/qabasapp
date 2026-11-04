@@ -184,6 +184,7 @@ jobs:
           TARGET_APK: ${{ steps.download-apks.outputs.target_apk }}
           PREV_APK: ${{ steps.download-apks.outputs.prev_apk }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
         run: |
           mkdir -p dist
 
@@ -194,7 +195,8 @@ jobs:
           fi
 
           CLEAN_VERSION="${TARGET_TAG#v}"
-          DELTA_NAME="qabas-${CLEAN_VERSION}.delta"
+          SOURCE_VERSION="${PREV_TAG#v}"
+          DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
           DELTA_PATH="dist/${DELTA_NAME}"
 
           if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
