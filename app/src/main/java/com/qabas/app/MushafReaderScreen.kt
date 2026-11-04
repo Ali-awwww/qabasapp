@@ -97,12 +97,7 @@ fun MushafReaderScreen(
     LaunchedEffect(loadAttempt) {
         loadError = null
         dataReady = false
-        val quranReady = withContext(Dispatchers.IO) {
-            QuranDataProvider.loadFromAssets(context) ||
-                QuranDataProvider.loadFromCache(context)
-        }.let { ready ->
-            if (ready) true else QuranDataProvider.downloadAndCacheFromNetwork(context)
-        }
+        val quranReady = QuranDataProvider.ensureQuranLoaded(context)
         val pageMapReady = withContext(Dispatchers.IO) {
             QuranDataProvider.loadTafsirFromAssets(context)
             MushafPageData.loadPageMap(context)
