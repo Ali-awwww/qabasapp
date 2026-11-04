@@ -103,7 +103,7 @@ fun SupabaseAudioSection(
 
     val allAvailableTracks = remember(cloudTracks) {
         val list = mutableListOf<SupabaseServices.AudioTrackRow>()
-        // 1. إضافة دروس سلسلة عقائد البلاء للشيخ سمير مصطفى
+        // لا نضيف صفحات أرشيف الويب هنا كأنها ملفات MP3 مباشرة؛ روابط المواد الرسمية موجودة في قسم دروس الترجمة.
         list.addAll(SamirMustafaAqaidAlBalaaData.toAudioTrackRows())
         // 2. إضافة التسجيلات السحابية الواردة من Supabase
         cloudTracks.forEach { ct ->
