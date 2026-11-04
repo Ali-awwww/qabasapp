@@ -1685,7 +1685,7 @@ fun TanzilAttributionFooter() {
             },
             text = {
                 Text(
-                    "Tanzil Quran Text\n" +
+                    "Tanzil Quran Text.\n" +
                         "Copyright (C) 2007-2021 Tanzil Project.\n" +
                         "License: Creative Commons Attribution 3.0.\n\n" +
                         "This copy of the Quran text is carefully produced, highly verified and continuously monitored by a group of specialists in Tanzil Project.\n\n" +
