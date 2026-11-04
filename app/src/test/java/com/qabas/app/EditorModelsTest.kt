@@ -188,6 +188,7 @@ class EditorModelsTest {
         assertEquals("نص دعوي", clip.title)
         assertEquals(12000L, clip.startOffsetMs)
         assertEquals(5000L, clip.durationMs)
+        assertEquals(Long.MAX_VALUE, clip.sourceDurationMs)
         assertEquals(clip.id, updated.selectedClipId)
         assertEquals(clip.id, updated.tracks.flatMap { it.clips }.single().id)
     }
@@ -486,5 +487,97 @@ class EditorModelsTest {
         val second = split.single { it.startOffsetMs == 2500L }
         assertEquals(3000L, second.sourceStartMs)
         assertEquals(2500L, second.durationMs)
+    }
+
+    @Test
+    fun newTextClipUsesFiveSecondDefaultAndExtendsTheProjectTimeline() {
+        val state = createBlankEditorProjectState()
+        val updated = addEditorTextClip(state, "عنوان")!!
+        val clip = updated.tracks.single { it.type == TrackType.TEXT }.clips.single()
+
+        assertEquals(5000L, clip.durationMs)
+        assertEquals(5000L, updated.totalDurationMs)
+        assertEquals(Long.MAX_VALUE, clip.sourceDurationMs)
+    }
+
+    @Test
+    fun trimStartCanExtendOnlyIntoAvailableSourceAndTrimEndCannotPassSourceEnd() {
+        val clip = EditorClip(
+            id = "bounded",
+            title = "Bounded",
+            resourceUri = "content://bounded",
+            startOffsetMs = 2000L,
+            durationMs = 3000L,
+            trackIndex = 0,
+            sourceStartMs = 2000L,
+            sourceDurationMs = 10000L,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 2f
+        )
+        val state = EditorProjectState(
+            projectId = "bounded-trim",
+            title = "Bounded",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            isMagneticTimeline = false
+        )
+
+        val extended = trimEditorClipStart(state, clip.id, 0L)!!.tracks.single().clips.single()
+        assertEquals(1000L, extended.startOffsetMs)
+        assertEquals(0L, extended.sourceStartMs)
+        assertEquals(4000L, extended.durationMs)
+
+        val sourceEndClip = clip.copy(
+            id = "source-end",
+            startOffsetMs = 1000L,
+            durationMs = 2000L,
+            sourceStartMs = 4000L,
+            sourceDurationMs = 5000L,
+            speed = 1f
+        )
+        val sourceEndState = state.copy(
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(sourceEndClip)))
+        )
+        val outTrim = trimEditorClipEnd(sourceEndState, sourceEndClip.id, 9000L)!!
+            .tracks.single().clips.single()
+        assertEquals(1000L, outTrim.durationMs)
+        assertEquals(5000L, outTrim.sourceStartMs + outTrim.durationMs)
+    }
+
+    @Test
+    fun speedChangesPreserveSourceRangeAndRespectLockedTracks() {
+        val clip = EditorClip(
+            id = "speed-range",
+            title = "Speed",
+            resourceUri = "content://speed",
+            startOffsetMs = 1000L,
+            durationMs = 8000L,
+            trackIndex = 0,
+            sourceStartMs = 2000L,
+            sourceDurationMs = 10000L,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val state = EditorProjectState(
+            projectId = "speed-range",
+            title = "Speed",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip)))
+        )
+
+        val faster = setEditorClipSpeed(state, clip.id, 2f)!!
+            .tracks.single().clips.single()
+        assertEquals(4000L, faster.durationMs)
+        assertEquals(2f, faster.speed)
+        assertEquals(10000L, faster.sourceStartMs + faster.durationMs * faster.speed)
+
+        val slower = setEditorClipSpeed(state, clip.id, 0.5f)!!
+            .tracks.single().clips.single()
+        assertEquals(16000L, slower.durationMs)
+        assertEquals(10000L, slower.sourceStartMs + slower.durationMs * slower.speed)
+
+        val locked = state.copy(
+            tracks = listOf(state.tracks.single().copy(isLocked = true))
+        )
+        assertNull(setEditorClipSpeed(locked, clip.id, 2f))
     }
 }
