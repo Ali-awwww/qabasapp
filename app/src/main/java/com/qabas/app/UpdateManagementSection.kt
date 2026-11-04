@@ -49,6 +49,7 @@ fun UpdateManagementSection() {
     var isPublishing by remember { mutableStateOf(false) }
     var releases by remember { mutableStateOf<List<UpdateManager.AdminGitHubRelease>>(emptyList()) }
     var history by remember { mutableStateOf<List<ActiveUpdate>>(emptyList()) }
+    var audit by remember { mutableStateOf<List<AppUpdateAudit>>(emptyList()) }
     var activeUpdate by remember { mutableStateOf<ActiveUpdate?>(null) }
     var selectedTag by remember { mutableStateOf<String?>(null) }
     var releaseNotes by remember { mutableStateOf("") }
@@ -67,8 +68,10 @@ fun UpdateManagementSection() {
             val fetchedReleases = UpdateManager.getAdminGitHubReleases(context).getOrThrow()
             val fetchedHistory = SupabaseServices.Database.getAppUpdateHistoryOrThrow()
             val current = SupabaseServices.Database.getLatestActiveUpdateOrThrow()
+            val fetchedAudit = runCatching { SupabaseServices.Database.getAppUpdateAuditOrThrow() }.getOrDefault(emptyList())
             releases = fetchedReleases
             history = fetchedHistory
+            audit = fetchedAudit
             activeUpdate = current
             val nextSelection = fetchedReleases.firstOrNull { it.versionCode > (fetchedHistory.maxOfOrNull { row -> row.versionCode } ?: 0) }
             selectedTag = nextSelection?.tagName
@@ -319,6 +322,29 @@ fun UpdateManagementSection() {
                 }
             }
         }
+        if (audit.isNotEmpty()) {
+            item {
+                Divider(color = Color(0xFF334155))
+                Text("سجل عمليات النشر والتحكم", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            items(audit, key = { "audit-${it.id}" }) { entry ->
+                val actionLabel = when (entry.action) {
+                    "published" -> "نشر إصدار"
+                    "paused" -> "إيقاف التحديث مؤقتاً"
+                    "activated" -> "إعادة تفعيل إصدار"
+                    else -> entry.action
+                }
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(actionLabel, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${entry.actorRole} • ${entry.createdAt} • Build ${entry.newVersionCode ?: entry.oldVersionCode ?: "—"}",
+                        color = Color.LightGray,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
+
         item { Spacer(Modifier.height(28.dp)) }
     }
 }
