@@ -118,6 +118,45 @@ internal fun isEditorTrackIncludedInMix(state: EditorProjectState, track: Editor
     return !track.isMuted && (!hasSoloTrack || track.isSolo)
 }
 
+/**
+ * Adds or replaces scale/opacity keyframes at the playhead on an unlocked visual clip.
+ * Returns null when the clip is missing, locked, outside its active range, or no valid values remain.
+ */
+internal fun addEditorKeyframesAtPlayhead(
+    state: EditorProjectState,
+    clipId: String,
+    values: Map<String, Float>
+): EditorProjectState? {
+    val validValues = values.filter { (property, value) ->
+        (property == "scale" || property == "opacity") && value.isFinite()
+    }
+    if (validValues.isEmpty()) return null
+
+    val targetTrack = state.tracks.firstOrNull { track -> track.clips.any { it.id == clipId } } ?: return null
+    if (targetTrack.isLocked) return null
+
+    val clip = targetTrack.clips.first { it.id == clipId }
+    val relativeTimeMs = state.currentTimeMs - clip.startOffsetMs
+    if (relativeTimeMs < 0L || relativeTimeMs > clip.durationMs) return null
+
+    val additions = validValues.map { (property, rawValue) ->
+        val value = when (property) {
+            "scale" -> rawValue.coerceIn(0.01f, 10f)
+            else -> rawValue.coerceIn(0f, 1f)
+        }
+        EditorKeyframe(relativeTimeMs, property, value)
+    }
+
+    val updatedClip = clip.copy(
+        keyframes = (clip.keyframes.filterNot { existing ->
+            additions.any { it.timeMs == existing.timeMs && it.property == existing.property }
+        } + additions).sortedWith(compareBy<EditorKeyframe> { it.timeMs }.thenBy { it.property })
+    )
+    return updateEditorTrack(state, targetTrack.id) { track ->
+        track.copy(clips = track.clips.map { if (it.id == clipId) updatedClip else it })
+    }
+}
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
