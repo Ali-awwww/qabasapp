@@ -38,7 +38,9 @@ object ScholarEnrichmentData {
             scholar.id in setOf("scholar_3", "scholar_4", "scholar_5", "scholar_6", "scholar_7", "scholar_8") -> ERA_ABBASID
             scholar.id in setOf("scholar_9", "scholar_10") -> ERA_AYYUBID
             scholar.id in setOf("scholar_11", "scholar_12", "scholar_13") -> ERA_MAMLUK
-            scholar.id in setOf("sahabi_20", "sahabi_21") -> ERA_UMAYYAD
+            scholar.id in setOf("sahabi_11", "sahabi_12", "sahabi_15", "sahabi_18", "sahabi_29", "sahabi_36") -> ERA_PROPHETIC
+            scholar.id in setOf("sahabi_6", "sahabi_10", "sahabi_19", "sahabi_20", "sahabi_21", "sahabi_23", "sahabi_24", "sahabi_25", "sahabi_30", "sahabi_38") -> ERA_UMAYYAD
+            scholar.id == "sahabi_32" || scholar.id == "sahabi_39" -> null
             scholar.id.startsWith("sahabi_") -> ERA_RASHIDUN
             else -> ERA_ABBASID
         }
