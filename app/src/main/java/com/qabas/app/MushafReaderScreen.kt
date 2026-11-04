@@ -190,7 +190,6 @@ private fun MushafReaderContent(
     onOpenTafseer: (Int, Int) -> Unit
 ) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = startPage - 1, pageCount = { MushafPageData.PAGE_COUNT })
     var showPicker by remember { mutableStateOf(false) }
@@ -285,25 +284,7 @@ private fun MushafReaderContent(
             onPageNumberClick = { showSheet = true }
         )
 
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "نص القرآن: Tanzil Project · CC BY 3.0",
-                modifier = Modifier.clickable { uriHandler.openUri("https://tanzil.net") },
-                color = Color(0xFF766C58),
-                fontSize = 9.sp,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "توزيع البيانات: Quran JSON · CC BY-SA 4.0",
-                modifier = Modifier.clickable { uriHandler.openUri("https://github.com/risan/quran-json") },
-                color = Color(0xFF766C58),
-                fontSize = 9.sp,
-                textAlign = TextAlign.Center
-            )
-        }
+        TanzilAttributionFooter()
     }
 
     if (showSheet) {
