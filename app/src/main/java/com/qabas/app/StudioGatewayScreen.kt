@@ -333,10 +333,16 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
     var isTestingLeonardo by remember { mutableStateOf(false) }
     var leonardoTestResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
 
-    var higgsfieldKey by remember { mutableStateOf(ApiKeyManager.getHiggsfieldKey(context)) }
+    var higgsfieldKey by remember { mutableStateOf("") }
     var showHiggsfieldKey by remember { mutableStateOf(false) }
     var isTestingHiggsfield by remember { mutableStateOf(false) }
+    var isSavingHiggsfield by remember { mutableStateOf(false) }
+    var isHiggsfieldConfigured by remember { mutableStateOf(false) }
     var higgsfieldTestResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+
+    LaunchedEffect(Unit) {
+        isHiggsfieldConfigured = HiggsfieldVideoService.isConfigured(context)
+    }
 
     val openUrl: (String) -> Unit = { url ->
         try {
@@ -393,7 +399,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                "إدارة مفاتيح الـ API (BYOK)",
+                                "إدارة مفاتيح الـ API",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -442,7 +448,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 fontSize = 12.sp
                             )
                             Text(
-                                "لحماية خصوصيتك ورصيدك، تمنع منصات الذكاء الاصطناعي العالمية أي تطبيق خارجي من استخراج المفاتيح سراً بدون تسجيلك وتفويضك. وفرنا لك أسرع مسار: اضغط «احصل على المفتاح ↗» لفتح صفحة الإنشاء فوراً، ثم اضغط «📋 لصق تلقائي» ليتم التعرف عليه وفحصه في لحظة واحدة.",
+                                "لحماية خصوصيتك ورصيدك، تمنع منصات الذكاء الاصطناعي العالمية أي تطبيق خارجي من استخراج المفاتيح سراً بدون تسجيلك وتفويضك. افتح لوحة المزود من زر «احصل على المفتاح»، ثم الصق المفتاح واحفظه. تُدار مفاتيح Higgsfield داخل خزنة الخادم المشفرة ولا تبقى على الجهاز.",
                                 color = TextSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.5.sp,
@@ -631,7 +637,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
                     backgroundColor = Color(0xFF131D38).copy(alpha = 0.85f),
-                    borderColor = if (higgsfieldKey.isNotBlank()) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                    borderColor = if (higgsfieldKey.isNotBlank() || isHiggsfieldConfigured) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(18.dp)
                 ) {
                     Column(
@@ -665,7 +671,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
 
                             // Direct Deep Link Button
                             OutlinedButton(
-                                onClick = { openUrl("https://cloud.higgsfield.ai") },
+                                onClick = { openUrl("https://open.higgsfield.ai/api-keys") },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.7f)),
@@ -710,11 +716,11 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 onClick = {
                                     coroutineScope.launch {
                                         isTestingHiggsfield = true
-                                        higgsfieldTestResult = HiggsfieldVideoService.testConnection(context, higgsfieldKey)
+                                        higgsfieldTestResult = HiggsfieldVideoService.testConnection(context)
                                         isTestingHiggsfield = false
                                     }
                                 },
-                                enabled = !isTestingHiggsfield && higgsfieldKey.isNotBlank(),
+                                enabled = !isTestingHiggsfield && !isSavingHiggsfield,
                                 modifier = Modifier.weight(1f).height(36.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen.copy(alpha = 0.2f)),
@@ -727,15 +733,25 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     Icon(Icons.Default.Bolt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("⚡ فحص الاتصال", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("⚡ حالة الربط", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
                             }
 
                             // Clear button
-                            if (higgsfieldKey.isNotEmpty()) {
+                            if (higgsfieldKey.isNotEmpty() || isHiggsfieldConfigured) {
                                 IconButton(
                                     onClick = {
-                                        higgsfieldKey = ""
-                                        higgsfieldTestResult = null
+                                        if (higgsfieldKey.isNotEmpty()) {
+                                            higgsfieldKey = ""
+                                            higgsfieldTestResult = null
+                                        } else {
+                                            coroutineScope.launch {
+                                                isSavingHiggsfield = true
+                                                val removed = PlatformGatewayClient.removeProviderKeySuspend("higgsfield")
+                                                isHiggsfieldConfigured = !removed && isHiggsfieldConfigured
+                                                higgsfieldTestResult = (removed to if (removed) "تم حذف المفتاح من الخادم." else "تعذر حذف المفتاح من الخادم.")
+                                                isSavingHiggsfield = false
+                                            }
+                                        }
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
@@ -752,7 +768,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 higgsfieldTestResult = null
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("الصق مفتاح Higgsfield API هنا...", color = textMutedColor, fontSize = 11.sp, fontFamily = CairoFont) },
+                            placeholder = { Text("الصق مفتاح API الكامل من open.higgsfield.ai...", color = textMutedColor, fontSize = 11.sp, fontFamily = CairoFont) },
                             visualTransformation = if (showHiggsfieldKey) VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
                                 IconButton(onClick = { showHiggsfieldKey = !showHiggsfieldKey }) {
@@ -773,7 +789,15 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                             )
                         )
 
-                        // Live Test Feedback
+                        Text(
+                            if (isHiggsfieldConfigured) "المفتاح محفوظ مركزياً على الخادم؛ لا يُعرض أو يُخزّن على هذا الجهاز." else "يُحفظ المفتاح في الخادم المشفر، ولا تُختبر صلاحيته إلا عند أول طلب توليد.",
+                            color = textMutedColor,
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            lineHeight = 15.sp
+                        )
+
+                        // Gateway status feedback (registration only, not a paid provider validation)
                         higgsfieldTestResult?.let { result ->
                             val isOk = result.first
                             Row(
@@ -806,16 +830,29 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
-                        ApiKeyManager.saveLeonardoKey(context, leonardoKey)
-                        ApiKeyManager.saveHiggsfieldKey(context, higgsfieldKey)
-                        Toast.makeText(context, "تم حفظ المفاتيح بنجاح وتفعيل المحركات ✓", Toast.LENGTH_SHORT).show()
-                        onDismiss()
+                        coroutineScope.launch {
+                            isSavingHiggsfield = true
+                            val keyToSave = sanitizeKey(higgsfieldKey)
+                            val higgsfieldSaved = keyToSave.isBlank() || PlatformGatewayClient.saveProviderKeySuspend("higgsfield", keyToSave)
+                            if (higgsfieldSaved) {
+                                ApiKeyManager.saveLeonardoKey(context, leonardoKey)
+                                if (keyToSave.isNotBlank()) isHiggsfieldConfigured = true
+                                higgsfieldKey = ""
+                                Toast.makeText(context, "تم حفظ إعدادات Leonardo ومفتاح Higgsfield على الخادم الآمن ✓", Toast.LENGTH_LONG).show()
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة قبس.", Toast.LENGTH_LONG).show()
+                            }
+                            isSavingHiggsfield = false
+                        }
                     },
+                    enabled = !isSavingHiggsfield,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("حفظ وإغلاق ✓", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (isSavingHiggsfield) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = DeepSlate, strokeWidth = 2.dp)
+                    else Text("حفظ آمن وإغلاق ✓", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 TextButton(
