@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -120,25 +121,46 @@ fun MishkatReminderCard() {
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF17251F)),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            val reminderShape = RoundedCornerShape(18.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF041715),
+                                Color(0xFF0A2927),
+                                Color(0xFF071B25)
+                            )
+                        ),
+                        shape = reminderShape
+                    )
+                    .border(
+                        BorderStroke(1.dp, Color(0xFF36CFC0).copy(alpha = 0.48f)),
+                        shape = reminderShape
+                    )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                        Text("۞", color = Color(0xFFE0BD72), fontSize = 22.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                    }
                     Text(
                         text = published.quoteText
-                            .replace("، ", "،\n")
-                            .replace("محطَّ نحس ", "محطَّ نحس\n"),
-                        color = Color(0xFFF4EAD7),
+                            .replace("، ", "،\\n")
+                            .replace("محطَّ نحس ", "محطَّ نحس\\n"),
+                        color = Color(0xFFF2E8D4),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
                         fontSize = 23.sp,
@@ -148,7 +170,7 @@ fun MishkatReminderCard() {
                     )
                     Text(
                         text = published.attribution,
-                        color = Color(0xFFD6BC83),
+                        color = Color(0xFF79D9CB),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
@@ -158,6 +180,15 @@ fun MishkatReminderCard() {
                             videoUrl = videoUrl,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                        Text("✧", color = Color(0xFFE0BD72), fontSize = 16.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                        Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
                     }
                 }
             }
