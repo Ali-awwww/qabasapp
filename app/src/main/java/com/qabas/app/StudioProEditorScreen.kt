@@ -176,6 +176,7 @@ fun StudioProEditorScreen(
             override fun onPlayerError(error: PlaybackException) {
                 previewPlaybackError = error.message ?: "تعذر تشغيل الوسيط"
                 editorPlayer.pause()
+                projectState = projectState.copy(isPlaying = false)
             }
         }
         editorPlayer.addListener(listener)
@@ -297,7 +298,11 @@ fun StudioProEditorScreen(
                     val playerEnded = audioPlayer.playbackState == Player.STATE_ENDED ||
                         sourceElapsedMs >= (audioClip.durationMs * speed).toLong()
                     if (playerEnded) clipEndMs
-                    else (audioClip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
+                    else if (audioPlayer.playbackState == Player.STATE_IDLE) {
+                        (projectState.currentTimeMs + 33L).coerceAtMost(clipEndMs)
+                    } else {
+                        (audioClip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
+                    }
                 }
                 else -> (projectState.currentTimeMs + 33L).coerceAtMost(projectState.totalDurationMs)
             }
