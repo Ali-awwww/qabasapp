@@ -359,6 +359,6 @@ fun UpdateManagementSection() {
 
 private fun formatUpdateBytes(bytes: Long): String {
     if (bytes <= 0L) return "حجم غير معروف"
-    val mb = bytes / (1024.0 * 1024.0)
+    val mb = bytes / 1_000_000.0
     return String.format(Locale.US, "%.1f MB", mb)
 }
