@@ -172,12 +172,17 @@ private fun MishkatReminderVideoPlayer(
     val context = LocalContext.current
     var fullscreen by remember { mutableStateOf(false) }
     val player = remember(videoUrl) {
+        var cacheRetained = false
         runCatching {
+            VideoCacheService.retainPlayer()
+            cacheRetained = true
             ExoPlayerFactory.createPlayer(context, useCache = true, useAudioFocus = true).apply {
                 setMediaItem(MediaItem.fromUri(videoUrl))
                 prepare()
                 playWhenReady = false
             }
+        }.onFailure {
+            if (cacheRetained) VideoCacheService.releasePlayer()
         }.getOrNull()
     }
 
@@ -190,6 +195,7 @@ private fun MishkatReminderVideoPlayer(
                     activePlayer.clearMediaItems()
                     activePlayer.release()
                 }
+                VideoCacheService.releasePlayer()
             }
         }
     }
