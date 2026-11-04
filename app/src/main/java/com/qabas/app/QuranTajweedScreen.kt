@@ -209,6 +209,8 @@ fun QuranTajweedScreen(
     // Handling Back Button for sub-screens (The identified "Back Point" weak point)
     BackHandler(enabled = isReadingMode || isPageReaderMode || quranSection == 6) {
         if (isReadingMode) {
+            QuranAudioPlayer.stop()
+            isPlayingAudio = false
             isReadingMode = false
             readerTargetVerseNumber = -1
         } else if (isPageReaderMode) {
