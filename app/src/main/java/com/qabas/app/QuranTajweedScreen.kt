@@ -790,7 +790,7 @@ fun QuranTajweedScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("التفسير الميسر وأسرار التلاوة", fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = GoldPrimary, fontSize = 16.sp)
+                    Text("التفسير الميسر — مجمع الملك فهد", fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = GoldPrimary, fontSize = 16.sp)
                 }
             },
             text = {
@@ -820,6 +820,15 @@ fun QuranTajweedScreen(
                         color = TextSecondary,
                         lineHeight = 22.sp
                     )
+                    if (tafseer.isNotBlank()) {
+                        Text(
+                            "المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف، عبر QuranEnc.com",
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.sp,
+                            color = GoldPrimary.copy(alpha = 0.8f),
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -2945,7 +2954,7 @@ fun GoldenTafsirSourcesView(
         }
         item {
             Text(
-                "ملف التفسير الميسر غير مضمّن محلياً حالياً؛ يحاول التطبيق جلب تفسير الآية من خدمة خارجية عند طلبه. بقية التفاسير غير مدمجة بعد.",
+                "التفسير الميسر من إصدارات مجمع الملك فهد لطباعة المصحف الشريف، ويُجلب عند طلب الآية عبر واجهة QuranEnc.com. لا نعرض نصاً بديلاً إذا تعذر المصدر.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
@@ -2975,7 +2984,7 @@ fun GoldenTafsirSourcesView(
                 Text(author, color = OldInk.copy(alpha = 0.6f), fontFamily = NotoSansFont, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    if (isMuyassarAvailable) "جلب عند الطلب عبر الإنترنت — ليس ملفاً محلياً مدمجاً" else "غير متاح حالياً — لم يُدمج نص هذا التفسير",
+                    if (isMuyassarAvailable) "متاح عند الطلب عبر QuranEnc.com" else "غير متاح حالياً",
                     color = ManuscriptGold,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp
