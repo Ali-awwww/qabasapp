@@ -207,6 +207,91 @@ internal fun updateEditorTextClip(
     }
 }
 
+private const val EDITOR_MIN_CLIP_DURATION_MS = 100L
+
+/** Snap a requested timeline position to the nearest other clip edge when magnetic mode is enabled. */
+private fun snapEditorTimelinePosition(
+    state: EditorProjectState,
+    clipId: String,
+    requestedMs: Long,
+    toleranceMs: Long
+): Long {
+    if (!state.isMagneticTimeline || toleranceMs <= 0L) return requestedMs.coerceAtLeast(0L)
+    val boundaries = state.tracks.asSequence()
+        .flatMap { it.clips.asSequence() }
+        .filterNot { it.id == clipId }
+        .flatMap { sequenceOf(it.startOffsetMs, it.startOffsetMs + it.durationMs) }
+        .filter { it >= 0L }
+        .toList()
+    val nearest = boundaries.minByOrNull { kotlin.math.abs(it - requestedMs) }
+    return if (nearest != null && kotlin.math.abs(nearest - requestedMs) <= toleranceMs) nearest else requestedMs.coerceAtLeast(0L)
+}
+
+/** Move a clip horizontally without changing its source duration or track. */
+internal fun moveEditorClip(
+    state: EditorProjectState,
+    clipId: String,
+    requestedStartMs: Long,
+    snapToleranceMs: Long = 120L
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val snappedStart = snapEditorTimelinePosition(state, clipId, requestedStartMs, snapToleranceMs)
+    val updatedClip = clip.copy(startOffsetMs = snappedStart)
+    val updatedTracks = state.tracks.map { current ->
+        if (current.id == track.id) current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it }) else current
+    }
+    return state.copy(
+        tracks = updatedTracks,
+        totalDurationMs = maxOf(state.totalDurationMs, snappedStart + clip.durationMs),
+        selectedClipId = clipId
+    )
+}
+
+/** Trim the leading edge while preserving the clip's original ending time. */
+internal fun trimEditorClipStart(
+    state: EditorProjectState,
+    clipId: String,
+    requestedStartMs: Long,
+    snapToleranceMs: Long = 120L
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val originalEnd = clip.startOffsetMs + clip.durationMs
+    val snappedStart = snapEditorTimelinePosition(state, clipId, requestedStartMs, snapToleranceMs)
+        .coerceIn(0L, (originalEnd - EDITOR_MIN_CLIP_DURATION_MS).coerceAtLeast(0L))
+    val updatedClip = clip.copy(
+        startOffsetMs = snappedStart,
+        durationMs = originalEnd - snappedStart
+    )
+    return updateEditorTrack(state, track.id) { current ->
+        current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
+    }.copy(selectedClipId = clipId)
+}
+
+/** Trim the trailing edge while preserving the clip's start time. */
+internal fun trimEditorClipEnd(
+    state: EditorProjectState,
+    clipId: String,
+    requestedEndMs: Long,
+    snapToleranceMs: Long = 120L
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val snappedEnd = snapEditorTimelinePosition(state, clipId, requestedEndMs, snapToleranceMs)
+        .coerceAtLeast(clip.startOffsetMs + EDITOR_MIN_CLIP_DURATION_MS)
+    val updatedClip = clip.copy(durationMs = snappedEnd - clip.startOffsetMs)
+    return updateEditorTrack(state, track.id) { current ->
+        current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
+    }.copy(
+        totalDurationMs = maxOf(state.totalDurationMs, snappedEnd),
+        selectedClipId = clipId
+    )
+}
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
