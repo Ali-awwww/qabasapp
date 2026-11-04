@@ -97,8 +97,6 @@ data class TajweedRuleItem(
     val title: String,
     val category: String,
     val description: String,
-    val exampleSearchPhrases: String,
-    val audioNote: String
 )
 
 data class QuranVerseDetail(
@@ -234,112 +232,96 @@ fun QuranTajweedScreen(
                 title = "الإظهار الحلقي",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "إخراج النون الساكنة أو التنوين من مخرجها نطقاً صريحاً بدون غنة زائدة إذا تلاها أحد حروف الحلق الستة: (الهمزة، الهاء، العين، الحاء، الغين، الخاء).",
-                exampleSearchPhrases = "﴿ مَنْ آمَنَ ﴾ - ﴿ فَرِيقًا هَدَىٰ ﴾ - ﴿ سَلَامٌ هِيَ حَتَّىٰ مَطْلَعِ الْفَجْرِ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإظهار الحلقي"
             ),
             TajweedRuleItem(
                 title = "الإدغام بغنة",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "دمج النون الساكنة أو التنوين في الحرف التالي إذا كان من حروف كلمة (يَنْمُو) ليصبحا حرفاً واحداً مشدداً مع مد الغنة حركتين.",
-                exampleSearchPhrases = "﴿ فَمَن يَعْمَلْ مِثْقَالَ ذَرَّةٍ ﴾ - ﴿ مِن نِّعْمَةٍ ﴾ - ﴿ هُدًى وَرَحْمَةً ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإدغام بغنة"
             ),
             TajweedRuleItem(
                 title = "الإدغام بغير غنة",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "إدخال النون الساكنة أو التنوين إدخالاً كاملاً في حرفي (اللام والراء) بدون غنة مع تشديد الحرف التالي.",
-                exampleSearchPhrases = "﴿ هُدًى لِّلْمُتَّقِينَ ﴾ - ﴿ مِن رَّبِّهِمْ ﴾ - ﴿ غَفُورٌ رَّحِيمٌ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإدغام بغير غنة"
             ),
             TajweedRuleItem(
                 title = "الإقلاب",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "قلب النون الساكنة أو التنوين ميماً مخفاة بغنة حركتين عند ملاقاة حرف (الباء) مع تلامس خفيف للشفتين دون كز.",
-                exampleSearchPhrases = "﴿ مِن بَعْدِ مَا جَاءَتْهُمُ ﴾ - ﴿ سَمِيعٌ بَصِيرٌ ﴾ - ﴿ كَلَّا لَيُنبَذَنَّ فِي الْحُطَمَةِ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإقلاب"
             ),
             TajweedRuleItem(
                 title = "الإخفاء الحقيقي",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "نطق النون الساكنة أو التنوين بصفة بين الإظهار والإدغام عارية عن التشديد مع بقاء الغنة عند حروف الإخفاء الـ 15 (ص، ذ، ث، ك، ج، ش، ق، س، د، ط، ز، ف، ت، ض، ظ).",
-                exampleSearchPhrases = "﴿ كَأْسًا دِهَاقًا ﴾ - ﴿ مِن شَرِّ مَا خَلَقَ ﴾ - ﴿ وَأَنتُمْ تَعْلَمُونَ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإخفاء الحقيقي"
             ),
             TajweedRuleItem(
                 title = "الإخفاء الشفوي",
                 category = "أحكام الميم الساكنة",
                 description = "إخفاء الميم الساكنة مع الغنة بمقدار حركتين إذا أتى بعدها حرف (الباء) فقط.",
-                exampleSearchPhrases = "﴿ تَرْمِيهِم بِحِجَارَةٍ مِّن سِجِّيلٍ ﴾ - ﴿ وَمَا هُم بِمُؤْمِنِينَ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإخفاء الشفوي"
             ),
             TajweedRuleItem(
                 title = "إدغام المتماثلين الصغير",
                 category = "أحكام الميم الساكنة",
                 description = "إدغام الميم الساكنة في ميم متحركة بعدها لتصبحا ميماً مشددة واحدة مع غنة كاملة حركتين.",
-                exampleSearchPhrases = "﴿ لَهُم مَّا يَشَاءُونَ ﴾ - ﴿ الَّذِي أَطْعَمَهُم مِّن جُوعٍ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإدغام المتماثل"
             ),
             TajweedRuleItem(
                 title = "الإظهار الشفوي",
                 category = "أحكام الميم الساكنة",
                 description = "نطق الميم الساكنة ظاهرة واضحة بدون غنة عند باقي حروف الهجاء الـ 26، وتتأكد الشدة عند حذري الواو والفاء.",
-                exampleSearchPhrases = "﴿ أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ ﴾ - ﴿ عَلَيْهِمْ وَلَا الضَّالِّينَ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للإظهار الشفوي"
             ),
             TajweedRuleItem(
                 title = "الغنة في النون والميم المشددتين",
                 category = "أحكام الشدة والتجويف",
                 description = "وجوب إخراج الغنة من الخيشوم بأكمل درجاتها (حركتان) في النون والميم المشددتين وصلاً ووقفاً.",
-                exampleSearchPhrases = "﴿ إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ ﴾ - ﴿ قُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴾ - ﴿ ثُمَّ كَلَّا سَوْفَ تَعْلَمُونَ ﴾",
                 audioNote = "استمع لتطبيق الغنة المشددة"
             ),
             TajweedRuleItem(
                 title = "مراتب القلقلة",
                 category = "صفات الحروف ومخارجها",
                 description = "اضطراب المخرج عند النطق بحروف (ق، ط، ب، ج، د) ساكنة. كبرى (عند الوقف على حرف مشدد)، وسطى (عند الوقف على ساكن مخفف)، وصغرى (في وسط الكلمة).",
-                exampleSearchPhrases = "﴿ تَبَّتْ يَدَا أَبِي لَهَبٍ وَتَبَّ ﴾ [كبرى] - ﴿ قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴾ [وسطى] - ﴿ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴾ [صغرى]",
                 audioNote = "استمع لمراتب القلقلة النموذجية"
             ),
             TajweedRuleItem(
                 title = "المد المتصل",
                 category = "أحكام المدود",
                 description = "أن يجتمع حرف المد مع همزة بعده في كلمة واحدة، وحكمه واجب بمقدار 4 أو 5 حركات.",
-                exampleSearchPhrases = "﴿ إِذَا جَاءَ نَصْرُ اللَّهِ وَالْفَتْحُ ﴾ - ﴿ وَالسَّمَاءِ وَالطَّارِقِ ﴾ - ﴿ سِيئَتْ وُجُوهُ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للمد المتصل"
             ),
             TajweedRuleItem(
                 title = "المد المنفصل",
                 category = "أحكام المدود",
                 description = "أن يكون حرف المد في آخر الكلمة والهمزة في أول الكلمة التي تليها، وحكمه جائز بمقدار 4 أو 5 حركات (ويمد حركتين في قصر المنفصل).",
-                exampleSearchPhrases = "﴿ إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ ﴾ - ﴿ قُلْ يَا أَيُّهَا الْكَافِرُونَ ﴾ - ﴿ تُوبُوا إِلَى اللَّهِ ﴾",
                 audioNote = "استمع للتلاوة النموذجية للمد المنفصل"
             ),
             TajweedRuleItem(
                 title = "المد اللازم الكلمي والحرفي",
                 category = "أحكام المدود",
                 description = "أن يأتي بعد حرف المد سكون أصلي ثابت وصلاً ووقفاً، ومقداره 6 حركات لازمة قاطعة.",
-                exampleSearchPhrases = "﴿ وَلَا الضَّالِّينَ ﴾ [كلمي مثقل] - ﴿ الْحَاقَّةُ ﴾ [كلمي مثقل] - ﴿ آلْآنَ ﴾ [كلمي مخفف] - ﴿ ق ۚ وَالْقُرْآنِ ﴾ [حرفي]",
                 audioNote = "استمع لتطبيق المد اللازم"
             ),
             TajweedRuleItem(
                 title = "المد العارض للسكون ومد اللين",
                 category = "أحكام المدود",
                 description = "أن يأتي بعد حرف المد أو اللين حرف متحرك سكن بسبب الوقف، ويمد بمقدار 2 أو 4 أو 6 حركات.",
-                exampleSearchPhrases = "﴿ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ ﴾ - ﴿ لِإِيلَافِ قُرَيْشٍ ﴾ - ﴿ وَآمَنَهُم مِّنْ خَوْفٍ ﴾",
                 audioNote = "استمع للمد العارض للسكون ومد اللين"
             ),
             TajweedRuleItem(
                 title = "أحكام الراء تفخيماً وترقيقاً",
                 category = "صفات الحروف ومخارجها",
                 description = "تفخم الراء إذا كانت مفتوحة أو مضمومة أو ساكنة إثر فتح/ضم، وترقق إذا كانت مكسورة أو ساكنة إثر كسر أصلي لازم.",
-                exampleSearchPhrases = "﴿ رَبَّنَا آتِنَا ﴾ [تفخيم] - ﴿ فِرْعَوْنَ ﴾ [ترقيق] - ﴿ إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ ﴾ [تفخيم وصلاً]",
                 audioNote = "استمع لتفخيم وترقيق الراء"
             ),
             TajweedRuleItem(
                 title = "تفخيم وترقيق لام لفظ الجلالة",
                 category = "أحكام لفظ الجلالة",
                 description = "تغلظ وتفخم اللام في اسم الجلالة (اللَّه) إذا سبقت بفتح أو ضم، وترقق إذا سبقت بكسر أصلي أو عارض.",
-                exampleSearchPhrases = "﴿ قُلْ هُوَ اللَّهُ أَحَدٌ ﴾ [تفخيم] - ﴿ شَهِدَ اللَّهُ ﴾ [تفخيم] - ﴿ بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ﴾ [ترقيق]",
                 audioNote = "استمع لتفخيم وترقيق اسم الجلالة"
             )
         )
@@ -1743,26 +1725,9 @@ private fun getAuthenticVersesForSurah(surahId: Int, surahName: String): List<Qu
     return QuranDataProvider.getVersesForSurah(surahId, surahName)
 }
 
-private fun resolveVerifiedTajweedExamples(exampleQueries: String): List<String> {
-    return exampleQueries.split(" - ")
-        .mapNotNull { raw ->
-            val query = raw.substringBefore(" [")
-                .replace("﴿", "")
-                .replace("﴾", "")
-                .trim()
-            if (query.length < 3) null
-            else QuranDataProvider.searchVerses(query, limit = 1).firstOrNull()?.verseText
-        }
-        .distinct()
-}
-
 @Composable
 fun TajweedRuleCard(rule: TajweedRuleItem) {
     val context = LocalContext.current
-    // عبارات المثال مفاتيح بحث فقط؛ النص المعروض يأتي من مصدر القرآن الموثّق.
-    val verifiedExamples = remember(rule.exampleSearchPhrases, QuranDataProvider.getTotalAyahCount()) {
-        resolveVerifiedTajweedExamples(rule.exampleSearchPhrases)
-    }
     Card(
         colors = CardDefaults.cardColors(containerColor = AgedPaper),
         border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.2f)),
@@ -1819,12 +1784,11 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
                     Text("أمثلة تطبيقية من القرآن الكريم:", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = verifiedExamples.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
-                            ?: "لم يُعثر على موضع مطابق في نص المصحف الموثّق لهذا المثال.",
-                        color = OldInk,
-                        fontFamily = AmiriFont,
-                        fontSize = 18.sp,
-                        lineHeight = 28.sp
+                        "سيتم عرض أمثلة هذا الحكم من نص المصحف بعد ربط مواضعها الموثّقة.",
+                        color = OldInk.copy(alpha = 0.7f),
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        lineHeight = 20.sp
                     )
                 }
             }
