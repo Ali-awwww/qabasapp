@@ -29,7 +29,7 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun AppDoctorSection(context: Context) {
+fun AppDoctorSection(context: Context, onNavigateToKeys: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     var isDiagnosing by remember { mutableStateOf(false) }
     var reports by remember { mutableStateOf(AppSelfDoctor.getHistory().take(20)) }
@@ -85,7 +85,7 @@ fun AppDoctorSection(context: Context) {
 
         // Spatial Cybernetic HUD Live Status
         SpatialServiceDiagnosticsHub(
-            onNavigateToKeys = { /* open keys screen */ }
+            onNavigateToKeys = onNavigateToKeys
         )
 
         TabRow(
