@@ -388,7 +388,13 @@ internal fun setEditorClipSpeed(
         .coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
     val newDurationMs = (selectedSourceDurationMs / newSpeed).toLong()
         .coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
-    val updatedClip = clip.copy(speed = newSpeed, durationMs = newDurationMs)
+    val updatedClip = clip.copy(
+        speed = newSpeed,
+        durationMs = newDurationMs,
+        keyframes = clip.keyframes.map { keyframe ->
+            keyframe.copy(timeMs = (keyframe.timeMs * oldSpeed / newSpeed).toLong())
+        }.filter { it.timeMs <= newDurationMs }
+    )
     val updated = updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
     }
