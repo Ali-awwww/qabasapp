@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -41,6 +42,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -125,6 +127,11 @@ fun StudioProEditorScreen(
     val audioPlayers = remember(context) { mutableMapOf<String, ExoPlayer>() }
     
     val scope = rememberCoroutineScope()
+    val timelineHorizontalScroll = rememberScrollState()
+    val timelineContentWidth = maxOf(
+        400.dp,
+        (projectState.totalDurationMs.toFloat() / 10f * projectState.zoomLevel).dp
+    )
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
 
     // 1. Initial check and restore from Room Database if a saved draft exists
@@ -696,73 +703,88 @@ fun StudioProEditorScreen(
                             Icon(Icons.Default.ZoomIn, null, tint = Color.Gray, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 1.2f).coerceAtMost(5f)) })
                         }
                         
+                        Spacer(modifier = Modifier.width(40.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .pointerInput(projectState.zoomLevel) {
-                                    detectTapGestures { offset ->
-                                        val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
-                                        projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
-                                    }
-                                }
+                                .horizontalScroll(timelineHorizontalScroll)
                         ) {
-                            TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel)
+                            Box(
+                                modifier = Modifier
+                                    .width(timelineContentWidth)
+                                    .fillMaxHeight()
+                                    .pointerInput(projectState.zoomLevel) {
+                                        detectTapGestures { offset ->
+                                            val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
+                                            projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
+                                        }
+                                    }
+                            ) {
+                                TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel, Modifier.fillMaxSize())
+                            }
                         }
                         
                         Text(formatTime(projectState.currentTimeMs), color = GoldPrimary, fontSize = 10.sp, modifier = Modifier.padding(end = 12.dp), fontFamily = NotoSansFont)
                     }
                     
-                    // Scrollable Tracks Area
+                    // Scrollable tracks and playhead share the ruler's horizontal position.
                     Box(
-                        modifier = Modifier.fillMaxSize()
-                            .pointerInput(projectState.zoomLevel) {
-                                detectTapGestures { offset ->
-                                    val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
-                                    projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
-                                }
-                            }
+                        modifier = Modifier.fillMaxSize().horizontalScroll(timelineHorizontalScroll)
                     ) {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            projectState.tracks.forEach { track ->
-                                TimelineTrackRow(
-                                    track = track, 
-                                    zoom = projectState.zoomLevel,
-                                    selectedClipId = projectState.selectedClipId,
-                                    onClipClick = { clipId ->
-                                        if (!track.isLocked) projectState = projectState.copy(selectedClipId = clipId)
-                                    },
-                                    onClipDragStarted = { saveToHistory() },
-                                    onClipMove = { clipId, startMs ->
-                                        moveEditorClip(projectState, clipId, startMs)?.let { projectState = it }
-                                    },
-                                    onClipTrimStart = { clipId, startMs ->
-                                        trimEditorClipStart(projectState, clipId, startMs)?.let { projectState = it }
-                                    },
-                                    onClipTrimEnd = { clipId, endMs ->
-                                        trimEditorClipEnd(projectState, clipId, endMs)?.let { projectState = it }
-                                    },
-                                    onTransitionClick = { clipId ->
-                                        if (!track.isLocked) {
-                                            selectedTransitionClipId = clipId
-                                            showTransitionPicker = true
-                                        }
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(100.dp)) // Extra space at bottom
-                        }
-                        
-                        // Current Time Indicator (Scrubber line)
                         Box(
                             modifier = Modifier
+                                .width(timelineContentWidth + 40.dp)
                                 .fillMaxHeight()
-                                .width(2.dp)
-                                .background(GoldPrimary)
-                                .offset(x = (projectState.currentTimeMs.toFloat() / 10f * projectState.zoomLevel).dp)
+                                .pointerInput(projectState.zoomLevel) {
+                                    detectTapGestures { offset ->
+                                        val density = this.density
+                                        val timelineX = (offset.x - 40.dp.toPx()).coerceAtLeast(0f)
+                                        val clickedMs = (timelineX / density / projectState.zoomLevel * 10f).toLong()
+                                        projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
+                                    }
+                                }
                         ) {
-                            // Top Handle
-                            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(GoldPrimary).align(Alignment.TopCenter))
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                projectState.tracks.forEach { track ->
+                                    TimelineTrackRow(
+                                        track = track,
+                                        zoom = projectState.zoomLevel,
+                                        timelineWidth = timelineContentWidth,
+                                        selectedClipId = projectState.selectedClipId,
+                                        onClipClick = { clipId ->
+                                            if (!track.isLocked) projectState = projectState.copy(selectedClipId = clipId)
+                                        },
+                                        onClipDragStarted = { saveToHistory() },
+                                        onClipMove = { clipId, startMs ->
+                                            moveEditorClip(projectState, clipId, startMs)?.let { projectState = it }
+                                        },
+                                        onClipTrimStart = { clipId, startMs ->
+                                            trimEditorClipStart(projectState, clipId, startMs)?.let { projectState = it }
+                                        },
+                                        onClipTrimEnd = { clipId, endMs ->
+                                            trimEditorClipEnd(projectState, clipId, endMs)?.let { projectState = it }
+                                        },
+                                        onTransitionClick = { clipId ->
+                                            if (!track.isLocked) {
+                                                selectedTransitionClipId = clipId
+                                                showTransitionPicker = true
+                                            }
+                                        }
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(100.dp))
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(2.dp)
+                                    .offset(x = 40.dp + (projectState.currentTimeMs.toFloat() / 10f * projectState.zoomLevel).dp)
+                                    .background(GoldPrimary)
+                            ) {
+                                Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(GoldPrimary).align(Alignment.TopCenter))
+                            }
                         }
                     }
                 }
@@ -1190,8 +1212,8 @@ fun StudioProEditorScreen(
 }
 
 @Composable
-fun TimelineRuler(totalMs: Long, zoom: Float) {
-    Canvas(modifier = Modifier.fillMaxWidth().height(24.dp).background(Color(0xFF1E1E1E))) {
+fun TimelineRuler(totalMs: Long, zoom: Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.fillMaxWidth().height(24.dp).background(Color(0xFF1E1E1E))) {
         val step = 1000L // Use Long
         for (i in 0L..totalMs step step) {
             val x = (i.toFloat() / 10f) * zoom
@@ -1207,8 +1229,9 @@ fun TimelineRuler(totalMs: Long, zoom: Float) {
 
 @Composable
 fun TimelineTrackRow(
-    track: EditorTrack, 
+    track: EditorTrack,
     zoom: Float,
+    timelineWidth: Dp = 600.dp,
     selectedClipId: String?,
     onClipClick: (String) -> Unit,
     onClipDragStarted: () -> Unit = {},
@@ -1219,7 +1242,7 @@ fun TimelineTrackRow(
 ) {
     val density = LocalDensity.current.density
     Row(
-        modifier = Modifier.fillMaxWidth().height(48.dp).border(0.5.dp, Color.White.copy(alpha = 0.05f)),
+        modifier = Modifier.width(timelineWidth + 40.dp).height(48.dp).border(0.5.dp, Color.White.copy(alpha = 0.05f)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Track Icon/Label (Layer Info)
@@ -1239,7 +1262,7 @@ fun TimelineTrackRow(
         }
         
         // Track Content Area
-        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F0F))) {
+        Box(modifier = Modifier.width(timelineWidth).fillMaxHeight().background(Color(0xFF0F0F0F))) {
             track.clips.forEach { clip ->
                 key(clip.id) {
                 val isSelected = clip.id == selectedClipId
