@@ -2353,6 +2353,17 @@ fun ReelCommentsBottomSheet(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    c.userCustomId?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }?.let { customId ->
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "@$customId",
+                                            color = Color(0xFF00E5FF).copy(alpha = 0.82f),
+                                            fontFamily = RobotoMonoFont,
+                                            fontSize = 9.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                     if (c.userId == currentUserId) {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
