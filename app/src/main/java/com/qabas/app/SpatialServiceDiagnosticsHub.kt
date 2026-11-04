@@ -531,7 +531,7 @@ fun SpatialServiceDiagnosticsHub(
                     fontSize = 10.sp,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { onNavigateToKeys() }
+                    modifier = Modifier.clickable { onNavigateToKeys?.invoke() }
                 )
             }
         }
