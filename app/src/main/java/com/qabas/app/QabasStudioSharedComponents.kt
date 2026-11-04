@@ -178,7 +178,7 @@ fun TajweedRuleCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(rule.description, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(10.dp))
-            Text("مثال قرآني: ${rule.exampleVerse}", color = TextPrimary, fontFamily = AmiriFont, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("ستُعرض أمثلة هذا الحكم عند ربطها بمواضع موثّقة من المصحف.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
         }
     }
 }
