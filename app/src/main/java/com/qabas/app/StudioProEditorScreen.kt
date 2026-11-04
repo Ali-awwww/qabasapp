@@ -620,7 +620,7 @@ fun StudioProEditorScreen(
                         },
                         enabled = projectState.selectedClipId != null && selectedClipTrack?.isLocked != true
                     )
-                    ToolButton(Icons.Default.Audiotrack, "صوتيات", onClick = {})
+                    ToolButton(Icons.Default.Audiotrack, "صوتيات", onClick = { projectState = projectState.copy(workspaceMode = WorkspaceMode.AUDIO) })
                     ToolButton(Icons.Default.TextFields, "نصوص", onClick = {})
                     ToolButton(Icons.Default.AutoAwesome, "تأثيرات", onClick = {})
                     ToolButton(Icons.Default.Animation, "تحريك", onClick = {})
@@ -669,9 +669,13 @@ fun StudioProEditorScreen(
             onDismissRequest = { projectState = projectState.copy(workspaceMode = WorkspaceMode.EDIT) },
             containerColor = Color(0xFF0F0F0F)
         ) {
-            AudioMixerWorkspace(projectState) { updatedTracks ->
-                projectState = projectState.copy(tracks = updatedTracks)
-            }
+            AudioMixerWorkspace(
+                state = projectState,
+                onTracksUpdated = { updatedTracks ->
+                    projectState = projectState.copy(tracks = updatedTracks)
+                },
+                onEditStarted = { saveToHistory() }
+            )
         }
     }
 
@@ -1163,7 +1167,12 @@ fun ExportWorkspace(onExport: () -> Unit) {
 }
 
 @Composable
-fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<EditorTrack>) -> Unit) {
+fun AudioMixerWorkspace(
+    state: EditorProjectState,
+    onTracksUpdated: (List<EditorTrack>) -> Unit,
+    onEditStarted: () -> Unit = {}
+) {
+    var editingTrackId by remember { mutableStateOf<String?>(null) }
     val audioTracks = state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
 
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
@@ -1193,10 +1202,15 @@ fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<Editor
                     Slider(
                         value = track.volume.coerceIn(0f, 1f),
                         onValueChange = { value ->
+                            if (editingTrackId != track.id) {
+                                onEditStarted()
+                                editingTrackId = track.id
+                            }
                             onTracksUpdated(state.tracks.map {
                                 if (it.id == track.id) it.copy(volume = value.coerceIn(0f, 1f)) else it
                             })
                         },
+                        onValueChangeFinished = { editingTrackId = null },
                         enabled = !track.isMuted,
                         colors = SliderDefaults.colors(
                             thumbColor = GoldPrimary,
@@ -1211,6 +1225,7 @@ fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<Editor
                             color = if (track.isMuted) GoldPrimary else Color.Gray,
                             fontSize = 11.sp,
                             modifier = Modifier.clickable {
+                                onEditStarted()
                                 onTracksUpdated(state.tracks.map {
                                     if (it.id == track.id) it.copy(isMuted = !it.isMuted) else it
                                 })
@@ -1221,6 +1236,7 @@ fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<Editor
                             color = if (track.isSolo) GoldPrimary else Color.Gray,
                             fontSize = 11.sp,
                             modifier = Modifier.clickable {
+                                onEditStarted()
                                 onTracksUpdated(state.tracks.map {
                                     if (it.id == track.id) it.copy(isSolo = !it.isSolo) else it
                                 })
