@@ -88,10 +88,10 @@ fun SpatialServiceDiagnosticsHub(
                 name = "Higgsfield AI Video",
                 category = "الفيديو السينمائي",
                 icon = Icons.Default.MovieFilter,
-                isLive = KeyVault.higgsfield.isNotBlank() && !KeyVault.higgsfield.startsWith("your_", ignoreCase = true),
-                isConfigured = KeyVault.higgsfield.isNotBlank(),
-                fallbackEngine = "محرك المونتاج والرندرة المحلي",
-                providerBadge = "Higgsfield Studio",
+                isLive = false,
+                isConfigured = false,
+                fallbackEngine = "مفتاح مُدار عبر بوابة الخادم ولا يُقرأ محلياً",
+                providerBadge = "Server-managed",
                 accentColor = Color(0xFFFF5252)
             ),
             SpatialServiceStatus(
@@ -227,7 +227,7 @@ fun SpatialServiceDiagnosticsHub(
                 val start = System.nanoTime()
                 val isRealConfigured = when (svc.id) {
                     "gemini" -> KeyVault.gemini.isNotBlank() && !KeyVault.gemini.startsWith("your_", ignoreCase = true)
-                    "higgsfield" -> KeyVault.higgsfield.isNotBlank() && !KeyVault.higgsfield.startsWith("your_", ignoreCase = true)
+                    "higgsfield" -> PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
                     "groq" -> KeyVault.groq.isNotBlank() && !KeyVault.groq.startsWith("your_", ignoreCase = true)
                     "azure" -> KeyVault.azureSpeechKey.isNotBlank() && !KeyVault.azureSpeechKey.startsWith("your_", ignoreCase = true)
                     "flux" -> KeyVault.huggingface.isNotBlank() && !KeyVault.huggingface.startsWith("your_", ignoreCase = true)
@@ -243,6 +243,7 @@ fun SpatialServiceDiagnosticsHub(
                 val checkOk = if (isRealConfigured) {
                     when (svc.id) {
                         "supabase" -> SupabaseServices.isSupabaseAvailable
+                        "higgsfield" -> false // Configuration is known; provider health requires a real generation check.
                         "firebase" -> FirebaseManager.isConfigured(context)
                         "kokoro" -> true
                         else -> {
@@ -255,7 +256,7 @@ fun SpatialServiceDiagnosticsHub(
                         }
                     }
                 } else {
-                    true // local engine available
+                    svc.id != "higgsfield" // No local Higgsfield engine is claimed as a substitute.
                 }
                 val latency = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(12L)
 
