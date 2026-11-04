@@ -136,7 +136,6 @@ fun CrashLogsHubScreen(
     var selectedCategory by remember { mutableStateOf(CrashFilterCategory.ALL) }
     var viewMode by remember { mutableStateOf(SpatialCrashViewMode.STREAM) }
     var selectedCrashDialog by remember { mutableStateOf<CrashLogFile?>(null) }
-    var showTestingMenu by remember { mutableStateOf(false) }
     var showSelfHealingDialog by remember { mutableStateOf(false) }
     var isHealingInProgress by remember { mutableStateOf(false) }
     var healingResultLog by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -232,46 +231,6 @@ fun CrashLogsHubScreen(
                     liveTelemetry = telemetry
                     isRefreshing = false
                 }
-            }
-        }
-    }
-
-    // Safe mock test recording
-    fun recordSafeMockCrash() {
-        coroutineScope.launch(Dispatchers.IO) {
-            val now = Date()
-            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(now)
-            val display = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(now)
-            val dir = File(context.filesDir, "crash_logs").apply { mkdirs() }
-            val mockFile = File(dir, "crash_$stamp.txt")
-
-            val fakeStack = buildString {
-                appendLine("════════════════════════════════════════════")
-                appendLine("Qabas Crash Log — $display")
-                appendLine("Source: safe_simulation")
-                appendLine("Thread: DefaultDispatcher-worker-1")
-                appendLine("Hot path: at com.qabas.app.CrashLogsHubScreen.recordSafeMockCrash(CrashLogsHubScreen.kt:170)")
-                appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
-                appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                appendLine("App version: ${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE})")
-                appendLine("Memory: 418MB free / 1024MB total")
-                appendLine("Foreground: true")
-                appendLine("── Breadcrumbs (آخر الأحداث قبل العطل) ──")
-                appendLine(CrashBreadcrumbs.dump())
-                appendLine("════════════════════════════════════════════")
-                appendLine("java.lang.IllegalStateException: 🧪 [تجربة آمنة] اختبار استجابة حارس الأعطال ومحرك التشخيص الذكي")
-                appendLine("\tat com.qabas.app.CrashLogsHubScreen.recordSafeMockCrash(CrashLogsHubScreen.kt:180)")
-                appendLine("\tat com.qabas.app.QabasCrashGuard.record(QabasCrashGuard.kt:185)")
-                appendLine("\tat kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)")
-            }
-
-            mockFile.writeText(fakeStack)
-            CrashBreadcrumbs.leave("action", "Safe mock crash generated @ $display")
-
-            withContext(Dispatchers.Main) {
-                AppSoundManager.playSuccess()
-                Toast.makeText(context, "تم تسجيل تقرير انهيار تجريبي آمن 🧪", Toast.LENGTH_SHORT).show()
-                reloadCrashes()
             }
         }
     }
@@ -452,7 +411,6 @@ fun CrashLogsHubScreen(
                         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                         exportZipLauncher.launch("qabas_crashes_$stamp.zip")
                     },
-                    onOpenTesting = { showTestingMenu = true },
                     onOpenSelfHealing = { showSelfHealingDialog = true }
                 )
             }
@@ -613,7 +571,6 @@ fun CrashLogsHubScreen(
                                     item {
                                         Box(modifier = Modifier.fillMaxWidth().height(380.dp)) {
                                             EmptyCrashesState(
-                                                onSimulateSafeMock = { recordSafeMockCrash() },
                                                 onRefresh = { reloadCrashes() },
                                                 onTriggerSelfHeal = { showSelfHealingDialog = true }
                                             )
@@ -742,66 +699,6 @@ fun CrashLogsHubScreen(
         )
     }
 
-    // Testing Action Sheet
-    if (showTestingMenu) {
-        AlertDialog(
-            onDismissRequest = { showTestingMenu = false },
-            containerColor = Color(0xFF0F172A),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Science, contentDescription = null, tint = HudCyan, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("مختبر اختبار ملتقط الانهيارات 🧪", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "اختر نوع الاختبار للتحقق من استجابة حارس الأعطال ومحرك التشخيص:",
-                        color = Color(0xFF94A3B8),
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp
-                    )
-
-                    Button(
-                        onClick = {
-                            showTestingMenu = false
-                            recordSafeMockCrash()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = HudCyan.copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, HudCyan),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = HudCyan, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("تسجيل عطل آمن (بدون إيقاف التطبيق) 🛡️", color = HudCyan, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-
-                    Button(
-                        onClick = {
-                            showTestingMenu = false
-                            QabasCrashGuard.simulateCrash(context)
-                            AppSoundManager.playSuccess()
-                            Toast.makeText(context, "تم التقاط الانهيار التجريبي وتسجيله بنفس مسار الإنتاج — التطبيق مستقر ✅", Toast.LENGTH_LONG).show()
-                            reloadCrashes()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = HudPink.copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, HudPink),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.BugReport, contentDescription = null, tint = HudPink, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("محاكاة انهيار (تسجيل كامل بنفس مسار الإنتاج) 🧪", color = HudPink, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTestingMenu = false }) {
-                    Text("إغلاق", color = Color.White, fontFamily = CairoFont)
-                }
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -811,7 +708,6 @@ private fun CrashHubTopBar(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onExportZip: () -> Unit,
-    onOpenTesting: () -> Unit,
     onOpenSelfHealing: () -> Unit
 ) {
     TopAppBar(
@@ -878,9 +774,6 @@ private fun CrashHubTopBar(
         actions = {
             IconButton(onClick = onOpenSelfHealing) {
                 Icon(Icons.Default.Healing, contentDescription = "الإنعاش الذاتي", tint = HudGreen)
-            }
-            IconButton(onClick = onOpenTesting) {
-                Icon(Icons.Default.Science, contentDescription = "مختبر التجارب", tint = HudCyan)
             }
             IconButton(onClick = onExportZip) {
                 Icon(Icons.Default.Archive, contentDescription = "تصدير ZIP", tint = GoldPrimary)
@@ -1572,7 +1465,6 @@ private fun SpatialSelfHealingConsoleCard(
 
 @Composable
 private fun EmptyCrashesState(
-    onSimulateSafeMock: () -> Unit,
     onRefresh: () -> Unit,
     onTriggerSelfHeal: () -> Unit
 ) {
@@ -1607,7 +1499,7 @@ private fun EmptyCrashesState(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            "تعمل كافة وحدات النظام والذكاء الاصطناعي باستقرار تام 100%. يمكنك تجربة محاكاة عطل آمن أو فحص الإنعاش الذاتي.",
+            "لم تُسجّل أعطال في ملفات السجل المحلية. هذا لا يؤكد خلو جميع الوحدات من المشاكل. يمكنك تحديث السجلات أو فتح إجراءات الصيانة.",
             color = Color(0xFF94A3B8),
             fontFamily = CairoFont,
             fontSize = 12.5.sp,
@@ -1617,28 +1509,6 @@ private fun EmptyCrashesState(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onSimulateSafeMock,
-                colors = ButtonDefaults.buttonColors(containerColor = HudCyan.copy(alpha = 0.2f)),
-                border = BorderStroke(1.dp, HudCyan),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.Science, contentDescription = null, tint = HudCyan, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("تسجيل عطل تجريبي 🧪", color = HudCyan, fontFamily = CairoFont, fontSize = 12.sp)
-            }
-
-            Button(
-                onClick = onTriggerSelfHeal,
-                colors = ButtonDefaults.buttonColors(containerColor = HudGreen.copy(alpha = 0.2f)),
-                border = BorderStroke(1.dp, HudGreen),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.Healing, contentDescription = null, tint = HudGreen, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("إنعاش فوري ⚡", color = HudGreen, fontFamily = CairoFont, fontSize = 12.sp)
-            }
         }
     }
 }
