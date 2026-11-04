@@ -1,5 +1,16 @@
 package com.qabas.app
 
+import android.content.Context
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.withLock
+
 data class QuranSurahItem(
     val id: Int,
     val name: String,
@@ -44,16 +55,6 @@ data class QuranVerseDetail(
     val tajweedNotes: String
 )
 
-import android.content.Context
-import android.util.Log
-import org.json.JSONArray
-import org.json.JSONObject
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.sync.withLock
 
 /**
  * RawAyah
