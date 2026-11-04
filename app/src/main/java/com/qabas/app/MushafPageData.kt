@@ -71,7 +71,19 @@ object MushafPageData {
                         juzFirst.add(pair.optInt(0, 1) to pair.optInt(1, 1))
                     }
                 }
-                if (pages.size == PAGE_COUNT) {
+                val allRefs = pages.flatten()
+                val refsAreValid =
+                    pages.size == PAGE_COUNT &&
+                    pages.all { it.isNotEmpty() } &&
+                    allRefs.size == 6236 &&
+                    allRefs.distinct().size == 6236 &&
+                    allRefs.firstOrNull() == (1 to 1) &&
+                    allRefs.lastOrNull() == (114 to 6) &&
+                    allRefs.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
+                    }
+
+                if (refsAreValid) {
                     pageRefs = pages
                     juzFirstRefs = juzFirst
                     val hizbArray = root.optJSONArray("hizbFirstVerse")
