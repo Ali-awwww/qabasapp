@@ -545,13 +545,34 @@ fun QuranTajweedScreen(
                             surah = activeSurah,
                             selectedReciter = selectedReciter,
                             isPlayingAudio = isPlayingAudio,
+                            dataVersion = quranDataVersion,
                             highlightVerse = readerTargetVerseNumber,
                             isSakinaMode = isSakinaMode,
                             onToggleAudio = {
-                                isPlayingAudio = !isPlayingAudio
-                                Toast.makeText(context, "التلاوة الصوتية عبر الإنترنت قيد التجهيز — اختر قارئك من قسم «القراء والروايات»", Toast.LENGTH_SHORT).show()
+                                if (isPlayingAudio) {
+                                    QuranAudioPlayer.stop()
+                                    isPlayingAudio = false
+                                } else {
+                                    val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+                                    val verses = QuranDataProvider.getVersesForSurah(activeSurah.id, activeSurah.name)
+                                    if (reciterId == null || verses.isEmpty()) {
+                                        Toast.makeText(context, "القارئ غير متاح أو لم يكتمل تحميل نص السورة.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val urls = verses.map { verse ->
+                                            QuranAudioService.getAyahAudioUrl(activeSurah.id, verse.verseNumber, reciterId)
+                                        }
+                                        isPlayingAudio = true
+                                        QuranAudioPlayer.playUrls(context, urls) { isPlayingAudio = false }
+                                    }
+                                }
                             },
-                            onSelectReciter = { selectedReciter = it; qabasPrefs.edit().putString("selected_reciter", it).apply() },
+                            onSelectReciter = {
+                                selectedReciter = it
+                                qabasPrefs.edit().putString("selected_reciter", it).apply()
+                                QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
+                                    UserPreferencesManager.setQuranReciter(context, id)
+                                }
+                            },
                             onCloseReader = {
                                 isReadingMode = false
                                 readerTargetVerseNumber = -1
@@ -638,7 +659,13 @@ fun QuranTajweedScreen(
                 }
                 1 -> GoldenQuranRecitersView(
                     selectedReciter = selectedReciter,
-                    onSelectReciter = { selectedReciter = it; qabasPrefs.edit().putString("selected_reciter", it).apply() },
+                    onSelectReciter = {
+                        selectedReciter = it
+                        qabasPrefs.edit().putString("selected_reciter", it).apply()
+                        QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
+                            UserPreferencesManager.setQuranReciter(context, id)
+                        }
+                    },
                     selectedRiwaya = selectedRiwaya,
                     onSelectRiwaya = { selectedRiwaya = it; qabasPrefs.edit().putString("selected_riwaya", it).apply() }
                 )
