@@ -80,7 +80,7 @@ fun SpatialCommandHomeScreen(
     onRewards: () -> Unit = {},
     onKnowledgeHub: () -> Unit = {},
     onContentGuard: () -> Unit = {},
-    onQuranHub: () -> Unit = {},
+    onMishkatHub: () -> Unit = {},
     onHadithStudio: () -> Unit = {},
     onVideoStyleCloner: () -> Unit = {},
     onPhotoStudio: () -> Unit = {},
@@ -295,7 +295,7 @@ fun SpatialCommandHomeScreen(
                     onVideoStyleCloner = onVideoStyleCloner,
                     onYouTubeStudio = onYouTubeStudio,
                     onViewProjects = onViewProjects,
-                    onQuranHub = onQuranHub,
+                    onMishkatHub = onMishkatHub,
                     onIslamicLibrary = onIslamicLibrary,
                     onAzkar = onAzkar,
                     onScholarBiographies = onScholarBiographies,
@@ -431,7 +431,6 @@ fun SpatialCommandHomeScreen(
                         selectedCity = selectedCity,
                         onOpenCitySelector = { showCityDialog = true },
                         onPrayerTimes = onPrayerTimes,
-                        onQuranHub = onQuranHub,
                         onHadithStudio = onHadithStudio,
                         onAzkar = onAzkar,
                         isDeveloper = isDeveloper
@@ -514,7 +513,6 @@ fun SpatialCommandHomeScreen(
                                 isDeveloper = isDeveloper
                             )
                             1 -> SpatialIslamicSuiteSector(
-                                onQuranHub = onQuranHub,
                                 onHadithStudio = onHadithStudio,
                                 onIslamicLibrary = onIslamicLibrary,
                                 onAzkar = onAzkar,
@@ -872,7 +870,7 @@ private fun SpatialSpiritualBeacon(
     selectedCity: CityLocation,
     onOpenCitySelector: () -> Unit,
     onPrayerTimes: () -> Unit,
-    onQuranHub: () -> Unit,
+    onMishkatHub: () -> Unit,
     onHadithStudio: () -> Unit,
     onAzkar: () -> Unit,
     isDeveloper: Boolean = false
@@ -1007,26 +1005,6 @@ private fun SpatialSpiritualBeacon(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    onClick = onQuranHub,
-                    modifier = Modifier.weight(1f),
-                    shape = CutCornerShape(6.dp),
-                    color = primaryColor.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 7.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = primaryColor, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("القرآن", color = primaryColor, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
-                }
-
                 if (isDeveloper) {
                     Surface(
                         onClick = onHadithStudio,
@@ -1664,7 +1642,7 @@ private fun SpatialStudiosSector(
  */
 @Composable
 private fun SpatialIslamicSuiteSector(
-    onQuranHub: () -> Unit,
+    onMishkatHub: () -> Unit,
     onHadithStudio: () -> Unit,
     onIslamicLibrary: () -> Unit,
     onAzkar: () -> Unit,
@@ -1679,31 +1657,16 @@ private fun SpatialIslamicSuiteSector(
             .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        if (isDeveloper) {
             SpatialHubCard(
-                title = "القرآن الكريم والتجويد",
-                subtitle = "المصحف المرتل وتدبر الآيات والتفسير",
-                icon = Icons.Default.MenuBook,
-                badge = "المصحف الشريف",
-                color = Color(0xFF10B981),
-                modifier = Modifier.weight(1f),
-                onClick = onQuranHub
+                title = "استوديو الحديث الشريف",
+                subtitle = "صحيح البخاري ومسلم وبطاقات 4K",
+                icon = Icons.Default.AutoStories,
+                badge = "الأحاديث الصحيحة",
+                color = qabasPrimary(),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onHadithStudio
             )
-
-            if (isDeveloper) {
-                SpatialHubCard(
-                    title = "استوديو الحديث الشريف",
-                    subtitle = "صحيح البخاري ومسلم وبطاقات 4K",
-                    icon = Icons.Default.AutoStories,
-                    badge = "الأحاديث الصحيحة",
-                    color = qabasPrimary(),
-                    modifier = Modifier.weight(1f),
-                    onClick = onHadithStudio
-                )
-            }
         }
 
         Row(
