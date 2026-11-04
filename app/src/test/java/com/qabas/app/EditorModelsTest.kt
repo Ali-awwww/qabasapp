@@ -2,6 +2,7 @@ package com.qabas.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -21,7 +22,7 @@ class EditorModelsTest {
     fun blankEditorProjectHasNoAdjacentClipsToNavigateTo() {
         val state = createBlankEditorProjectState()
 
-        assertEquals(null, findAdjacentEditorClip(state, forward = false))
-        assertEquals(null, findAdjacentEditorClip(state, forward = true))
+        assertNull(findAdjacentEditorClip(state, forward = false))
+        assertNull(findAdjacentEditorClip(state, forward = true))
     }
 }
