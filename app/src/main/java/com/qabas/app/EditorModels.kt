@@ -86,6 +86,13 @@ enum class WorkspaceMode {
     EDIT, COLOR, AUDIO, EXPORT
 }
 
+/** Creates a genuinely empty editor project; media is added only from the user's library. */
+internal fun createBlankEditorProjectState(): EditorProjectState =
+    EditorProjectState(
+        projectId = UUID.randomUUID().toString(),
+        title = "مشروع جديد"
+    )
+
 data class MediaAsset(
     val id: String,
     val title: String,
