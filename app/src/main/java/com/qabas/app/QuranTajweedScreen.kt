@@ -152,10 +152,32 @@ fun QuranTajweedScreen(
         }
     }
 
+    var quranDataReady by remember { mutableStateOf(false) }
+    var quranDataVersion by remember { mutableIntStateOf(QuranDataProvider.getTotalAyahCount()) }
+
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            QuranDataProvider.loadFromAssets(context)
+        val ready = withContext(Dispatchers.IO) {
+            val loaded = QuranDataProvider.loadFromAssets(context) ||
+                QuranDataProvider.loadFromCache(context) ||
+                QuranDataProvider.downloadAndCacheFromNetwork(context)
+            QuranDataProvider.loadTafsirFromAssets(context)
+            loaded
         }
+        quranDataVersion = QuranDataProvider.getTotalAyahCount()
+        quranDataReady = ready && quranDataVersion == 6236
+        if (!quranDataReady) {
+            Toast.makeText(context, "تعذر تحميل النص القرآني الكامل. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(selectedReciter) {
+        QuranAudioService.getReciterIdForArabicName(selectedReciter)?.let { reciterId ->
+            UserPreferencesManager.setQuranReciter(context, reciterId)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { QuranAudioPlayer.stop() }
     }
 
     // المصحف الذهبي Hub: أقسام رئيسية (المصحف / القراء والروايات / التفسير والمصادر / الأذكار / أكاديمية التجويد)
