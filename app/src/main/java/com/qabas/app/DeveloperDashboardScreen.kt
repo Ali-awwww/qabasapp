@@ -77,7 +77,7 @@ enum class DashboardSection {
     ACCOUNT_SETTINGS, MONEY_CENTER, DEV_STUDIO_SIGNATURE,
     STYLE_BRAIN,
     API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, HEALTH_CENTER, CONNECTORS,
-    CRASH_LOGS, DEV_CHAT
+    CRASH_LOGS, DEV_CHAT, MISHKAT_REMINDER
 }
 
 data class DevUser(
@@ -337,6 +337,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onAiModelSwitcher = { currentSection = DashboardSection.AI_MODEL_SWITCHER },
                         onBugReports = { currentSection = DashboardSection.BUG_REPORTS },
                         onDevChat = { currentSection = DashboardSection.DEV_CHAT },
+                        onMishkatReminder = { currentSection = DashboardSection.MISHKAT_REMINDER },
                         userCount = devUsers.size
                     )
                 }
@@ -423,6 +424,12 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         context = context,
                         onBack = { currentSection = DashboardSection.MAIN },
                         onNavigateSection = { currentSection = it }
+                    )
+                }
+
+                DashboardSection.MISHKAT_REMINDER -> {
+                    MishkatReminderManagementScreen(
+                        onBack = { currentSection = DashboardSection.MAIN }
                     )
                 }
             }
@@ -1399,6 +1406,7 @@ fun DashboardMainGrid(
     onSystemIdentityHub: () -> Unit = {},
     onBugReports: () -> Unit = onHealthDiagnosticsHub,
     onDevChat: () -> Unit = onUsersCommunityHub,
+    onMishkatReminder: () -> Unit = onSystemIdentityHub,
     // توافقية كاملة مع الروابط السابقة
     onLiveKeyHub: () -> Unit = onCloudApiHub,
     onAiModelSwitcher: () -> Unit = onCloudApiHub,
@@ -1539,11 +1547,21 @@ fun DashboardMainGrid(
             icon = Icons.Default.AdminPanelSettings,
             accent = Rose,
             onClick = onSystemIdentityHub
+        ),
+        CommandHubCardData(
+            id = 7,
+            title = "إدارة تذكّر في المشكاة",
+            subtitle = "تعديل العبارة ونسبتها • رفع الفيديو • التحكم بالنشر السحابي",
+            badge = "محتوى إيماني سحابي",
+            techTag = "// MISHKAT REMINDER CMS",
+            icon = Icons.Default.Lightbulb,
+            accent = Color(0xFFD6BC83),
+            onClick = onMishkatReminder
         )
     )
 
     val filteredHubs = remember(selectedFilterIndex) {
-        if (selectedFilterIndex == 0) allHubs else allHubs.filter { it.id == selectedFilterIndex }
+        if (selectedFilterIndex == 0) allHubs else allHubs.filter { it.id == selectedFilterIndex + 1 }
     }
 
     val filterCategories = listOf(
@@ -1552,7 +1570,8 @@ fun DashboardMainGrid(
         "🩺 الصحة والتشخيص",
         "👥 المستخدمون",
         "💰 الأعمال والطلبات",
-        "⚙️ نظام المطور"
+        "⚙️ نظام المطور",
+        "💡 تذكّر في المشكاة"
     )
 
     Column(
@@ -1669,6 +1688,7 @@ fun DashboardMainGrid(
                             3 -> Green
                             4 -> Amber
                             5 -> Rose
+                            6 -> Color(0xFFD6BC83)
                             else -> GoldPrimary
                         }
                         Surface(
