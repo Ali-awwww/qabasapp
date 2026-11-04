@@ -829,7 +829,7 @@ object DownloadsHubManager {
                         localApkPath = existingApk.absolutePath
                     )
                     UpdateDownloadService.notifyInstallReady(
-                        context, update.versionName, update.versionCode, update.apkSize
+                        context, update.versionName, update.versionCode, update.apkSize, update.apkSha256
                     )
                 } else {
                     _appUpdateDownload.value = AppUpdateDownloadItem(
