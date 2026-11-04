@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -355,7 +356,8 @@ object UpdateManager {
         val builtAt: String? = null,
         val sourceBranch: String? = null,
         val workflowRunUrl: String? = null,
-        val releaseUrl: String? = null
+        val releaseUrl: String? = null,
+        val apkSha256: String? = null
     ) {
         /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
         val deltaUsable: Boolean
@@ -470,8 +472,9 @@ object UpdateManager {
                     apkSize = active.fileSizeBytes,
                     xdeltaUrls = emptyMap(),
                     isForce = active.isMandatory,
-                    checksum = active.sha256Hash?.takeIf { it.isNotBlank() },
-                    releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() }
+                    checksum = null,
+                    releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
+                    apkSha256 = active.sha256Hash?.takeIf { it.isNotBlank() }
                 )
             } catch (e: Exception) {
                 // Fail closed: never bypass an unavailable control plane by selecting
@@ -762,8 +765,9 @@ object UpdateManager {
                         apkSize = update.fileSizeBytes,
                         xdeltaUrls = emptyMap(),
                         isForce = update.isMandatory,
-                        checksum = update.sha256Hash?.takeIf { it.isNotBlank() },
-                        releaseUrl = update.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() }
+                        checksum = null,
+                        releaseUrl = update.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
+                        apkSha256 = update.sha256Hash?.takeIf { it.isNotBlank() }
                     )
                 }
             }.onFailure { Log.e(TAG, "getUpdateHistory from Supabase failed: ${it.message}") }
@@ -1070,7 +1074,7 @@ object UpdateManager {
                     Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
                     val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
-                        if (isApkValid(context, patched, update.versionCode)) {
+                        if (isApkValid(context, patched, update.versionCode) && isSha256Valid(patched, update.apkSha256)) {
                             withContext(Dispatchers.Main) {
                                 if (appInForeground) {
                                     // المقدمة: سجّل النسخة ثم افتح المثبّت. تُستهلك
@@ -1115,8 +1119,9 @@ object UpdateManager {
                 if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000) {
                     // الحجم الكلي معروف من الريليز — تطابق تام يضمن اكتمال التنزيل
                     val sizeMatches = update.apkSize <= 0L || apkFile.length() == update.apkSize
-                    if (!sizeMatches || !isApkValid(context, apkFile, update.versionCode)) {
-                        Log.e(TAG, "❌ Downloaded APK failed validation (size=${apkFile.length()}, expected=${update.apkSize})")
+                    val digestMatches = isSha256Valid(apkFile, update.apkSha256)
+                    if (!sizeMatches || !digestMatches || !isApkValid(context, apkFile, update.versionCode)) {
+                        Log.e(TAG, "❌ Downloaded APK failed validation (size=${apkFile.length()}, expected=${update.apkSize}, sha256=$digestMatches)")
                         runCatching { apkFile.delete() }
                         withContext(Dispatchers.Main) { emitDone(false, "الحزمة المنزّلة غير سليمة — أعد المحاولة") }
                     } else {
@@ -1654,6 +1659,26 @@ object UpdateManager {
         }
     }
 
+    /** SHA-256 integrity check for downloaded APK assets. Empty hashes mean no digest was published. */
+    fun isSha256Valid(file: File, expectedSha256: String?): Boolean {
+        if (expectedSha256.isNullOrBlank()) return true
+        return runCatching {
+            val expected = expectedSha256.trim().removePrefix("sha256:").lowercase()
+            if (!expected.matches(Regex("[0-9a-f]{64}"))) return@runCatching false
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            val actual = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+            actual.equals(expected, ignoreCase = true)
+        }.getOrDefault(false)
+    }
+
     /**
      * الحزمة المنزّلة لإصدار محدد إن كانت سليمة ومطابقة — وتُحذف تلقائياً إن كانت تالفة.
      * يتحقق من كل مرشح على حدة: المُرقّعة أولاً ثم الكاملة، حتى لا تحجب
@@ -1664,20 +1689,21 @@ object UpdateManager {
         context: Context,
         versionName: String,
         versionCode: Int,
-        expectedSize: Long = 0L
+        expectedSize: Long = 0L,
+        expectedSha256: String? = null
     ): File? {
         val updatesDir = File(context.cacheDir, "updates")
         val patched = File(updatesDir, "qabas-$versionName-$versionCode-patched.apk")
         if (patched.exists() && patched.length() > 1_000_000) {
             val sizeOk = expectedSize <= 0L || patched.length() == expectedSize
-            if (sizeOk && isApkValid(context, patched, versionCode)) return patched
+            if (sizeOk && isSha256Valid(patched, expectedSha256) && isApkValid(context, patched, versionCode)) return patched
             Log.w(TAG, "⚠️ Patched APK failed validation — deleting: ${patched.name}")
             runCatching { patched.delete() }
         }
         val full = File(updatesDir, "qabas-$versionName-$versionCode.apk")
         if (full.exists() && full.length() > 1_000_000) {
             val sizeOk = expectedSize <= 0L || full.length() == expectedSize
-            if (sizeOk && isApkValid(context, full, versionCode)) return full
+            if (sizeOk && isSha256Valid(full, expectedSha256) && isApkValid(context, full, versionCode)) return full
             Log.w(TAG, "⚠️ Downloaded APK failed validation — deleting: ${full.name}")
             runCatching { full.delete() }
         }
