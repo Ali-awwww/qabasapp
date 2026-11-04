@@ -314,12 +314,16 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                 errorMessage = null
                 try {
                     val uploadedUrl = withContext(Dispatchers.IO) {
-                        val mimeType = context.contentResolver.getType(uri)?.lowercase()
+                        val mimeType = when (context.contentResolver.getType(uri)?.lowercase()) {
+                            "video/mp4" -> "video/mp4"
+                            "video/quicktime" -> "video/quicktime"
+                            "video/webm" -> "video/webm"
+                            else -> throw IOException("صيغة الفيديو غير مدعومة. استخدم MP4 أو MOV أو WEBM.")
+                        }
                         val extension = when (mimeType) {
                             "video/mp4" -> "mp4"
                             "video/quicktime" -> "mov"
-                            "video/webm" -> "webm"
-                            else -> throw IOException("صيغة الفيديو غير مدعومة. استخدم MP4 أو MOV أو WEBM.")
+                            else -> "webm"
                         }
                         val temporaryFile = File(
                             context.cacheDir,
