@@ -1179,9 +1179,9 @@ private fun MushafAyahActionSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val surahName = remember(surahId) { QuranDataProvider.surahNameOf(surahId) }
     val verseText = remember(surahId, ayah) { QuranDataProvider.getVerseText(surahId, ayah) ?: "" }
-    var tafsirText by remember { mutableStateOf<String?>(QuranDataProvider.getTafsirForVerse(surahId, ayah)) }
-    var tafsirLoadFailed by remember { mutableStateOf(false) }
-    var isPlayingSingleAyah by remember { mutableStateOf(false) }
+    var tafsirText by remember(surahId, ayah) { mutableStateOf<String?>(QuranDataProvider.getTafsirForVerse(surahId, ayah)) }
+    var tafsirLoadFailed by remember(surahId, ayah) { mutableStateOf(false) }
+    var isPlayingSingleAyah by remember(surahId, ayah) { mutableStateOf(false) }
 
     LaunchedEffect(surahId, ayah) {
         if (tafsirText.isNullOrBlank()) {
