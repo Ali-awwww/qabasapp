@@ -901,7 +901,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                         // Spatial HUD Live Diagnostics & Auto-Healing
                         item {
                             SpatialServiceDiagnosticsHub(
-                                onNavigateToKeys = { /* already here */ }
+                                onNavigateToKeys = null
                             )
                         }
 
