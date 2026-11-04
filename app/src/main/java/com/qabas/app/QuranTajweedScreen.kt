@@ -2342,10 +2342,7 @@ fun QuranRecitationRecordingView(
         label = "micPulseRadius"
     )
 
-    val wave1 by infiniteTransition.animateFloat(initialValue = 12f, targetValue = 38f, animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse), label = "w1")
-    val wave2 by infiniteTransition.animateFloat(initialValue = 28f, targetValue = 10f, animationSpec = infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "w2")
-    val wave3 by infiniteTransition.animateFloat(initialValue = 15f, targetValue = 42f, animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse), label = "w3")
-    val wave4 by infiniteTransition.animateFloat(initialValue = 35f, targetValue = 18f, animationSpec = infiniteRepeatable(tween(480), RepeatMode.Reverse), label = "w4")
+
 
     // النص المعروض يأتي من بيانات القرآن المحمّلة، ولا تُكتب آيات يدوياً.
     val sampleVerseWords = remember(activeSurahId, activeSurahName) {
