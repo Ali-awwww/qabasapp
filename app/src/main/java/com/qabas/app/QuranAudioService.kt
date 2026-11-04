@@ -58,6 +58,20 @@ object QuranAudioService {
         return availableReciters.find { it.id == id } ?: availableReciters.first()
     }
 
+    /**
+     * يربط الاسم العربي الظاهر في واجهة القراء بمفتاح صوتي موجود فعلاً.
+     * لا نُنشئ رابطاً لقارئ غير مدعوم في قائمة EveryAyah.
+     */
+    fun getReciterIdForArabicName(name: String): String? = when {
+        name.contains("الحصري") -> "husary"
+        name.contains("المنشاوي") -> "minshawy"
+        name.contains("عبد الباسط") -> "abdulbasit"
+        name.contains("الماهر المعيقلي") || name.contains("ماهر المعيقلي") -> "muaiqly"
+        name.contains("مشاري") -> "alafasy"
+        name.contains("سعد الغامدي") -> "ghamadi"
+        else -> null
+    }
+
     fun isConfigured(): Boolean {
         val id = buildConfigKey("QF_CLIENT_ID")
         val secret = buildConfigKey("QF_CLIENT_SECRET")
