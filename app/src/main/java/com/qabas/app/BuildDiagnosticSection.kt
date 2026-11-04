@@ -101,13 +101,15 @@ fun BuildDiagnosticSection() {
         } else {
             item {
                 githubInfo?.let { info ->
-                    val isMatch = info.tagName.contains(currentVersionName)
+                    val githubVersionCode = UpdateManager.parseReleaseVersionCode(info.tagName)
+                    val approvedVersionCode = supabaseInfo?.versionCode ?: 0
+                    val isAwaitingApproval = githubVersionCode > approvedVersionCode
                     BuildInfoCard(
-                        title = "GitHub (Latest Release)",
+                        title = "GitHub (إصدار منشور غير معتمد تلقائياً)",
                         versionName = info.tagName,
-                        versionCode = UpdateManager.parseReleaseVersionCode(info.tagName),
-                        status = if (info.isNewerThanCurrent) "يوجد تحديث أحدث 🚀" else if (isMatch) "مطابق للنسخة الحالية ✅" else "نسخة قديمة أو مختلفة ⚠️",
-                        statusColor = if (info.isNewerThanCurrent) Color(0xFFF59E0B) else if (isMatch) Color(0xFF10B981) else Color.Red,
+                        versionCode = githubVersionCode,
+                        status = if (isAwaitingApproval) "متاح للاعتماد يدوياً" else "لا يتجاوز الإصدار المعتمد",
+                        statusColor = if (isAwaitingApproval) Color(0xFFF59E0B) else Color(0xFF10B981),
                         detail = "نُشر في: ${info.publishedAt}"
                     )
                 } ?: Text("تعذر جلب بيانات GitHub", color = Color.Red, fontSize = 12.sp)
@@ -121,7 +123,7 @@ fun BuildDiagnosticSection() {
                         title = "Supabase (Active Update)",
                         versionName = info.versionName,
                         versionCode = info.versionCode,
-                        status = if (isNewer) "تحديث متوفر في المتجر 📥" else if (isMatch) "مطابقة تماماً ✅" else "نسخة سحابية أقدم 🔙",
+                        status = if (isNewer) "الإصدار الذي سيصل للمستخدمين 📥" else if (isMatch) "مطابقة تماماً ✅" else "إصدار معتمد أقدم من المثبت 🔙",
                         statusColor = if (isNewer) Color(0xFFF59E0B) else if (isMatch) Color(0xFF10B981) else Color.Gray,
                         detail = "ملاحظات: ${info.releaseNotes.take(50)}..."
                     )
