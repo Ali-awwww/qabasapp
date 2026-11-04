@@ -822,7 +822,7 @@ fun QuranTajweedScreen(
                         color = TextSecondary,
                         lineHeight = 22.sp
                     )
-                    if (tafseer.isNotBlank()) {
+                    if (tafseer.isNotBlank() && !tafseer.startsWith("جارٍ")) {
                         Text(
                             "المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف، عبر QuranEnc.com",
                             fontFamily = NotoSansFont,
