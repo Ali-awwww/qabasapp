@@ -1262,6 +1262,7 @@ fun GoldenMushafReaderView(
     surah: QuranSurahItem,
     selectedReciter: String,
     isPlayingAudio: Boolean,
+    dataVersion: Int = 0,
     onToggleAudio: () -> Unit,
     onSelectReciter: (String) -> Unit,
     onCloseReader: () -> Unit,
@@ -1272,6 +1273,8 @@ fun GoldenMushafReaderView(
     onShowTadabbur: (QuranVerseDetail) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val readerScope = rememberCoroutineScope()
+    var playingAyah by remember(surah.id) { mutableIntStateOf(-1) }
     val qabasPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     var isTajweedColored by remember { mutableStateOf(true) }
     var isMemorizationMode by remember { mutableStateOf(false) }
@@ -1282,9 +1285,7 @@ fun GoldenMushafReaderView(
     val goldColor = if (isSakinaMode) Color(0xFFB8860B) else ManuscriptGold
 
     // Expanded Authentic Quran Verses for the Surah
-    val versesList = remember(surah.id) {
-        QuranDataProvider.loadFromAssets(context)
-        QuranDataProvider.loadTafsirFromAssets(context)
+    val versesList = remember(surah.id, dataVersion) {
         getAuthenticVersesForSurah(surah.id, surah.name)
     }
 
@@ -1437,7 +1438,7 @@ fun GoldenMushafReaderView(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "النص غير متوفر حالياً (جاري تجهيز نص هذه السورة بالرسم العثماني الموثوق).",
+                            text = if (dataVersion < 6236) "جارٍ تحميل النص القرآني الموثوق. أعد المحاولة بعد اكتمال الاتصال." else "لم يُعثر على آيات هذه السورة في البيانات المحمّلة؛ لم نعرض نصاً بديلاً.",
                             color = OldInk.copy(alpha = 0.7f),
                             fontFamily = NotoSansFont,
                             fontSize = 13.sp,
