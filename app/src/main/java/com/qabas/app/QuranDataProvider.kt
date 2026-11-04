@@ -133,6 +133,105 @@ object QuranDataProvider {
     }
 
     /**
+     * تحميل نسخة عثمانية جاهزة من Tanzil عبر حزمة quran-json.
+     * لا يُنشأ نص قرآني هنا: كل نص آية يُنقل كما ورد في JSON المصدر.
+     * تُحفظ النسخة محلياً بعد اكتمال التحقق لتعمل القراءة لاحقاً دون اتصال.
+     */
+    suspend fun downloadAndCacheFromNetwork(context: Context): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val downloadedSurahs = JSONArray()
+                var totalAyahs = 0
+                var sourceNotice = ""
+
+                for (surahNumber in 1..114) {
+                    val url = "https://quran-json.risanb.com/text/uthmani/chapters/$surahNumber.json"
+                    val request = okhttp3.Request.Builder().url(url).get().build()
+                    val responseText = client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) throw java.io.IOException("HTTP ${response.code} for surah $surahNumber")
+                        response.body?.string() ?: throw java.io.IOException("Empty response for surah $surahNumber")
+                    }
+                    val chapter = JSONObject(responseText)
+                    if (chapter.optInt("id", -1) != surahNumber) {
+                        throw java.io.IOException("Unexpected surah identifier: $surahNumber")
+                    }
+                    val verses = chapter.optJSONArray("verses")
+                        ?: throw java.io.IOException("Missing verses for surah $surahNumber")
+                    if (verses.length() == 0) throw java.io.IOException("No verses for surah $surahNumber")
+
+                    for (index in 0 until verses.length()) {
+                        val verse = verses.optJSONObject(index)
+                            ?: throw java.io.IOException("Invalid verse object at $surahNumber:${index + 1}")
+                        if (verse.optInt("id", -1) != index + 1 || verse.optString("text").isBlank()) {
+                            throw java.io.IOException("Invalid verse sequence at $surahNumber:${index + 1}")
+                        }
+                    }
+
+                    if (sourceNotice.isBlank()) sourceNotice = chapter.optString("notice")
+                    // نحافظ على كائنات الآيات ونصوصها كما وصلت من المصدر.
+                    downloadedSurahs.put(
+                        JSONObject()
+                            .put("id", surahNumber)
+                            .put("verses", verses)
+                    )
+                    totalAyahs += verses.length()
+                }
+
+                if (downloadedSurahs.length() != 114 || totalAyahs != 6236) {
+                    throw java.io.IOException("Quran dataset validation failed: ${downloadedSurahs.length()} surahs, $totalAyahs ayahs")
+                }
+
+                val cachedDocument = JSONObject()
+                    .put("sourceNotice", sourceNotice)
+                    .put("surahs", downloadedSurahs)
+                val parsed = parseQuranJson(cachedDocument.toString())
+                val parsedCount = parsed.size
+                if (parsedCount != 6236 || parsed.map { it.surah }.distinct().size != 114) {
+                    throw java.io.IOException("Parsed Quran validation failed: $parsedCount ayahs")
+                }
+
+                val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
+                val temporaryFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.tmp")
+                temporaryFile.writeText(cachedDocument.toString(), Charsets.UTF_8)
+                if (!temporaryFile.renameTo(cacheFile)) {
+                    temporaryFile.copyTo(cacheFile, overwrite = true)
+                    temporaryFile.delete()
+                }
+
+                versesMap = parsed.groupBy { it.surah }
+                Log.i(TAG, "Downloaded and cached verified Uthmani text: 114 surahs, 6236 ayahs")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Unable to download verified Quran dataset: ${e.message}", e)
+                false
+            }
+        }
+
+    /** تحميل النسخة التي سبق تنزيلها والتحقق من اكتمالها قبل استخدامها. */
+    fun loadFromCache(context: Context): Boolean {
+        if (versesMap?.values?.sumOf { it.size } == 6236) return true
+        return try {
+            val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
+            if (!cacheFile.isFile || cacheFile.length() == 0L) return false
+            val parsed = parseQuranJson(cacheFile.readText(Charsets.UTF_8))
+            if (parsed.size != 6236 || parsed.map { it.surah }.distinct().size != 114) {
+                Log.w(TAG, "Cached Quran dataset failed validation")
+                return false
+            }
+            versesMap = parsed.groupBy { it.surah }
+            Log.i(TAG, "Loaded verified Uthmani text from local cache")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load Quran cache: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * دالة تحميل آمنة من assets للقرآن الكريم كاملاً بالرسم العثماني.
      * تفحص المسارات المحتملة: "quran/uthmani.json" ثم "quran/quran.json"
      */
