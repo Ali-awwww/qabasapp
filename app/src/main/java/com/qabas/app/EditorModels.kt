@@ -61,7 +61,10 @@ data class EditorTrack(
     val name: String,
     val clips: List<EditorClip> = emptyList(),
     val isMuted: Boolean = false,
-    val isLocked: Boolean = false
+    val isLocked: Boolean = false,
+    val isVisible: Boolean = true,
+    val volume: Float = 1.0f,
+    val isSolo: Boolean = false
 )
 
 data class EditorProjectState(
