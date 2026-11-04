@@ -66,8 +66,12 @@ fun StudioProEditorScreen(
     var showAdjustPanel by remember { mutableStateOf(false) }
     var showTransitionPicker by remember { mutableStateOf(false) }
     var showAiMagicPanel by remember { mutableStateOf(false) }
+    var showTextEditor by remember { mutableStateOf(false) }
+    var textDraft by remember { mutableStateOf("") }
+    var editingTextClipId by remember { mutableStateOf<String?>(null) }
     var selectedTransitionClipId by remember { mutableStateOf<String?>(null) }
     val selectedClipTrack = projectState.tracks.firstOrNull { track -> track.clips.any { it.id == projectState.selectedClipId } }
+    val selectedEditorClip = selectedClipTrack?.clips?.firstOrNull { it.id == projectState.selectedClipId }
     
     val scope = rememberCoroutineScope()
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
@@ -207,17 +211,6 @@ fun StudioProEditorScreen(
                         )
                     }
                     
-                    IconButton(onClick = { 
-                        projectState = projectState.copy(isSmartCaptionsEnabled = !projectState.isSmartCaptionsEnabled)
-                        Toast.makeText(context, if (projectState.isSmartCaptionsEnabled) "تم تفعيل الكابشنز الذكية ✨" else "تم إيقاف الكابشنز الذكية", Toast.LENGTH_SHORT).show()
-                    }) { 
-                        Icon(
-                            Icons.Default.TextFields, 
-                            null, 
-                            tint = if (projectState.isSmartCaptionsEnabled) GoldPrimary else Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        ) 
-                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onSave,
@@ -340,40 +333,7 @@ fun StudioProEditorScreen(
                             )
                         }
 
-                        if (projectState.isSmartCaptionsEnabled && activeTextClip != null) {
-                            val activeCaptions = remember(projectState.currentTimeMs, activeTextClip.id) {
-                                SmartFeaturesEngine.generateKineticCaptions(
-                                    activeTextClip.title,
-                                    activeTextClip.durationMs
-                                )
-                            }
-                            // Simplified simulation of word highlight based on time
-                            // ⚠️ استخدام firstOrNull بدل first() — النص الفارغ كان يُسقط التطبيق (NoSuchElementException)
-                            val currentWord = activeCaptions.firstOrNull { 
-                                val relativeTime = projectState.currentTimeMs % 5000L
-                                relativeTime >= it.startTimeMs && relativeTime <= it.endTimeMs 
-                            } ?: activeCaptions.firstOrNull()
-
-                            if (currentWord != null) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
-                                    Text(
-                                        currentWord.text,
-                                        color = currentWord.color,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 28.sp,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 20.dp)
-                                    )
-                                    Text(
-                                        "AI Kinetic Style: ${currentWord.style.name}",
-                                        color = GoldPrimary.copy(alpha = 0.6f),
-                                        fontSize = 10.sp,
-                                        fontFamily = RobotoMonoFont
-                                    )
-                                }
-                            }
-                        } else if (activeTextClip != null) {
+                        if (activeTextClip != null) {
                             val currentScale = SmartFeaturesEngine.interpolateProperty(
                                 activeTextClip.keyframes,
                                 projectState.currentTimeMs - activeTextClip.startOffsetMs,
@@ -407,10 +367,26 @@ fun StudioProEditorScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
                             onClick = {
-                                saveToHistory()
-                                // Logic to add keyframe to selected clip
-                                Toast.makeText(context, "تمت إضافة مفتاح حركة (Keyframe) 💎", Toast.LENGTH_SHORT).show()
+                                val clip = selectedEditorClip
+                                if (clip != null) {
+                                    val relativeTime = projectState.currentTimeMs - clip.startOffsetMs
+                                    val scale = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "scale", 1f)
+                                    val opacity = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "opacity", 1f)
+                                    val updated = addEditorKeyframesAtPlayhead(
+                                        projectState,
+                                        clip.id,
+                                        mapOf("scale" to scale, "opacity" to opacity)
+                                    )
+                                    if (updated != null && updated != projectState) {
+                                        saveToHistory()
+                                        projectState = updated
+                                        Toast.makeText(context, "تم تسجيل إطاري الحركة عند موضع التشغيل", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             },
+                            enabled = selectedEditorClip != null &&
+                                selectedEditorClip.type != TrackType.AUDIO &&
+                                selectedClipTrack?.isLocked != true,
                             modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape).border(1.dp, GoldPrimary, CircleShape)
                         ) {
                             Icon(Icons.Default.AddLocation, null, tint = GoldPrimary)
@@ -623,7 +599,20 @@ fun StudioProEditorScreen(
                         enabled = projectState.selectedClipId != null && selectedClipTrack?.isLocked != true
                     )
                     ToolButton(Icons.Default.Audiotrack, "صوتيات", onClick = { projectState = projectState.copy(workspaceMode = WorkspaceMode.AUDIO) })
-                    ToolButton(Icons.Default.TextFields, "نصوص", onClick = {})
+                    ToolButton(
+                        Icons.Default.TextFields,
+                        "نصوص",
+                        onClick = {
+                            val selectedText = selectedEditorClip?.takeIf { it.type == TrackType.TEXT }
+                            if (selectedText != null && selectedClipTrack?.isLocked == true) {
+                                Toast.makeText(context, "المسار مقفل؛ ألغِ القفل أولاً", Toast.LENGTH_SHORT).show()
+                            } else {
+                                editingTextClipId = selectedText?.id
+                                textDraft = selectedText?.title.orEmpty()
+                                showTextEditor = true
+                            }
+                        }
+                    )
                     ToolButton(Icons.Default.AutoAwesome, "تأثيرات", onClick = {})
                     ToolButton(Icons.Default.Animation, "تحريك", onClick = {})
                     ToolButton(Icons.Default.AutoFixHigh, "سحر AI", onClick = { showAiMagicPanel = true })
@@ -634,24 +623,114 @@ fun StudioProEditorScreen(
         }
     }
 
-    // AI Magic Panel
+    if (showTextEditor) {
+        AlertDialog(
+            onDismissRequest = {
+                showTextEditor = false
+                editingTextClipId = null
+            },
+            containerColor = Color(0xFF1A1A1A),
+            title = {
+                Text(
+                    if (editingTextClipId == null) "إضافة نص إلى الفيديو" else "تحرير النص",
+                    color = Color.White,
+                    fontFamily = CairoFont
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = textDraft,
+                    onValueChange = { textDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("محتوى النص") },
+                    minLines = 2,
+                    maxLines = 4,
+                    singleLine = false
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val content = textDraft.trim()
+                        if (content.isNotEmpty()) {
+                            val editingId = editingTextClipId
+                            if (editingId != null) {
+                                val targetTrack = projectState.tracks.firstOrNull { track ->
+                                    track.clips.any { it.id == editingId }
+                                }
+                                if (targetTrack != null && !targetTrack.isLocked) {
+                                    saveToHistory()
+                                    projectState = projectState.copy(
+                                        tracks = projectState.tracks.map { track ->
+                                            if (track.id == targetTrack.id) {
+                                                track.copy(clips = track.clips.map { clip ->
+                                                    if (clip.id == editingId) clip.copy(title = content) else clip
+                                                })
+                                            } else track
+                                        }
+                                    )
+                                }
+                            } else {
+                                val endLimit = projectState.totalDurationMs.coerceAtLeast(1L)
+                                val startTime = projectState.currentTimeMs.coerceIn(0L, endLimit - 1L)
+                                val textTrackIndex = projectState.tracks.indexOfFirst {
+                                    it.type == TrackType.TEXT && !it.isLocked
+                                }
+                                val newTrack = if (textTrackIndex >= 0) null else {
+                                    EditorTrack(type = TrackType.TEXT, name = "نصوص")
+                                }
+                                val targetIndex = if (textTrackIndex >= 0) textTrackIndex else projectState.tracks.size
+                                val newClip = EditorClip(
+                                    title = content,
+                                    resourceUri = "",
+                                    startOffsetMs = startTime,
+                                    durationMs = minOf(5000L, (endLimit - startTime).coerceAtLeast(1L)),
+                                    trackIndex = targetIndex,
+                                    type = TrackType.TEXT,
+                                    color = GoldPrimary
+                                )
+                                saveToHistory()
+                                val updatedTracks = if (newTrack == null) {
+                                    projectState.tracks.mapIndexed { index, track ->
+                                        if (index == textTrackIndex) track.copy(clips = track.clips + newClip) else track
+                                    }
+                                } else {
+                                    projectState.tracks + newTrack.copy(clips = listOf(newClip))
+                                }
+                                projectState = projectState.copy(
+                                    tracks = updatedTracks,
+                                    currentTimeMs = startTime,
+                                    selectedClipId = newClip.id
+                                )
+                            }
+                        }
+                        showTextEditor = false
+                        editingTextClipId = null
+                    }
+                ) {
+                    Text("حفظ النص", color = GoldPrimary, fontFamily = CairoFont)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showTextEditor = false
+                        editingTextClipId = null
+                    }
+                ) {
+                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
+    // AI tools remain informational until real transcription and background-removal services are connected.
     if (showAiMagicPanel) {
         ModalBottomSheet(
             onDismissRequest = { showAiMagicPanel = false },
             containerColor = Color(0xFF0F0F0F)
         ) {
-            AiMagicPanel(
-                onAutoSubtitles = {
-                    saveToHistory()
-                    projectState = projectState.copy(isSmartCaptionsEnabled = true)
-                    showAiMagicPanel = false
-                    Toast.makeText(context, "جاري توليد الكابشنز الذكية... ✨", Toast.LENGTH_LONG).show()
-                },
-                onRemoveBg = {
-                    Toast.makeText(context, "ميزة إزالة الخلفية بالذكاء الاصطناعي قيد المعالجة... 🪄", Toast.LENGTH_LONG).show()
-                    showAiMagicPanel = false
-                }
-            )
+            AiMagicPanel()
         }
     }
 
@@ -1017,63 +1096,23 @@ fun TimelineTrackRow(
 }
 
 @Composable
-fun AiMagicPanel(onAutoSubtitles: () -> Unit, onRemoveBg: () -> Unit) {
+fun AiMagicPanel() {
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("سحر الذكاء الاصطناعي ✨", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text(
+            "أدوات الذكاء الاصطناعي",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontFamily = CairoFont,
+            fontSize = 20.sp
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "التفريغ الصوتي وإزالة الخلفية وتحسين الصوت غير متاحة في هذا المحرر حالياً؛ لم يتم ربط خدمات تنفيذ فعلية لهذه العمليات.",
+            color = Color.Gray,
+            fontFamily = CairoFont,
+            fontSize = 13.sp
+        )
         Spacer(modifier = Modifier.height(24.dp))
-        
-        MagicOption(
-            title = "كابشنز تلقائية (Auto Captions)",
-            description = "توليد نصوص متحركة متزامنة مع الصوت بذكاء.",
-            icon = Icons.Default.TextFields,
-            onClick = onAutoSubtitles
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        MagicOption(
-            title = "إزالة الخلفية (Remove Background)",
-            description = "عزل المتحدث عن الخلفية بضغطة واحدة.",
-            icon = Icons.Default.Person,
-            onClick = onRemoveBg
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        MagicOption(
-            title = "تحسين الصوت (Audio Enhance)",
-            description = "إزالة الضجيج وتحسين نبرة الصوت الدعوي.",
-            icon = Icons.Default.Mic,
-            onClick = { /* Simulated */ }
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-    }
-}
-
-@Composable
-fun MagicOption(title: String, description: String, icon: ImageVector, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF1A1A1A),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(GoldPrimary.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 14.sp)
-                Text(description, color = Color.Gray, fontSize = 11.sp, fontFamily = NotoSansFont)
-            }
-            Icon(Icons.Default.ChevronLeft, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-        }
     }
 }
 
