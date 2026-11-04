@@ -1001,7 +1001,7 @@ private fun MushafSearchDialog(
 ) {
     var query by remember { mutableStateOf("") }
     val results = remember(query) {
-        if (query.trim().length >= 2) {
+        if (query.trim().length >= 3) {
             QuranDataProvider.searchVerses(query, limit = 40)
         } else {
             emptyList()
@@ -1082,7 +1082,7 @@ private fun MushafSearchDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (query.trim().length < 2) "اكتب حرفين على الأقل للبحث" else "لم يتم العثور على نتائج لـ «$query»",
+                            if (query.trim().length < 3) "اكتب ثلاثة أحرف على الأقل للبحث" else "لم يتم العثور على نتائج لـ «$query»",
                             color = TextSecondary,
                             fontFamily = CairoFont,
                             fontSize = 13.sp,
