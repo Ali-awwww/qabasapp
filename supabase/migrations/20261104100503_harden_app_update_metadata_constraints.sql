@@ -9,6 +9,3 @@ alter table public.app_updates
   alter column is_active set not null,
   alter column file_size_bytes set default 0,
   alter column file_size_bytes set not null;
-
-create index if not exists app_update_audit_actor_id_created_at_idx
-  on public.app_update_audit (actor_id, created_at desc);
