@@ -775,12 +775,11 @@ object UpdateManager {
         }
 
     suspend fun getAdminGitHubReleases(
-        context: Context,
-        customRepo: String? = null
+        context: Context
     ): Result<List<AdminGitHubRelease>> = withContext(Dispatchers.IO) {
         runCatching {
-            val targetRepo = customRepo?.trim()?.ifBlank { null } ?: getEffectiveRepo(context)
-            require(targetRepo == DEFAULT_REPO) { "مستودع الإصدارات غير معتمد" }
+            // The update channel is fixed to the official Qabas repository.
+            val targetRepo = DEFAULT_REPO
             val token = getEffectiveToken(context)
             val requestBuilder = Request.Builder()
                 .url("https://api.github.com/repos/$targetRepo/releases?per_page=50")
