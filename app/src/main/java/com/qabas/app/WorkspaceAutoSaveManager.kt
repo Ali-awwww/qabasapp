@@ -245,7 +245,7 @@ object WorkspaceAutoSaveManager {
     // ==================== Pro Editor Workspace Auto-Save ====================
 
     fun scheduleProEditorSave(state: EditorProjectState, debounceMs: Long = 1000L) {
-        val currentHash = state.hashCode()
+        val currentHash = editorDraftContentHash(state)
         if (currentHash == lastSavedProHash) return
 
         debounceJob?.cancel()
@@ -269,7 +269,7 @@ object WorkspaceAutoSaveManager {
                 stateJson = json,
                 lastScreen = "PRO_EDITOR"
             )
-            lastSavedProHash = state.hashCode()
+            lastSavedProHash = editorDraftContentHash(state)
             val now = System.currentTimeMillis()
             _status.value = _status.value.copy(
                 isSaving = false,
