@@ -501,13 +501,18 @@ fun ConnectorsSection(
                     set("verified_creators", ok, if (ok) "سحابة الموثقين ونقاط الدوري متصلة بنجاح" else "يتطلب تفعيل Supabase", latency)
                 }
                 "higgsfield_video" -> {
-                    val key = KeyVault.higgsfield
+                    val configured = PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
                     val latency = System.currentTimeMillis() - startTime
-                    if (key.isNotBlank()) {
-                        set("higgsfield_video", true, "سحابة الذكاء السينمائي Higgsfield متصلة وجاهزة", latency)
-                    } else {
-                        set("higgsfield_video", true, "الوضع المستقل لمولد الفيديو Higgsfield جاهز بانتظار المفتاح", latency)
-                    }
+                    set(
+                        "higgsfield_video",
+                        configured,
+                        if (configured) {
+                            "مفتاح Higgsfield موجود في خزنة الخادم؛ لم يتم اختبار توليد فيديو"
+                        } else {
+                            "لم تؤكد بوابة الخادم وجود إعداد Higgsfield أو تعذر الوصول إليها"
+                        },
+                        latency
+                    )
                 }
                 "app_dist" -> {
                     val token = AgentPrefs.getGitHubPat(context)
