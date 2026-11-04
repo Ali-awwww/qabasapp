@@ -1673,7 +1673,7 @@ object UpdateManager {
                     digest.update(buffer, 0, count)
                 }
             }
-            val actual = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+            val actual = digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
             actual.equals(expected, ignoreCase = true)
         }.getOrDefault(false)
     }
