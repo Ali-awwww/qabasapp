@@ -749,7 +749,7 @@ class EditorModelsTest {
     }
 
     @Test
-    fun editorExportPlanRejectsKeyframesUntilAnimatedRenderingIsImplemented() {
+    fun editorExportPlanRejectsOpacityKeyframesUntilAlphaAnimationIsImplemented() {
         val clip = EditorClip(
             id = "animated-video",
             title = "Animated",
@@ -759,7 +759,7 @@ class EditorModelsTest {
             trackIndex = 0,
             type = TrackType.VIDEO,
             color = androidx.compose.ui.graphics.Color.Blue,
-            keyframes = listOf(EditorKeyframe(timeMs = 1000L, property = "scale", value = 1.5f))
+            keyframes = listOf(EditorKeyframe(timeMs = 1000L, property = "opacity", value = 0.5f))
         )
         val state = EditorProjectState(
             projectId = "animated-export",
@@ -771,7 +771,7 @@ class EditorModelsTest {
         val result = createEditorExportPlan(state, 1080, 1920, 30)
 
         assertTrue(result.plan == null)
-        assertTrue(result.error?.contains("المفاتيح الزمنية") == true)
+        assertTrue(result.error?.contains("الشفافية") == true)
     }
 
     @Test
@@ -861,5 +861,45 @@ class EditorModelsTest {
         )
 
         assertTrue(createEditorExportPlan(state, 1080, 1920, 30).error?.contains("الانتقال") == true)
+    }
+
+    @Test
+    fun editorScaleKeyframesGenerateLinearFfmpegExpressionAndAreExportable() {
+        val keyframes = listOf(
+            EditorKeyframe(timeMs = 1000L, property = "scale", value = 1.5f),
+            EditorKeyframe(timeMs = 3000L, property = "scale", value = 2f)
+        )
+        val expression = buildEditorScaleKeyframeExpression(keyframes)
+        assertTrue(expression.contains("if(lt(t\\\\,1.0)"))
+        assertTrue(expression.contains("if(lt(t\\\\,3.0)"))
+        assertTrue(expression.contains("1.50000"))
+        assertTrue(expression.contains("2.00000"))
+
+        val clip = EditorClip(
+            id = "scale-keyframes",
+            title = "Animated scale",
+            resourceUri = "/private/input.mp4",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            keyframes = keyframes
+        )
+        val state = EditorProjectState(
+            projectId = "scale-keyframes",
+            title = "Scale animation",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            totalDurationMs = 5000L
+        )
+        assertTrue(createEditorExportPlan(state, 1080, 1920, 30).plan != null)
+        val command = buildEditorExportCommand(
+            createEditorExportPlan(state, 1080, 1920, 30).plan!!,
+            "/private/input.mp4",
+            "/private/output.mp4",
+            false
+        )
+        assertTrue(command.contains("eval=frame"))
+        assertTrue(command.contains("1.50000"))
     }
 }
