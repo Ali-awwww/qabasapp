@@ -63,6 +63,13 @@ object StyleBrainLoadFix {
                 ?: return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "motionTraits")
             val textTraits = obj.optJSONArray("textTraits")
                 ?: return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "textTraits")
+            val traitArrays = listOf(visualTraits, motionTraits, textTraits)
+            val hasInvalidTraitValue = traitArrays.any { traits ->
+                (0 until traits.length()).any { index -> traits.opt(index) !is String }
+            }
+            if (hasInvalidTraitValue) {
+                return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "trait values")
+            }
 
             val rawStrength = obj.opt("strengthScore")
             val storedStrength = when (rawStrength) {
