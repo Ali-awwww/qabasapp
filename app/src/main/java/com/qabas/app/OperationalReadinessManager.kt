@@ -76,7 +76,6 @@ object OperationalReadinessManager {
         val pexelsKey = getKey("pexels_key")
         val pixabayKey = getKey("pixabay_key")
         val firebaseKey = getKey("firebase_key")
-        val higgsfieldKey = getKey("higgsfield_api_key")
         val azureKey = getKey("azure_speech_key")
         val elevenlabsKey = getKey("elevenlabs_key")
 
@@ -86,7 +85,7 @@ object OperationalReadinessManager {
         val hasPexels = isKeyValid(pexelsKey)
         val hasPixabay = isKeyValid(pixabayKey)
         val hasFirebase = isKeyValid(firebaseKey)
-        val hasHiggsfield = isKeyValid(higgsfieldKey)
+        val hasHiggsfield = false // Higgsfield credentials are stored server-side and are not readable by this local-only report.
         val hasAudioCloud = isKeyValid(azureKey) || isKeyValid(elevenlabsKey)
 
         val services = listOf(
@@ -101,8 +100,8 @@ object OperationalReadinessManager {
                 name = "Higgsfield AI Video Engine",
                 weight = 20,
                 isConfigured = hasHiggsfield,
-                description = "توليد الفيديو السينمائي الفائق وتحريك الصور بالذكاء الاصطناعي (Text/Image to Video)",
-                activeFeature = if (hasHiggsfield) "توليد سينمائي مباشر مفعل (Higgsfield Cloud)" else "قوالب ومحركات الرندرة والمونتاج المدمجة محلياً"
+                description = "توليد الفيديو عبر Kling 4.0؛ حالة المفتاح تُدار مركزياً عبر بوابة الاستوديو",
+                activeFeature = "حالة مفتاح الخادم لا تُقرأ من هذا الفحص المحلي؛ تحقق منها داخل الاستوديو"
             ),
             ServiceReadiness(
                 name = "Groq LPU (Ultra Fast AI)",
