@@ -81,7 +81,8 @@ object AppSelfDoctor {
     private suspend fun geminiCheck(key: String) = withTimeoutOrNull(12_000) {
         httpCheck(
             Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models?key=$key&pageSize=1")
+                .url("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1")
+                .header("x-goog-api-key", key)
                 .build()
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
