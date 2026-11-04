@@ -127,7 +127,7 @@
 | الاستوديو | `StudioGatewayScreen`, `StudioProEditorScreen`, `AdvancedEditScreen`, `PhotoStudioScreen`, `ReelsScreen` |
 | الإنتاج | `ProductionPipelineSection`, `ProductionPipelineTracker`, `BuildCenterSection`, `CinematicExportScreen` |
 | الذكاء الاصطناعي | `AIAssistantScreen`, `AiEditorSection`, `AiSmartDirectorScreen`, `AgentRoomSection`, `DirectorChatScreen` |
-| القرآن والمحتوى | `MushafReaderScreen`, `QuranTajweedScreen`, `IslamicLibraryScreen`, `AzkarScreen`, `PrayerTimesScreen` |
+| القرآن والمحتوى | `IslamicLibraryScreen`, `AzkarScreen`, `PrayerTimesScreen` |
 | المعرفة | `KnowledgeHubScreen`, `ScholarBiographiesScreen`, `ScholarDetailScreen`, `SahihReaderView`, `QasasStorytellerScreen` |
 | النشر | `SocialStatsScreen`, `YouTubeStudioScreen`, `SmartPublishScheduleDialog`, `DirectPublisherDialog` |
 | الاشتراك | `StoreScreen`, `PaymentScreen`, `PremiumUpgradeScreen`, `RewardsScreen`, `HasanatHubScreen` |
