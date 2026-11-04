@@ -359,7 +359,8 @@ object QabasTipsRepository {
         ),
         QabasTipItem(
             id = "t6",
-            category = TipCategory.TAZKIYAH,            text = "قراءة وجه واحد من القرآن بتدبر وتأنٍّ خير من قراءة أجزاء بلا وعي ولا تأثر.",
+            category = TipCategory.TAZKIYAH,
+            text = "قراءة وجه واحد من القرآن بتدبر وتأنٍّ خير من قراءة أجزاء بلا وعي ولا تأثر.",
             sourceOrBadge = "بركة التدبر 📖",
             actionableHint = "قف عند الآيات وتأمل خطاب الله لك كأنك المعني بها."
         ),
@@ -566,7 +567,6 @@ fun QabasSmartTipsBar(
                 contentPadding = PaddingValues(horizontal = 2.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                // تصنيف "الكل" بلون قبس التركوازي
                 item {
                     val isAllSelected = selectedCategoryFilter == null
                     Surface(
@@ -612,7 +612,6 @@ fun QabasSmartTipsBar(
                     }
                 }
 
-                // التصنيفات المتاحة للمستخدم؛ تصنيف المطور لا يظهر إلا للمطور
                 items(availableCategories) { cat ->
                     val isSelected = selectedCategoryFilter == cat
                     val catTipsCount = remember(cat, isDeveloper) {
@@ -666,7 +665,6 @@ fun QabasSmartTipsBar(
                 }
             }
 
-            // حالة التدوير ظاهرة بوضوح، مع رسالة صحيحة بعد كل تبديل
             Surface(
                 onClick = {
                     AppSoundManager.playToggle()
@@ -708,172 +706,9 @@ fun QabasSmartTipsBar(
             }
         }
 
-        // ── 2. بطاقة شريط النصيحة الكبسولي الفاخر (Holographic Glassmorphic Bar) ──
+        // ── 2. شريط حكمة أوضح بهوية قبس (Refined Wisdom Ribbon) ──
         if (currentTip != null) {
             val tipColor = currentTip.category.accentColor
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = tipColor.copy(alpha = 0.25f)),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF090E1D).copy(alpha = 0.94f),
-                border = BorderStroke(
-                    1.2.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            tipColor.copy(alpha = glowAnim * 0.8f),                            tipColor.copy(alpha = 0.3f),
-                            GoldPrimary.copy(alpha = 0.4f)
-                        )
-                    )
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            AppSoundManager.playClick()
-                            // النقر على الشريط ينقل للنصيحة التالية بسلاسة
-                            currentTipIndex = (currentTipIndex + 1) % filteredTips.size
-                        }
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // الشارة التصنيفية الجذابة على اليمين مع أيقونة ونقطة نابضة
-                    Surface(
-                        color = tipColor.copy(alpha = 0.18f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(0.9.dp, tipColor.copy(alpha = 0.6f)),
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            Text(currentTip.category.iconEmoji, fontSize = 11.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = currentTip.category.title,
-                                color = tipColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp
-                            )
-                        }
-                    }
-
-                    // المحتوى النصي مع حركة انزلاقية ناعمة
-                    Box(modifier = Modifier.weight(1f)) {
-                        AnimatedContent(
-                            targetState = currentTip,
-                            transitionSpec = {
-                                (slideInVertically { height -> height / 2 } + fadeIn(tween(200))).togetherWith(
-                                    slideOutVertically { height -> -height / 2 } + fadeOut(tween(180))
-                                )
-                            },
-                            label = "tipBarTextAnimation"
-                        ) { tip ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = tip.text,
-                                    color = Color.White,
-                                    fontFamily = if (tip.category == TipCategory.QURAN || tip.category == TipCategory.SUNNAH) AmiriFont else CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = Color(0xFF1E293B).copy(alpha = 0.8f)
-                                ) {
-                                    Text(
-                                        text = tip.sourceOrBadge,
-                                        color = tipColor,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp,
-                                        maxLines = 1,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // أزرار التحكم السريعة في أقصى اليسار (السابق / التالي / التفاصيل)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        // زر النصيحة السابقة
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                currentTipIndex = if (currentTipIndex - 1 < 0) filteredTips.size - 1 else currentTipIndex - 1
-                            },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "السابق",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-
-                        // زر النصيحة التالية
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                currentTipIndex = (currentTipIndex + 1) % filteredTips.size
-                            },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "التالي",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-
-                        // زر فتح تفاصيل النصيحة والنسخ
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                selectedTipForDialog = currentTip
-                            },
-                            modifier = Modifier
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(tipColor.copy(alpha = 0.14f))
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = "تفاصيل النصيحة",
-                                tint = tipColor,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ── 2. شريط حكمة أوضح بهوية قبس (Refined Wisdom Ribbon) ──
-        if (currentTip != null) {
-            val tipColor = currentTip.category.accentColor
-            val isScripture = currentTip.category == TipCategory.QURAN || currentTip.category == TipCategory.SUNNAH
 
             Surface(
                 modifier = Modifier
@@ -885,7 +720,7 @@ fun QabasSmartTipsBar(
                     1.dp,
                     Brush.horizontalGradient(
                         listOf(
-                            tipColor.copy(alpha = 0.82f),
+                            tipColor.copy(alpha = glowAnim * 0.72f),
                             tipColor.copy(alpha = 0.28f),
                             GoldPrimary.copy(alpha = 0.5f)
                         )
@@ -903,7 +738,6 @@ fun QabasSmartTipsBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // التصنيف النشط
                     Surface(
                         color = tipColor.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(10.dp),
@@ -926,7 +760,6 @@ fun QabasSmartTipsBar(
                         }
                     }
 
-                    // الحديث أو النص مع المصدر في سطر ثانٍ لسهولة القراءة
                     AnimatedContent(
                         targetState = currentTip,
                         modifier = Modifier.weight(1f),
@@ -974,7 +807,6 @@ fun QabasSmartTipsBar(
                         }
                     }
 
-                    // السابق والتالي والتفاصيل؛ أهداف لمس أكبر
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(1.dp)
@@ -1056,7 +888,6 @@ fun QabasSmartTipsBar(
                         .padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // رأس النافذة
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1116,7 +947,6 @@ fun QabasSmartTipsBar(
                         }
                     }
 
-                    // بطاقة النص الرئيسي
                     Surface(
                         color = Color(0xFF0B1930),
                         shape = RoundedCornerShape(18.dp),
@@ -1178,7 +1008,6 @@ fun QabasSmartTipsBar(
                         }
                     }
 
-                    // التوجيه والفائدة العملية
                     if (!tip.actionableHint.isNullOrBlank()) {
                         Surface(
                             color = Color(0xFF071C2C),
@@ -1226,7 +1055,6 @@ fun QabasSmartTipsBar(
                         }
                     }
 
-                    // النسخ هو الإجراء الأساسي؛ لوحة المطور تظهر للمطور فقط
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
