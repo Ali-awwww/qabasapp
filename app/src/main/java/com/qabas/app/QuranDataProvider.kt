@@ -137,6 +137,21 @@ object QuranDataProvider {
         } catch (_: Exception) { null }
     }
 
+    /** لا نعتمد نسخة نصية إلا إذا حملت إشعار Tanzil المطلوب كاملاً. */
+    private fun hasTanzilNotice(jsonText: String): Boolean {
+        return try {
+            val root = JSONObject(jsonText)
+            val notice = root.optString("sourceNotice", root.optString("notice", ""))
+            notice.contains("Tanzil Quran Text") &&
+                notice.contains("Copyright (C) 2007-2021 Tanzil Project") &&
+                notice.contains("Creative Commons Attribution 3.0") &&
+                notice.contains("CHANGING IT IS NOT ALLOWED") &&
+                notice.contains("tanzil.net")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** تحقق بنيوي من اكتمال السور والآيات وتسلسل أرقامها دون تعديل النص. */
     private fun isCompleteQuran(ayahs: List<RawAyah>): Boolean {
         if (ayahs.size != 6236) return false
@@ -196,6 +211,14 @@ object QuranDataProvider {
                 val downloadedSurahs = JSONArray()
                 var totalAyahs = 0
                 val sourceNotice = chapters.firstOrNull()?.third.orEmpty()
+                val noticeIsValid = sourceNotice.contains("Tanzil Quran Text") &&
+                    sourceNotice.contains("Copyright (C) 2007-2021 Tanzil Project") &&
+                    sourceNotice.contains("Creative Commons Attribution 3.0") &&
+                    sourceNotice.contains("CHANGING IT IS NOT ALLOWED") &&
+                    sourceNotice.contains("tanzil.net")
+                if (!noticeIsValid || chapters.any { !it.third.contains("Tanzil Quran Text") }) {
+                    throw java.io.IOException("Required Tanzil copyright notice is missing from the Quran dataset")
+                }
                 chapters.forEach { (surahNumber, verses, _) ->
                     // نحافظ على كائنات الآيات ونصوصها كما وصلت من المصدر دون إعادة صياغة.
                     downloadedSurahs.put(JSONObject().put("id", surahNumber).put("verses", verses))
@@ -238,7 +261,12 @@ object QuranDataProvider {
         return try {
             val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
             if (!cacheFile.isFile || cacheFile.length() == 0L) return false
-            val parsed = parseQuranJson(cacheFile.readText(Charsets.UTF_8))
+            val cachedJson = cacheFile.readText(Charsets.UTF_8)
+            if (!hasTanzilNotice(cachedJson)) {
+                Log.w(TAG, "Cached Quran dataset is missing the required Tanzil notice")
+                return false
+            }
+            val parsed = parseQuranJson(cachedJson)
             if (!isCompleteQuran(parsed)) {
                 Log.w(TAG, "Cached Quran dataset failed validation")
                 return false
@@ -268,6 +296,10 @@ object QuranDataProvider {
                     inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 }
                 if (jsonString.isNotBlank()) {
+                    if (!hasTanzilNotice(jsonString)) {
+                        Log.w(TAG, "Skipping Quran asset without the required Tanzil notice: $path")
+                        continue
+                    }
                     val parsed = parseQuranJson(jsonString)
                     if (isCompleteQuran(parsed)) {
                         versesMap = parsed.groupBy { it.surah }
