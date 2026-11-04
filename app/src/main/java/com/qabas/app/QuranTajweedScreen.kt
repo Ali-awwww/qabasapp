@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1622,13 +1623,88 @@ fun GoldenMushafReaderView(
                             }
                         }
                     }
+                    item { TanzilAttributionFooter() }
                 }
             }
         }
     }
 }
 
-// Authentic Verses helper delegating to QuranDataProvider
+// إشعار مصدر النص والترخيص وفق شروط Tanzil وQuran JSON.
+@Composable
+fun TanzilAttributionFooter() {
+    val uriHandler = LocalUriHandler.current
+    var showLicense by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            "النص العثماني: Tanzil Project · CC BY 3.0",
+            modifier = Modifier.clickable { uriHandler.openUri("https://tanzil.net") },
+            color = ManuscriptGold,
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "حزمة البيانات: Quran JSON · CC BY-SA 4.0",
+            modifier = Modifier.clickable { uriHandler.openUri("https://github.com/risan/quran-json") },
+            color = ManuscriptGold,
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "عرض إشعار حقوق النص وشروط الاستخدام",
+            modifier = Modifier.clickable { showLicense = true },
+            color = OldInk.copy(alpha = 0.65f),
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+
+    if (showLicense) {
+        AlertDialog(
+            onDismissRequest = { showLicense = false },
+            title = {
+                Text(
+                    "إشعار حقوق النص القرآني",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Tanzil Quran Text\n" +
+                        "Copyright (C) 2007-2021 Tanzil Project.\n" +
+                        "License: Creative Commons Attribution 3.0.\n\n" +
+                        "This copy of the Quran text is carefully produced, highly verified and continuously monitored by a group of specialists in Tanzil Project.\n\n" +
+                        "TERMS OF USE:\n" +
+                        "Permission is granted to copy and distribute verbatim copies of this text, but CHANGING IT IS NOT ALLOWED.\n\n" +
+                        "This Quran text can be used in any website or application, provided that its source (Tanzil Project) is clearly indicated, and a link is made to tanzil.net to enable users to keep track of changes. This copyright notice shall be included in all verbatim copies of the text, and shall be reproduced appropriately in all files derived from or containing substantial portion of this text.\n\n" +
+                        "Please check updates at: http://tanzil.net/updates/\n\n" +
+                        "Dataset packaging: Quran JSON · CC BY-SA 4.0.",
+                    color = TextSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showLicense = false }) {
+                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                }
+            },
+            containerColor = Color(0xFF151B2B)
+        )
+    }
+}
+
 private fun getAuthenticVersesForSurah(surahId: Int, surahName: String): List<QuranVerseDetail> {
     return QuranDataProvider.getVersesForSurah(surahId, surahName)
 }
