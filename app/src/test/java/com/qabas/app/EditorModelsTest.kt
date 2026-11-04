@@ -25,4 +25,32 @@ class EditorModelsTest {
         assertNull(findAdjacentEditorClip(state, forward = false))
         assertNull(findAdjacentEditorClip(state, forward = true))
     }
+
+    @Test
+    fun layerControlsUpdateOnlyTheTargetTrackAndCanBeReversed() {
+        val state = createBlankEditorProjectState()
+        val target = state.tracks.first()
+        val other = state.tracks.last()
+
+        val hidden = toggleEditorTrackVisibility(state, target.id)
+        assertFalse(hidden.tracks.first { it.id == target.id }.isVisible)
+        assertTrue(hidden.tracks.first { it.id == other.id }.isVisible)
+
+        val muted = toggleEditorTrackMute(hidden, target.id)
+        assertTrue(muted.tracks.first { it.id == target.id }.isMuted)
+
+        val locked = toggleEditorTrackLock(muted, target.id)
+        assertTrue(locked.tracks.first { it.id == target.id }.isLocked)
+
+        val restored = toggleEditorTrackLock(
+            toggleEditorTrackMute(
+                toggleEditorTrackVisibility(locked, target.id),
+                target.id
+            ),
+            target.id
+        )
+        assertTrue(restored.tracks.first { it.id == target.id }.isVisible)
+        assertFalse(restored.tracks.first { it.id == target.id }.isMuted)
+        assertFalse(restored.tracks.first { it.id == target.id }.isLocked)
+    }
 }
