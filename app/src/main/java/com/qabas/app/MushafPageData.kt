@@ -9,13 +9,11 @@ import org.json.JSONObject
  *
  * طبقة بيانات قارئ المصحف بالصفحات (تصميم أصلي لقبس — لا كود منقول).
  *
- * - حدود الصفحات الـ 604 (مصحف المدينة) تُقرأ من ملف مولّد محلياً:
- *   `assets/quran/madani_pages.json` بصيغة:
- *   {"pages":[[[سورة,آية],...],...], "juzFirstVerse":[[سورة,آية],...]}
- * - مصدر التوليد: fawazahmed0/quran-api (رخصة Unlicense — ملكية عامة،
- *   تسمح بالاستخدام التجاري) — نفس مصدر `uthmani.json` المستخدم أصلاً.
- * - نصوص الآيات نفسها من `QuranDataProvider` (ملف `uthmani.json` المحلي) —
- *   لا يُحمَّل أي نص من الشبكة.
+ * - حدود الصفحات الـ 604 تُقرأ من خريطة محلية جاهزة:
+ *   `assets/quran/madani_pages.json`.
+ * - مصدر خريطة الصفحات: fawazahmed0/quran-api (Unlicense).
+ * - نص الآيات منفصل عن خريطة الصفحات، ويُحمّل عبر QuranDataProvider
+ *   من نسخة Uthmani موثقة، ثم يُخزّن محلياً بعد التحقق.
  */
 object MushafPageData {
 
@@ -71,18 +69,41 @@ object MushafPageData {
                         juzFirst.add(pair.optInt(0, 1) to pair.optInt(1, 1))
                     }
                 }
-                if (pages.size == PAGE_COUNT) {
+                val hizbArray = root.optJSONArray("hizbFirstVerse")
+                val hizbFirst = ArrayList<Pair<Int, Int>>(HIZB_COUNT)
+                if (hizbArray != null) {
+                    for (j in 0 until hizbArray.length()) {
+                        val pair = hizbArray.optJSONArray(j) ?: continue
+                        hizbFirst.add(pair.optInt(0, 0) to pair.optInt(1, 0))
+                    }
+                }
+
+                val allRefs = pages.flatten()
+                val refsAreValid =
+                    pages.size == PAGE_COUNT &&
+                    pages.all { it.isNotEmpty() } &&
+                    allRefs.size == 6236 &&
+                    allRefs.distinct().size == 6236 &&
+                    allRefs.firstOrNull() == (1 to 1) &&
+                    allRefs.lastOrNull() == (114 to 6) &&
+                    allRefs.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
+                    } &&
+                    juzFirst.size == JUZ_COUNT &&
+                    juzFirst.all { it in allRefs } &&
+                    juzFirst.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
+                    } &&
+                    hizbFirst.size == HIZB_COUNT &&
+                    hizbFirst.all { it in allRefs } &&
+                    hizbFirst.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
+                    }
+
+                if (refsAreValid) {
                     pageRefs = pages
                     juzFirstRefs = juzFirst
-                    val hizbArray = root.optJSONArray("hizbFirstVerse")
-                    if (hizbArray != null) {
-                        val hizbFirst = ArrayList<Pair<Int, Int>>(HIZB_COUNT)
-                        for (j in 0 until hizbArray.length()) {
-                            val pair = hizbArray.optJSONArray(j) ?: continue
-                            hizbFirst.add(pair.optInt(0, 1) to pair.optInt(1, 1))
-                        }
-                        hizbFirstRefs = hizbFirst
-                    }
+                    hizbFirstRefs = hizbFirst
                     Log.i(TAG, "Loaded $PAGE_COUNT madani pages from $path")
                     return true
                 }
@@ -96,6 +117,19 @@ object MushafPageData {
     }
 
     fun isLoaded(): Boolean = pageRefs?.size == PAGE_COUNT
+
+    /**
+     * تأكد من أن كل مرجع في خريطة الصفحات يقابله نص آية محمّل،
+     * حتى لا تظهر صفحة ناقصة بسبب اختلاف نسختي البيانات.
+     */
+    fun matchesLoadedQuran(): Boolean {
+        val pages = pageRefs ?: return false
+        val refs = pages.flatten()
+        if (refs.size != 6236 || refs.distinct().size != 6236) return false
+        return refs.all { (surah, ayah) ->
+            !QuranDataProvider.getVerseText(surah, ayah).isNullOrBlank()
+        }
+    }
 
     /** مراجع (سورة، آية) لصفحة معينة (1-based). قائمة فارغة عند غياب التحميل. */
     fun getPageRefs(page: Int): List<Pair<Int, Int>> {
