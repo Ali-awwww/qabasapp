@@ -2377,7 +2377,7 @@ fun QuranRecitationRecordingView(
                         Icon(Icons.Default.GraphicEq, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "مختبر الفحص الصوتي الذكي (نظام ترتيل 🎙️)",
+                            text = "تسجيل التلاوة للمراجعة اليدوية 🎙️",
                             color = ManuscriptGold,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -2386,7 +2386,7 @@ fun QuranRecitationRecordingView(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "اقرأ الكلمات التالية بصوتك؛ سيقوم المحرك بمتابعة قراءتك كلمة بكلمة واكتشاف الأحكام التجويدية تلقائياً.",
+                        text = "اعرض آيات من السورة المحددة وسجّل تلاوتك للاستماع إليها ومراجعتها بنفسك. التحليل الآلي للنطق وأحكام التجويد غير متاح حالياً.",
                         color = OldInk.copy(alpha = 0.6f),
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
@@ -2426,8 +2426,8 @@ fun QuranRecitationRecordingView(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         sampleVerseWords.forEachIndexed { idx, word ->
-                            val isHighlighted = isRecording && idx <= highlightedWordIndex
-                            val isCurrentWord = isRecording && idx == highlightedWordIndex
+                            val isHighlighted = false
+                            val isCurrentWord = false
 
                             Surface(
                                 color = when {
@@ -2529,8 +2529,8 @@ fun QuranRecitationRecordingView(
 
                     Text(
                         text = when {
-                            isRecording -> "جاري تسجيل تلاوتك حيّاً... اضغط للإيقاف والحفظ"
-                            isAnalyzing -> "جاري معالجة وحفظ الملف الصوتي... ⏳"
+                            isRecording -> "جارٍ تسجيل صوتك... اضغط للإيقاف والحفظ"
+                            isAnalyzing -> "جارٍ حفظ التسجيل الصوتي... ⏳"
                             else -> "اضغط زر الميكروفون وابدأ القراءة الآن 🎙️"
                         },
                         color = if (isRecording) Color(0xFFEF4444) else ManuscriptGold,
