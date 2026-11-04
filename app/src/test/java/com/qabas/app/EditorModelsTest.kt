@@ -176,4 +176,59 @@ class EditorModelsTest {
         assertNull(addEditorKeyframesAtPlayhead(lockedState, clip.id, mapOf("scale" to 1f)))
         assertNull(addEditorKeyframesAtPlayhead(inactiveState, clip.id, mapOf("scale" to 1f)))
     }
+
+    @Test
+    fun textClipCreationUsesUnlockedTextTrackAndSelectsNewClip() {
+        val state = createBlankEditorProjectState().copy(currentTimeMs = 12000L)
+        val updated = addEditorTextClip(state, "  نص دعوي  ")!!
+
+        val textTrack = updated.tracks.single { it.type == TrackType.TEXT }
+        val clip = textTrack.clips.single()
+
+        assertEquals("نص دعوي", clip.title)
+        assertEquals(12000L, clip.startOffsetMs)
+        assertEquals(5000L, clip.durationMs)
+        assertEquals(clip.id, updated.selectedClipId)
+        assertEquals(clip.id, updated.tracks.flatMap { it.clips }.single().id)
+    }
+
+    @Test
+    fun textClipCreationAddsUnlockedTrackWhenExistingTextTrackIsLocked() {
+        val state = createBlankEditorProjectState().copy(
+            tracks = listOf(EditorTrack(type = TrackType.TEXT, name = "Locked", isLocked = true))
+        )
+        val updated = addEditorTextClip(state, "عنوان جديد")!!
+
+        assertEquals(2, updated.tracks.size)
+        assertTrue(updated.tracks.first().isLocked)
+        assertEquals("عنوان جديد", updated.tracks.last().clips.single().title)
+        assertFalse(updated.tracks.last().isLocked)
+    }
+
+    @Test
+    fun textClipEditingRejectsLockedTracksAndBlankContent() {
+        val clip = EditorClip(
+            id = "text-clip",
+            title = "قبل",
+            resourceUri = "",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.TEXT,
+            color = androidx.compose.ui.graphics.Color.White
+        )
+        val unlocked = EditorProjectState(
+            projectId = "text-edit",
+            title = "Text",
+            tracks = listOf(EditorTrack(type = TrackType.TEXT, name = "Text", clips = listOf(clip)))
+        )
+        val locked = unlocked.copy(
+            tracks = listOf(unlocked.tracks.single().copy(isLocked = true))
+        )
+
+        assertEquals("بعد", updateEditorTextClip(unlocked, clip.id, " بعد ")?.tracks?.single()?.clips?.single()?.title)
+        assertNull(updateEditorTextClip(locked, clip.id, "بعد"))
+        assertNull(updateEditorTextClip(unlocked, clip.id, "   "))
+        assertNull(addEditorTextClip(unlocked, "   "))
+    }
 }
