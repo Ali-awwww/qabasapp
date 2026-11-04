@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,7 +49,7 @@ data class CovenantRule(
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
     val context = LocalContext.current
-    var isAgreed by remember { mutableStateOf(true) }
+    var isAgreed by remember { mutableStateOf(false) }
 
     val covenantRules = remember {
         listOf(
@@ -267,7 +269,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     .height(56.dp)
                     .background(if (isAgreed) primaryColor.copy(alpha = 0.05f) else Color.Transparent, CutCornerShape(8.dp))
                     .border(1.dp, if (isAgreed) primaryColor.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp))
-                    .clickable { isAgreed = !isAgreed }
+                    .toggleable(value = isAgreed, role = Role.Checkbox) { isAgreed = it }
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
