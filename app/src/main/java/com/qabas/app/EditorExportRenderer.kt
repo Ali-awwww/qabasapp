@@ -73,6 +73,13 @@ internal fun createEditorExportPlan(
     if (numericValues.any { !it.isFinite() }) {
         return EditorExportPlanResult(error = "تحتوي إعدادات المقطع على قيمة رقمية غير صالحة")
     }
+    if (clip.filters.brightness !in 0f..2f || clip.filters.contrast !in 0f..2f ||
+        clip.filters.saturation !in 0f..2f || clip.filters.sharpness !in 0f..1f ||
+        clip.transform.scaleX !in 0.1f..3f || clip.transform.scaleY !in 0.1f..3f ||
+        clip.transform.rotation !in -180f..180f
+    ) {
+        return EditorExportPlanResult(error = "إحدى قيم اللون أو التحويل خارج النطاق الذي تدعمه أدوات المحرر")
+    }
     if (clip.sourceDurationMs > 0L && clip.sourceDurationMs != Long.MAX_VALUE &&
         clip.sourceStartMs + (clip.durationMs * clip.speed).toLong() > clip.sourceDurationMs
     ) {
@@ -173,36 +180,48 @@ internal object EditorExportRenderer {
         val plan = result.plan ?: throw IllegalArgumentException(result.error ?: "تعذر إعداد التصدير")
 
         val source = resolveSourceFile(context, plan.clip.resourceUri)
-        val outputDirectory = File(context.getExternalFilesDir("Movies") ?: context.filesDir, "QabasExports")
-            .apply { mkdirs() }
-        val output = File(outputDirectory, "qabas_edit_${System.currentTimeMillis()}.mp4")
-        val hasAudio = hasAudioTrack(source)
-        val command = buildEditorExportCommand(plan, source.absolutePath, output.absolutePath, hasAudio)
+        try {
+            val outputDirectory = File(context.getExternalFilesDir("Movies") ?: context.filesDir, "QabasExports")
+                .apply { mkdirs() }
+            val output = File(outputDirectory, "qabas_edit_${System.currentTimeMillis()}.mp4")
+            val hasAudio = hasAudioTrack(source.file)
+            val command = buildEditorExportCommand(plan, source.file.absolutePath, output.absolutePath, hasAudio)
 
-        val timeout = (plan.durationMs * 12L).coerceIn(180_000L, 1_800_000L)
-        val success = VideoProcessor.executeCommand(
-            command = command,
-            operationDescription = "تصدير المحرر الاحترافي",
-            timeoutMs = timeout
-        )
-        if (!success ||
-            !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE) ||
-            !matchesExportMetadata(output, plan)
-        ) {
-            output.delete()
-            throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً بالمواصفات المطلوبة")
+            val timeout = (plan.durationMs * 12L).coerceIn(180_000L, 1_800_000L)
+            val success = VideoProcessor.executeCommand(
+                command = command,
+                operationDescription = "تصدير المحرر الاحترافي",
+                timeoutMs = timeout
+            )
+            if (!success ||
+                !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE) ||
+                !matchesExportMetadata(output, plan)
+            ) {
+                output.delete()
+                throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً بالمواصفات المطلوبة")
+            }
+            return output
+        } finally {
+            if (source.temporary) source.file.delete()
         }
-        return output
     }
 
-    private fun resolveSourceFile(context: Context, rawUri: String): File {
+    private data class ResolvedSource(val file: File, val temporary: Boolean)
+
+    private fun resolveSourceFile(context: Context, rawUri: String): ResolvedSource {
         val uri = Uri.parse(rawUri)
         if (uri.scheme == null) {
-            return File(rawUri).takeIf { it.isFile } ?: throw IllegalArgumentException("ملف المصدر غير موجود")
+            return ResolvedSource(
+                File(rawUri).takeIf { it.isFile } ?: throw IllegalArgumentException("ملف المصدر غير موجود"),
+                temporary = false
+            )
         }
         if (uri.scheme == "file") {
-            return File(requireNotNull(uri.path)).takeIf { it.isFile }
-                ?: throw IllegalArgumentException("ملف المصدر غير موجود")
+            return ResolvedSource(
+                File(requireNotNull(uri.path)).takeIf { it.isFile }
+                    ?: throw IllegalArgumentException("ملف المصدر غير موجود"),
+                temporary = false
+            )
         }
         if (uri.scheme != "content") {
             throw IllegalArgumentException("نوع رابط الوسيط غير مدعوم: ${uri.scheme}")
@@ -215,7 +234,7 @@ internal object EditorExportRenderer {
             destination.delete()
             throw IllegalArgumentException("ملف الوسائط فارغ أو غير قابل للقراءة")
         }
-        return destination
+        return ResolvedSource(destination, temporary = true)
     }
 
     private fun matchesExportMetadata(file: File, plan: EditorExportPlan): Boolean {
