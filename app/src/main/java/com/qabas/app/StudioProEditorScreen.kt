@@ -114,6 +114,15 @@ fun StudioProEditorScreen(
             projectState.currentTimeMs >= it.startOffsetMs &&
                 projectState.currentTimeMs < it.startOffsetMs + it.durationMs
         }
+    val activeAudioClips = projectState.tracks
+        .filter { it.type == TrackType.AUDIO && it.isVisible }
+        .flatMap { track ->
+            track.clips.filter {
+                projectState.currentTimeMs >= it.startOffsetMs &&
+                    projectState.currentTimeMs < it.startOffsetMs + it.durationMs
+            }.map { track to it }
+        }
+    val audioPlayers = remember(context) { mutableMapOf<String, ExoPlayer>() }
     
     val scope = rememberCoroutineScope()
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
@@ -144,6 +153,13 @@ fun StudioProEditorScreen(
         WorkspaceAutoSaveManager.scheduleProEditorSave(projectState, debounceMs = 1500L)
     }
     
+    DisposableEffect(audioPlayers) {
+        onDispose {
+            audioPlayers.values.forEach { player -> runCatching { player.release() } }
+            audioPlayers.clear()
+        }
+    }
+
     DisposableEffect(editorPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -195,35 +211,95 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(projectState.isPlaying, activeVideoClip?.id) {
+    LaunchedEffect(
+        activeAudioClips.map { it.second.id to it.second.resourceUri },
+        activeAudioClips.map { it.second.volume to it.first.volume },
+        activeAudioClips.map { it.second.speed to it.second.sourceStartMs },
+        activeAudioClips.map { it.first.isMuted to it.first.isSolo },
+        projectState.isPlaying
+    ) {
+        val activeIds = activeAudioClips.map { it.second.id }.toSet()
+        audioPlayers.keys.toList().filterNot { it in activeIds }.forEach { staleId ->
+            audioPlayers.remove(staleId)?.let { player -> runCatching { player.release() } }
+        }
+        activeAudioClips.forEach { (track, clip) ->
+            val player = audioPlayers.getOrPut(clip.id) {
+                ExoPlayerFactory.createPlayer(context, useCache = false, useAudioFocus = false)
+            }
+            val sourcePosition = clip.sourceStartMs +
+                ((projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L) *
+                    clip.speed.coerceIn(0.1f, 5f)).toLong()
+            val mediaChanged = player.currentMediaItem?.localConfiguration?.uri?.toString() != clip.resourceUri
+            if (mediaChanged) {
+                player.setMediaItem(MediaItem.fromUri(clip.resourceUri))
+                player.prepare()
+                player.seekTo(sourcePosition)
+            } else if (!projectState.isPlaying && kotlin.math.abs(player.currentPosition - sourcePosition) > 80L) {
+                player.seekTo(sourcePosition)
+            }
+            player.setPlaybackSpeed(clip.speed.coerceIn(0.1f, 5f))
+            player.volume = if (isEditorTrackIncludedInMix(projectState, track)) {
+                (clip.volume * track.volume).coerceIn(0f, 1f)
+            } else 0f
+            if (projectState.isPlaying) player.play() else player.pause()
+        }
+    }
+
+    LaunchedEffect(projectState.currentTimeMs, activeAudioClips.map { it.second.id }, projectState.isPlaying) {
+        if (!projectState.isPlaying) {
+            activeAudioClips.forEach { (track, clip) ->
+                val player = audioPlayers[clip.id] ?: return@forEach
+                val sourcePosition = clip.sourceStartMs +
+                    ((projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L) *
+                        clip.speed.coerceIn(0.1f, 5f)).toLong()
+                if (kotlin.math.abs(player.currentPosition - sourcePosition) > 80L) player.seekTo(sourcePosition)
+            }
+        }
+    }
+
+    LaunchedEffect(projectState.isPlaying, activeVideoClip?.id, activeAudioClips.map { it.second.id }) {
         if (!projectState.isPlaying) {
             editorPlayer.pause()
+            audioPlayers.values.forEach { it.pause() }
             return@LaunchedEffect
         }
-        editorPlayer.play()
+        editorPlayer.playWhenReady = activeVideoClip != null
+        audioPlayers.values.forEach { it.play() }
         while (isActive && projectState.isPlaying) {
             kotlinx.coroutines.delay(33L)
-            val clip = activeVideoClip
-            val nextTimeMs = if (clip != null) {
-                val clipEndMs = clip.startOffsetMs + clip.durationMs
-                val speed = clip.speed.coerceIn(0.1f, 5f)
-                val sourceElapsedMs = (editorPlayer.currentPosition - clip.sourceStartMs).coerceAtLeast(0L)
-                val playerEnded = editorPlayer.playbackState == Player.STATE_ENDED ||
-                    sourceElapsedMs >= (clip.durationMs * speed).toLong()
-                if (playerEnded) clipEndMs
-                else (clip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
-            } else {
-                (projectState.currentTimeMs + 33L).coerceAtMost(projectState.totalDurationMs)
+            val videoClip = activeVideoClip
+            val audioMaster = activeAudioClips.firstOrNull()
+            val audioClip = audioMaster?.second
+            val audioPlayer = audioClip?.let { audioPlayers[it.id] }
+            val nextTimeMs = when {
+                videoClip != null -> {
+                    val clipEndMs = videoClip.startOffsetMs + videoClip.durationMs
+                    val speed = videoClip.speed.coerceIn(0.1f, 5f)
+                    val sourceElapsedMs = (editorPlayer.currentPosition - videoClip.sourceStartMs).coerceAtLeast(0L)
+                    val playerEnded = editorPlayer.playbackState == Player.STATE_ENDED ||
+                        sourceElapsedMs >= (videoClip.durationMs * speed).toLong()
+                    if (playerEnded) clipEndMs
+                    else (videoClip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
+                }
+                audioClip != null && audioPlayer != null -> {
+                    val clipEndMs = audioClip.startOffsetMs + audioClip.durationMs
+                    val speed = audioClip.speed.coerceIn(0.1f, 5f)
+                    val sourceElapsedMs = (audioPlayer.currentPosition - audioClip.sourceStartMs).coerceAtLeast(0L)
+                    val playerEnded = audioPlayer.playbackState == Player.STATE_ENDED ||
+                        sourceElapsedMs >= (audioClip.durationMs * speed).toLong()
+                    if (playerEnded) clipEndMs
+                    else (audioClip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
+                }
+                else -> (projectState.currentTimeMs + 33L).coerceAtMost(projectState.totalDurationMs)
             }
             projectState = projectState.copy(currentTimeMs = nextTimeMs)
             if (nextTimeMs >= projectState.totalDurationMs) {
                 editorPlayer.pause()
+                audioPlayers.values.forEach { it.pause() }
                 projectState = projectState.copy(isPlaying = false)
                 break
             }
-            if (clip != null && nextTimeMs >= clip.startOffsetMs + clip.durationMs) {
-                editorPlayer.pause()
-            }
+            if (videoClip != null && nextTimeMs >= videoClip.startOffsetMs + videoClip.durationMs) editorPlayer.pause()
         }
     }
 
