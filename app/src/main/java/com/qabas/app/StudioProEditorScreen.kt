@@ -94,6 +94,13 @@ fun StudioProEditorScreen(
         projectState.currentTimeMs >= it.startOffsetMs &&
             projectState.currentTimeMs < it.startOffsetMs + it.durationMs
     }
+    val activeOverlayClip = projectState.tracks
+        .filter { it.type == TrackType.OVERLAY && it.isVisible }
+        .flatMap { it.clips }
+        .firstOrNull {
+            projectState.currentTimeMs >= it.startOffsetMs &&
+                projectState.currentTimeMs < it.startOffsetMs + it.durationMs
+        }
     
     val scope = rememberCoroutineScope()
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
@@ -355,9 +362,7 @@ fun StudioProEditorScreen(
                                         editorPlayer.setVideoTextureView(textureView)
                                     }
                                 },
-                                update = { textureView ->
-                                    if (textureView.isAvailable) editorPlayer.setVideoTextureView(textureView)
-                                },
+                                update = { },
                                 modifier = Modifier.fillMaxSize().graphicsLayer {
                                     activeVideoClip?.let { clip ->
                                         val relativeTime = (projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L)
@@ -386,6 +391,28 @@ fun StudioProEditorScreen(
                             )
                         }
                         
+                        if (activeOverlayClip != null && activeOverlayClip.resourceUri.isNotBlank()) {
+                            AsyncImage(
+                                model = activeOverlayClip.resourceUri,
+                                contentDescription = activeOverlayClip.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize().graphicsLayer {
+                                    val relativeTime = (projectState.currentTimeMs - activeOverlayClip.startOffsetMs).coerceAtLeast(0L)
+                                    val animatedScale = SmartFeaturesEngine.interpolateProperty(
+                                        activeOverlayClip.keyframes, relativeTime, "scale", 1f
+                                    )
+                                    alpha = SmartFeaturesEngine.interpolateProperty(
+                                        activeOverlayClip.keyframes, relativeTime, "opacity", 1f
+                                    )
+                                    scaleX = activeOverlayClip.transform.scaleX * animatedScale
+                                    scaleY = activeOverlayClip.transform.scaleY * animatedScale
+                                    rotationZ = activeOverlayClip.transform.rotation
+                                    translationX = activeOverlayClip.transform.posX
+                                    translationY = activeOverlayClip.transform.posY
+                                }
+                            )
+                        }
+
                         // Active Text Layer or Kinetic Captions
                         val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT && it.isVisible }?.clips?.firstOrNull { 
                             projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs < it.startOffsetMs + it.durationMs
