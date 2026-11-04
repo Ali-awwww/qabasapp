@@ -87,30 +87,34 @@ fun MushafReaderScreen(
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
 
     var dataReady by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var loadAttempt by remember { mutableIntStateOf(0) }
     var bookmarks by remember {
         mutableStateOf(prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.mapNotNull { it.toIntOrNull() }?.sorted() ?: emptyList())
     }
     var fontScale by remember { mutableFloatStateOf(prefs.getFloat(KEY_FONT_SIZE, 1f)) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(loadAttempt) {
+        loadError = null
+        dataReady = false
         val quranReady = withContext(Dispatchers.IO) {
             QuranDataProvider.loadFromAssets(context) ||
                 QuranDataProvider.loadFromCache(context)
         }.let { ready ->
             if (ready) true else QuranDataProvider.downloadAndCacheFromNetwork(context)
         }
-        withContext(Dispatchers.IO) {
+        val pageMapReady = withContext(Dispatchers.IO) {
             QuranDataProvider.loadTafsirFromAssets(context)
             MushafPageData.loadPageMap(context)
         }
-        dataReady = quranReady && MushafPageData.isLoaded()
+        dataReady = quranReady && pageMapReady && MushafPageData.isLoaded()
         if (!dataReady) {
-            val message = if (!quranReady) {
-                "تعذر جلب نص القرآن الموثق. تحقق من اتصال الإنترنت ثم أعد المحاولة."
+            loadError = if (!quranReady) {
+                "تعذر جلب نص القرآن والتحقق منه. تحقق من الاتصال ثم أعد المحاولة."
             } else {
-                "تعذر تحميل خريطة الصفحات — تحقق من ملف madani_pages.json"
+                "تعذر التحقق من خريطة صفحات المصحف. راجع ملف بيانات الصفحات."
             }
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, loadError, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -126,11 +130,25 @@ fun MushafReaderScreen(
 
         if (!dataReady) {
             Box(Modifier.fillMaxSize().background(Color(0xFF0B0F19)), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = GoldPrimary)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 28.dp)
+                ) {
+                    if (loadError == null) {
+                        CircularProgressIndicator(color = GoldPrimary)
+                        Spacer(Modifier.height(12.dp))
+                        Text("جارٍ تحميل النص والتحقق من صفحات المصحف…", color = TextSecondary, fontFamily = CairoFont)
+                    } else {
+                        Text(loadError.orEmpty(), color = Color(0xFFFFD7A3), fontFamily = CairoFont, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { loadAttempt++ },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color(0xFF171717))
+                        ) {
+                            Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
-                    Text("جاري تجهيز صفحات المصحف…", color = TextSecondary, fontFamily = CairoFont)
-                    Spacer(Modifier.height(16.dp))
                     TextButton(onClick = onClose) { Text("رجوع", color = GoldPrimary, fontFamily = CairoFont) }
                 }
             }
@@ -265,7 +283,7 @@ private fun MushafReaderContent(
         )
 
         Text(
-            text = "النص العثماني: Tanzil Project · CC BY 3.0 · tanzil.net",
+            text = "نص القرآن: Tanzil Project (CC BY 3.0) · حزمة البيانات: Quran JSON (CC BY-SA 4.0)",
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { uriHandler.openUri("https://tanzil.net") }
@@ -465,7 +483,7 @@ private fun MushafPageCard(
                     pop()
                     append(" ")
                     pushStyle(androidx.compose.ui.text.SpanStyle(color = MushafHeaderGold, fontWeight = FontWeight.Bold))
-                    append("﴿\${easternDigits(ayah)}﴾")
+                    append("﴿${easternDigits(ayah)}﴾")
                     pop()
                     append(" ")
                 }
@@ -491,7 +509,7 @@ private fun MushafPageCard(
                 refs.map { it.first }.distinct().forEach { surah ->
                     if (refs.any { it.first == surah && it.second == 1 }) {
                         SurahDecorativeHeader(QuranDataProvider.surahNameOf(surah), (20 * fontScale).sp)
-                        if (surah != 9) {
+                        if (surah != 9 && surah != 1) {
                             Text(
                                 "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
                                 color = Color(0xFF252319), fontFamily = AmiriFont,
@@ -519,7 +537,7 @@ private fun MushafPageCard(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("— \${easternDigits(page)} —", color = MushafHeaderGold, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("— ${easternDigits(page)} —", color = MushafHeaderGold, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
