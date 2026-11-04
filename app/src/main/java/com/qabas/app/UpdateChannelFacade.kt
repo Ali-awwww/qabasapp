@@ -45,7 +45,7 @@ object UpdateChannelFacade {
 
     /** وصف نقطة الفحص — للمطور يذكر المصدر، وللمستخدم يذكر behavior فقط */
     fun checkSourceLabel(context: Context): String =
-        if (isDeveloper(context)) "Supabase App Updates" else "قناة التحديث الرسمية"
+        if (isDeveloper(context)) "Supabase — الإصدار المعتمد" else "قناة التحديث الرسمية"
 
     /** نص زر الفحص (غير أثناء الفحص) */
     fun checkButtonLabel(context: Context): String =
@@ -59,33 +59,21 @@ object UpdateChannelFacade {
 
     /** نص نافذة الفحص (Toast) */
     fun checkingToast(context: Context): String =
-        if (isDeveloper(context)) "جاري فحص التحديثات عبر GitHub Releases 🔍"
+        if (isDeveloper(context)) "جاري فحص الإصدار المعتمد في Supabase 🔍"
         else "جاري فحص التحديثات 🔍"
 
     /** فقرة «عن التحديثات» في مركز التنزيلات */
     fun aboutText(context: Context, currentVersionName: String): String =
-        if (isDeveloper(context)) {
-            "أنت تستخدم النسخة v$currentVersionName. عند توفر أي إصدار أحدث على GitHub Releases، " +
-                "سيبدأ النظام بتنزيله تلقائياً وعرضه مباشرة في مركز التنزيلات."
-        } else {
-            "أنت تستخدم النسخة v$currentVersionName. عند توفر أي إصدار أحدث، " +
-                "سيبدأ النظام بتنزيله تلقائياً وعرضه مباشرة في مركز التنزيلات."
-        }
+        "أنت تستخدم النسخة v$currentVersionName. لا يصل للمستخدمين إلا الإصدار الذي يعتمده المطوّر في Supabase. " +
+            "نشر إصدار جديد على GitHub وحده لا يغيّر النسخة التي يتلقاها التطبيق."
 
-    /** قائمة السلوك التلقائي */
+    /** سياسة التوزيع التي يطبقها التطبيق */
     fun behaviorText(context: Context): String {
         val interval = UpdateManager.getAutoCheckIntervalHours(context)
-        return if (isDeveloper(context)) {
-            "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
-                "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
-                "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
-                "زر التثبيت اليدوي متاحاً هنا في أي وقت."
-        } else {
-            "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
-                "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
-                "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
-                "زر التثبيت اليدوي متاحاً هنا في أي وقت."
-        }
+        return "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
+            "• التحديث الإجباري يبدأ تنزيله في الخلفية مع إشعار بالتقدم.\n" +
+            "• التحديث الاختياري يعرض نافذة، ولا يبدأ تنزيله إلا بعد اختيار المستخدم.\n" +
+            "• بعد اكتمال التنزيل، يعرض أندرويد خطوة التثبيت التي تتطلب موافقة المستخدم."
     }
 
     // ─────────────────────────────────────────────────────────────
