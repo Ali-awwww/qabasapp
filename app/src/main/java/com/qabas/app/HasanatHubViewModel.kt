@@ -172,9 +172,9 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _currentTimeMillis = MutableStateFlow(System.currentTimeMillis())
     
     val prayerTimeInfo: StateFlow<PrayerTimeInfo> = _currentTimeMillis.map { time ->
-        val defaultCity = PrayerCalculationHelper.popularCities[0]
+        val currentCity = PrayerCalculationHelper.getSavedCity(getApplication<Application>())
         val cal = Calendar.getInstance().apply { timeInMillis = time }
-        val times = PrayerCalculationHelper.calculatePrayerTimes(cal, defaultCity, defaultCity.defaultMethod)
+        val times = PrayerCalculationHelper.calculatePrayerTimes(cal, currentCity, currentCity.defaultMethod)
         
         val nextName = times.nextPrayerName
         val nextTime = times.nextPrayerTimeFormatted
