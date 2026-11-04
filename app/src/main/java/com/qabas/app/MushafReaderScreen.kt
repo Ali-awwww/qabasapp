@@ -28,6 +28,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -430,87 +431,72 @@ private fun MushafPageCard(
     onOpenTafseer: (Int, Int) -> Unit
 ) {
     val refs = remember(page) { MushafPageData.getPageRefs(page) }
-    // عناصر العرض: رأس سورة عند بدايتها + آية آية (لتتبع الظاهر منها)
-    val items = remember(page) {
-        val list = ArrayList<MushafLineItem>()
-        var lastSurah = -1
-        for ((s, a) in refs) {
-            if (a == 1 && s != lastSurah) {
-                list.add(MushafLineItem.Header(s))
-                lastSurah = s
-            }
-            list.add(MushafLineItem.Ayah(s, a))
-        }
-        list
-    }
-    val listState = remember(page) { androidx.compose.foundation.lazy.LazyListState() }
-    // الإبلاغ عن أول آية ظاهرة (شارة «آية X»)
-    LaunchedEffect(page, listState.firstVisibleItemIndex) {
-        val idx = listState.firstVisibleItemIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-        if (items.isNotEmpty()) {
-            when (val it = items[idx]) {
-                is MushafLineItem.Ayah -> onVisibleAyah(it.surah, it.ayah)
-                is MushafLineItem.Header -> onVisibleAyah(it.surah, 1)
+    val pageScroll = remember(page) { androidx.compose.foundation.rememberScrollState() }
+    val pageText = remember(page) {
+        buildAnnotatedString {
+            refs.forEach { (surah, ayah) ->
+                val verse = QuranDataProvider.getVerseText(surah, ayah).orEmpty()
+                if (verse.isNotBlank()) {
+                    pushStringAnnotation(tag = "ayah", annotation = "$surah:$ayah")
+                    append(verse)
+                    pop()
+                    append(" ")
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = MushafHeaderGold, fontWeight = FontWeight.Bold))
+                    append("﴿\${easternDigits(ayah)}﴾")
+                    pop()
+                    append(" ")
+                }
             }
         }
     }
-    Box(
-        Modifier.fillMaxSize()
-            .background(MushafCream)
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        if (items.isEmpty()) {
+    LaunchedEffect(page) {
+        refs.firstOrNull()?.let { (surah, ayah) -> onVisibleAyah(surah, ayah) }
+    }
+    Box(Modifier.fillMaxSize().background(MushafCream).padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (refs.isEmpty() || pageText.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("لا تتوفر بيانات هذه الصفحة", color = Color.Gray, fontFamily = CairoFont)
             }
-            return@Box
-        }
-        val fontSize = (22 * fontScale).sp
-        val lineH = (44 * fontScale).sp
-        androidx.compose.foundation.lazy.LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            items(
-                count = items.size,
-                key = { i ->
-                    when (val it = items[i]) {
-                        is MushafLineItem.Header -> "h-${it.surah}"
-                        is MushafLineItem.Ayah -> "a-${it.surah}-${it.ayah}"
-                    }
-                }
-            ) { i ->
-                when (val it = items[i]) {
-                    is MushafLineItem.Header -> {
-                        SurahDecorativeHeader(surahName = QuranDataProvider.surahNameOf(it.surah), fontSize = fontSize)
-                        if (it.surah != 9) {
+        } else {
+            Column(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFFFCF3))
+                    .border(1.dp, MushafHeaderGold.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                    .verticalScroll(pageScroll).padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                refs.map { it.first }.distinct().forEach { surah ->
+                    if (refs.any { it.first == surah && it.second == 1 }) {
+                        SurahDecorativeHeader(QuranDataProvider.surahNameOf(surah), (20 * fontScale).sp)
+                        if (surah != 9) {
                             Text(
                                 "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
-                                color = Color.Black, fontFamily = AmiriFont,
-                                fontSize = (fontSize.value * 1.1).sp, textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                                color = Color(0xFF252319), fontFamily = AmiriFont,
+                                fontSize = (24 * fontScale).sp, textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                             )
                         }
                     }
-                    is MushafLineItem.Ayah -> {
-                        Text(
-                            buildAnnotatedString {
-                                append(QuranDataProvider.getVerseText(it.surah, it.ayah) ?: "")
-                                append(" ")
-                                // شارة الآية (دائرة مزخرفة)
-                                append(" ﴿${easternDigits(it.ayah)}﴾ ")
-                            },
-                            fontFamily = AmiriFont,
-                            fontSize = fontSize,
-                            lineHeight = lineH,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                .clickable { onOpenTafseer(it.surah, it.ayah) }
-                        )
-                    }
                 }
+                androidx.compose.foundation.text.ClickableText(
+                    text = pageText,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = AmiriFont, fontSize = (25 * fontScale).sp,
+                        lineHeight = (47 * fontScale).sp, color = Color(0xFF211F18),
+                        textAlign = TextAlign.Justify
+                    ),
+                    onClick = { offset ->
+                        pageText.getStringAnnotations("ayah", offset, offset).firstOrNull()?.item
+                            ?.split(":")?.let { parts ->
+                                val s = parts.getOrNull(0)?.toIntOrNull()
+                                val a = parts.getOrNull(1)?.toIntOrNull()
+                                if (s != null && a != null) onOpenTafseer(s, a)
+                            }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("— \${easternDigits(page)} —", color = MushafHeaderGold, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
