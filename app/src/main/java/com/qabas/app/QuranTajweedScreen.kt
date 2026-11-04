@@ -1471,7 +1471,7 @@ fun GoldenMushafReaderView(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
-                        if (!quranDataReady) {
+                        if (dataVersion < 6236) {
                             Button(
                                 onClick = onRetryData,
                                 colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
