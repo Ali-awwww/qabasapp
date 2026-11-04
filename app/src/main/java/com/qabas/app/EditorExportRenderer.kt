@@ -87,6 +87,9 @@ internal fun createEditorExportPlan(
     ) {
         return EditorExportPlanResult(error = "نطاق القص يتجاوز مدة ملف المصدر")
     }
+    if (clip.keyframes.isNotEmpty()) {
+        return EditorExportPlanResult(error = "التحريك بالمفاتيح الزمنية غير مدعوم في إصدار الرندر الحالي؛ أزل المفاتيح أو انتظر محرك التحريك")
+    }
     if (clip.transitionIn != null || clip.blendMode != "Normal") {
         return EditorExportPlanResult(error = "الانتقالات وأنماط المزج غير مدعومة في إصدار الرندر الحالي")
     }
@@ -158,14 +161,21 @@ internal fun buildEditorExportCommand(
             while (remaining < 0.5f) { add("atempo=0.5"); remaining /= 0.5f }
             add("atempo=${number(remaining)}")
         }.joinToString(",")
+        val audioFilters = listOf(
+            atempo,
+            "volume=${number((clip.volume * plan.track.volume).coerceIn(0f, 1f))}",
+            "adelay=${clip.startOffsetMs}:all=1",
+            "apad",
+            "atrim=duration=${plan.durationMs / 1000.0}"
+        ).joinToString(",")
         command.append("-map 0:a:0 -af ")
-            .append(quote("$atempo,volume=${number((clip.volume * plan.track.volume).coerceIn(0f, 1f))} "))
+            .append(quote(audioFilters))
             .append(" -c:a aac -b:a 192k ")
     } else {
         command.append("-an ")
     }
     command.append("-c:v libx264 -preset medium -crf 20 -r ${plan.fps} ")
-        .append("-movflags +faststart ")
+         .append("-t ${plan.durationMs / 1000.0} -movflags +faststart ")
         .append(quote(outputPath))
     return command.toString()
 }
