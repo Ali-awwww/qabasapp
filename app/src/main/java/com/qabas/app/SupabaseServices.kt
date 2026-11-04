@@ -1309,6 +1309,21 @@ object SupabaseServices {
         }
 
         /**
+         * Read a public custom handle from the author's public reel snapshot.
+         * This avoids querying private user rows belonging to another account.
+         */
+        suspend fun getCreatorCustomId(creatorId: String): String? = runCatching {
+            val client = client ?: return null
+            if (creatorId.isBlank()) return null
+            client.postgrest.from("reels").select {
+                filter { eq("user_id", creatorId) }
+                order("created_at", Order.DESCENDING)
+                limit(1)
+            }.decodeList<ReelRow>().firstOrNull()?.userCustomId
+                ?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+        }.onFailure { Log.w(TAG, "getCreatorCustomId failed") }.getOrNull()
+
+        /**
          * جلب مقاطع الريلز النشطة مع تقرير تشخيصي دقيق (زمن الاستجابة، رمز HTTP، ومرحلة الفشل).
          * يمنع الفشل الصامت ويتيح تفكيك الأعطال وإعادة تعيين قاطع الدائرة يدوياً.
          */
@@ -1515,10 +1530,19 @@ object SupabaseServices {
                 throw IllegalArgumentException(err)
             }
 
+            val creatorCustomId = runCatching {
+                client.postgrest.from("users").select {
+                    filter { eq("id", effectiveUserId) }
+                    limit(1)
+                }.decodeSingleOrNull<UserRow>()?.customId?.trim()?.removePrefix("@")
+                    ?.takeIf { it.isNotBlank() }
+            }.onFailure { Log.w("ReelPublish", "Could not load creator custom_id") }.getOrNull()
+
             val now = java.time.Instant.now().toString()
             val payload = ReelInsertPayload(
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
+                userCustomId = creatorCustomId,
                 userName = userName.ifBlank { "مستخدم قبس" },
                 userAvatar = userAvatar,
                 title = title.trim(),
@@ -1719,11 +1743,18 @@ object SupabaseServices {
             }
 
             val safeName = userName.trim().take(60).ifBlank { "مستخدم قبس" }
+            val authorCustomId = client.postgrest.from("users").select {
+                filter { eq("id", authUid) }
+                limit(1)
+            }.decodeSingleOrNull<UserRow>()?.customId
+                ?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+
             val comment = ReelCommentRow(
                 id = java.util.UUID.randomUUID().toString(),
                 reelId = reelId,
                 userId = authUid,
                 userName = safeName,
+                userCustomId = authorCustomId,
                 commentText = commentText,
                 likesCount = 0,
                 createdAt = java.time.Instant.now().toString()
@@ -2435,6 +2466,7 @@ object SupabaseServices {
     data class ReelRow(
         val id: String = "",
         @SerialName("user_id") val userId: String = "",
+        @SerialName("user_custom_id") val userCustomId: String? = null,
         @SerialName("user_name") val userName: String = "صانع محتوى",
         @SerialName("user_avatar") val userAvatar: String? = null,
         val title: String = "",
@@ -2463,6 +2495,7 @@ object SupabaseServices {
     data class ReelInsertPayload(
         val id: String,
         @SerialName("user_id") val userId: String,
+        @SerialName("user_custom_id") val userCustomId: String? = null,
         @SerialName("user_name") val userName: String = "مستخدم قبس",
         @SerialName("user_avatar") val userAvatar: String? = null,
         val title: String,
@@ -2492,6 +2525,7 @@ object SupabaseServices {
         @SerialName("reel_id") val reelId: String = "",
         @SerialName("user_id") val userId: String = "",
         @SerialName("user_name") val userName: String = "مستخدم قبس",
+        @SerialName("user_custom_id") val userCustomId: String? = null,
         @SerialName("comment_text") val commentText: String = "",
         @SerialName("likes_count") val likesCount: Int = 0,
         @SerialName("created_at") val createdAt: String? = null,
