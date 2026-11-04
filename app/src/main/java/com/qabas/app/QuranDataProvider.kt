@@ -234,7 +234,7 @@ object QuranDataProvider {
 
     /** تحميل النسخة التي سبق تنزيلها والتحقق من اكتمالها قبل استخدامها. */
     fun loadFromCache(context: Context): Boolean {
-        if (versesMap?.values?.sumOf { it.size } == 6236) return true
+        if (versesMap?.values?.flatten()?.let { isCompleteQuran(it) } == true) return true
         return try {
             val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
             if (!cacheFile.isFile || cacheFile.length() == 0L) return false
