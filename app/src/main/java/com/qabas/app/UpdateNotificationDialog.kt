@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,7 +45,14 @@ fun UpdateNotificationDialog(
     onInstall: () -> Unit
 ) {
     val patchState by PatchManager.patchState.collectAsState()
-    
+    val context = LocalContext.current
+    var buildDetailsExpanded by remember(update.versionCode) { mutableStateOf(true) }
+
+    fun openBuildLink(url: String?) {
+        if (url.isNullOrBlank()) return
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
     val pulse by rememberInfiniteTransition(label = "updatePulse").animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
@@ -64,14 +75,16 @@ fun UpdateNotificationDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 420.dp)
-                .wrapContentHeight()
+                .heightIn(max = 760.dp)
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             shape = RoundedCornerShape(32.dp),
             backgroundColor = CardSurface.copy(alpha = 0.85f),
             borderColor = if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.7f) else GoldPrimary.copy(alpha = 0.6f)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -184,6 +197,97 @@ fun UpdateNotificationDialog(
                     }
                 }
 
+
+                // Build provenance: معلومات مأخوذة من بيانات GitHub Release الفعلية.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.045f))
+                        .border(1.dp, GoldPrimary.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+                        .clickable { buildDetailsExpanded = !buildDetailsExpanded }
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "مصدر هذا البناء",
+                                color = GoldSecondary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                "تفاصيل الإصدار وسجل البناء من GitHub",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 9.sp
+                            )
+                        }
+                        Text(
+                            if (buildDetailsExpanded) "إخفاء ▲" else "عرض التفاصيل ▼",
+                            color = GoldPrimary,
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (buildDetailsExpanded) {
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        BuildMetadataRow("رقم البناء", update.buildNumber ?: update.versionCode.toString())
+                        BuildMetadataRow("الفرع", update.sourceBranch ?: "غير مذكور في بيانات الإصدار")
+                        BuildMetadataRow("وقت البناء", update.builtAt ?: "غير متوفر في سجل هذا الإصدار")
+                        BuildMetadataRow(
+                            "Commit",
+                            update.commitSha?.let { if (it.length > 12) it.take(12) + "…" else it }
+                                ?: "غير مرفق في ملاحظات الإصدار",
+                            mono = true
+                        )
+
+                        if (update.commitSha != null) {
+                            TextButton(
+                                onClick = {
+                                    openBuildLink("https://github.com/\${UpdateManager.getEffectiveRepo(context)}/commit/\${update.commitSha}")
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text("فتح تفاصيل الـ Commit ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (update.workflowRunUrl != null) {
+                                OutlinedButton(
+                                    onClick = { openBuildLink(update.workflowRunUrl) },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                ) {
+                                    Text("سجل البناء ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                }
+                            }
+                            if (update.releaseUrl != null) {
+                                OutlinedButton(
+                                    onClick = { openBuildLink(update.releaseUrl) },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                ) {
+                                    Text("صفحة الإصدار ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Progress Indicator
                 if (downloadProgress != null || patchState !is PatchManager.PatchState.Idle) {
                     UpdateProgressSection(
@@ -266,6 +370,31 @@ fun UpdateNotificationDialog(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BuildMetadataRow(label: String, value: String, mono: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label,
+            color = TextSecondary,
+            fontFamily = CairoFont,
+            fontSize = 10.sp,
+            modifier = Modifier.weight(0.8f)
+        )
+        Text(
+            value,
+            color = TextPrimary,
+            fontFamily = if (mono) RobotoMonoFont else CairoFont,
+            fontSize = if (mono) 9.sp else 10.sp,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1.5f)
+        )
     }
 }
 
