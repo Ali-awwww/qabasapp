@@ -112,4 +112,68 @@ class EditorModelsTest {
         assertEquals(editorDraftContentHash(state), editorDraftContentHash(playbackUpdate))
         assertFalse(editorDraftContentHash(state) == editorDraftContentHash(mixerUpdate))
     }
+
+    @Test
+    fun keyframeInsertionStoresScaleAndOpacityAtPlayheadAndReplacesDuplicates() {
+        val clip = EditorClip(
+            id = "visual-clip",
+            title = "Title",
+            resourceUri = "",
+            startOffsetMs = 1000L,
+            durationMs = 4000L,
+            trackIndex = 0,
+            type = TrackType.TEXT,
+            color = androidx.compose.ui.graphics.Color.White
+        )
+        val state = EditorProjectState(
+            projectId = "keyframe-test",
+            title = "Keyframes",
+            tracks = listOf(EditorTrack(type = TrackType.TEXT, name = "Text", clips = listOf(clip))),
+            currentTimeMs = 2500L
+        )
+
+        val first = addEditorKeyframesAtPlayhead(
+            state,
+            clip.id,
+            mapOf("scale" to 1.5f, "opacity" to 0.75f)
+        )!!
+        val updated = addEditorKeyframesAtPlayhead(
+            first,
+            clip.id,
+            mapOf("scale" to 2f, "opacity" to 0.5f)
+        )!!
+        val keyframes = updated.tracks.single().clips.single().keyframes
+
+        assertEquals(2, keyframes.size)
+        assertEquals(1500L, keyframes.first { it.property == "scale" }.timeMs)
+        assertEquals(2f, keyframes.first { it.property == "scale" }.value, 0.001f)
+        assertEquals(0.5f, keyframes.first { it.property == "opacity" }.value, 0.001f)
+    }
+
+    @Test
+    fun keyframeInsertionRejectsLockedOrInactiveClips() {
+        val clip = EditorClip(
+            id = "locked-clip",
+            title = "Locked",
+            resourceUri = "",
+            startOffsetMs = 1000L,
+            durationMs = 1000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val lockedState = EditorProjectState(
+            projectId = "locked-keyframe",
+            title = "Locked",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip), isLocked = true)),
+            currentTimeMs = 1500L
+        )
+        val inactiveState = lockedState.copy(
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            currentTimeMs = 2500L
+        )
+
+        assertNull(addEditorKeyframesAtPlayhead(lockedState, clip.id, mapOf("scale" to 1f)))
+        assertNull(addEditorKeyframesAtPlayhead(inactiveState, clip.id, mapOf("scale" to 1f)))
+    }
 }
