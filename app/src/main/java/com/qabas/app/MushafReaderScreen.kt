@@ -8,7 +8,7 @@ package com.qabas.app
  * - شريط علوي: السورة + الجزء. شريط سفلي: رقم الصفحة + تنقل + علامة + اختيار.
  * - نافذة اختيار: سورة / جزء / صفحة / علاماتي.
  * - حفظ آخر صفحة + العلامات في "qabas_prefs" (نفس تخزين التطبيق).
- * - النصوص من `uthmani.json` المحلي حصراً — لا شبكة ولا مفاتيح.
+ * - النص العثماني من مصدر موثق، يُنزّل مرة أولى ثم يُخزّن محلياً للقراءة دون اتصال.
  * - هيكل مفتوح لاحقاً: onOpenTafseer / onPlayAudio (اختياريان، يُمرَّران عند الجاهزية).
  */
 
@@ -282,16 +282,25 @@ private fun MushafReaderContent(
             onPageNumberClick = { showSheet = true }
         )
 
-        Text(
-            text = "نص القرآن: Tanzil Project (CC BY 3.0) · حزمة البيانات: Quran JSON (CC BY-SA 4.0)",
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { uriHandler.openUri("https://tanzil.net") }
-                .padding(vertical = 3.dp),
-            color = Color(0xFF766C58),
-            fontSize = 9.sp,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "نص القرآن: Tanzil Project · CC BY 3.0",
+                modifier = Modifier.clickable { uriHandler.openUri("https://tanzil.net") },
+                color = Color(0xFF766C58),
+                fontSize = 9.sp,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "توزيع البيانات: Quran JSON · CC BY-SA 4.0",
+                modifier = Modifier.clickable { uriHandler.openUri("https://github.com/risan/quran-json") },
+                color = Color(0xFF766C58),
+                fontSize = 9.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 
     if (showSheet) {
