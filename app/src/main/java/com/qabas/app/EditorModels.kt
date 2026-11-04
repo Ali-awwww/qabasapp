@@ -86,6 +86,21 @@ enum class WorkspaceMode {
     EDIT, COLOR, AUDIO, EXPORT
 }
 
+/** Returns the nearest clip boundary in the requested direction, or null when none exists. */
+internal fun findAdjacentEditorClip(
+    projectState: EditorProjectState,
+    forward: Boolean
+): EditorClip? {
+    val clips = projectState.tracks.flatMap { it.clips }
+    return if (forward) {
+        clips.filter { it.startOffsetMs > projectState.currentTimeMs }
+            .minByOrNull { it.startOffsetMs }
+    } else {
+        clips.filter { it.startOffsetMs < projectState.currentTimeMs }
+            .maxByOrNull { it.startOffsetMs }
+    }
+}
+
 /** Creates a genuinely empty editor project; media is added only from the user's library. */
 internal fun createBlankEditorProjectState(): EditorProjectState =
     EditorProjectState(
