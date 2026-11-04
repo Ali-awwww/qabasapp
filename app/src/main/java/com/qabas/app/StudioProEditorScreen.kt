@@ -585,28 +585,15 @@ fun StudioProEditorScreen(
                         icon = Icons.Default.ContentCut, 
                         label = "تقسيم", 
                         onClick = {
-                            saveToHistory()
-                            val clipToSplit = projectState.tracks.flatMap { it.clips }.find { it.id == projectState.selectedClipId }
+                            val clipToSplit = selectedEditorClip
                             if (clipToSplit != null) {
-                                val relativeTime = projectState.currentTimeMs - clipToSplit.startOffsetMs
-                                if (relativeTime > 0 && relativeTime < clipToSplit.durationMs) {
-                                    val secondPart = clipToSplit.copy(
-                                        id = UUID.randomUUID().toString(),
-                                        startOffsetMs = projectState.currentTimeMs,
-                                        durationMs = clipToSplit.durationMs - relativeTime
-                                    )
-                                    val firstPart = clipToSplit.copy(durationMs = relativeTime)
-                                    
-                                    projectState = projectState.copy(
-                                        tracks = projectState.tracks.map { track ->
-                                            if (track.clips.any { it.id == clipToSplit.id }) {
-                                                track.copy(clips = track.clips.flatMap { 
-                                                    if (it.id == clipToSplit.id) listOf(firstPart, secondPart) else listOf(it)
-                                                })
-                                            } else track
-                                        }
-                                    )
-                                    Toast.makeText(context, "تم تقسيم المقطع ✂️", Toast.LENGTH_SHORT).show()
+                                val updated = splitEditorClip(projectState, clipToSplit.id)
+                                if (updated != null) {
+                                    saveToHistory()
+                                    projectState = updated
+                                    Toast.makeText(context, "تم تقسيم المقطع مع الحفاظ على إطارات الحركة ✂️", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "ضع مؤشر التشغيل داخل المقطع بعيداً عن حافتيه", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },
@@ -890,28 +877,18 @@ fun StudioProEditorScreen(
                     )
                 },
                 onDelete = {
-                    saveToHistory()
-                    val clipToDelete = projectState.tracks.flatMap { it.clips }.find { it.id == projectState.selectedClipId }
-                    projectState = projectState.copy(
-                        tracks = projectState.tracks.map { track ->
-                            val updatedClips = track.clips.filter { it.id != projectState.selectedClipId }
-                            
-                            if (projectState.isMagneticTimeline && clipToDelete != null && track.clips.any { it.id == clipToDelete.id }) {
-                                // Re-calculate offsets for magnetic effect
-                                var currentOffset = 0L
-                                track.copy(clips = updatedClips.sortedBy { it.startOffsetMs }.map { clip ->
-                                    val newClip = clip.copy(startOffsetMs = currentOffset)
-                                    currentOffset += clip.durationMs
-                                    newClip
-                                })
-                            } else {
-                                track.copy(clips = updatedClips)
-                            }
-                        },
-                        selectedClipId = null
-                    )
+                    val clipId = projectState.selectedClipId
+                    val updated = clipId?.let { deleteEditorClip(projectState, it) }
+                    if (updated != null) {
+                        saveToHistory()
+                        projectState = updated
+                        Toast.makeText(
+                            context,
+                            if (projectState.isMagneticTimeline) "تم حذف المقطع وإغلاق الفجوة في مساره" else "تم حذف المقطع",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                     showAdjustPanel = false
-                    Toast.makeText(context, if (projectState.isMagneticTimeline) "تم الحذف والدمج المغناطيسي 🧲" else "تم حذف المقطع 🗑️", Toast.LENGTH_SHORT).show()
                 },
                 onDuplicate = {
                     saveToHistory()
