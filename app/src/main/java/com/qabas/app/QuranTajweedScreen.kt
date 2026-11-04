@@ -1309,17 +1309,17 @@ fun GoldenMushafReaderView(
 
     val listState = rememberLazyListState()
 
-    LaunchedEffect(surah.id) {
-        listState.scrollToItem(0)
-    }
-
     LaunchedEffect(surah.id, versesList, highlightVerse) {
         if (highlightVerse > 0) {
             val verseIndex = versesList.indexOfFirst { it.verseNumber == highlightVerse }
             if (verseIndex >= 0) {
                 val basmalaOffset = if (surah.id == 9) 0 else 1
                 listState.animateScrollToItem(verseIndex + basmalaOffset, scrollOffset = 0)
+            } else {
+                listState.scrollToItem(0)
             }
+        } else {
+            listState.scrollToItem(0)
         }
     }
 
