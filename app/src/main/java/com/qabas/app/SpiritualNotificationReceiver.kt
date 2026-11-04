@@ -41,7 +41,7 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
         val (title, message) = when (type) {
             "suhur" -> "ورد السحر" to (
                 QabasNotificationHelper.dailyVerseLine()
-                    ?: "«أَمَّنْ هُوَ قَانِتٌ آنَاءَ اللَّيْلِ سَاجِدًا وَقَائِمًا يَحْذَرُ الْآخِرَةَ وَيَرْجُو رَحْمَةَ رَبِّهِ»"
+                    ?: "افتح المصحف لقراءة وردك من القرآن الكريم."
                 )
             "fajr" -> "ورد الفجر" to (
                 QabasNotificationHelper.dailyVirtueLine()

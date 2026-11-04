@@ -2,9 +2,8 @@ package com.qabas.app
 
 /**
  * QuranTajweedScreen.kt
- * تم تحسين هذا الملف لدعم التصفح السلس للقرآن الكريم، ومحرك فحص التجويد الصوتي،
- * وموسوعة أحكام التجويد الشاملة مع إمكانية تصدير شهادات الإتقان وربط الآيات مباشرة
- * بمسار إنتاج الريلز والفيديوهات القرآنية (9:16) بضغطة زر واحدة.
+ * شاشة أدوات القرآن: قارئ السور والصفحات، البحث، التلاوة الصوتية،
+ * التفسير عند توفر مصدره، تسجيل صوت المستخدم للمراجعة اليدوية، وأدوات الحفظ والتدبر.
  */
 
 import android.Manifest
@@ -45,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -97,8 +97,6 @@ data class TajweedRuleItem(
     val title: String,
     val category: String,
     val description: String,
-    val exampleVerse: String,
-    val audioNote: String
 )
 
 data class QuranVerseDetail(
@@ -152,10 +150,25 @@ fun QuranTajweedScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            QuranDataProvider.loadFromAssets(context)
+    var quranDataVersion by remember { mutableIntStateOf(QuranDataProvider.getTotalAyahCount()) }
+    var quranDataReady by remember { mutableStateOf(quranDataVersion == 6236) }
+    var quranLoadAttempt by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(quranLoadAttempt) {
+        val ready = withContext(Dispatchers.IO) {
+            val loaded = QuranDataProvider.ensureQuranLoaded(context)
+            QuranDataProvider.loadTafsirFromAssets(context)
+            loaded
         }
+        quranDataVersion = QuranDataProvider.getTotalAyahCount()
+        quranDataReady = ready && quranDataVersion == 6236
+        if (!quranDataReady) {
+            Toast.makeText(context, "تعذر تحميل النص القرآني الكامل. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { QuranAudioPlayer.stop() }
     }
 
     // المصحف الذهبي Hub: أقسام رئيسية (المصحف / القراء والروايات / التفسير والمصادر / الأذكار / أكاديمية التجويد)
@@ -171,7 +184,18 @@ fun QuranTajweedScreen(
     var readerTargetVerseNumber by remember { mutableIntStateOf(-1) }
     var isPlayingAudio by remember { mutableStateOf(false) }
     var selectedReciter by remember { mutableStateOf(qabasPrefs.getString("selected_reciter", "الشيخ محمود خليل الحصري") ?: "الشيخ محمود خليل الحصري") }
-    var selectedRiwaya by remember { mutableStateOf(qabasPrefs.getString("selected_riwaya", "حفص عن عاصم") ?: "حفص عن عاصم") } // رواية التلاوة
+    var selectedRiwaya by remember { mutableStateOf("حفص عن عاصم") } // النص الصوتي المتاح حالياً برواية حفص فقط
+
+    LaunchedEffect(selectedReciter) {
+        val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+        if (reciterId == null) {
+            selectedReciter = "الشيخ محمود خليل الحصري"
+            qabasPrefs.edit().putString("selected_reciter", "الشيخ محمود خليل الحصري").apply()
+            UserPreferencesManager.setQuranReciter(context, "husary")
+        } else {
+            UserPreferencesManager.setQuranReciter(context, reciterId)
+        }
+    }
     var academySubTab by remember { mutableIntStateOf(0) } // داخل الأكاديمية: 0 المراحل, 1 اختبار الصوت, 2 الموسوعة
     var showTafseerDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showTadabburDialog by remember { mutableStateOf<QuranVerseDetail?>(null) }
@@ -182,6 +206,8 @@ fun QuranTajweedScreen(
     // Handling Back Button for sub-screens (The identified "Back Point" weak point)
     BackHandler(enabled = isReadingMode || isPageReaderMode || quranSection == 6) {
         if (isReadingMode) {
+            QuranAudioPlayer.stop()
+            isPlayingAudio = false
             isReadingMode = false
             readerTargetVerseNumber = -1
         } else if (isPageReaderMode) {
@@ -206,113 +232,81 @@ fun QuranTajweedScreen(
                 title = "الإظهار الحلقي",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "إخراج النون الساكنة أو التنوين من مخرجها نطقاً صريحاً بدون غنة زائدة إذا تلاها أحد حروف الحلق الستة: (الهمزة، الهاء، العين، الحاء، الغين، الخاء).",
-                exampleVerse = "﴿ مَنْ آمَنَ ﴾ - ﴿ فَرِيقًا هَدَىٰ ﴾ - ﴿ سَلَامٌ هِيَ حَتَّىٰ مَطْلَعِ الْفَجْرِ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإظهار الحلقي"
             ),
             TajweedRuleItem(
                 title = "الإدغام بغنة",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "دمج النون الساكنة أو التنوين في الحرف التالي إذا كان من حروف كلمة (يَنْمُو) ليصبحا حرفاً واحداً مشدداً مع مد الغنة حركتين.",
-                exampleVerse = "﴿ فَمَن يَعْمَلْ مِثْقَالَ ذَرَّةٍ ﴾ - ﴿ مِن نِّعْمَةٍ ﴾ - ﴿ هُدًى وَرَحْمَةً ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإدغام بغنة"
             ),
             TajweedRuleItem(
                 title = "الإدغام بغير غنة",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "إدخال النون الساكنة أو التنوين إدخالاً كاملاً في حرفي (اللام والراء) بدون غنة مع تشديد الحرف التالي.",
-                exampleVerse = "﴿ هُدًى لِّلْمُتَّقِينَ ﴾ - ﴿ مِن رَّبِّهِمْ ﴾ - ﴿ غَفُورٌ رَّحِيمٌ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإدغام بغير غنة"
             ),
             TajweedRuleItem(
                 title = "الإقلاب",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "قلب النون الساكنة أو التنوين ميماً مخفاة بغنة حركتين عند ملاقاة حرف (الباء) مع تلامس خفيف للشفتين دون كز.",
-                exampleVerse = "﴿ مِن بَعْدِ مَا جَاءَتْهُمُ ﴾ - ﴿ سَمِيعٌ بَصِيرٌ ﴾ - ﴿ كَلَّا لَيُنبَذَنَّ فِي الْحُطَمَةِ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإقلاب"
             ),
             TajweedRuleItem(
                 title = "الإخفاء الحقيقي",
                 category = "أحكام النون الساكنة والتنوين",
                 description = "نطق النون الساكنة أو التنوين بصفة بين الإظهار والإدغام عارية عن التشديد مع بقاء الغنة عند حروف الإخفاء الـ 15 (ص، ذ، ث، ك، ج، ش، ق، س، د، ط، ز، ف، ت، ض، ظ).",
-                exampleVerse = "﴿ كَأْسًا دِهَاقًا ﴾ - ﴿ مِن شَرِّ مَا خَلَقَ ﴾ - ﴿ وَأَنتُمْ تَعْلَمُونَ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإخفاء الحقيقي"
             ),
             TajweedRuleItem(
                 title = "الإخفاء الشفوي",
                 category = "أحكام الميم الساكنة",
                 description = "إخفاء الميم الساكنة مع الغنة بمقدار حركتين إذا أتى بعدها حرف (الباء) فقط.",
-                exampleVerse = "﴿ تَرْمِيهِم بِحِجَارَةٍ مِّن سِجِّيلٍ ﴾ - ﴿ وَمَا هُم بِمُؤْمِنِينَ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإخفاء الشفوي"
             ),
             TajweedRuleItem(
                 title = "إدغام المتماثلين الصغير",
                 category = "أحكام الميم الساكنة",
                 description = "إدغام الميم الساكنة في ميم متحركة بعدها لتصبحا ميماً مشددة واحدة مع غنة كاملة حركتين.",
-                exampleVerse = "﴿ لَهُم مَّا يَشَاءُونَ ﴾ - ﴿ الَّذِي أَطْعَمَهُم مِّن جُوعٍ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإدغام المتماثل"
             ),
             TajweedRuleItem(
                 title = "الإظهار الشفوي",
                 category = "أحكام الميم الساكنة",
                 description = "نطق الميم الساكنة ظاهرة واضحة بدون غنة عند باقي حروف الهجاء الـ 26، وتتأكد الشدة عند حذري الواو والفاء.",
-                exampleVerse = "﴿ أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ ﴾ - ﴿ عَلَيْهِمْ وَلَا الضَّالِّينَ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للإظهار الشفوي"
             ),
             TajweedRuleItem(
                 title = "الغنة في النون والميم المشددتين",
                 category = "أحكام الشدة والتجويف",
                 description = "وجوب إخراج الغنة من الخيشوم بأكمل درجاتها (حركتان) في النون والميم المشددتين وصلاً ووقفاً.",
-                exampleVerse = "﴿ إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ ﴾ - ﴿ قُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴾ - ﴿ ثُمَّ كَلَّا سَوْفَ تَعْلَمُونَ ﴾",
-                audioNote = "استمع لتطبيق الغنة المشددة"
             ),
             TajweedRuleItem(
                 title = "مراتب القلقلة",
                 category = "صفات الحروف ومخارجها",
                 description = "اضطراب المخرج عند النطق بحروف (ق، ط، ب، ج، د) ساكنة. كبرى (عند الوقف على حرف مشدد)، وسطى (عند الوقف على ساكن مخفف)، وصغرى (في وسط الكلمة).",
-                exampleVerse = "﴿ تَبَّتْ يَدَا أَبِي لَهَبٍ وَتَبَّ ﴾ [كبرى] - ﴿ قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴾ [وسطى] - ﴿ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴾ [صغرى]",
-                audioNote = "استمع لمراتب القلقلة النموذجية"
             ),
             TajweedRuleItem(
                 title = "المد المتصل",
                 category = "أحكام المدود",
                 description = "أن يجتمع حرف المد مع همزة بعده في كلمة واحدة، وحكمه واجب بمقدار 4 أو 5 حركات.",
-                exampleVerse = "﴿ إِذَا جَاءَ نَصْرُ اللَّهِ وَالْفَتْحُ ﴾ - ﴿ وَالسَّمَاءِ وَالطَّارِقِ ﴾ - ﴿ سِيئَتْ وُجُوهُ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للمد المتصل"
             ),
             TajweedRuleItem(
                 title = "المد المنفصل",
                 category = "أحكام المدود",
                 description = "أن يكون حرف المد في آخر الكلمة والهمزة في أول الكلمة التي تليها، وحكمه جائز بمقدار 4 أو 5 حركات (ويمد حركتين في قصر المنفصل).",
-                exampleVerse = "﴿ إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ ﴾ - ﴿ قُلْ يَا أَيُّهَا الْكَافِرُونَ ﴾ - ﴿ تُوبُوا إِلَى اللَّهِ ﴾",
-                audioNote = "استمع للتلاوة النموذجية للمد المنفصل"
             ),
             TajweedRuleItem(
                 title = "المد اللازم الكلمي والحرفي",
                 category = "أحكام المدود",
                 description = "أن يأتي بعد حرف المد سكون أصلي ثابت وصلاً ووقفاً، ومقداره 6 حركات لازمة قاطعة.",
-                exampleVerse = "﴿ وَلَا الضَّالِّينَ ﴾ [كلمي مثقل] - ﴿ الْحَاقَّةُ ﴾ [كلمي مثقل] - ﴿ آلْآنَ ﴾ [كلمي مخفف] - ﴿ ق ۚ وَالْقُرْآنِ ﴾ [حرفي]",
-                audioNote = "استمع لتطبيق المد اللازم"
             ),
             TajweedRuleItem(
                 title = "المد العارض للسكون ومد اللين",
                 category = "أحكام المدود",
                 description = "أن يأتي بعد حرف المد أو اللين حرف متحرك سكن بسبب الوقف، ويمد بمقدار 2 أو 4 أو 6 حركات.",
-                exampleVerse = "﴿ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ ﴾ - ﴿ لِإِيلَافِ قُرَيْشٍ ﴾ - ﴿ وَآمَنَهُم مِّنْ خَوْفٍ ﴾",
-                audioNote = "استمع للمد العارض للسكون ومد اللين"
             ),
             TajweedRuleItem(
                 title = "أحكام الراء تفخيماً وترقيقاً",
                 category = "صفات الحروف ومخارجها",
                 description = "تفخم الراء إذا كانت مفتوحة أو مضمومة أو ساكنة إثر فتح/ضم، وترقق إذا كانت مكسورة أو ساكنة إثر كسر أصلي لازم.",
-                exampleVerse = "﴿ رَبَّنَا آتِنَا ﴾ [تفخيم] - ﴿ فِرْعَوْنَ ﴾ [ترقيق] - ﴿ إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ ﴾ [تفخيم وصلاً]",
-                audioNote = "استمع لتفخيم وترقيق الراء"
             ),
             TajweedRuleItem(
                 title = "تفخيم وترقيق لام لفظ الجلالة",
                 category = "أحكام لفظ الجلالة",
                 description = "تغلظ وتفخم اللام في اسم الجلالة (اللَّه) إذا سبقت بفتح أو ضم، وترقق إذا سبقت بكسر أصلي أو عارض.",
-                exampleVerse = "﴿ قُلْ هُوَ اللَّهُ أَحَدٌ ﴾ [تفخيم] - ﴿ شَهِدَ اللَّهُ ﴾ [تفخيم] - ﴿ بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ﴾ [ترقيق]",
-                audioNote = "استمع لتفخيم وترقيق اسم الجلالة"
             )
         )
     }
@@ -515,7 +509,12 @@ fun QuranTajweedScreen(
                 0 -> {
                     if (isPageReaderMode) {
                         MushafReaderScreen(
-                            onClose = { isPageReaderMode = false }
+                            onClose = { isPageReaderMode = false },
+                            onReciterChange = { reciterId ->
+                                val reciterName = QuranAudioService.getReciterInfo(reciterId).nameAr
+                                selectedReciter = reciterName
+                                qabasPrefs.edit().putString("selected_reciter", reciterName).apply()
+                            }
                         )
                     } else if (isReadingMode) {
                         val activeSurah = surahList.find { it.id == activeSurahId } ?: surahList[0]
@@ -523,14 +522,40 @@ fun QuranTajweedScreen(
                             surah = activeSurah,
                             selectedReciter = selectedReciter,
                             isPlayingAudio = isPlayingAudio,
+                            dataVersion = quranDataVersion,
+                            onRetryData = { quranLoadAttempt++ },
                             highlightVerse = readerTargetVerseNumber,
                             isSakinaMode = isSakinaMode,
                             onToggleAudio = {
-                                isPlayingAudio = !isPlayingAudio
-                                Toast.makeText(context, "التلاوة الصوتية عبر الإنترنت قيد التجهيز — اختر قارئك من قسم «القراء والروايات»", Toast.LENGTH_SHORT).show()
+                                if (isPlayingAudio) {
+                                    QuranAudioPlayer.stop()
+                                    isPlayingAudio = false
+                                } else {
+                                    val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+                                    val verses = QuranDataProvider.getVersesForSurah(activeSurah.id, activeSurah.name)
+                                    if (reciterId == null || verses.isEmpty()) {
+                                        Toast.makeText(context, "القارئ غير متاح أو لم يكتمل تحميل نص السورة.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val urls = verses.map { verse ->
+                                            QuranAudioService.getAyahAudioUrl(activeSurah.id, verse.verseNumber, reciterId)
+                                        }
+                                        isPlayingAudio = true
+                                        QuranAudioPlayer.playUrls(context, urls) { isPlayingAudio = false }
+                                    }
+                                }
                             },
-                            onSelectReciter = { selectedReciter = it; qabasPrefs.edit().putString("selected_reciter", it).apply() },
+                            onSelectReciter = {
+                                QuranAudioPlayer.stop()
+                                isPlayingAudio = false
+                                selectedReciter = it
+                                qabasPrefs.edit().putString("selected_reciter", it).apply()
+                                QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
+                                    UserPreferencesManager.setQuranReciter(context, id)
+                                }
+                            },
                             onCloseReader = {
+                                QuranAudioPlayer.stop()
+                                isPlayingAudio = false
                                 isReadingMode = false
                                 readerTargetVerseNumber = -1
                                 qabasPrefs.edit().putInt("last_read_surah", activeSurahId).apply()
@@ -616,7 +641,15 @@ fun QuranTajweedScreen(
                 }
                 1 -> GoldenQuranRecitersView(
                     selectedReciter = selectedReciter,
-                    onSelectReciter = { selectedReciter = it; qabasPrefs.edit().putString("selected_reciter", it).apply() },
+                    onSelectReciter = {
+                        QuranAudioPlayer.stop()
+                        isPlayingAudio = false
+                        selectedReciter = it
+                        qabasPrefs.edit().putString("selected_reciter", it).apply()
+                        QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
+                            UserPreferencesManager.setQuranReciter(context, id)
+                        }
+                    },
                     selectedRiwaya = selectedRiwaya,
                     onSelectRiwaya = { selectedRiwaya = it; qabasPrefs.edit().putString("selected_riwaya", it).apply() }
                 )
@@ -640,7 +673,7 @@ fun QuranTajweedScreen(
                             Tab(
                                 selected = academySubTab == 1,
                                 onClick = { academySubTab = 1 },
-                                text = { Text("اختبار التلاوة 🎙️", fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+                                text = { Text("تسجيل التلاوة 🎙️", fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
                             )
                             Tab(
                                 selected = academySubTab == 2,
@@ -658,7 +691,8 @@ fun QuranTajweedScreen(
                                     academySubTab = 1
                                 }
                             )
-                            1 -> AiVoiceRecitationTestView(
+                            1 -> QuranRecitationRecordingView(
+                                activeSurahId = activeSurahId,
                                 activeSurahName = surahList.find { it.id == activeSurahId }?.name ?: "الفاتحة",
                                 isRecording = isRecordingRecitation,
                                 isAnalyzing = isAnalyzingVoice,
@@ -684,21 +718,31 @@ fun QuranTajweedScreen(
                                 onStartRecording = {
                                     micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 },
-                                onStopRecordingAndAnalyze = {
+                                onStopRecording = {
                                     isRecordingRecitation = false
                                     val file = recorderHelper.stopRecording()
                                     isAnalyzingVoice = true
 
+                                    val recordingSaved = file?.exists() == true && (file.length() > 0L)
                                     val fileSizeKb = (file?.length() ?: 0L) / 1024
 
                                     scope.launch {
                                         isAnalyzingVoice = false
-                                        lastTestScore = 0
-                                        testFeedbackList = listOf(
-                                            "تم حفظ التسجيل الصوتي (${fileSizeKb} KB)" to true,
-                                            "تحليل التجويد الصوتي غير متاح حالياً — حُفظ التسجيل للمراجعة اليدوية" to false
-                                        )
-                                        Toast.makeText(context, "تم حفظ التسجيل. تحليل التجويد غير متاح حالياً.", Toast.LENGTH_LONG).show()
+                                        lastTestScore = null
+                                        testFeedbackList = if (recordingSaved) {
+                                            listOf(
+                                                "تم حفظ التسجيل الصوتي (${fileSizeKb} KB)" to true,
+                                                "تحليل التجويد الصوتي غير متاح حالياً — راجع التسجيل يدوياً" to false
+                                            )
+                                        } else {
+                                            listOf("لم يُنشأ ملف تسجيل صالح؛ تحقق من إذن الميكروفون وحاول مجدداً." to false)
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            if (recordingSaved) "تم حفظ التسجيل. تحليل التجويد غير متاح حالياً."
+                                            else "تعذر حفظ التسجيل الصوتي.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 }
                             )
@@ -724,7 +768,7 @@ fun QuranTajweedScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("التفسير الميسر وأسرار التلاوة", fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = GoldPrimary, fontSize = 16.sp)
+                    Text("التفسير الميسر — مجمع الملك فهد", fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = GoldPrimary, fontSize = 16.sp)
                 }
             },
             text = {
@@ -747,13 +791,22 @@ fun QuranTajweedScreen(
                     }
                     Text(
                         text = tafseer.ifEmpty {
-                            "لا يتوفر تفسير ميسر لهذه الآية في النسخة المدمجة حالياً."
+                            "تعذر جلب التفسير لهذه الآية حالياً. تحقق من الاتصال وحاول مرة أخرى."
                         },
                         fontFamily = NotoSansFont,
                         fontSize = 13.sp,
                         color = TextSecondary,
                         lineHeight = 22.sp
                     )
+                    if (tafseer.isNotBlank() && !tafseer.startsWith("جارٍ")) {
+                        Text(
+                            "المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف، عبر QuranEnc.com",
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.sp,
+                            color = GoldPrimary.copy(alpha = 0.8f),
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -1213,6 +1266,8 @@ fun GoldenMushafReaderView(
     surah: QuranSurahItem,
     selectedReciter: String,
     isPlayingAudio: Boolean,
+    dataVersion: Int = 0,
+    onRetryData: () -> Unit = {},
     onToggleAudio: () -> Unit,
     onSelectReciter: (String) -> Unit,
     onCloseReader: () -> Unit,
@@ -1223,20 +1278,23 @@ fun GoldenMushafReaderView(
     onShowTadabbur: (QuranVerseDetail) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val readerScope = rememberCoroutineScope()
+    var playingAyah by remember(surah.id) { mutableIntStateOf(-1) }
     val qabasPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     var isTajweedColored by remember { mutableStateOf(true) }
     var isMemorizationMode by remember { mutableStateOf(false) }
-    var isBookmarked by remember { mutableStateOf(qabasPrefs.getBoolean("bookmarked_surah_${surah.id}", false)) }
+    var isBookmarked by remember(surah.id) { mutableStateOf(qabasPrefs.getBoolean("bookmarked_surah_${surah.id}", false)) }
 
     val paperColor = if (isSakinaMode) Color(0xFFFDF4E3) else AgedPaper
     val textColor = if (isSakinaMode) Color(0xFF4A3728) else OldInk
     val goldColor = if (isSakinaMode) Color(0xFFB8860B) else ManuscriptGold
 
     // Expanded Authentic Quran Verses for the Surah
-    val versesList = remember(surah.id) {
-        QuranDataProvider.loadFromAssets(context)
-        QuranDataProvider.loadTafsirFromAssets(context)
+    val versesList = remember(surah.id, dataVersion) {
         getAuthenticVersesForSurah(surah.id, surah.name)
+    }
+    val basmalaText = remember(dataVersion) {
+        QuranDataProvider.getVerseText(1, 1).orEmpty()
     }
 
     val listState = rememberLazyListState()
@@ -1247,7 +1305,11 @@ fun GoldenMushafReaderView(
             if (verseIndex >= 0) {
                 val basmalaOffset = if (surah.id == 9) 0 else 1
                 listState.animateScrollToItem(verseIndex + basmalaOffset, scrollOffset = 0)
+            } else {
+                listState.scrollToItem(0)
             }
+        } else {
+            listState.scrollToItem(0)
         }
     }
 
@@ -1388,7 +1450,7 @@ fun GoldenMushafReaderView(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "النص غير متوفر حالياً (جاري تجهيز نص هذه السورة بالرسم العثماني الموثوق).",
+                            text = if (dataVersion < 6236) "جارٍ تحميل النص القرآني الموثوق. أعد المحاولة بعد اكتمال الاتصال." else "لم يُعثر على آيات هذه السورة في البيانات المحمّلة؛ لم نعرض نصاً بديلاً.",
                             color = OldInk.copy(alpha = 0.7f),
                             fontFamily = NotoSansFont,
                             fontSize = 13.sp,
@@ -1408,6 +1470,16 @@ fun GoldenMushafReaderView(
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
+                        }
+                        if (dataVersion < 6236) {
+                            Button(
+                                onClick = onRetryData,
+                                colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("إعادة تحميل النص القرآني", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
                         Spacer(modifier = Modifier.height(20.dp))
                         OutlinedButton(
@@ -1436,10 +1508,10 @@ fun GoldenMushafReaderView(
                     }
 
                     // Basmala header (except Surah At-Tawbah)
-                    if (surah.id != 9) {
+                    if (surah.id != 9 && basmalaText.isNotBlank()) {
                         item {
                             Text(
-                                "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+                                basmalaText,
                                 color = ManuscriptGold,
                                 fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Bold,
@@ -1511,28 +1583,142 @@ fun GoldenMushafReaderView(
                                     }
 
                                     Row {
-                                        IconButton(onClick = { onShowTafseer(verseItem.verseText, verseItem.tafseer) }) {
+                                        IconButton(onClick = {
+                                            readerScope.launch {
+                                                onShowTafseer(verseItem.verseText, "جارٍ جلب التفسير الميسر من المصدر…")
+                                                val tafsir = verseItem.tafseer.ifBlank {
+                                                    withContext(Dispatchers.IO) {
+                                                        QuranDataProvider.fetchRemoteTafsir(surah.id, verseItem.verseNumber)
+                                                    }.orEmpty()
+                                                }
+                                                onShowTafseer(verseItem.verseText, tafsir)
+                                            }
+                                        }) {
                                             Icon(Icons.Default.MenuBook, contentDescription = "التفسير", tint = ManuscriptGold, modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(onClick = {
-                                            Toast.makeText(context, "جاري الاستماع للآية ${verseItem.verseNumber} بصوت $selectedReciter 🎙️", Toast.LENGTH_SHORT).show()
+                                            if (playingAyah == verseItem.verseNumber) {
+                                                QuranAudioPlayer.stop()
+                                                playingAyah = -1
+                                            } else {
+                                                val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+                                                if (reciterId == null) {
+                                                    Toast.makeText(context, "هذا القارئ غير متاح صوتياً حالياً.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    val url = QuranAudioService.getAyahAudioUrl(surah.id, verseItem.verseNumber, reciterId)
+                                                    playingAyah = verseItem.verseNumber
+                                                    QuranAudioPlayer.playUrls(context, listOf(url)) { playingAyah = -1 }
+                                                }
+                                            }
                                         }) {
-                                            Icon(Icons.Default.VolumeUp, contentDescription = "استماع", tint = ManuscriptGold, modifier = Modifier.size(18.dp))
+                                            Icon(
+                                                if (playingAyah == verseItem.verseNumber) Icons.Default.StopCircle else Icons.Default.VolumeUp,
+                                                contentDescription = "استماع للآية",
+                                                tint = ManuscriptGold,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                    item { TanzilAttributionFooter() }
                 }
             }
         }
     }
 }
 
-// Authentic Verses helper delegating to QuranDataProvider
+// إشعار مصدر النص والترخيص وفق شروط Tanzil وQuran JSON.
+@Composable
+fun TanzilAttributionFooter() {
+    val uriHandler = LocalUriHandler.current
+    var showLicense by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            "النص العثماني: Tanzil Project · CC BY 3.0",
+            modifier = Modifier.clickable { uriHandler.openUri("https://tanzil.net") },
+            color = ManuscriptGold,
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "حزمة البيانات: Quran JSON · CC BY-SA 4.0",
+            modifier = Modifier.clickable { uriHandler.openUri("https://github.com/risan/quran-json") },
+            color = ManuscriptGold,
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "عرض إشعار حقوق النص وشروط الاستخدام",
+            modifier = Modifier.clickable { showLicense = true },
+            color = OldInk.copy(alpha = 0.65f),
+            fontFamily = NotoSansFont,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+
+    if (showLicense) {
+        AlertDialog(
+            onDismissRequest = { showLicense = false },
+            title = {
+                Text(
+                    "إشعار حقوق النص القرآني",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Tanzil Quran Text.\n" +
+                        "Copyright (C) 2007-2021 Tanzil Project.\n" +
+                        "License: Creative Commons Attribution 3.0.\n\n" +
+                        "This copy of the Quran text is carefully produced, highly verified and continuously monitored by a group of specialists in Tanzil Project.\n\n" +
+                        "TERMS OF USE:\n" +
+                        "Permission is granted to copy and distribute verbatim copies of this text, but CHANGING IT IS NOT ALLOWED.\n\n" +
+                        "This Quran text can be used in any website or application, provided that its source (Tanzil Project) is clearly indicated, and a link is made to tanzil.net to enable users to keep track of changes. This copyright notice shall be included in all verbatim copies of the text, and shall be reproduced appropriately in all files derived from or containing substantial portion of this text.\n\n" +
+                        "Please check updates at: http://tanzil.net/updates/\n\n" +
+                        "Dataset packaging: Quran JSON · CC BY-SA 4.0.",
+                    color = TextSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showLicense = false }) {
+                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                }
+            },
+            containerColor = Color(0xFF151B2B)
+        )
+    }
+}
+
 private fun getAuthenticVersesForSurah(surahId: Int, surahName: String): List<QuranVerseDetail> {
     return QuranDataProvider.getVersesForSurah(surahId, surahName)
+}
+
+private fun verifiedMuawwidhatText(): String {
+    val basmala = QuranDataProvider.getVerseText(1, 1).orEmpty()
+    val surahTexts = listOf(112, 113, 114).mapNotNull { id ->
+        QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(" ") { it.verseText }
+    }
+    return surahTexts.joinToString("\n\n") { surahText ->
+        listOf(basmala, surahText).filter { it.isNotBlank() }.joinToString("\n")
+    }.ifBlank { "تعذر تحميل نص السور من المصدر القرآني." }
 }
 
 @Composable
@@ -1593,7 +1779,13 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
                 Column {
                     Text("أمثلة تطبيقية من القرآن الكريم:", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(rule.exampleVerse, color = OldInk, fontFamily = AmiriFont, fontSize = 18.sp)
+                    Text(
+                        "أمثلة الآيات قيد الربط بمراجع موثّقة من نص المصحف.",
+                        color = OldInk.copy(alpha = 0.7f),
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        lineHeight = 20.sp
+                    )
                 }
             }
 
@@ -1605,12 +1797,12 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
             ) {
                 TextButton(
                     onClick = {
-                        Toast.makeText(context, "🔊 استمع للتطبيق العملي لحكم: ${rule.title}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "لا يتوفر تسجيل صوتي موثّق مرتبط بهذا المثال بعد.", Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Icon(Icons.Default.VolumeUp, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(rule.audioNote, color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("التسجيل غير متاح حالياً", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
             }
         }
@@ -2126,7 +2318,8 @@ fun TajweedAcademyStagesView(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AiVoiceRecitationTestView(
+fun QuranRecitationRecordingView(
+    activeSurahId: Int,
     activeSurahName: String,
     isRecording: Boolean,
     isAnalyzing: Boolean,
@@ -2136,11 +2329,9 @@ fun AiVoiceRecitationTestView(
     hasRecordedAudio: Boolean = false,
     onPlayRecordedAudio: () -> Unit = {},
     onStartRecording: () -> Unit,
-    onStopRecordingAndAnalyze: () -> Unit
+    onStopRecording: () -> Unit
 ) {
-    var highlightedWordIndex by remember { mutableIntStateOf(0) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "tarteelMicPulse")
+    val infiniteTransition = rememberInfiniteTransition(label = "recitationMicPulse")
     val micPulseRadius by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.35f,
@@ -2151,29 +2342,13 @@ fun AiVoiceRecitationTestView(
         label = "micPulseRadius"
     )
 
-    val wave1 by infiniteTransition.animateFloat(initialValue = 12f, targetValue = 38f, animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse), label = "w1")
-    val wave2 by infiniteTransition.animateFloat(initialValue = 28f, targetValue = 10f, animationSpec = infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "w2")
-    val wave3 by infiniteTransition.animateFloat(initialValue = 15f, targetValue = 42f, animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse), label = "w3")
-    val wave4 by infiniteTransition.animateFloat(initialValue = 35f, targetValue = 18f, animationSpec = infiniteRepeatable(tween(480), RepeatMode.Reverse), label = "w4")
 
-    LaunchedEffect(isRecording) {
-        if (isRecording) {
-            highlightedWordIndex = 0
-            while (isRecording) {
-                delay(800)
-                highlightedWordIndex = (highlightedWordIndex + 1) % 12
-            }
-        }
-    }
 
-    val sampleVerseWords = remember(activeSurahName) {
-        if (activeSurahName.contains("الإخلاص")) {
-            listOf("قُلْ", "هُوَ", "اللَّهُ", "أَحَدٌ", "﴿١﴾", "اللَّهُ", "الصَّمَدُ", "﴿٢﴾", "لَمْ", "يَلِدْ", "وَلَمْ", "يُولَدْ", "﴿٣﴾")
-        } else if (activeSurahName.contains("الفلق")) {
-            listOf("قُلْ", "أَعُوذُ", "بِرَبِّ", "الْفَلَقِ", "﴿١﴾", "مِن", "شَرِّ", "مَا", "خَلَقَ", "﴿٢﴾", "وَمِن", "شَرِّ", "غَاسِقٍ", "﴿٣﴾")
-        } else {
-            listOf("الْحَمْدُ", "لِلَّهِ", "رَبِّ", "الْعَالَمِينَ", "﴿١﴾", "الرَّحْمَٰنِ", "الرَّحِيمِ", "﴿٢﴾", "مَالِكِ", "يَوْمِ", "الدِّينِ", "﴿٣﴾")
-        }
+    // النص المعروض يأتي من بيانات القرآن المحمّلة، ولا تُكتب آيات يدوياً.
+    val sampleVerseWords = remember(activeSurahId, activeSurahName) {
+        QuranDataProvider.getVersesForSurah(activeSurahId, activeSurahName)
+            .take(3)
+            .flatMap { it.verseText.split(Regex("\\s+")) }
     }
 
     LazyColumn(
@@ -2198,7 +2373,7 @@ fun AiVoiceRecitationTestView(
                         Icon(Icons.Default.GraphicEq, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "مختبر الفحص الصوتي الذكي (نظام ترتيل 🎙️)",
+                            text = "تسجيل التلاوة للمراجعة اليدوية 🎙️",
                             color = ManuscriptGold,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -2207,7 +2382,7 @@ fun AiVoiceRecitationTestView(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "اقرأ الكلمات التالية بصوتك؛ سيقوم المحرك بمتابعة قراءتك كلمة بكلمة واكتشاف الأحكام التجويدية تلقائياً.",
+                        text = "اعرض آيات من السورة المحددة وسجّل تلاوتك للاستماع إليها ومراجعتها بنفسك. التحليل الآلي للنطق وأحكام التجويد غير متاح حالياً.",
                         color = OldInk.copy(alpha = 0.6f),
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
@@ -2241,14 +2416,23 @@ fun AiVoiceRecitationTestView(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    if (sampleVerseWords.isEmpty()) {
+                        Text(
+                            "نص السورة غير محمّل بعد. ارجع إلى المصحف وحاول بعد اكتمال تحميل البيانات.",
+                            color = OldInk.copy(alpha = 0.65f),
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                     FlowRow(
                         horizontalArrangement = Arrangement.Center,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         sampleVerseWords.forEachIndexed { idx, word ->
-                            val isHighlighted = isRecording && idx <= highlightedWordIndex
-                            val isCurrentWord = isRecording && idx == highlightedWordIndex
+                            val isHighlighted = false
+                            val isCurrentWord = false
 
                             Surface(
                                 color = when {
@@ -2293,26 +2477,12 @@ fun AiVoiceRecitationTestView(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (isRecording) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.height(50.dp)
-                        ) {
-                            val waves = listOf(wave1, wave2, wave3, wave4, wave2, wave1, wave3, wave4)
-                            waves.forEach { h ->
-                                Box(
-                                    modifier = Modifier
-                                        .width(6.dp)
-                                        .height(h.dp)
-                                        .background(
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(Color(0xFFEF4444), ManuscriptGold)
-                                            ),
-                                            shape = CircleShape
-                                        )
-                                )
-                            }
-                        }
+                        Icon(
+                            Icons.Default.Mic,
+                            contentDescription = "التسجيل جارٍ",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(38.dp)
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
@@ -2332,7 +2502,7 @@ fun AiVoiceRecitationTestView(
                             modifier = Modifier
                                 .size(84.dp)
                                 .clickable {
-                                    if (isRecording) onStopRecordingAndAnalyze() else onStartRecording()
+                                    if (isRecording) onStopRecording() else onStartRecording()
                                 }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -2350,8 +2520,8 @@ fun AiVoiceRecitationTestView(
 
                     Text(
                         text = when {
-                            isRecording -> "جاري تسجيل تلاوتك حيّاً... اضغط للإيقاف والحفظ"
-                            isAnalyzing -> "جاري معالجة وحفظ الملف الصوتي... ⏳"
+                            isRecording -> "جارٍ تسجيل صوتك... اضغط للإيقاف والحفظ"
+                            isAnalyzing -> "جارٍ حفظ التسجيل الصوتي... ⏳"
                             else -> "اضغط زر الميكروفون وابدأ القراءة الآن 🎙️"
                         },
                         color = if (isRecording) Color(0xFFEF4444) else ManuscriptGold,
@@ -2494,8 +2664,7 @@ fun TajweedRulesEncyclopediaView(
             val matchesCategory = selectedCategory == "الكل" || rule.category == selectedCategory
             val matchesSearch = searchQuery.isBlank() || 
                 rule.title.contains(searchQuery, ignoreCase = true) ||
-                rule.description.contains(searchQuery, ignoreCase = true) ||
-                rule.exampleVerse.contains(searchQuery, ignoreCase = true)
+                rule.description.contains(searchQuery, ignoreCase = true)
             matchesCategory && matchesSearch
         }
     }
@@ -2511,7 +2680,7 @@ fun TajweedRulesEncyclopediaView(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("ابحث في أحكام التجويد، الأمثلة، والمدود...", color = OldInk.copy(alpha = 0.4f), fontFamily = NotoSansFont, fontSize = 12.sp) },
+            placeholder = { Text("ابحث في أحكام التجويد والمدود...", color = OldInk.copy(alpha = 0.4f), fontFamily = NotoSansFont, fontSize = 12.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = ManuscriptGold) },
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = ManuscriptGold.copy(alpha = 0.2f),
@@ -2624,32 +2793,17 @@ fun GoldenQuranRecitersView(
 ) {
     val context = LocalContext.current
     val qabasPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    // لا نعرض إلا القراء الذين يملك مشغل الصوت روابط فعلية لهم حالياً.
     val reciters = listOf(
-        "الشيخ محمود خليل الحصري" to "شيخ عموم المقارئ المصرية سابقاً — مرتّل ومجوّد",
-        "الشيخ محمد صديق المنشاوي" to "تلاوة مرتّلة بأداء خاشع رفيع",
-        "الشيخ عبد الباسط عبد الصمد" to "مرتّل ومجوّد من أعلام القراءة في القرن العشرين",
-        "الشيخ مصطفى إسماعيل" to "تلاوة مجوّدة بنَفَسٍ وأداء فريد",
-        "الشيخ محمود علي البنا" to "مرتّل مصري مشهور بإيقاعه المؤثر",
-        "الشيخ محمد رفعت" to "من أشهر قرّاء جيله بحلاوة صوت نادرة",
-        "الشيخ ماهر المعيقلي" to "إمام وخطيب المسجد الحرام — مرتّل",
-        "الشيخ مشاري راشد العفاسي" to "قارئ كويتي معروف بمرتّل المؤثرات",
-        "الشيخ عبد الرحمن السديس" to "إمام وخطيب المسجد الحرام — مرتّل",
-        "الشيخ سعود الشريم" to "إمام وخطيب المسجد الحرام — مرتّل",
-        "الشيخ ياسر الدوسري" to "إمام المسجد الحرام — مرتّل",
-        "الشيخ إسلام صبحي" to "قارئ مصري شاب صاحب تلاوات منتشرة"
+        "الشيخ محمود خليل الحصري" to "رواية حفص — مرتّل",
+        "الشيخ محمد صديق المنشاوي" to "رواية حفص — مرتّل",
+        "الشيخ عبد الباسط عبد الصمد" to "رواية حفص — مرتّل",
+        "الشيخ ماهر المعيقلي" to "رواية حفص — مرتّل",
+        "الشيخ مشاري راشد العفاسي" to "رواية حفص — مرتّل",
+        "الشيخ سعد الغامدي" to "رواية حفص — مرتّل"
     )
-    val riwayat = listOf(
-        "حفص عن عاصم",
-        "ورش عن نافع",
-        "قالون عن نافع",
-        "شعبة عن عاصم",
-        "الدوري عن أبي عمرو",
-        "السوسي عن أبي عمرو",
-        "خلف عن حمزة",
-        "خلاد عن حمزة",
-        "أبو جعفر (قراءة)",
-        "يعقوب الحضرمي (قراءة)"
-    )
+    // نص المصحف الحالي برواية حفص؛ لا نتيح اختيار روايات لا يملك التطبيق نصوصها.
+    val riwayat = listOf("حفص عن عاصم")
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -2666,7 +2820,7 @@ fun GoldenQuranRecitersView(
         }
         item {
             Text(
-                "يُحفظ اختيارك محلياً ويُستخدم في واجهة القارئ. التلاوة الصوتية (الاستماع) عبر الإنترنت قيد التجهيز وستربط بسجلات القرّاء الموثوقة فقط.",
+                "القراء الستة مرتبطون بمشغل الصوت الحالي. التلاوة المتاحة برواية حفص عن عاصم وتُبث من EveryAyah.com.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
@@ -2708,7 +2862,7 @@ fun GoldenQuranRecitersView(
         item { Text("الروايات", color = ManuscriptGold, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
         item {
             Text(
-                "الرواية تحدد أسلوب النطق في التلاوة؛ تُحفظ مع اختيارك وتُستخدم عند توفر التلاوة الصوتية.",
+                "النص العثماني الحالي والتلاوات المتاحة في التطبيق برواية حفص عن عاصم. ستظهر الروايات الأخرى بعد إضافة نصوصها ومصادر صوتها والتحقق منها.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 11.sp
@@ -2757,7 +2911,7 @@ fun GoldenTafsirSourcesView(
         "تيسير الكريم الرحمن" to "عبد الرحمن بن ناصر السعدي",
         "تفسير الجلالين" to "جلال الدين المحلي وجلال الدين السيوطي",
         "الجامع لأحكام القرآن" to "أبو عبد الله محمد بن أحمد القرطبي",
-        "الوسيط في تفسير القرآن المجيد" to "علي الصابوني",
+        "صفوة التفاسير" to "محمد علي الصابوني",
         "أيسر التفاسير" to "أبو بكر جابر الجزائري",
         "التفسير الوسيط" to "محمد سيد طنطاوي"
     )
@@ -2777,7 +2931,7 @@ fun GoldenTafsirSourcesView(
         }
         item {
             Text(
-                "مصادر تفسيرية معتمدة. التفسير الميسر مدمج ومتاح الآن في المصحف 📖، وبقية المصادر قيد التجهيز — لن يُعرض أي تفسير غير موثوق المصدر.",
+                "التفسير الميسر من إصدارات مجمع الملك فهد لطباعة المصحف الشريف، ويُجلب عند طلب الآية عبر واجهة QuranEnc.com. لا نعرض نصاً بديلاً إذا تعذر المصدر.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
@@ -2807,8 +2961,8 @@ fun GoldenTafsirSourcesView(
                 Text(author, color = OldInk.copy(alpha = 0.6f), fontFamily = NotoSansFont, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    if (isMuyassarAvailable) "مدمج ✓ متاح الآن في المصحف" else "النص الكامل قيد التجهيز ⏳",
-                    color = if (isMuyassarAvailable) Color(0xFF065F46) else ManuscriptGold,
+                    if (isMuyassarAvailable) "متاح عند الطلب عبر QuranEnc.com" else "غير متاح حالياً",
+                    color = ManuscriptGold,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp
                 )
@@ -2835,14 +2989,24 @@ fun GoldenAdhkarView(onOpenFullAzkar: (() -> Unit)? = null) {
     val morningAdhkar = listOf(
         AdhkarItem("سيد الاستغفار", "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ، وَأَبُوءُ بِذَنْبِي، فَاغْفِرْ لِي، فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ", 1, "الصباح"),
         AdhkarItem("الذكر الجامع", "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 1, "الصباح"),
-        AdhkarItem("آية الكرسي", "اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ…", 1, "الصباح"),
-        AdhkarItem("سورة الإخلاص والمعوذتان", "قُلْ هُوَ اللَّهُ أَحَدٌ • قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ • قُلْ أَعُوذُ بِرَبِّ النَّاسِ", 3, "الصباح"),
+        AdhkarItem("آية الكرسي", QuranDataProvider.getVerseText(2, 255) ?: "تعذر تحميل نص الآية من المصدر القرآني.", 1, "الصباح"),
+        AdhkarItem(
+            "سورة الإخلاص والمعوذتان",
+            verifiedMuawwidhatText(),
+            3,
+            "الصباح"
+        ),
         AdhkarItem("دعاء الصباح", "اللَّهُمَّ بِكَ أَصْبَحْنَا، وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ النُّشُورُ", 1, "الصباح")
     )
     val eveningAdhkar = listOf(
         AdhkarItem("الذكر الجامع", "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 1, "المساء"),
-        AdhkarItem("آية الكرسي", "اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ…", 1, "المساء"),
-        AdhkarItem("سورة الإخلاص والمعوذتان", "قُلْ هُوَ اللَّهُ أَحَدٌ • قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ • قُلْ أَعُوذُ بِرَبِّ النَّاسِ", 3, "المساء"),
+        AdhkarItem("آية الكرسي", QuranDataProvider.getVerseText(2, 255) ?: "تعذر تحميل نص الآية من المصدر القرآني.", 1, "المساء"),
+        AdhkarItem(
+            "سورة الإخلاص والمعوذتان",
+            verifiedMuawwidhatText(),
+            3,
+            "المساء"
+        ),
         AdhkarItem("دعاء المساء", "اللَّهُمَّ بِكَ أَمْسَيْنَا، وَبِكَ أَصْبَحْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ", 1, "المساء")
     )
 
@@ -2972,18 +3136,25 @@ fun MemorizationSystemView(
     var showSurahPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // Initialize a daily challenge if none exists
+        // لا نعرض تحدياً بإنجاز وهمي؛ تقدمه يُحتسب من سجلات الحفظ التي يدخلها المستخدم.
         scope.launch {
             val active = db.quranChallengeDao().getActiveChallengesOnce()
-            if (active.isEmpty()) {
+            // التحدي القديم كان يعرض تقدماً ثابتاً لا يرتبط بسجل قراءة؛ نغلقه دون احتساب تقدمه.
+            active.filter { it.id == "daily_read_5" && it.type == "READING" }.forEach { legacy ->
+                db.quranChallengeDao().updateChallenge(
+                    legacy.copy(currentValue = 0, isCompleted = true)
+                )
+            }
+            val currentChallenges = db.quranChallengeDao().getActiveChallengesOnce()
+            if (currentChallenges.none { it.type == "MEMORIZATION" }) {
                 db.quranChallengeDao().insertChallenge(
                     QuranChallengeRecord(
-                        id = "daily_read_5",
-                        title = "ورد النور اليومي",
-                        description = "اقرأ 5 آيات من سورة الملك اليوم",
+                        id = "memorize_5_verses",
+                        title = "تحدي حفظ خمس آيات",
+                        description = "سجّل حفظ خمس آيات جديدة من أي سورة.",
                         goalValue = 5,
-                        currentValue = 2,
-                        type = "READING",
+                        currentValue = 0,
+                        type = "MEMORIZATION",
                         hasanatReward = 1000
                     )
                 )
@@ -2999,7 +3170,7 @@ fun MemorizationSystemView(
         item {
             MemorizationStatsHeader(
                 totalProgress = totalProgress ?: 0f,
-                streakDays = 5 // Placeholder for now
+                streakDays = 0 // لا نعرض سلسلة أيام غير محسوبة من سجل مؤرخ
             )
         }
 
@@ -3015,16 +3186,11 @@ fun MemorizationSystemView(
 
         if (activeChallenges.isEmpty()) {
             item {
-                DailyChallengeCard(
-                    challenge = QuranChallengeRecord(
-                        id = "daily_read",
-                        title = "ورد القراءة اليومي",
-                        description = "اقرأ صفحتين من المصحف اليوم لتنال بركة النور",
-                        goalValue = 2,
-                        currentValue = 1,
-                        type = "READING",
-                        hasanatReward = 500
-                    )
+                Text(
+                    "لا يوجد تحدٍّ نشط حالياً. أعد فتح قسم التحفيظ لبدء تحدٍّ جديد.",
+                    color = OldInk.copy(alpha = 0.6f),
+                    fontFamily = CairoFont,
+                    fontSize = 12.sp
                 )
             }
         } else {
@@ -3139,21 +3305,43 @@ fun MemorizationSystemView(
                     onClick = {
                         val surah = selectedSurahForLog
                         val verse = verseLogValue.toIntOrNull()
-                        if (surah != null && verse != null) {
+                        if (surah != null && verse != null && verse in 1..surah.versesCount) {
                             scope.launch {
+                                val previousRecord = db.memorizationDao().getRecordBySurah(surah.id)
+                                val newlyMemorized = (verse - (previousRecord?.lastVerseMemorized ?: 0)).coerceAtLeast(0)
                                 db.memorizationDao().insertRecord(
                                     MemorizationRecord(
                                         surahId = surah.id,
                                         surahName = surah.name,
                                         lastVerseMemorized = verse,
                                         totalVerses = surah.versesCount,
-                                        progressPercent = verse.toFloat() / surah.versesCount,
-                                        isCompleted = verse >= surah.versesCount
+                                        progressPercent = (verse.toFloat() / surah.versesCount).coerceIn(0f, 1f),
+                                        isCompleted = verse == surah.versesCount
                                     )
                                 )
+                                if (newlyMemorized > 0) {
+                                    db.quranChallengeDao().getActiveChallengesOnce()
+                                        .filter { it.type == "MEMORIZATION" && !it.isCompleted }
+                                        .forEach { challenge ->
+                                            val updatedValue = (challenge.currentValue + newlyMemorized).coerceAtMost(challenge.goalValue)
+                                            db.quranChallengeDao().updateChallenge(
+                                                challenge.copy(
+                                                    currentValue = updatedValue,
+                                                    isCompleted = updatedValue >= challenge.goalValue
+                                                )
+                                            )
+                                        }
+                                }
                                 showLogDialog = false
+                                verseLogValue = ""
                                 Toast.makeText(context, "تم تسجيل التقدم في سورة ${surah.name} 🎉", Toast.LENGTH_SHORT).show()
                             }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "اختر سورة وأدخل رقم آية صحيحاً بين 1 وعدد آيات السورة.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
@@ -3238,7 +3426,7 @@ fun DailyChallengeCard(challenge: QuranChallengeRecord) {
                 Text(challenge.description, color = OldInk.copy(alpha = 0.6f), fontFamily = CairoFont, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { challenge.currentValue.toFloat() / challenge.goalValue },
+                    progress = { (challenge.currentValue.toFloat() / challenge.goalValue.coerceAtLeast(1)).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                     color = ManuscriptGold,
                     trackColor = ManuscriptGold.copy(alpha = 0.1f)
