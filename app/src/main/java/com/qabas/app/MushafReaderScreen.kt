@@ -107,12 +107,15 @@ fun MushafReaderScreen(
             QuranDataProvider.loadTafsirFromAssets(context)
             MushafPageData.loadPageMap(context)
         }
-        dataReady = quranReady && pageMapReady && MushafPageData.isLoaded()
+        val pageReferencesMatch = withContext(Dispatchers.IO) {
+            pageMapReady && MushafPageData.matchesLoadedQuran()
+        }
+        dataReady = quranReady && pageMapReady && MushafPageData.isLoaded() && pageReferencesMatch
         if (!dataReady) {
-            loadError = if (!quranReady) {
-                "تعذر جلب نص القرآن والتحقق منه. تحقق من الاتصال ثم أعد المحاولة."
-            } else {
-                "تعذر التحقق من خريطة صفحات المصحف. راجع ملف بيانات الصفحات."
+            loadError = when {
+                !quranReady -> "تعذر جلب نص القرآن والتحقق منه. تحقق من الاتصال ثم أعد المحاولة."
+                !pageMapReady || !MushafPageData.isLoaded() -> "تعذر التحقق من خريطة صفحات المصحف. راجع ملف بيانات الصفحات."
+                else -> "هناك اختلاف بين مراجع الصفحات ونص الآيات؛ أوقفنا العرض منعًا لصفحات ناقصة."
             }
             Toast.makeText(context, loadError, Toast.LENGTH_LONG).show()
         }
@@ -596,10 +599,10 @@ private fun MushafBottomBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // سهم التنقل لليسار
-            IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+            // الصفحة السابقة
+            IconButton(onClick = onPrev, enabled = page > 1, modifier = Modifier.size(36.dp)) {
                 Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.05f)) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "السابق", tint = Color.Black, modifier = Modifier.padding(4.dp))
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "الصفحة السابقة", tint = if (page > 1) Color.Black else Color.Gray, modifier = Modifier.padding(4.dp))
                 }
             }
 
@@ -614,6 +617,13 @@ private fun MushafBottomBar(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp
                 )
+            }
+
+            // الصفحة التالية
+            IconButton(onClick = onNext, enabled = page < MushafPageData.PAGE_COUNT, modifier = Modifier.size(36.dp)) {
+                Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.05f)) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "الصفحة التالية", tint = if (page < MushafPageData.PAGE_COUNT) Color.Black else Color.Gray, modifier = Modifier.padding(4.dp))
+                }
             }
         }
     }
