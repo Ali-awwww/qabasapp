@@ -8,7 +8,7 @@ package com.qabas.app
  * - شريط علوي: السورة + الجزء. شريط سفلي: رقم الصفحة + تنقل + علامة + اختيار.
  * - نافذة اختيار: سورة / جزء / صفحة / علاماتي.
  * - حفظ آخر صفحة + العلامات في "qabas_prefs" (نفس تخزين التطبيق).
- * - النصوص من `uthmani.json` المحلي حصراً — لا شبكة ولا مفاتيح.
+ * - النص العثماني من مصدر موثق، يُنزّل مرة أولى ثم يُخزّن محلياً للقراءة دون اتصال.
  * - هيكل مفتوح لاحقاً: onOpenTafseer / onPlayAudio (اختياريان، يُمرَّران عند الجاهزية).
  */
 
@@ -28,6 +28,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -78,6 +79,7 @@ private fun getJuzName(juz: Int): String {
 fun MushafReaderScreen(
     onClose: () -> Unit,
     onOpenTafseer: (surahId: Int, ayah: Int) -> Unit = { _, _ -> },
+    onReciterChange: (reciterId: String) -> Unit = {},
     initialPage: Int? = null
 ) {
     val context = LocalContext.current
@@ -85,20 +87,32 @@ fun MushafReaderScreen(
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
 
     var dataReady by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var loadAttempt by remember { mutableIntStateOf(0) }
     var bookmarks by remember {
         mutableStateOf(prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.mapNotNull { it.toIntOrNull() }?.sorted() ?: emptyList())
     }
     var fontScale by remember { mutableFloatStateOf(prefs.getFloat(KEY_FONT_SIZE, 1f)) }
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            QuranDataProvider.loadFromAssets(context)
+    LaunchedEffect(loadAttempt) {
+        loadError = null
+        dataReady = false
+        val quranReady = QuranDataProvider.ensureQuranLoaded(context)
+        val pageMapReady = withContext(Dispatchers.IO) {
             QuranDataProvider.loadTafsirFromAssets(context)
             MushafPageData.loadPageMap(context)
         }
-        dataReady = MushafPageData.isLoaded()
+        val pageReferencesMatch = withContext(Dispatchers.IO) {
+            pageMapReady && MushafPageData.matchesLoadedQuran()
+        }
+        dataReady = quranReady && pageMapReady && MushafPageData.isLoaded() && pageReferencesMatch
         if (!dataReady) {
-            Toast.makeText(context, "تعذر تحميل خريطة الصفحات — تحقق من ملف madani_pages.json", Toast.LENGTH_LONG).show()
+            loadError = when {
+                !quranReady -> "تعذر جلب نص القرآن والتحقق منه. تحقق من الاتصال ثم أعد المحاولة."
+                !pageMapReady || !MushafPageData.isLoaded() -> "تعذر التحقق من خريطة صفحات المصحف. راجع ملف بيانات الصفحات."
+                else -> "هناك اختلاف بين مراجع الصفحات ونص الآيات؛ أوقفنا العرض منعًا لصفحات ناقصة."
+            }
+            Toast.makeText(context, loadError, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -114,11 +128,25 @@ fun MushafReaderScreen(
 
         if (!dataReady) {
             Box(Modifier.fillMaxSize().background(Color(0xFF0B0F19)), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = GoldPrimary)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 28.dp)
+                ) {
+                    if (loadError == null) {
+                        CircularProgressIndicator(color = GoldPrimary)
+                        Spacer(Modifier.height(12.dp))
+                        Text("جارٍ تحميل النص والتحقق من صفحات المصحف…", color = TextSecondary, fontFamily = CairoFont)
+                    } else {
+                        Text(loadError.orEmpty(), color = Color(0xFFFFD7A3), fontFamily = CairoFont, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { loadAttempt++ },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color(0xFF171717))
+                        ) {
+                            Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
-                    Text("جاري تجهيز صفحات المصحف…", color = TextSecondary, fontFamily = CairoFont)
-                    Spacer(Modifier.height(16.dp))
                     TextButton(onClick = onClose) { Text("رجوع", color = GoldPrimary, fontFamily = CairoFont) }
                 }
             }
@@ -139,7 +167,8 @@ fun MushafReaderScreen(
                 onClose = {
                     onClose()
                 },
-                onOpenTafseer = onOpenTafseer
+                onOpenTafseer = onOpenTafseer,
+                onReciterChange = onReciterChange
             )
         }
     }
@@ -154,7 +183,8 @@ private fun MushafReaderContent(
     fontScale: Float,
     onFontScaleChange: (Float) -> Unit,
     onClose: () -> Unit,
-    onOpenTafseer: (Int, Int) -> Unit
+    onOpenTafseer: (Int, Int) -> Unit,
+    onReciterChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -208,13 +238,13 @@ private fun MushafReaderContent(
             onToggleBookmark = ::toggleBookmark,
             onOpenPicker = { showPicker = true },
             onOpenSearch = { showSearchDialog = true },
-            onPrevSurah = {
+            onPrevPage = {
                 scope.launch {
                     val prevPage = (currentPage - 2).coerceAtLeast(0)
                     pagerState.animateScrollToPage(prevPage)
                 }
             },
-            onNextSurah = {
+            onNextPage = {
                 scope.launch {
                     val nextPage = currentPage.coerceAtMost(MushafPageData.PAGE_COUNT - 1)
                     pagerState.animateScrollToPage(nextPage)
@@ -250,6 +280,8 @@ private fun MushafReaderContent(
             onNext = { scope.launch { pagerState.animateScrollToPage((currentPage).coerceAtMost(MushafPageData.PAGE_COUNT - 1)) } },
             onPageNumberClick = { showSheet = true }
         )
+
+        TanzilAttributionFooter()
     }
 
     if (showSheet) {
@@ -263,6 +295,7 @@ private fun MushafReaderContent(
             selectedReciter = currentReciterKey,
             onReciterSelect = { reciterId ->
                 UserPreferencesManager.setQuranReciter(context, reciterId)
+                onReciterChange(reciterId)
                 stopAudio()
             },
             onFontScaleChange = onFontScaleChange,
@@ -351,8 +384,8 @@ private fun MushafTopBar(
     onToggleBookmark: () -> Unit,
     onOpenPicker: () -> Unit,
     onOpenSearch: () -> Unit,
-    onPrevSurah: () -> Unit,
-    onNextSurah: () -> Unit,
+    onPrevPage: () -> Unit,
+    onNextPage: () -> Unit,
     onClose: () -> Unit
 ) {
     Surface(color = MushafCream, shadowElevation = 0.dp) {
@@ -396,8 +429,8 @@ private fun MushafTopBar(
 
             // اليمين: السورة + أسهم التنقل
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPrevSurah, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Black.copy(alpha = 0.5f))
+                IconButton(onClick = onPrevPage, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "الصفحة السابقة", tint = Color.Black.copy(alpha = 0.5f))
                 }
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -410,8 +443,8 @@ private fun MushafTopBar(
                         color = Color.Black, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold
                     )
                 }
-                IconButton(onClick = onNextSurah, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color.Black.copy(alpha = 0.5f))
+                IconButton(onClick = onNextPage, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "الصفحة التالية", tint = Color.Black.copy(alpha = 0.5f))
                 }
                 Spacer(Modifier.width(4.dp))
                 IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
@@ -430,87 +463,72 @@ private fun MushafPageCard(
     onOpenTafseer: (Int, Int) -> Unit
 ) {
     val refs = remember(page) { MushafPageData.getPageRefs(page) }
-    // عناصر العرض: رأس سورة عند بدايتها + آية آية (لتتبع الظاهر منها)
-    val items = remember(page) {
-        val list = ArrayList<MushafLineItem>()
-        var lastSurah = -1
-        for ((s, a) in refs) {
-            if (a == 1 && s != lastSurah) {
-                list.add(MushafLineItem.Header(s))
-                lastSurah = s
-            }
-            list.add(MushafLineItem.Ayah(s, a))
-        }
-        list
-    }
-    val listState = remember(page) { androidx.compose.foundation.lazy.LazyListState() }
-    // الإبلاغ عن أول آية ظاهرة (شارة «آية X»)
-    LaunchedEffect(page, listState.firstVisibleItemIndex) {
-        val idx = listState.firstVisibleItemIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-        if (items.isNotEmpty()) {
-            when (val it = items[idx]) {
-                is MushafLineItem.Ayah -> onVisibleAyah(it.surah, it.ayah)
-                is MushafLineItem.Header -> onVisibleAyah(it.surah, 1)
+    val pageScroll = remember(page) { androidx.compose.foundation.rememberScrollState() }
+    val pageText = remember(page) {
+        buildAnnotatedString {
+            refs.forEach { (surah, ayah) ->
+                val verse = QuranDataProvider.getVerseText(surah, ayah).orEmpty()
+                if (verse.isNotBlank()) {
+                    pushStringAnnotation(tag = "ayah", annotation = "$surah:$ayah")
+                    append(verse)
+                    pop()
+                    append(" ")
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = MushafHeaderGold, fontWeight = FontWeight.Bold))
+                    append("﴿${easternDigits(ayah)}﴾")
+                    pop()
+                    append(" ")
+                }
             }
         }
     }
-    Box(
-        Modifier.fillMaxSize()
-            .background(MushafCream)
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        if (items.isEmpty()) {
+    LaunchedEffect(page) {
+        refs.firstOrNull()?.let { (surah, ayah) -> onVisibleAyah(surah, ayah) }
+    }
+    Box(Modifier.fillMaxSize().background(MushafCream).padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (refs.isEmpty() || pageText.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("لا تتوفر بيانات هذه الصفحة", color = Color.Gray, fontFamily = CairoFont)
             }
-            return@Box
-        }
-        val fontSize = (22 * fontScale).sp
-        val lineH = (44 * fontScale).sp
-        androidx.compose.foundation.lazy.LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            items(
-                count = items.size,
-                key = { i ->
-                    when (val it = items[i]) {
-                        is MushafLineItem.Header -> "h-${it.surah}"
-                        is MushafLineItem.Ayah -> "a-${it.surah}-${it.ayah}"
-                    }
-                }
-            ) { i ->
-                when (val it = items[i]) {
-                    is MushafLineItem.Header -> {
-                        SurahDecorativeHeader(surahName = QuranDataProvider.surahNameOf(it.surah), fontSize = fontSize)
-                        if (it.surah != 9) {
+        } else {
+            Column(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFFFCF3))
+                    .border(1.dp, MushafHeaderGold.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                    .verticalScroll(pageScroll).padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                refs.map { it.first }.distinct().forEach { surah ->
+                    if (refs.any { it.first == surah && it.second == 1 }) {
+                        SurahDecorativeHeader(QuranDataProvider.surahNameOf(surah), (20 * fontScale).sp)
+                        if (surah != 9 && surah != 1) {
                             Text(
                                 "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
-                                color = Color.Black, fontFamily = AmiriFont,
-                                fontSize = (fontSize.value * 1.1).sp, textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                                color = Color(0xFF252319), fontFamily = AmiriFont,
+                                fontSize = (24 * fontScale).sp, textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                             )
                         }
                     }
-                    is MushafLineItem.Ayah -> {
-                        Text(
-                            buildAnnotatedString {
-                                append(QuranDataProvider.getVerseText(it.surah, it.ayah) ?: "")
-                                append(" ")
-                                // شارة الآية (دائرة مزخرفة)
-                                append(" ﴿${easternDigits(it.ayah)}﴾ ")
-                            },
-                            fontFamily = AmiriFont,
-                            fontSize = fontSize,
-                            lineHeight = lineH,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                .clickable { onOpenTafseer(it.surah, it.ayah) }
-                        )
-                    }
                 }
+                androidx.compose.foundation.text.ClickableText(
+                    text = pageText,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = AmiriFont, fontSize = (25 * fontScale).sp,
+                        lineHeight = (47 * fontScale).sp, color = Color(0xFF211F18),
+                        textAlign = TextAlign.Justify
+                    ),
+                    onClick = { offset ->
+                        pageText.getStringAnnotations("ayah", offset, offset).firstOrNull()?.item
+                            ?.split(":")?.let { parts ->
+                                val s = parts.getOrNull(0)?.toIntOrNull()
+                                val a = parts.getOrNull(1)?.toIntOrNull()
+                                if (s != null && a != null) onOpenTafseer(s, a)
+                            }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("— ${easternDigits(page)} —", color = MushafHeaderGold, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -560,10 +578,10 @@ private fun MushafBottomBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // سهم التنقل لليسار
-            IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+            // الصفحة السابقة
+            IconButton(onClick = onPrev, enabled = page > 1, modifier = Modifier.size(36.dp)) {
                 Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.05f)) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "السابق", tint = Color.Black, modifier = Modifier.padding(4.dp))
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "الصفحة السابقة", tint = if (page > 1) Color.Black else Color.Gray, modifier = Modifier.padding(4.dp))
                 }
             }
 
@@ -578,6 +596,13 @@ private fun MushafBottomBar(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp
                 )
+            }
+
+            // الصفحة التالية
+            IconButton(onClick = onNext, enabled = page < MushafPageData.PAGE_COUNT, modifier = Modifier.size(36.dp)) {
+                Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.05f)) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "الصفحة التالية", tint = if (page < MushafPageData.PAGE_COUNT) Color.Black else Color.Gray, modifier = Modifier.padding(4.dp))
+                }
             }
         }
     }
@@ -976,7 +1001,7 @@ private fun MushafSearchDialog(
 ) {
     var query by remember { mutableStateOf("") }
     val results = remember(query) {
-        if (query.trim().length >= 2) {
+        if (query.trim().length >= 3) {
             QuranDataProvider.searchVerses(query, limit = 40)
         } else {
             emptyList()
@@ -1057,7 +1082,7 @@ private fun MushafSearchDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (query.trim().length < 2) "اكتب حرفين على الأقل للبحث" else "لم يتم العثور على نتائج لـ «$query»",
+                            if (query.trim().length < 3) "اكتب ثلاثة أحرف على الأقل للبحث" else "لم يتم العثور على نتائج لـ «$query»",
                             color = TextSecondary,
                             fontFamily = CairoFont,
                             fontSize = 13.sp,
@@ -1154,12 +1179,14 @@ private fun MushafAyahActionSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val surahName = remember(surahId) { QuranDataProvider.surahNameOf(surahId) }
     val verseText = remember(surahId, ayah) { QuranDataProvider.getVerseText(surahId, ayah) ?: "" }
-    var tafsirText by remember { mutableStateOf<String?>(QuranDataProvider.getTafsirForVerse(surahId, ayah)) }
-    var isPlayingSingleAyah by remember { mutableStateOf(false) }
+    var tafsirText by remember(surahId, ayah) { mutableStateOf<String?>(QuranDataProvider.getTafsirForVerse(surahId, ayah)) }
+    var tafsirLoadFailed by remember(surahId, ayah) { mutableStateOf(false) }
+    var isPlayingSingleAyah by remember(surahId, ayah) { mutableStateOf(false) }
 
     LaunchedEffect(surahId, ayah) {
-        if (tafsirText == null) {
+        if (tafsirText.isNullOrBlank()) {
             tafsirText = QuranDataProvider.fetchRemoteTafsir(surahId, ayah)
+            tafsirLoadFailed = tafsirText.isNullOrBlank()
         }
     }
 
@@ -1301,7 +1328,11 @@ private fun MushafAyahActionSheet(
             ) {
                 Box(Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
                     Text(
-                        text = tafsirText ?: "جاري جلب التفسير الميسر…",
+                        text = when {
+                            !tafsirText.isNullOrBlank() -> tafsirText.orEmpty()
+                            tafsirLoadFailed -> "تعذر جلب التفسير الميسر. تحقق من الاتصال ثم أعد فتح الآية."
+                            else -> "جاري جلب التفسير الميسر…"
+                        },
                         color = Color.White.copy(alpha = 0.9f),
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
@@ -1309,6 +1340,14 @@ private fun MushafAyahActionSheet(
                         textAlign = TextAlign.Right
                     )
                 }
+            }
+            if (!tafsirText.isNullOrBlank()) {
+                Text(
+                    "المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف، عبر QuranEnc.com",
+                    color = GoldSecondary.copy(alpha = 0.85f),
+                    fontFamily = CairoFont,
+                    fontSize = 10.sp
+                )
             }
 
             Spacer(Modifier.height(20.dp))
