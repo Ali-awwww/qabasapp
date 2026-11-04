@@ -31,34 +31,86 @@ object StyleBrainLoadFix {
         }
     }
 
-    /** يصحّح الـ prefs إن كانت القوة مخزّنة خطأً ≥50 مع سمات فارغة */
-    fun repairPersistedEmptyCore(context: Context) {
-        try {
-            val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
-            val coreJson = prefs.getString("qabas_core_style_json", null) ?: return
+    enum class CoreRepairStatus {
+        NO_STORED_CORE,
+        NO_REPAIR_NEEDED,
+        REPAIRED,
+        INVALID_STORED_DATA,
+        PERSISTENCE_FAILED,
+        PERSISTED_RELOAD_FAILED,
+        FAILED
+    }
+
+    data class CoreRepairResult(
+        val status: CoreRepairStatus,
+        val detail: String? = null
+    )
+
+    /**
+     * Repairs only recognized persisted-core inconsistencies and reports the
+     * actual persistence/reload outcome. Unknown or incomplete JSON is left intact.
+     */
+    fun repairPersistedEmptyCore(context: Context): CoreRepairResult {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        return try {
+            val coreJson = prefs.getString("qabas_core_style_json", null)
+                ?: return CoreRepairResult(CoreRepairStatus.NO_STORED_CORE)
             val obj = JSONObject(coreJson)
-            val vArr = obj.optJSONArray("visualTraits") ?: JSONArray()
-            val mArr = obj.optJSONArray("motionTraits") ?: JSONArray()
-            val tArr = obj.optJSONArray("textTraits") ?: JSONArray()
-            val storedStrength = obj.optInt("strengthScore", 0)
-            if (vArr.length() == 0 && mArr.length() == 0 && tArr.length() == 0) {
-                val fixed = JSONObject()
-                fixed.put("visualTraits", JSONArray())
-                fixed.put("motionTraits", JSONArray())
-                fixed.put("textTraits", JSONArray())
-                fixed.put("analysis", "عقل فارغ — يرجى إضافة فيديوهات مرجعية للتعلم والاستفادة")
-                fixed.put("strengthScore", 0)
-                fixed.put("lastUpdated", System.currentTimeMillis())
-                prefs.edit().putString("qabas_core_style_json", fixed.toString()).apply()
+
+            val visualTraits = obj.optJSONArray("visualTraits")
+                ?: return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "visualTraits")
+            val motionTraits = obj.optJSONArray("motionTraits")
+                ?: return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "motionTraits")
+            val textTraits = obj.optJSONArray("textTraits")
+                ?: return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "textTraits")
+
+            val rawStrength = obj.opt("strengthScore")
+            val storedStrength = when (rawStrength) {
+                null -> 0
+                is Number -> rawStrength.toInt()
+                else -> return CoreRepairResult(CoreRepairStatus.INVALID_STORED_DATA, "strengthScore")
+            }
+
+            val hasNoTraits = visualTraits.length() == 0 &&
+                motionTraits.length() == 0 &&
+                textTraits.length() == 0
+            val corrected = JSONObject(obj.toString())
+            val needsRepair = if (hasNoTraits) {
+                if (storedStrength != 0) {
+                    corrected.put("strengthScore", 0)
+                    corrected.put("analysis", "عقل فارغ — يرجى إضافة فيديوهات مرجعية للتعلم والاستفادة")
+                    corrected.put("lastUpdated", System.currentTimeMillis())
+                }
+                storedStrength != 0
+            } else {
+                if (storedStrength !in 0..100) {
+                    corrected.put("strengthScore", storedStrength.coerceIn(0, 100))
+                }
+                storedStrength !in 0..100
+            }
+
+            if (!needsRepair) {
+                return CoreRepairResult(CoreRepairStatus.NO_REPAIR_NEEDED)
+            }
+
+            val persisted = prefs.edit()
+                .putString("qabas_core_style_json", corrected.toString())
+                .commit()
+            if (!persisted) {
+                return CoreRepairResult(CoreRepairStatus.PERSISTENCE_FAILED)
+            }
+
+            try {
                 StyleBrain.init(context)
-                Log.d("StyleBrainLoadFix", "Repaired empty core (was strength=$storedStrength)")
-            } else if (storedStrength < 0 || storedStrength > 100) {
-                obj.put("strengthScore", storedStrength.coerceIn(0, 100))
-                prefs.edit().putString("qabas_core_style_json", obj.toString()).apply()
-                StyleBrain.init(context)
+                Log.d("StyleBrainLoadFix", "Persisted core integrity repair completed")
+                CoreRepairResult(CoreRepairStatus.REPAIRED)
+            } catch (e: Exception) {
+                Log.w("StyleBrainLoadFix", "Core repaired but in-memory reload failed: ${e.javaClass.simpleName}")
+                CoreRepairResult(CoreRepairStatus.PERSISTED_RELOAD_FAILED, e.javaClass.simpleName)
             }
         } catch (e: Exception) {
-            Log.w("StyleBrainLoadFix", "repair failed: ${e.message}")
+            Log.w("StyleBrainLoadFix", "Core repair failed: ${e.javaClass.simpleName}")
+            CoreRepairResult(CoreRepairStatus.FAILED, e.javaClass.simpleName)
         }
     }
 
