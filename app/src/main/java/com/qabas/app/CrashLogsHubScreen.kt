@@ -235,60 +235,62 @@ fun CrashLogsHubScreen(
         }
     }
 
-    // Autonomous Self-Healing Engine
+    // Autonomous maintenance attempts. These APIs do not expose enough
+    // verified outcomes to claim that the whole application has been healed.
     fun executeAutonomousSelfHeal() {
+        if (isHealingInProgress) return
         isHealingInProgress = true
         coroutineScope.launch(Dispatchers.IO) {
             val logs = mutableListOf<String>()
-            logs.add("⏳ [1/5] بدء بروتوكول التشخيص والإنعاش التلقائي للأنظمة...")
-            delay(400)
+            logs.add("ℹ️ [1/5] بدء محاولات الصيانة؛ لن يُعلن عن جاهزية النظام دون تحقق فعلي.")
 
-            // Step 1: Cache & Temp Media Clearance
-            runCatching {
-                var clearedBytes = 0L
-                context.cacheDir.walkTopDown().forEach { f ->
-                    if (f.isFile && f.exists()) {
-                        clearedBytes += f.length()
-                        f.delete()
-                    }
+            // Keep the ExoPlayer SimpleCache under VideoCacheService ownership.
+            // Deleting cacheDir recursively while players may be using it can
+            // corrupt the managed cache and interrupt active playback.
+            val managedVideoCache = File(context.cacheDir, "qabas_video_cache")
+            logs.add(
+                if (managedVideoCache.exists()) {
+                    "ℹ️ [2/5] كاش الفيديو موجود؛ تم تجنب حذفه مباشرةً لأنه مُدار بواسطة خدمة تراعي المشغلات النشطة."
+                } else {
+                    "ℹ️ [2/5] لا يوجد مجلد كاش فيديو مُدار لحذفه."
                 }
-                logs.add("✅ [2/5] تم تنظيف ${clearedBytes / 1024}KB من ملفات الذاكرة المؤقتة والتخزين المؤقت للوسائط.")
-            }.onFailure {
-                logs.add("⚠️ [2/5] تحذير أثناء تنظيف الكاش: ${it.message}")
-            }
-            delay(400)
+            )
 
-            // Step 2: Audio & Video Engine Buffers Release
             runCatching {
                 AudioPlayerManager.stopAudio()
                 VideoCacheService.release()
-                logs.add("✅ [3/5] تم تفريغ وإعادة تهيئة موجهات الصوت ومحركات الفيديو.")
+            }.onSuccess {
+                logs.add("ℹ️ [3/5] أُرسلت أوامر إيقاف الصوت وطلب تحرير كاش الفيديو؛ قد يتأجل التحرير حتى انتهاء المشغلات النشطة.")
             }.onFailure {
-                logs.add("⚠️ [3/5] خطأ في تفريغ المحركات الصوتية: ${it.message}")
+                logs.add("⚠️ [3/5] تعذر إرسال أحد أوامر تحرير موارد الوسائط: ${it.message}")
             }
-            delay(400)
 
-            // Step 3: SharedPreferences & StyleBrain Core Integrity Check
             runCatching {
                 StyleBrainLoadFix.repairPersistedEmptyCore(context)
-                logs.add("✅ [4/5] تم فحص وتصحيح سلامة النواة الفنية (StyleBrain) والتفضيلات المحفوظة.")
+            }.onSuccess {
+                logs.add("ℹ️ [4/5] استُدعيت محاولة إصلاح StyleBrain؛ الدالة لا توفر نتيجة تسمح بتأكيد نجاح التعديل.")
             }.onFailure {
-                logs.add("⚠️ [4/5] فحص التفضيلات: ${it.message}")
+                logs.add("⚠️ [4/5] تعذرت محاولة إصلاح StyleBrain: ${it.message}")
             }
-            delay(400)
 
-            // Step 4: System Garbage Collector & State Refresh
             runCatching {
                 System.gc()
-                CrashBreadcrumbs.leave("system", "Autonomous Self-Heal Protocol executed successfully")
-                logs.add("✅ [5/5] تم تشغيل جامع المهملات (GC) واستعادة 100% من جاهزية النظام.")
+                CrashBreadcrumbs.leave("system", "Self-heal maintenance attempted; system readiness not verified")
+            }.onSuccess {
+                logs.add("ℹ️ [5/5] أُرسل طلب GC وسُجلت محاولة الصيانة؛ لا يمكن استنتاج مقدار الذاكرة المستعادة أو جاهزية النظام.")
+            }.onFailure {
+                logs.add("⚠️ [5/5] تعذر إكمال طلب الصيانة الأخير: ${it.message}")
             }
 
+            logs.add("ℹ️ انتهت المحاولات. راجع النتائج؛ لم يُجرِ هذا البروتوكول اختباراً شاملاً لصحة التطبيق.")
             withContext(Dispatchers.Main) {
                 healingResultLog = logs
                 isHealingInProgress = false
-                AppSoundManager.playSuccess()
-                Toast.makeText(context, "اكتمل بروتوكول الإنعاش الذاتي بنجاح ✦", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    "انتهت محاولات الصيانة؛ راجع سجل النتائج.",
+                    Toast.LENGTH_LONG
+                ).show()
                 reloadCrashes()
             }
         }
@@ -666,10 +668,10 @@ fun CrashLogsHubScreen(
                         fontSize = 12.5.sp
                     )
                     val steps = listOf(
-                        "تفريغ الملفات المؤقتة التالفة للصور والفيديوهات.",
-                        "إعادة تشغيل قنوات الصوت ومحررات المقاطع المعلقة.",
-                        "فحص وإصلاح هيكل التفضيلات والنواة الفنية (StyleBrain).",
-                        "تنظيف الذاكرة ومزامنة بروتوكول حارس الأعطال."
+                        "تجنب حذف كاش الفيديو مباشرةً حتى لا تتضرر المقاطع قيد التشغيل.",
+                        "إيقاف الصوت وطلب تحرير كاش الفيديو عبر الخدمة المُدارة.",
+                        "محاولة إصلاح التفضيلات والنواة الفنية (StyleBrain).",
+                        "طلب تشغيل جامع المهملات وتسجيل نتيجة المحاولات دون ضمان الجاهزية."
                     )
                     steps.forEach { step ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
