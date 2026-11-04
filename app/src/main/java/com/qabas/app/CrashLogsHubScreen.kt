@@ -267,10 +267,26 @@ fun CrashLogsHubScreen(
 
             runCatching {
                 StyleBrainLoadFix.repairPersistedEmptyCore(context)
-            }.onSuccess {
-                logs.add("ℹ️ [4/5] استُدعيت محاولة إصلاح StyleBrain؛ الدالة لا توفر نتيجة تسمح بتأكيد نجاح التعديل.")
+            }.onSuccess { result ->
+                val message = when (result.status) {
+                    StyleBrainLoadFix.CoreRepairStatus.NO_STORED_CORE ->
+                        "ℹ️ [4/5] لا توجد بيانات نواة محفوظة لإصلاحها؛ لم يُجر أي تعديل."
+                    StyleBrainLoadFix.CoreRepairStatus.NO_REPAIR_NEEDED ->
+                        "✅ [4/5] بيانات StyleBrain المحفوظة سليمة ولا تحتاج إلى تصحيح."
+                    StyleBrainLoadFix.CoreRepairStatus.REPAIRED ->
+                        "✅ [4/5] حُفظ تصحيح بيانات StyleBrain وأُعيد تحميل النواة."
+                    StyleBrainLoadFix.CoreRepairStatus.INVALID_STORED_DATA ->
+                        "⚠️ [4/5] بنية بيانات StyleBrain غير مكتملة؛ تُركت كما هي لحماية البيانات."
+                    StyleBrainLoadFix.CoreRepairStatus.PERSISTENCE_FAILED ->
+                        "⚠️ [4/5] تعذر حفظ تصحيح StyleBrain؛ لم يُعلن عن نجاح الإصلاح."
+                    StyleBrainLoadFix.CoreRepairStatus.PERSISTED_RELOAD_FAILED ->
+                        "⚠️ [4/5] حُفظ التصحيح لكن تعذرت إعادة تحميل النواة في الذاكرة."
+                    StyleBrainLoadFix.CoreRepairStatus.FAILED ->
+                        "⚠️ [4/5] فشلت محاولة إصلاح StyleBrain (${result.detail ?: "خطأ غير محدد"})."
+                }
+                logs.add(message)
             }.onFailure {
-                logs.add("⚠️ [4/5] تعذرت محاولة إصلاح StyleBrain: ${it.message}")
+                logs.add("⚠️ [4/5] تعذرت محاولة إصلاح StyleBrain: ${it.javaClass.simpleName}")
             }
 
             runCatching {
