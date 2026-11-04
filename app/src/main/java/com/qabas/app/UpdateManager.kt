@@ -414,7 +414,7 @@ object UpdateManager {
     private class DownloadCancelledException : Exception("أُلغي التحديث بواسطة المستخدم")
 
     internal fun sanitizePublicReleaseNotes(raw: String): String {
-        val hiddenLabels = listOf("Build Number:", "Built at:", "Branch:", "Workflow Run:", "Commit:")
+        val hiddenLabels = listOf("Build Number:", "Built at:", "Branch:", "Workflow Run:", "Workflow Run URL:", "Commit:", "Commit SHA:")
         return raw.lineSequence()
             .filterNot { line ->
                 val trimmed = line.trim()
@@ -840,7 +840,7 @@ object UpdateManager {
                             versionName = versionName,
                             versionCode = versionCode,
                             publishedAt = release.optString("published_at", ""),
-                            releaseNotes = notes,
+                            releaseNotes = sanitizePublicReleaseNotes(notes),
                             releaseUrl = releaseUrl,
                             assetName = apkName,
                             apkUrl = apkUrl,
