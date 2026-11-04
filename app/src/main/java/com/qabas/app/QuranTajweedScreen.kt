@@ -1784,7 +1784,7 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
                     Text("أمثلة تطبيقية من القرآن الكريم:", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "سيتم عرض أمثلة هذا الحكم من نص المصحف بعد ربط مواضعها الموثّقة.",
+                        "أمثلة الآيات قيد الربط بمراجع موثّقة من نص المصحف.",
                         color = OldInk.copy(alpha = 0.7f),
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp,
@@ -2668,8 +2668,7 @@ fun TajweedRulesEncyclopediaView(
             val matchesCategory = selectedCategory == "الكل" || rule.category == selectedCategory
             val matchesSearch = searchQuery.isBlank() || 
                 rule.title.contains(searchQuery, ignoreCase = true) ||
-                rule.description.contains(searchQuery, ignoreCase = true) ||
-                rule.exampleSearchPhrases.contains(searchQuery, ignoreCase = true)
+                rule.description.contains(searchQuery, ignoreCase = true)
             matchesCategory && matchesSearch
         }
     }
@@ -2685,7 +2684,7 @@ fun TajweedRulesEncyclopediaView(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("ابحث في أحكام التجويد، الأمثلة، والمدود...", color = OldInk.copy(alpha = 0.4f), fontFamily = NotoSansFont, fontSize = 12.sp) },
+            placeholder = { Text("ابحث في أحكام التجويد والمدود...", color = OldInk.copy(alpha = 0.4f), fontFamily = NotoSansFont, fontSize = 12.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = ManuscriptGold) },
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = ManuscriptGold.copy(alpha = 0.2f),
