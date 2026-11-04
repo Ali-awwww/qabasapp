@@ -653,55 +653,14 @@ fun StudioProEditorScreen(
                     onClick = {
                         val content = textDraft.trim()
                         if (content.isNotEmpty()) {
-                            val editingId = editingTextClipId
-                            if (editingId != null) {
-                                val targetTrack = projectState.tracks.firstOrNull { track ->
-                                    track.clips.any { it.id == editingId }
-                                }
-                                if (targetTrack != null && !targetTrack.isLocked) {
-                                    saveToHistory()
-                                    projectState = projectState.copy(
-                                        tracks = projectState.tracks.map { track ->
-                                            if (track.id == targetTrack.id) {
-                                                track.copy(clips = track.clips.map { clip ->
-                                                    if (clip.id == editingId) clip.copy(title = content) else clip
-                                                })
-                                            } else track
-                                        }
-                                    )
-                                }
+                            val updated = if (editingTextClipId != null) {
+                                updateEditorTextClip(projectState, editingTextClipId!!, content)
                             } else {
-                                val endLimit = projectState.totalDurationMs.coerceAtLeast(1L)
-                                val startTime = projectState.currentTimeMs.coerceIn(0L, endLimit - 1L)
-                                val textTrackIndex = projectState.tracks.indexOfFirst {
-                                    it.type == TrackType.TEXT && !it.isLocked
-                                }
-                                val newTrack = if (textTrackIndex >= 0) null else {
-                                    EditorTrack(type = TrackType.TEXT, name = "نصوص")
-                                }
-                                val targetIndex = if (textTrackIndex >= 0) textTrackIndex else projectState.tracks.size
-                                val newClip = EditorClip(
-                                    title = content,
-                                    resourceUri = "",
-                                    startOffsetMs = startTime,
-                                    durationMs = minOf(5000L, (endLimit - startTime).coerceAtLeast(1L)),
-                                    trackIndex = targetIndex,
-                                    type = TrackType.TEXT,
-                                    color = GoldPrimary
-                                )
+                                addEditorTextClip(projectState, content)
+                            }
+                            if (updated != null && updated != projectState) {
                                 saveToHistory()
-                                val updatedTracks = if (newTrack == null) {
-                                    projectState.tracks.mapIndexed { index, track ->
-                                        if (index == textTrackIndex) track.copy(clips = track.clips + newClip) else track
-                                    }
-                                } else {
-                                    projectState.tracks + newTrack.copy(clips = listOf(newClip))
-                                }
-                                projectState = projectState.copy(
-                                    tracks = updatedTracks,
-                                    currentTimeMs = startTime,
-                                    selectedClipId = newClip.id
-                                )
+                                projectState = updated
                             }
                         }
                         showTextEditor = false
