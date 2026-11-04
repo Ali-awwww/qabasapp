@@ -89,6 +89,10 @@ enum class WorkspaceMode {
     EDIT, COLOR, AUDIO, EXPORT
 }
 
+/** Stable autosave fingerprint that ignores rapidly changing playback position and play state. */
+internal fun editorDraftContentHash(state: EditorProjectState): Int =
+    state.copy(currentTimeMs = 0L, isPlaying = false).hashCode()
+
 /** Applies a focused update to one existing timeline track. */
 internal fun updateEditorTrack(
     state: EditorProjectState,
