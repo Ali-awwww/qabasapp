@@ -423,7 +423,24 @@ fun StudioProEditorScreen(
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {}) { Icon(Icons.Default.SkipPrevious, null, tint = Color.White) }
+                    IconButton(
+                        onClick = {
+                            findAdjacentEditorClip(projectState, forward = false)?.let { clip ->
+                                projectState = projectState.copy(
+                                    currentTimeMs = clip.startOffsetMs,
+                                    selectedClipId = clip.id,
+                                    isPlaying = false
+                                )
+                            }
+                        },
+                        enabled = findAdjacentEditorClip(projectState, forward = false) != null
+                    ) {
+                        Icon(
+                            Icons.Default.SkipPrevious,
+                            contentDescription = "المقطع السابق",
+                            tint = if (findAdjacentEditorClip(projectState, forward = false) != null) Color.White else Color.Gray
+                        )
+                    }
                     
                     Surface(
                         onClick = { projectState = projectState.copy(isPlaying = !projectState.isPlaying) },
@@ -440,7 +457,24 @@ fun StudioProEditorScreen(
                         }
                     }
                     
-                    IconButton(onClick = {}) { Icon(Icons.Default.SkipNext, null, tint = Color.White) }
+                    IconButton(
+                        onClick = {
+                            findAdjacentEditorClip(projectState, forward = true)?.let { clip ->
+                                projectState = projectState.copy(
+                                    currentTimeMs = clip.startOffsetMs,
+                                    selectedClipId = clip.id,
+                                    isPlaying = false
+                                )
+                            }
+                        },
+                        enabled = findAdjacentEditorClip(projectState, forward = true) != null
+                    ) {
+                        Icon(
+                            Icons.Default.SkipNext,
+                            contentDescription = "المقطع التالي",
+                            tint = if (findAdjacentEditorClip(projectState, forward = true) != null) Color.White else Color.Gray
+                        )
+                    }
                 }
             }
 
