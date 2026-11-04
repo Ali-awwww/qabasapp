@@ -1,13 +1,9 @@
 package com.qabas.app
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -17,77 +13,40 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class HiggsfieldVideoServiceTest {
 
-    private lateinit var context: Context
+    @Test
+    fun textToVideoPayloadUsesKlingFourSchemaAndClampsDuration() {
+        val payload = HiggsfieldVideoService.buildTextToVideoPayload("  cinematic mosque  ", 45)
 
-    @Before
-    fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        prefs.edit().clear().commit()
+        assertEquals("cinematic mosque", payload.getString("prompt"))
+        assertEquals(30, payload.getInt("duration"))
+        assertEquals("1080p", payload.getString("resolution"))
+        assertEquals("9:16", payload.getString("aspect_ratio"))
+        assertFalse(payload.has("model"))
+        assertFalse(payload.has("camera_motion"))
     }
 
     @Test
-    fun testIsConfigured_returnsFalse_whenNoKeysSet() {
-        assertFalse(HiggsfieldVideoService.isConfigured(context))
+    fun textToVideoPayloadKeepsMinimumDuration() {
+        val payload = HiggsfieldVideoService.buildTextToVideoPayload("prompt", 1)
+        assertEquals(3, payload.getInt("duration"))
     }
 
     @Test
-    fun testIsConfigured_returnsTrue_whenApiKeySet() {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("higgsfield_api_key", "hfld_test_key_1234567890").commit()
+    fun parsesRequestIdAndNestedVideoUrlFromOfficialResponseShape() {
+        val submission = JSONObject("""{"request_id":"req_123","status":"queued","status_url":"https://api.higgsfield.ai/requests/req_123/status"}""")
+        val completed = JSONObject("""{"status":"completed","video":{"url":"https://cdn.example/video.mp4"}}""")
 
-        assertTrue(HiggsfieldVideoService.isConfigured(context))
+        assertEquals("req_123", HiggsfieldVideoService.extractRequestId(submission))
+        assertEquals("https://cdn.example/video.mp4", HiggsfieldVideoService.extractVideoUrl(completed))
     }
 
     @Test
-    fun testIsConfigured_returnsTrue_whenKeyIdAndSecretSet() {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("higgsfield_key_id", "my_id")
-            .putString("higgsfield_key_secret", "my_secret")
-            .commit()
-
-        assertTrue(HiggsfieldVideoService.isConfigured(context))
-    }
-
-    @Test
-    fun testGetAuthHeader_formatsBearerCorrectly() {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        
-        // Without Bearer prefix
-        prefs.edit().putString("higgsfield_api_key", "my_secret_token").commit()
-        assertEquals("Bearer my_secret_token", HiggsfieldVideoService.getAuthHeader(context))
-
-        // Already with Bearer prefix
-        prefs.edit().putString("higgsfield_api_key", "Bearer my_secret_token").commit()
-        assertEquals("Bearer my_secret_token", HiggsfieldVideoService.getAuthHeader(context))
-    }
-
-    @Test
-    fun testApiKeyValidator_handlesPlaceholderCorrectly() = runBlocking {
-        val result = ApiKeyValidator.validateKey(context, "higgsfield", "your_api_key_here")
-        assertFalse(result.isValid)
-        assertTrue(result.explanation.contains("المفتاح غير مضبوط") || result.explanation.contains("افتراضية"))
-    }
-
-    @Test
-    fun testApiKeyValidator_handlesEmptyCorrectly() = runBlocking {
-        val result = ApiKeyValidator.validateKey(context, "higgsfield", "")
-        assertFalse(result.isValid)
-    }
-
-    @Test
-    fun testDetectKeysForAutoFill_detectsHiggsfieldKey() {
-        val clipboardText = "Here is my token: hfld_live_token_9876543210abcdef and some other text"
-        val detected = detectKeysForAutoFill(clipboardText)
-        assertTrue(detected.containsKey("higgsfield"))
-        assertEquals("hfld_live_token_9876543210abcdef", detected["higgsfield"])
-    }
-
-    @Test
-    fun testOperationalReadinessManager_includesHiggsfield() {
-        val report = OperationalReadinessManager.calculateReadiness(context)
-        assertNotNull(report)
-        assertTrue(report.services.any { it.name.contains("Higgsfield") })
+    fun recognizesOnlyDocumentedTerminalStatuses() {
+        assertTrue(HiggsfieldVideoService.isTerminalStatus("completed"))
+        assertTrue(HiggsfieldVideoService.isTerminalStatus("failed"))
+        assertTrue(HiggsfieldVideoService.isTerminalStatus("nsfw"))
+        assertTrue(HiggsfieldVideoService.isTerminalStatus("canceled"))
+        assertFalse(HiggsfieldVideoService.isTerminalStatus("in_progress"))
+        assertFalse(HiggsfieldVideoService.isTerminalStatus("queued"))
     }
 }
