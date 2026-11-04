@@ -17,14 +17,6 @@ object ApiKeyManager {
         return AgentPrefs.getString(context, "leonardo_api_key")
     }
 
-    fun saveHiggsfieldKey(context: Context, key: String) {
-        AgentPrefs.putString(context, "higgsfield_api_key", key)
-    }
-
-    fun getHiggsfieldKey(context: Context): String {
-        return AgentPrefs.getString(context, "higgsfield_api_key")
-    }
-
     fun clearKeys(context: Context) {
         AgentPrefs.remove(context, "leonardo_api_key")
         AgentPrefs.remove(context, "higgsfield_api_key")
