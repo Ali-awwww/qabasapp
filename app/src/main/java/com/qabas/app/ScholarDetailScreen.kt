@@ -1639,7 +1639,7 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "خريطة رحلات العلم والهجرة والجهاد",
+                        "محطات السيرة والتنقل",
                         color = ManuscriptGold,
                         fontFamily = CairoFont,
                         fontSize = 14.sp,
@@ -1787,7 +1787,7 @@ fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = scholar.whoHarmedHimAndHow ?: "واجه ابتلاءات شديدة في سبيل الله وصبر عليها.",
+                text = scholar.whoHarmedHimAndHow ?: "لا تتوافر في المصادر التي اعتمدناها تفاصيل كافية لإثبات محنة خاصة أو تعيين من آذاه.",
                 color = OldInk,
                 fontFamily = AmiriFont,
                 fontSize = 17.5.sp,
@@ -1845,7 +1845,7 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = scholar.howHeEndured ?: "استعان بالله تعالى واحتسب الأجر في كل لحظة.",
+                    text = scholar.howHeEndured ?: "لا تتوافر رواية موثقة كافية لوصف تفاصيل صبره في هذه المحنة.",
                     color = OldInk,
                     fontFamily = AmiriFont,
                     fontSize = 17.5.sp,
@@ -1899,7 +1899,7 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = scholar.whyHeEndured ?: "لحفظ دين الله وصيانة شريعة الإسلام للأجيال.",
+                    text = scholar.whyHeEndured ?: "هذه فقرة تفسيرية تحريرية، وليست قولاً منسوباً إلى صاحب الترجمة.",
                     color = OldInk,
                     fontFamily = AmiriFont,
                     fontSize = 17.5.sp,
@@ -1932,7 +1932,7 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "مشهد الوفاة واللحظات الأخيرة المؤثرة:",
+                        "الوفاة في المصادر التاريخية:",
                         color = Color(0xFF6B21A8),
                         fontFamily = CairoFont,
                         fontSize = 14.5.sp,
@@ -1943,7 +1943,7 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = scholar.deathScene ?: "فاضت روحه في طاعة الله وذكره.",
+                    text = scholar.deathScene ?: "لا نورد وصفاً تفصيلياً للحظاته الأخيرة أو آخر كلماته دون نقل تاريخي واضح يمكن مراجعته.",
                     color = OldInk,
                     fontFamily = AmiriFont,
                     fontSize = 18.sp,
@@ -2088,7 +2088,7 @@ fun LegacyAndMessageSection(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        "وصيةُ الإمامِ لكَ يا حفيدَهُ:",
+                        "عبرة مستفادة من سيرته:",
                         color = ManuscriptGold,
                         fontFamily = CairoFont,
                         fontSize = 15.sp,
@@ -2096,7 +2096,7 @@ fun LegacyAndMessageSection(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "« $message »",
+                        text = message,
                         color = OldInk,
                         fontFamily = AmiriFont,
                         fontSize = 20.sp,
