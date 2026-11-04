@@ -370,7 +370,7 @@ create policy app_update_audit_developer_read
   for select
   to authenticated
   using (
-    lower(coalesce((select auth.jwt() -> 'app_metadata' ->> 'role'), ''))
+    lower(coalesce(((select auth.jwt()) -> 'app_metadata' ->> 'role'), ''))
       in ('developer', 'admin', 'owner', 'مطور', 'مكور')
   );
 
@@ -577,6 +577,8 @@ revoke all on function public.set_qabas_app_update_active(text, boolean) from pu
 grant execute on function public.publish_qabas_app_update(text, integer, text, text, bigint, text, boolean, text, text, text) to authenticated;
 grant execute on function public.set_qabas_app_update_active(text, boolean) to authenticated;
 
+CREATE INDEX IF NOT EXISTS app_update_audit_actor_id_created_at_idx
+    ON public.app_update_audit (actor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS app_update_audit_created_at_idx
     ON public.app_update_audit (created_at DESC);
 
