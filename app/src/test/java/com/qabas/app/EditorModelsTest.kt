@@ -231,4 +231,88 @@ class EditorModelsTest {
         assertNull(updateEditorTextClip(unlocked, clip.id, "   "))
         assertNull(addEditorTextClip(unlocked, "   "))
     }
+
+    @Test
+    fun clipMoveSnapsToNearbyClipBoundariesAndPreservesDuration() {
+        val moving = EditorClip(
+            id = "moving",
+            title = "Moving",
+            resourceUri = "content://moving",
+            startOffsetMs = 1000L,
+            durationMs = 2000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val anchor = moving.copy(id = "anchor", startOffsetMs = 7000L, durationMs = 3000L)
+        val state = EditorProjectState(
+            projectId = "move-test",
+            title = "Move",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(moving, anchor)))
+        )
+
+        val updated = moveEditorClip(state, moving.id, 10080L)!!
+
+        assertEquals(10000L, updated.tracks.single().clips.first { it.id == moving.id }.startOffsetMs)
+        assertEquals(2000L, updated.tracks.single().clips.first { it.id == moving.id }.durationMs)
+        assertEquals(moving.id, updated.selectedClipId)
+    }
+
+    @Test
+    fun clipTrimmingPreservesOppositeEdgeAndEnforcesMinimumDuration() {
+        val clip = EditorClip(
+            id = "trim",
+            title = "Trim",
+            resourceUri = "content://trim",
+            startOffsetMs = 1000L,
+            durationMs = 4000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val state = EditorProjectState(
+            projectId = "trim-test",
+            title = "Trim",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            isMagneticTimeline = false
+        )
+
+        val leadingTrim = trimEditorClipStart(state, clip.id, 2500L)!!
+            .tracks.single().clips.single()
+        assertEquals(2500L, leadingTrim.startOffsetMs)
+        assertEquals(2500L, leadingTrim.durationMs)
+
+        val trailingTrim = trimEditorClipEnd(state, clip.id, 3800L)!!
+            .tracks.single().clips.single()
+        assertEquals(1000L, trailingTrim.startOffsetMs)
+        assertEquals(2800L, trailingTrim.durationMs)
+
+        val minimum = trimEditorClipEnd(state, clip.id, 1050L)!!
+            .tracks.single().clips.single()
+        assertEquals(100L, minimum.durationMs)
+    }
+
+    @Test
+    fun clipTimelineOperationsRejectLockedTracksAndUnknownClips() {
+        val clip = EditorClip(
+            id = "locked-trim",
+            title = "Locked",
+            resourceUri = "content://locked",
+            startOffsetMs = 0L,
+            durationMs = 1000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val state = EditorProjectState(
+            projectId = "locked-timeline",
+            title = "Locked",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Locked", clips = listOf(clip), isLocked = true))
+        )
+
+        assertNull(moveEditorClip(state, clip.id, 2000L))
+        assertNull(trimEditorClipStart(state, clip.id, 200L))
+        assertNull(trimEditorClipEnd(state, clip.id, 800L))
+        assertNull(moveEditorClip(state, "missing", 2000L))
+    }
 }
