@@ -224,6 +224,11 @@ fun UpdateManagementSection() {
                     Text(release.tagName, color = Color.White, fontWeight = FontWeight.Bold)
                     Text("Build ${release.versionCode}  •  ${formatUpdateBytes(release.apkSize)}", color = Color.LightGray, fontSize = 11.sp)
                     Text("APK: ${release.assetName}", color = Color.LightGray, fontSize = 11.sp)
+                    Text(
+                        if (release.sha256Hash != null) "SHA-256: متوفر للتحقق من سلامة الملف" else "SHA-256: غير متوفر في بيانات GitHub لهذا الإصدار",
+                        color = Color.LightGray,
+                        fontSize = 10.sp
+                    )
                     Text("تاريخ النشر: ${release.publishedAt.ifBlank { "غير متاح" }}", color = Color.LightGray, fontSize = 10.sp)
                     OutlinedButton(
                         onClick = {
