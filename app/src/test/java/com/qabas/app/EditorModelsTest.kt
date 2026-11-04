@@ -556,7 +556,8 @@ class EditorModelsTest {
             sourceStartMs = 2000L,
             sourceDurationMs = 10000L,
             type = TrackType.VIDEO,
-            color = androidx.compose.ui.graphics.Color.Blue
+            color = androidx.compose.ui.graphics.Color.Blue,
+            keyframes = listOf(EditorKeyframe(4000L, "scale", 1.5f))
         )
         val state = EditorProjectState(
             projectId = "speed-range",
@@ -568,11 +569,13 @@ class EditorModelsTest {
             .tracks.single().clips.single()
         assertEquals(4000L, faster.durationMs)
         assertEquals(2f, faster.speed)
+        assertEquals(2000L, faster.keyframes.single().timeMs)
         assertEquals(10000L, faster.sourceStartMs + (faster.durationMs * faster.speed).toLong())
 
         val slower = setEditorClipSpeed(state, clip.id, 0.5f)!!
             .tracks.single().clips.single()
         assertEquals(16000L, slower.durationMs)
+        assertEquals(8000L, slower.keyframes.single().timeMs)
         assertEquals(10000L, slower.sourceStartMs + (slower.durationMs * slower.speed).toLong())
 
         val locked = state.copy(
