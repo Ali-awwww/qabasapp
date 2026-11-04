@@ -3055,18 +3055,18 @@ fun MemorizationSystemView(
     var showSurahPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // Initialize a daily challenge if none exists
+        // لا نعرض تحدياً بإنجاز وهمي؛ تقدمه يُحتسب من سجلات الحفظ التي يدخلها المستخدم.
         scope.launch {
             val active = db.quranChallengeDao().getActiveChallengesOnce()
-            if (active.isEmpty()) {
+            if (active.none { it.type == "MEMORIZATION" }) {
                 db.quranChallengeDao().insertChallenge(
                     QuranChallengeRecord(
-                        id = "daily_read_5",
-                        title = "ورد النور اليومي",
-                        description = "اقرأ 5 آيات من سورة الملك اليوم",
+                        id = "memorize_5_verses",
+                        title = "تحدي حفظ خمس آيات",
+                        description = "سجّل حفظ خمس آيات جديدة من أي سورة.",
                         goalValue = 5,
                         currentValue = 0,
-                        type = "READING",
+                        type = "MEMORIZATION",
                         hasanatReward = 1000
                     )
                 )
@@ -3102,10 +3102,10 @@ fun MemorizationSystemView(
                     challenge = QuranChallengeRecord(
                         id = "daily_read",
                         title = "ورد القراءة اليومي",
-                        description = "اقرأ صفحتين من المصحف اليوم لتنال بركة النور",
-                        goalValue = 2,
+                        description = "سجّل حفظ خمس آيات جديدة من أي سورة.",
+                        goalValue = 5,
                         currentValue = 0,
-                        type = "READING",
+                        type = "MEMORIZATION",
                         hasanatReward = 500
                     )
                 )
@@ -3224,6 +3224,8 @@ fun MemorizationSystemView(
                         val verse = verseLogValue.toIntOrNull()
                         if (surah != null && verse != null && verse in 1..surah.versesCount) {
                             scope.launch {
+                                val previousRecord = db.memorizationDao().getRecordBySurah(surah.id)
+                                val newlyMemorized = (verse - (previousRecord?.lastVerseMemorized ?: 0)).coerceAtLeast(0)
                                 db.memorizationDao().insertRecord(
                                     MemorizationRecord(
                                         surahId = surah.id,
@@ -3234,6 +3236,19 @@ fun MemorizationSystemView(
                                         isCompleted = verse == surah.versesCount
                                     )
                                 )
+                                if (newlyMemorized > 0) {
+                                    db.quranChallengeDao().getActiveChallengesOnce()
+                                        .filter { it.type == "MEMORIZATION" && !it.isCompleted }
+                                        .forEach { challenge ->
+                                            val updatedValue = (challenge.currentValue + newlyMemorized).coerceAtMost(challenge.goalValue)
+                                            db.quranChallengeDao().updateChallenge(
+                                                challenge.copy(
+                                                    currentValue = updatedValue,
+                                                    isCompleted = updatedValue >= challenge.goalValue
+                                                )
+                                            )
+                                        }
+                                }
                                 showLogDialog = false
                                 verseLogValue = ""
                                 Toast.makeText(context, "تم تسجيل التقدم في سورة ${surah.name} 🎉", Toast.LENGTH_SHORT).show()
