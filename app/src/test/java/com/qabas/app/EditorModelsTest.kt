@@ -449,4 +449,34 @@ class EditorModelsTest {
         assertNull(addEditorMediaClip(state, "Video", "", TrackType.VIDEO, 8000L))
         assertNull(addEditorMediaClip(state, "Video", "content://media/video", TrackType.VIDEO, 0L))
     }
+
+    @Test
+    fun sourceInPointScalesWithPlaybackSpeedWhenTrimmingAndSplitting() {
+        val clip = EditorClip(
+            id = "fast-clip",
+            title = "Fast",
+            resourceUri = "content://fast",
+            startOffsetMs = 1000L,
+            durationMs = 4000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 2f
+        )
+        val state = EditorProjectState(
+            projectId = "fast-edit",
+            title = "Fast",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            isMagneticTimeline = false
+        )
+
+        val trimmed = trimEditorClipStart(state, clip.id, 2000L)!!.tracks.single().clips.single()
+        assertEquals(2000L, trimmed.sourceStartMs)
+        assertEquals(3000L, trimmed.durationMs)
+
+        val split = splitEditorClip(state, clip.id, 2500L)!!.tracks.single().clips
+        val second = split.single { it.startOffsetMs == 2500L }
+        assertEquals(3000L, second.sourceStartMs)
+        assertEquals(2500L, second.durationMs)
+    }
 }
