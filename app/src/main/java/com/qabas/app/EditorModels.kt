@@ -383,13 +383,11 @@ internal fun setEditorClipSpeed(
     val clip = track.clips.first { it.id == clipId }
     val newSpeed = requestedSpeed.coerceIn(0.1f, 5f)
     val oldSpeed = clip.speed.coerceIn(0.1f, 5f)
-    val sourceEndMs = if (clip.sourceDurationMs > 0L && clip.sourceDurationMs != Long.MAX_VALUE) {
-        clip.sourceDurationMs
-    } else {
-        clip.sourceStartMs + (clip.durationMs * oldSpeed).toLong()
-    }
-    val availableSourceMs = (sourceEndMs - clip.sourceStartMs).coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
-    val newDurationMs = (availableSourceMs / newSpeed).toLong().coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
+    // Preserve the clip's currently selected source range; do not restore trimmed-away media.
+    val selectedSourceDurationMs = (clip.durationMs * oldSpeed).toLong()
+        .coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
+    val newDurationMs = (selectedSourceDurationMs / newSpeed).toLong()
+        .coerceAtLeast(EDITOR_MIN_CLIP_DURATION_MS)
     val updatedClip = clip.copy(speed = newSpeed, durationMs = newDurationMs)
     val updated = updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
