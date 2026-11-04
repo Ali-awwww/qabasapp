@@ -29,6 +29,21 @@ data class RawAyah(
 
 object QuranDataProvider {
 
+    private val datasetLoadMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * نقطة الدخول الموحدة لتحميل النص. تمنع قارئ السور وقارئ الصفحات من
+     * بدء تنزيلين متزامنين للبيانات نفسها عند فتحهما بسرعة.
+     */
+    suspend fun ensureQuranLoaded(context: Context): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            datasetLoadMutex.withLock {
+                loadFromAssets(context) ||
+                    loadFromCache(context) ||
+                    downloadAndCacheFromNetwork(context)
+            }
+        }
+
     private const val TAG = "QuranDataProvider"
 
     // ذاكرة التخزين المؤقت للآيات المحملة مقسمة حسب رقم السورة
