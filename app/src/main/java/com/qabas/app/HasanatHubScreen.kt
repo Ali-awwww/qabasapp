@@ -350,6 +350,10 @@ fun HasanatHubScreen(
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item(key = "mishkat_reminder") {
+                MishkatReminderCard()
+            }
+
             // Search Bar
             if (isSearchExpanded) {
                 item {
