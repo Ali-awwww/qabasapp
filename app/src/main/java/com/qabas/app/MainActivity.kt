@@ -234,29 +234,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // 🔍 فحص التحديثات عند الإقلاع
-                        launch(Dispatchers.IO) {
-                            delay(3500) // تأخير طفيف لضمان استقرار الواجهة وظهورها
-                            val status = VersionManager.checkUpdateStatus(this@MainActivity, force = true)
-                            
-                            withContext(Dispatchers.Main) {
-                                when (status) {
-                                    is VersionManager.UpdateStatus.ForceUpdateRequired -> {
-                                        // فرض التحديث - لا يمكن تجاهله
-                                        UpdateManager.setPendingUpdate(status.info)
-                                    }
-                                    is VersionManager.UpdateStatus.OptionalUpdateAvailable -> {
-                                        // تحديث اختياري - يحترم رغبة المستخدم في الجلسة
-                                        if (!UpdateManager.isUpdateDismissedForSession) {
-                                            UpdateManager.setPendingUpdate(status.info)
-                                        }
-                                    }
-                                    VersionManager.UpdateStatus.NoUpdate -> {
-                                        // لا يوجد تحديث
-                                    }
-                                }
-                            }
-                        }
                         launch {
                             delay(2500)
                             var isFirstLoad = true
@@ -796,7 +773,7 @@ class MainActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             content()
 
-            if (update != null && !UpdateManager.isUpdateDismissedForSession) {
+            if (update != null && !update.isForce && !UpdateManager.isUpdateDismissedForSession) {
                 UpdateNotificationDialog(
                     update = update,
                     downloadProgress = downloadProgress,
