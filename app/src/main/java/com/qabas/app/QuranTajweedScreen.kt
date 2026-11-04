@@ -3207,7 +3207,7 @@ fun MemorizationSystemView(
                     onClick = {
                         val surah = selectedSurahForLog
                         val verse = verseLogValue.toIntOrNull()
-                        if (surah != null && verse != null) {
+                        if (surah != null && verse != null && verse in 1..surah.versesCount) {
                             scope.launch {
                                 db.memorizationDao().insertRecord(
                                     MemorizationRecord(
@@ -3215,13 +3215,20 @@ fun MemorizationSystemView(
                                         surahName = surah.name,
                                         lastVerseMemorized = verse,
                                         totalVerses = surah.versesCount,
-                                        progressPercent = verse.toFloat() / surah.versesCount,
-                                        isCompleted = verse >= surah.versesCount
+                                        progressPercent = (verse.toFloat() / surah.versesCount).coerceIn(0f, 1f),
+                                        isCompleted = verse == surah.versesCount
                                     )
                                 )
                                 showLogDialog = false
+                                verseLogValue = ""
                                 Toast.makeText(context, "تم تسجيل التقدم في سورة ${surah.name} 🎉", Toast.LENGTH_SHORT).show()
                             }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "اختر سورة وأدخل رقم آية صحيحاً بين 1 وعدد آيات السورة.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
