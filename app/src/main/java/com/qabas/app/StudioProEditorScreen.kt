@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.items
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import java.util.UUID
+import kotlin.math.roundToLong
 import kotlinx.coroutines.isActive
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -529,6 +532,16 @@ fun StudioProEditorScreen(
                                     onClipClick = { clipId ->
                                         if (!track.isLocked) projectState = projectState.copy(selectedClipId = clipId)
                                     },
+                                    onClipDragStarted = { saveToHistory() },
+                                    onClipMove = { clipId, startMs ->
+                                        moveEditorClip(projectState, clipId, startMs)?.let { projectState = it }
+                                    },
+                                    onClipTrimStart = { clipId, startMs ->
+                                        trimEditorClipStart(projectState, clipId, startMs)?.let { projectState = it }
+                                    },
+                                    onClipTrimEnd = { clipId, endMs ->
+                                        trimEditorClipEnd(projectState, clipId, endMs)?.let { projectState = it }
+                                    },
                                     onTransitionClick = { clipId ->
                                         if (!track.isLocked) {
                                             selectedTransitionClipId = clipId
@@ -983,8 +996,13 @@ fun TimelineTrackRow(
     zoom: Float,
     selectedClipId: String?,
     onClipClick: (String) -> Unit,
+    onClipDragStarted: () -> Unit = {},
+    onClipMove: (String, Long) -> Unit = { _, _ -> },
+    onClipTrimStart: (String, Long) -> Unit = { _, _ -> },
+    onClipTrimEnd: (String, Long) -> Unit = { _, _ -> },
     onTransitionClick: (String) -> Unit = {}
 ) {
+    val density = LocalDensity.current.density
     Row(
         modifier = Modifier.fillMaxWidth().height(48.dp).border(0.5.dp, Color.White.copy(alpha = 0.05f)),
         verticalAlignment = Alignment.CenterVertically
@@ -1008,14 +1026,38 @@ fun TimelineTrackRow(
         // Track Content Area
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F0F))) {
             track.clips.forEach { clip ->
+                key(clip.id) {
                 val isSelected = clip.id == selectedClipId
+                var moveOriginMs by remember(clip.id) { mutableStateOf(clip.startOffsetMs) }
+                var moveDeltaMs by remember(clip.id) { mutableStateOf(0L) }
+                var trimOriginMs by remember(clip.id) { mutableStateOf(clip.startOffsetMs) }
+                var trimDeltaMs by remember(clip.id) { mutableStateOf(0L) }
                 Surface(
                     modifier = Modifier
                         .fillMaxHeight(0.8f)
                         .width((clip.durationMs.toFloat() / 10f * zoom).dp)
                         .offset(x = (clip.startOffsetMs.toFloat() / 10f * zoom).dp)
                         .align(Alignment.CenterStart)
-                        .clickable { onClipClick(clip.id) },
+                        .clickable { onClipClick(clip.id) }
+                        .pointerInput(clip.id, zoom, track.isLocked) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    if (!track.isLocked) {
+                                        onClipClick(clip.id)
+                                        onClipDragStarted()
+                                        moveOriginMs = clip.startOffsetMs
+                                        moveDeltaMs = 0L
+                                    }
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (!track.isLocked) {
+                                        moveDeltaMs += (dragAmount.x / density / zoom * 10f).roundToLong()
+                                        onClipMove(clip.id, moveOriginMs + moveDeltaMs)
+                                    }
+                                }
+                            )
+                        },
                     color = if (isSelected) clip.color.copy(alpha = 0.9f) else clip.color.copy(alpha = 0.6f),
                     shape = RoundedCornerShape(4.dp),
                     border = androidx.compose.foundation.BorderStroke(
@@ -1043,7 +1085,48 @@ fun TimelineTrackRow(
                         }
                         
                         Text(clip.title, fontSize = 8.sp, color = Color.White, modifier = Modifier.padding(4.dp), maxLines = 1)
-                        
+
+                        if (isSelected && !track.isLocked) {
+                            Box(
+                                modifier = Modifier.align(Alignment.CenterStart)
+                                    .width(8.dp).fillMaxHeight()
+                                    .background(Color.White.copy(alpha = 0.85f))
+                                    .pointerInput(clip.id, zoom) {
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                onClipDragStarted()
+                                                trimOriginMs = clip.startOffsetMs
+                                                trimDeltaMs = 0L
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                trimDeltaMs += (dragAmount.x / density / zoom * 10f).roundToLong()
+                                                onClipTrimStart(clip.id, trimOriginMs + trimDeltaMs)
+                                            }
+                                        )
+                                    }
+                            )
+                            Box(
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                                    .width(8.dp).fillMaxHeight()
+                                    .background(Color.White.copy(alpha = 0.85f))
+                                    .pointerInput(clip.id, zoom) {
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                onClipDragStarted()
+                                                trimOriginMs = clip.startOffsetMs + clip.durationMs
+                                                trimDeltaMs = 0L
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                trimDeltaMs += (dragAmount.x / density / zoom * 10f).roundToLong()
+                                                onClipTrimEnd(clip.id, trimOriginMs + trimDeltaMs)
+                                            }
+                                        )
+                                    }
+                            )
+                        }
+
                         // Keyframe Markers (Diamonds)
                         clip.keyframes.forEach { kf ->
                             Box(
@@ -1073,6 +1156,7 @@ fun TimelineTrackRow(
                     ) {
                         Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(8.dp))
                     }
+                }
                 }
             }
         }
