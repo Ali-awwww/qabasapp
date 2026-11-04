@@ -67,7 +67,6 @@ fun HasanatHubScreen(
     val dateInfo by viewModel.dateInfo.collectAsState()
     val filteredSections by viewModel.filteredSections.collectAsState()
     
-    val quranStats by viewModel.quranStats.collectAsState()
     val hadithStats by viewModel.hadithStats.collectAsState()
     val azkarStats by viewModel.azkarStats.collectAsState()
     
@@ -228,12 +227,6 @@ fun HasanatHubScreen(
         "qibla" -> {
             LaunchedEffect(activeToolDialog) {
                 onNavigate(AppState.PRAYER_TIMES)
-                viewModel.dismissToolDialog()
-            }
-        }
-        "wird" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.QURAN_HUB)
                 viewModel.dismissToolDialog()
             }
         }
@@ -550,9 +543,6 @@ fun HasanatHubScreen(
                                     .padding(horizontal = 6.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Box(Modifier.weight(1f)) {
-                                    QuickMishkatMetric(Icons.Default.MenuBook, Translator.tr("القرآن"), quranStats, Color(0xFF10B981))
-                                }
                                 Box(Modifier.weight(1f)) {
                                     QuickMishkatMetric(Icons.Default.AutoStories, Translator.tr("الأحاديث"), hadithStats, GoldPrimary)
                                 }
@@ -1262,7 +1252,6 @@ fun HasanatHubScreen(
                                                     else {
                                                         when (item.id) {
                                                             "qibla" -> onNavigate(AppState.PRAYER_TIMES)
-                                                            "wird" -> onNavigate(AppState.QURAN_HUB)
                                                             "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
                                                             "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
                                                             "share" -> onNavigate(AppState.PHOTO_STUDIO)
@@ -1308,7 +1297,6 @@ fun HasanatHubScreen(
                                     else {
                                         when (item.id) {
                                             "qibla" -> onNavigate(AppState.PRAYER_TIMES)
-                                            "wird" -> onNavigate(AppState.QURAN_HUB)
                                             "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
                                             "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
                                             "share" -> onNavigate(AppState.PHOTO_STUDIO)
