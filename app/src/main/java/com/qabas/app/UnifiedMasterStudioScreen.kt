@@ -96,7 +96,10 @@ fun UnifiedMasterStudioScreen(
     // 5. محرك التوليد البصري وحركة الكاميرا (FLUX.1 vs Higgsfield AI Video)
     var selectedVisualEngine by rememberSaveable { mutableStateOf("flux") } // "flux" or "higgsfield"
     var selectedCameraMotion by rememberSaveable { mutableStateOf("cinematic") } // "cinematic", "orbit", "drone", "push_in"
-    val isHiggsfieldConfigured = remember { HiggsfieldVideoService.isConfigured(context) }
+    var isHiggsfieldConfigured by remember { mutableStateOf(false) }
+    LaunchedEffect(context) {
+        isHiggsfieldConfigured = HiggsfieldVideoService.isConfigured(context)
+    }
 
     val voiceOptions = remember {
         listOf(
