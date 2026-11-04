@@ -402,7 +402,12 @@ fun ReelsScreen(
         if (isOnline && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
                 val effectiveUser = currentSupabaseId ?: return@launch
-                SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
+                val cloudViews = SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
+                    ?: return@launch
+                // Refresh the visible value from the authoritative cloud result only.
+                allReels = allReels.map { item ->
+                    if (item.id == rid) item.copy(viewsCount = cloudViews) else item
+                }
             }
         }
     }
