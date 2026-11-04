@@ -2419,6 +2419,15 @@ fun QuranRecitationRecordingView(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    if (sampleVerseWords.isEmpty()) {
+                        Text(
+                            "نص السورة غير محمّل بعد. ارجع إلى المصحف وحاول بعد اكتمال تحميل البيانات.",
+                            color = OldInk.copy(alpha = 0.65f),
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                     FlowRow(
                         horizontalArrangement = Arrangement.Center,
                         verticalArrangement = Arrangement.Center,
