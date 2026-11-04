@@ -136,8 +136,8 @@ fun MishkatReminderCard() {
                 ) {
                     Text(
                         text = published.quoteText
-                            .replace("، ", "،\\n")
-                            .replace("محطَّ نحس ", "محطَّ نحس\\n"),
+                            .replace("، ", "،\n")
+                            .replace("محطَّ نحس ", "محطَّ نحس\n"),
                         color = Color(0xFFF4EAD7),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
