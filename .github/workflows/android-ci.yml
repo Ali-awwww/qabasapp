@@ -363,6 +363,7 @@ jobs:
             echo "- Build Number: ${{ github.run_number }}"
             echo "- Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             echo "- Branch: ${{ github.ref }}"
+            echo "- Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo ""
             echo "👇 xdelta updates are generated from this release."
           } > release_notes.md
