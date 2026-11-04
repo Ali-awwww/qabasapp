@@ -502,7 +502,7 @@ private fun MushafPageCard(
                         SurahDecorativeHeader(QuranDataProvider.surahNameOf(surah), (20 * fontScale).sp)
                         if (surah != 9 && surah != 1) {
                             Text(
-                                "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
+                                QuranDataProvider.getVerseText(1, 1).orEmpty(),
                                 color = Color(0xFF252319), fontFamily = AmiriFont,
                                 fontSize = (24 * fontScale).sp, textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
