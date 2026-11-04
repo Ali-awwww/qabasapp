@@ -735,33 +735,30 @@ fun StudioProEditorScreen(
                             Icon(Icons.Default.ZoomIn, null, tint = Color.Gray, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 1.2f).coerceAtMost(5f)) })
                         }
                         
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .horizontalScroll(timelineHorizontalScroll)
-                        ) {
-                            Row(modifier = Modifier.width(timelineContentWidth + 40.dp).fillMaxHeight()) {
-                                Spacer(modifier = Modifier.width(40.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .width(timelineContentWidth)
-                                        .fillMaxHeight()
-                                        .pointerInput(projectState.zoomLevel) {
-                                            detectTapGestures { offset ->
-                                                val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
-                                                projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
-                                            }
-                                        }
-                                ) {
-                                    TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel, Modifier.fillMaxSize())
-                                }
-                            }
-                        }
-                        
                         Text(formatTime(projectState.currentTimeMs), color = GoldPrimary, fontSize = 10.sp, modifier = Modifier.padding(end = 12.dp), fontFamily = NotoSansFont)
                     }
-                    
+
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(24.dp).horizontalScroll(timelineHorizontalScroll)
+                    ) {
+                        Row(modifier = Modifier.width(timelineContentWidth + 40.dp).height(24.dp)) {
+                            Spacer(modifier = Modifier.width(40.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(timelineContentWidth)
+                                    .fillMaxHeight()
+                                    .pointerInput(projectState.zoomLevel) {
+                                        detectTapGestures { offset ->
+                                            val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
+                                            projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
+                                        }
+                                    }
+                            ) {
+                                TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel, Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+
                     // Scrollable tracks and playhead share the ruler's horizontal position.
                     Box(
                         modifier = Modifier.fillMaxSize().horizontalScroll(timelineHorizontalScroll)
