@@ -1740,9 +1740,26 @@ private fun getAuthenticVersesForSurah(surahId: Int, surahName: String): List<Qu
     return QuranDataProvider.getVersesForSurah(surahId, surahName)
 }
 
+private fun resolveVerifiedTajweedExamples(exampleQueries: String): List<String> {
+    return exampleQueries.split(" - ")
+        .mapNotNull { raw ->
+            val query = raw.substringBefore(" [")
+                .replace("﴿", "")
+                .replace("﴾", "")
+                .trim()
+            if (query.length < 3) null
+            else QuranDataProvider.searchVerses(query, limit = 1).firstOrNull()?.verseText
+        }
+        .distinct()
+}
+
 @Composable
 fun TajweedRuleCard(rule: TajweedRuleItem) {
     val context = LocalContext.current
+    // exampleVerse يُستخدم كمفتاح بحث فقط؛ النص المعروض يأتي من مصدر القرآن الموثّق.
+    val verifiedExamples = remember(rule.exampleVerse, QuranDataProvider.getTotalAyahCount()) {
+        resolveVerifiedTajweedExamples(rule.exampleVerse)
+    }
     Card(
         colors = CardDefaults.cardColors(containerColor = AgedPaper),
         border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.2f)),
@@ -1798,7 +1815,14 @@ fun TajweedRuleCard(rule: TajweedRuleItem) {
                 Column {
                     Text("أمثلة تطبيقية من القرآن الكريم:", color = ManuscriptGold, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(rule.exampleVerse, color = OldInk, fontFamily = AmiriFont, fontSize = 18.sp)
+                    Text(
+                        text = verifiedExamples.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+                            ?: "لم يُعثر على موضع مطابق في نص المصحف الموثّق لهذا المثال.",
+                        color = OldInk,
+                        fontFamily = AmiriFont,
+                        fontSize = 18.sp,
+                        lineHeight = 28.sp
+                    )
                 }
             }
 
