@@ -27,7 +27,7 @@ object BackgroundPermissionManager {
     fun isBatteryOptimizationIgnored(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
         } else {
             true
         }
@@ -39,7 +39,7 @@ object BackgroundPermissionManager {
     fun canScheduleExactAlarms(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            alarmManager?.canScheduleExactAlarms() ?: true
+            alarmManager?.canScheduleExactAlarms() ?: false
         } else {
             true
         }
@@ -66,7 +66,7 @@ object BackgroundPermissionManager {
     fun canUseFullScreenIntent(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            manager?.canUseFullScreenIntent() ?: true
+            manager?.canUseFullScreenIntent() ?: false
         } else {
             true
         }
