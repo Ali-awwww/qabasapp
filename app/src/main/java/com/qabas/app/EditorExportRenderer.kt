@@ -229,8 +229,18 @@ internal object EditorExportRenderer {
             val outputDirectory = File(context.getExternalFilesDir("Movies") ?: context.filesDir, "QabasExports")
                 .apply { mkdirs() }
             val output = File(outputDirectory, "qabas_edit_${System.currentTimeMillis()}.mp4")
-            val hasAudio = hasAudioTrack(source.file)
-            val command = buildEditorExportCommand(plan, source.file.absolutePath, output.absolutePath, hasAudio)
+            val sourceMetadata = inspectSourceMedia(source.file)
+            val requestedSourceEndMs = plan.clip.sourceStartMs +
+                (plan.clip.durationMs * plan.clip.speed).toLong()
+            if (requestedSourceEndMs > sourceMetadata.durationMs + 100L) {
+                throw IllegalArgumentException("نطاق القص يتجاوز المدة الفعلية لملف الفيديو")
+            }
+            val command = buildEditorExportCommand(
+                plan,
+                source.file.absolutePath,
+                output.absolutePath,
+                sourceMetadata.hasAudio
+            )
 
             val timeout = (plan.durationMs * 12L).coerceIn(180_000L, 1_800_000L)
             val success = VideoProcessor.executeCommand(
@@ -301,17 +311,29 @@ internal object EditorExportRenderer {
         }
     }
 
-    private fun hasAudioTrack(file: File): Boolean {
+    private data class SourceMetadata(val durationMs: Long, val hasAudio: Boolean)
+
+    private fun inspectSourceMedia(file: File): SourceMetadata {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(file.absolutePath)
-            when (val audioFlag = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)) {
+            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                ?: throw IllegalStateException("تعذر قراءة مدة ملف المصدر")
+            if (duration <= 0L ||
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) != "yes"
+            ) {
+                throw IllegalArgumentException("ملف المصدر لا يحتوي على مسار فيديو صالح")
+            }
+            val hasAudio = when (
+                val audioFlag = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)
+            ) {
                 "yes" -> true
                 "no" -> false
-                else -> throw IllegalStateException("قيمة وجود المسار الصوتي غير متاحة: $audioFlag")
+                else -> throw IllegalStateException("تعذر تحديد وجود المسار الصوتي: $audioFlag")
             }
+            SourceMetadata(durationMs = duration, hasAudio = hasAudio)
         } catch (error: Exception) {
-            throw IllegalStateException("تعذر فحص المسار الصوتي لملف المصدر", error)
+            throw IllegalStateException("تعذر فحص بيانات ملف المصدر", error)
         } finally {
             runCatching { retriever.release() }
         }
