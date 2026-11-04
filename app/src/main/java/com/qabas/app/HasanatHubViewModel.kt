@@ -230,7 +230,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
             titleKey = "الأذكار وحصن المسلم",
             subtitleKey = "أذكار الصباح والمساء واليوم",
             descKey = "الأدعية المأثورة الموثقة مع عداد سبحة تفاعلي وتنبيهات أوقات الاستجابة.",
-            badgeKey = "42 ذكراً مأثوراً",
+            badgeKey = "أذكار مأثورة",
             categoryKey = "العبادات والمواقيت",
             icon = Icons.Default.AutoAwesome,
             accentColor = Color(0xFFF59E0B),
@@ -287,13 +287,13 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         )
     )
 
-    private val _quranStats = MutableStateFlow("114 سورة • 6236 آية")
+    private val _quranStats = MutableStateFlow("114 سورة")
     val quranStats = _quranStats.asStateFlow()
 
     private val _hadithStats = MutableStateFlow("46 حديثاً محققاً")
     val hadithStats = _hadithStats.asStateFlow()
 
-    private val _azkarStats = MutableStateFlow("42 ذكراً مأثوراً")
+    private val _azkarStats = MutableStateFlow("أذكار مأثورة")
     val azkarStats = _azkarStats.asStateFlow()
 
     private val _recentDesign = MutableStateFlow<HadithCardEntity?>(null)
@@ -307,15 +307,19 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
             val db = AppDatabase.getDatabase(context)
             
             val surahCount = QuranDataProvider.surahs.size
-            val ayahCount = 6236 // Still constant unless we count versesMap
-            _quranStats.value = "$surahCount سورة • $ayahCount آية"
+            val ayahCount = QuranDataProvider.getTotalAyahCount()
+            _quranStats.value = if (ayahCount > 0) {
+                "$surahCount سورة • $ayahCount آية"
+            } else {
+                "$surahCount سورة • نص الآيات غير متاح"
+            }
             
             // Actual Hadith count from Sahihain
             val actualHadiths = SahihHadithsRepository.bukhariHadiths.size + SahihHadithsRepository.muslimHadiths.size
             _hadithStats.value = "$actualHadiths حديثاً محققاً"
             
-            // Actual Azkar count from fortress of the Muslim
-            _azkarStats.value = "42 ذكراً مأثوراً"
+            // لا نعرض عدداً ثابتاً؛ محتوى الأذكار موزع على أقسام متعددة ويُحمّل مستقلاً.
+            _azkarStats.value = "أذكار مأثورة"
 
             // Recent design
             _recentDesign.value = db.hadithCardDao().getAllHadithCardsOnce().firstOrNull()
@@ -472,6 +476,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
                 val currentDateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
                 if (currentDateKey != observedDateKey) {
                     observedDateKey = currentDateKey
+                    _upcomingEvents.value = muslimToolsEngine.getUpcomingEvents(now)
                     _isWirdDone.value = prefs.getBoolean("daily_wird_$currentDateKey", false)
                     _isMorningAzkarDone.value = prefs.getBoolean("daily_morning_azkar_$currentDateKey", false)
                     _isEveningAzkarDone.value = prefs.getBoolean("daily_evening_azkar_$currentDateKey", false)
@@ -484,15 +489,20 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
         // تحميل بيانات المصحف والتفسير في الخلفية للتبديل من كافة السور
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching {
-                QuranDataProvider.loadFromAssets(context)
+            val quranLoaded = runCatching {
+                val loaded = QuranDataProvider.loadFromAssets(context)
                 QuranDataProvider.loadTafsirFromAssets(context)
+                loaded
+            }.getOrDefault(false)
+
+            if (quranLoaded) {
+                nextRandomAyah()
             }
+            updateDynamicStats()
         }
 
         // التدوير التلقائي والعشوائي للآية مع شريط التقدم الزمني (كل 12 ثانية)
         viewModelScope.launch {
-            updateDynamicStats()
             val totalSteps = 120 // 12 ثانية (كل خطوة 100 ميلي ثانية)
             var currentStep = 0
             while (true) {
@@ -512,17 +522,23 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
     fun nextRandomAyah() {
         _autoRotateProgress.value = 0f
-        val random = java.util.Random()
-        
-        // محاولة سحب عشوائي مع تفسير مؤكد
-        val pool = curatedAyahs
-        val next = pool[random.nextInt(pool.size)]
-        if (next.text != _currentAyah.value.text || pool.size <= 1) {
-            _currentAyah.value = next
-        } else {
-            val another = pool.firstOrNull { it.text != _currentAyah.value.text } ?: next
-            _currentAyah.value = another
+
+        val loadedAyah = QuranDataProvider.getRandomVerse()
+        val next = loadedAyah?.let {
+            QuranAyahWithTafsir(
+                surahNumber = it.surahNumber,
+                ayahNumber = it.verseNumber,
+                surahName = it.surahName,
+                text = it.verseText,
+                tafsir = it.tafseer.ifBlank { "التفسير غير متاح لهذه الآية حالياً." }
+            )
+        } ?: run {
+            // قائمة مختارة كخطة بديلة فقط عند تعذر تحميل نص المصحف من الأصول.
+            val candidates = curatedAyahs.filter { it.text != _currentAyah.value.text }
+            candidates.randomOrNull() ?: curatedAyahs.first()
         }
+
+        _currentAyah.value = next
         _currentPearlIndex.value++
     }
 
