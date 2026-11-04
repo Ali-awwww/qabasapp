@@ -1,7 +1,9 @@
 package com.qabas.app
 
 import android.widget.Toast
-import android.view.ViewGroup
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.view.TextureView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -42,15 +44,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import coil.compose.AsyncImage
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import java.util.UUID
 import kotlin.math.roundToLong
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -348,18 +351,12 @@ fun StudioProEditorScreen(
                         if (activeVideoClip != null && activeVideoClip.resourceUri.isNotBlank()) {
                             AndroidView(
                                 factory = { viewContext ->
-                                    PlayerView(viewContext).apply {
-                                        player = editorPlayer
-                                        useController = false
-                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                        layoutParams = ViewGroup.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.MATCH_PARENT
-                                        )
+                                    TextureView(viewContext).also { textureView ->
+                                        editorPlayer.setVideoTextureView(textureView)
                                     }
                                 },
-                                update = { playerView ->
-                                    if (playerView.player !== editorPlayer) playerView.player = editorPlayer
+                                update = { textureView ->
+                                    if (textureView.isAvailable) editorPlayer.setVideoTextureView(textureView)
                                 },
                                 modifier = Modifier.fillMaxSize().graphicsLayer {
                                     activeVideoClip?.let { clip ->
@@ -1027,29 +1024,37 @@ fun StudioProEditorScreen(
         ) {
             MediaAssetBrowser(
                 onAssetSelected = { asset ->
-                    saveToHistory()
-                    val trackType = when(asset.type) {
-                        "video" -> TrackType.VIDEO
-                        "audio" -> TrackType.AUDIO
-                        else -> TrackType.OVERLAY
-                    }
-                    val newClip = EditorClip(
-                        title = asset.title,
-                        resourceUri = asset.url,
-                        startOffsetMs = projectState.currentTimeMs,
-                        durationMs = asset.durationSeconds * 1000L,
-                        trackIndex = if (trackType == TrackType.VIDEO) 1 else 2,
-                        type = trackType,
-                        color = if (trackType == TrackType.VIDEO) Color(0xFF3B82F6) else Color(0xFF10B981)
-                    )
-                    
-                    projectState = projectState.copy(
-                        tracks = projectState.tracks.map { track ->
-                            if (track.type == trackType) track.copy(clips = track.clips + newClip) else track
+                    scope.launch {
+                        val durationMs = resolveEditorAssetDurationMs(context, asset)
+                        if (durationMs == null || durationMs <= 0L) {
+                            Toast.makeText(
+                                context,
+                                "تعذر قراءة مدة الملف؛ لم تتم إضافته إلى المشروع",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@launch
                         }
-                    )
-                    showMediaBrowser = false
-                    Toast.makeText(context, "تمت إضافة المقطع للتايم لاين ✨", Toast.LENGTH_SHORT).show()
+                        val trackType = when (asset.type) {
+                            "video" -> TrackType.VIDEO
+                            "audio" -> TrackType.AUDIO
+                            else -> TrackType.OVERLAY
+                        }
+                        val updated = addEditorMediaClip(
+                            state = projectState,
+                            title = asset.title,
+                            resourceUri = asset.url,
+                            type = trackType,
+                            durationMs = durationMs
+                        )
+                        if (updated == null) {
+                            Toast.makeText(context, "تعذر إضافة هذا الملف إلى المسار", Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
+                        saveToHistory()
+                        projectState = updated
+                        showMediaBrowser = false
+                        Toast.makeText(context, "تمت إضافة الوسيط بمدته المقروءة إلى الخط الزمني", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -1547,7 +1552,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         title = b.title,
                         url = b.videoUrl,
                         thumbnailUrl = b.thumbnailUrl,
-                        durationSeconds = 10,
+                        durationSeconds = 0,
                         type = "video"
                     )
                 }
@@ -1557,7 +1562,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         title = c.title,
                         url = c.displayUrl,
                         thumbnailUrl = "",
-                        durationSeconds = 15,
+                        durationSeconds = 0,
                         type = "video"
                     )
                 }
@@ -1582,7 +1587,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         title = c.title,
                         url = c.displayUrl,
                         thumbnailUrl = "",
-                        durationSeconds = 30,
+                        durationSeconds = 0,
                         type = "audio"
                     )
                 }
@@ -1594,7 +1599,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         title = c.title,
                         url = c.displayUrl,
                         thumbnailUrl = if (c.type == CentralMediaType.IMAGE) c.displayUrl else "",
-                        durationSeconds = 10,
+                        durationSeconds = if (c.type == CentralMediaType.IMAGE) 5 else 0,
                         type = when (c.type) {
                             CentralMediaType.VIDEO -> "video"
                             CentralMediaType.AUDIO -> "audio"
@@ -1610,7 +1615,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         title = b.title,
                         url = b.videoUrl,
                         thumbnailUrl = b.thumbnailUrl,
-                        durationSeconds = 4,
+                        durationSeconds = 0,
                         type = "video"
                     )
                 }
@@ -1667,7 +1672,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(asset.title, color = Color.White, fontSize = 10.sp, fontFamily = CairoFont, textAlign = TextAlign.Center, maxLines = 1)
-                            Text("${asset.durationSeconds}s", color = Color.Gray, fontSize = 8.sp, fontFamily = NotoSansFont)
+                            Text(if (asset.durationSeconds > 0) "${asset.durationSeconds}s" else "تُقرأ عند الإضافة", color = Color.Gray, fontSize = 8.sp, fontFamily = NotoSansFont)
                         }
                     }
                 }
@@ -1871,6 +1876,28 @@ fun ToolButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: B
             fontSize = 10.sp, 
             fontFamily = CairoFont
         )
+    }
+}
+
+private suspend fun resolveEditorAssetDurationMs(context: android.content.Context, asset: MediaAsset): Long? {
+    if (asset.type == "image") return 5000L
+    return withContext(Dispatchers.IO) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            val parsedUri = Uri.parse(asset.url)
+            if (parsedUri.scheme == "http" || parsedUri.scheme == "https") {
+                retriever.setDataSource(asset.url, emptyMap())
+            } else {
+                retriever.setDataSource(context, parsedUri)
+            }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.takeIf { it > 0L }
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 }
 
