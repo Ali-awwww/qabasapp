@@ -2,9 +2,10 @@ package com.qabas.app
 
 import android.content.Context
 import android.location.Geocoder
+import android.location.Location
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.location.CancellationTokenSource
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -26,9 +27,9 @@ object PrayerLocationProvider {
             val priority = if (hasFinePermission) Priority.PRIORITY_HIGH_ACCURACY
                 else Priority.PRIORITY_BALANCED_POWER_ACCURACY
 
-            val location = try {
+            val location: Location? = try {
                 withTimeoutOrNull(25_000L) {
-                    suspendCancellableCoroutine { continuation ->
+                    suspendCancellableCoroutine<Location?> { continuation ->
                         client.getCurrentLocation(priority, cancellation.token)
                             .addOnSuccessListener { result ->
                                 if (continuation.isActive) continuation.resume(result)

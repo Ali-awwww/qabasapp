@@ -268,8 +268,11 @@ fun PrayerTimesScreen(
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE) }
 
-    // City & Method state — supports curated cities and precise GPS coordinates.
-    var currentCity by remember { mutableStateOf(PrayerCalculationHelper.getSavedCity(context)) }
+    // City & Method state
+    var selectedCityIndex by remember {
+        mutableIntStateOf(prefs.getInt("selected_city_index", 0).coerceIn(0, PrayerCalculationHelper.popularCities.size - 1))
+    }
+    val currentCity = PrayerCalculationHelper.popularCities[selectedCityIndex]
 
     var selectedMethod by remember {
         mutableStateOf(currentCity.defaultMethod)
@@ -303,7 +306,7 @@ fun PrayerTimesScreen(
     }
 
     // Recalculate prayer times dynamically
-    val prayerTimes = remember(currentCity, selectedMethod, currentTimeMillis) {
+    val prayerTimes = remember(selectedCityIndex, selectedMethod, currentTimeMillis) {
         val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
         PrayerCalculationHelper.calculatePrayerTimes(cal, currentCity, selectedMethod)
     }
@@ -565,17 +568,81 @@ fun PrayerTimesScreen(
         }
     }
 
-    // Unified city picker: manual selection or automatic GPS detection.
+    // City Selection Dialog
     if (showCityDialog) {
-        PrayerCitySelectionDialog(
-            currentSelectedCity = currentCity,
-            onDismiss = { showCityDialog = false },
-            onCitySelected = { city ->
-                currentCity = city
-                selectedMethod = city.defaultMethod
-                PrayerCalculationHelper.saveCity(context, city)
-                showCityDialog = false
-            }
+        AlertDialog(
+            onDismissRequest = { showCityDialog = false },
+            title = {
+                Text(
+                    "اختر المدينة والموقع",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    color = GoldPrimary
+                )
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                ) {
+                    items(PrayerCalculationHelper.popularCities.indices.toList()) { index ->
+                        val city = PrayerCalculationHelper.popularCities[index]
+                        val isSelected = index == selectedCityIndex
+                        Surface(
+                            onClick = {
+                                selectedCityIndex = index
+                                selectedMethod = city.defaultMethod
+                                prefs.edit().putInt("selected_city_index", index).apply()
+                                showCityDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF1E293B),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) GoldPrimary else Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.LocationCity,
+                                    contentDescription = null,
+                                    tint = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        "${city.nameAr} (${city.countryAr})",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) GoldPrimary else Color.White,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        "${city.nameEn} • طريقة: ${city.defaultMethod.displayName}",
+                                        fontFamily = NotoSansFont,
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCityDialog = false }) {
+                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                }
+            },
+            containerColor = Color(0xFF151B2B)
         )
     }
 

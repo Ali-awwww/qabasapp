@@ -1,12 +1,6 @@
 package com.qabas.app
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.launch
 
 /**
  * نافذة تفاعلية راقية لاختيار الدولة والمدينة لتحديد مواقيت الصلاة والقبلة
@@ -46,51 +39,8 @@ fun PrayerCitySelectionDialog(
     onCitySelected: (CityLocation) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var selectedCountryFilter by remember { mutableStateOf("الكل") }
-    var isLocating by remember { mutableStateOf(false) }
-
-    fun detectCurrentLocation(hasFinePermission: Boolean) {
-        scope.launch {
-            isLocating = true
-            val detectedCity = runCatching {
-                PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
-            }.getOrNull()
-            isLocating = false
-            if (detectedCity != null) {
-                PrayerCalculationHelper.saveCity(context, detectedCity)
-                onCitySelected(detectedCity)
-                Toast.makeText(
-                    context,
-                    "تم تحديد موقعك: ${detectedCity.nameAr} • ${detectedCity.countryAr}",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else {
-                Toast.makeText(
-                    context,
-                    "تعذر تحديد الموقع. تحقق من تشغيل GPS واتصال الجهاز ثم أعد المحاولة.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (fineGranted || coarseGranted) detectCurrentLocation(fineGranted)
-        else Toast.makeText(context, "اسمح لقبس بالوصول إلى موقعك لتحديد المدينة تلقائياً.", Toast.LENGTH_LONG).show()
-    }
-
-    fun requestAutomaticLocation() {
-        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (fineGranted || coarseGranted) detectCurrentLocation(fineGranted)
-        else locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-    }
 
     val allCountries = remember {
         listOf("الكل") + PrayerCalculationHelper.popularCities.map { it.countryAr }.distinct().sorted()
@@ -169,28 +119,6 @@ fun PrayerCitySelectionDialog(
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
                         }
-                    }
-                }
-
-                Button(
-                    onClick = { requestAutomaticLocation() },
-                    enabled = !isLocating,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF063B4A),
-                        contentColor = GoldPrimary,
-                        disabledContainerColor = Color(0xFF172536)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isLocating) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldPrimary, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("جارٍ تحديد موقعك بدقة...", fontFamily = CairoFont, fontSize = 12.sp)
-                    } else {
-                        Icon(Icons.Default.MyLocation, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("تحديد موقعي تلقائياً عبر GPS", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
 
@@ -274,7 +202,9 @@ fun PrayerCitySelectionDialog(
                             Surface(
                                 onClick = {
                                     PrayerCalculationHelper.saveCity(context, city)
-                                    PrayerCalculationHelper.saveCity(context, city)
+                                    val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
+                                    val cityIdx = PrayerCalculationHelper.popularCities.indexOfFirst { it.nameAr == city.nameAr }.coerceAtLeast(0)
+                                    prayerPrefs.edit().putInt("selected_city_index", cityIdx).apply()
                                     onCitySelected(city)
                                 },
                                 shape = RoundedCornerShape(12.dp),

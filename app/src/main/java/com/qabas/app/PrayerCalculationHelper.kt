@@ -89,44 +89,12 @@ object PrayerCalculationHelper {
     fun getSavedCity(context: android.content.Context): CityLocation {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
         val savedName = prefs.getString("selected_prayer_city_name", "مكة المكرمة") ?: "مكة المكرمة"
-        if (prefs.contains("selected_prayer_latitude") && prefs.contains("selected_prayer_longitude")) {
-            val latitude = prefs.getString("selected_prayer_latitude", null)?.toDoubleOrNull()
-            val longitude = prefs.getString("selected_prayer_longitude", null)?.toDoubleOrNull()
-            if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-                val methodName = prefs.getString("selected_prayer_method", null)
-                val method = CalculationMethod.values().firstOrNull { it.name == methodName }
-                    ?: CalculationMethod.MUSLIM_WORLD_LEAGUE
-                return CityLocation(
-                    nameAr = savedName,
-                    nameEn = prefs.getString("selected_prayer_city_name_en", "Current location") ?: "Current location",
-                    countryAr = prefs.getString("selected_prayer_country", "") ?: "",
-                    latitude = latitude,
-                    longitude = longitude,
-                    timeZoneOffsetHours = prefs.getString("selected_prayer_timezone_offset", null)
-                        ?.toDoubleOrNull() ?: (TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 3_600_000.0),
-                    defaultMethod = method
-                )
-            }
-        }
         return popularCities.find { it.nameAr == savedName || it.nameEn.equals(savedName, ignoreCase = true) } ?: popularCities[0]
     }
 
     fun saveCity(context: android.content.Context, city: CityLocation) {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-        val popularIndex = popularCities.indexOfFirst { it.nameAr == city.nameAr && it.countryAr == city.countryAr }
-        prefs.edit()
-            .putString("selected_prayer_city_name", city.nameAr)
-            .putString("selected_prayer_city_name_en", city.nameEn)
-            .putString("selected_prayer_country", city.countryAr)
-            .putString("selected_prayer_latitude", city.latitude.toString())
-            .putString("selected_prayer_longitude", city.longitude.toString())
-            .putString("selected_prayer_timezone_offset", city.timeZoneOffsetHours.toString())
-            .putString("selected_prayer_method", city.defaultMethod.name)
-            .apply()
-        if (popularIndex >= 0) {
-            context.getSharedPreferences("qabas_prayer_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().putInt("selected_city_index", popularIndex).apply()
-        }
+        prefs.edit().putString("selected_prayer_city_name", city.nameAr).apply()
     }
 
     private const val KAABA_LAT = 21.422487
