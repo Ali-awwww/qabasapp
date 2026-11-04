@@ -87,8 +87,8 @@ internal fun createEditorExportPlan(
     ) {
         return EditorExportPlanResult(error = "نطاق القص يتجاوز مدة ملف المصدر")
     }
-    if (clip.keyframes.isNotEmpty()) {
-        return EditorExportPlanResult(error = "التحريك بالمفاتيح الزمنية غير مدعوم في إصدار الرندر الحالي؛ أزل المفاتيح أو انتظر محرك التحريك")
+    if (clip.keyframes.any { it.property != "scale" || it.timeMs < 0L || !it.value.isFinite() }) {
+        return EditorExportPlanResult(error = "يدعم الرندر الحالي مفاتيح تحريك الحجم فقط؛ مفاتيح الشفافية أو القيم غير الصالحة غير مدعومة بعد")
     }
     if (clip.transitionIn !in listOf(null, "Fade In", "Zoom In") || clip.blendMode != "Normal") {
         return EditorExportPlanResult(error = "هذا الانتقال أو نمط المزج غير مدعوم في إصدار الرندر الحالي")
@@ -113,6 +113,33 @@ internal fun createEditorExportPlan(
     )
 }
 
+internal fun buildEditorScaleKeyframeExpression(keyframes: List<EditorKeyframe>): String {
+    fun number(value: Float) = String.format(Locale.US, "%.5f", value)
+    val frames = keyframes.filter { it.property == "scale" && it.timeMs >= 0L }
+        .sortedBy { it.timeMs }
+        .distinctBy { it.timeMs }
+    if (frames.isEmpty()) return "1"
+
+    var expression = number(frames.last().value)
+    for (index in frames.indices.reversed()) {
+        val current = frames[index]
+        val next = frames.getOrNull(index + 1)
+        if (next != null && next.timeMs > current.timeMs) {
+            val startSeconds = current.timeMs / 1000.0
+            val endSeconds = next.timeMs / 1000.0
+            val durationSeconds = (next.timeMs - current.timeMs) / 1000.0
+            val interpolation = "(${number(current.value)}+(${number(next.value - current.value)})*(t-$startSeconds)/$durationSeconds)"
+            expression = "if(lt(t\\,$endSeconds)\\,$interpolation\\,$expression)"
+        }
+        if (index == 0 && current.timeMs > 0L) {
+            val firstSeconds = current.timeMs / 1000.0
+            val interpolation = "(1+(${number(current.value - 1f)})*t/$firstSeconds)"
+            expression = "if(lt(t\\,$firstSeconds)\\,$interpolation\\,$expression)"
+        }
+    }
+    return expression
+}
+
 internal fun buildEditorExportCommand(
     plan: EditorExportPlan,
     inputPath: String,
@@ -130,8 +157,10 @@ internal fun buildEditorExportCommand(
     val sourceDurationSeconds = clip.durationMs * speed / 1000.0
     val filters = mutableListOf<String>()
     filters += "setpts=PTS/${number(speed)}"
-    if (clip.transitionIn == "Zoom In") {
-        filters += "scale=w='iw*${number(clip.transform.scaleX)}*(0.85+0.15*min(t/0.6\\,1))':h='ih*${number(clip.transform.scaleY)}*(0.85+0.15*min(t/0.6\\,1))':eval=frame"
+    val keyframeScale = buildEditorScaleKeyframeExpression(clip.keyframes)
+    val zoomScale = if (clip.transitionIn == "Zoom In") "*(0.85+0.15*min(t/0.6\\,1))" else ""
+    if (clip.keyframes.isNotEmpty() || clip.transitionIn == "Zoom In") {
+        filters += "scale=w='iw*${number(clip.transform.scaleX)}*$keyframeScale$zoomScale':h='ih*${number(clip.transform.scaleY)}*$keyframeScale$zoomScale':eval=frame"
     } else {
         filters += "scale=iw*${number(clip.transform.scaleX)}:ih*${number(clip.transform.scaleY)}"
     }
