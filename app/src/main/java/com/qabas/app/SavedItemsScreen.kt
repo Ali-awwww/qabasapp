@@ -51,6 +51,7 @@ fun SavedItemsScreen(
     val activeFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
 
     var showAddInspirationDialog by remember { mutableStateOf(false) }
+    var pendingDeleteItem by remember { mutableStateOf<SavedItem?>(null) }
 
     LaunchedEffect(syncMessage) {
         syncMessage?.let {
@@ -120,7 +121,7 @@ fun SavedItemsScreen(
                         state = state,
                         activeFilter = activeFilter,
                         onFilterSelect = { viewModel.setFilter(it) },
-                        onDeleteItem = { viewModel.deleteItem(it) },
+                        onDeleteItem = { itemId -> pendingDeleteItem = state.items.firstOrNull { it.id == itemId } },
                         onSignOut = { viewModel.signOut() },
                         context = context
                     )
@@ -135,6 +136,38 @@ fun SavedItemsScreen(
             onConfirm = { title, content, ref ->
                 viewModel.saveInspiration(title, content, ref)
                 showAddInspirationDialog = false
+            }
+        )
+    }
+
+    pendingDeleteItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteItem = null },
+            containerColor = Color(0xFF131D33),
+            title = {
+                Text("تأكيد حذف المحفوظ", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "هل تريد حذف «${item.title}»؟ لا يمكن التراجع عن هذا الإجراء.",
+                    color = Color(0xFFCBD5E1)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeleteItem = null
+                        viewModel.deleteItem(item.id)
+                    },
+                    modifier = Modifier.testTag("confirm_delete_saved_item")
+                ) {
+                    Text("حذف نهائي", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteItem = null }) {
+                    Text("إلغاء", color = Color(0xFF94A3B8))
+                }
             }
         )
     }
@@ -190,7 +223,7 @@ private fun SavedItemsTopBar(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "مزامنة Firestore",
+                        text = "مزامنة Supabase",
                         color = Color(0xFF34D399),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
