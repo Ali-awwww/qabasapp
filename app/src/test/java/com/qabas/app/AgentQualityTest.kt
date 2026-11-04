@@ -3,8 +3,8 @@ package com.qabas.app
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.performClick
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Assert.assertEquals
@@ -212,6 +212,6 @@ class AgentQualityTest {
         composeTestRule.onNodeWithText("إجمالي العمليات").assertExists()
         composeTestRule.onNodeWithText("0 عملية").assertExists()
         composeTestRule.onNodeWithTag("agent_history_success_rate").assertTextEquals("—")
-        composeTestRule.onNodeWithText("قيد التنفيذ").assertDoesNotExist()
+        assertTrue(composeTestRule.onAllNodesWithText("قيد التنفيذ").fetchSemanticsNodes().isEmpty())
     }
 }
