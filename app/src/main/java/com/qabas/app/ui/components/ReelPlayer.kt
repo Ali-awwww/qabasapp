@@ -290,30 +290,44 @@ fun ReelPlayer(
                 )
             }
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    resizeMode = when (aspectRatio) {
-                        "9:16" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        "1:1" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        "16:9" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // The selected ratio defines the visible video canvas. Keep the entire source
+        // frame visible inside it; ZOOM crops subtitles and text near the frame edges.
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            val targetAspectRatio = when (aspectRatio.trim()) {
+                "9:16" -> 9f / 16f
+                "1:1" -> 1f
+                "16:9" -> 16f / 9f
+                else -> 9f / 16f
+            }
+
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        setShutterBackgroundColor(android.graphics.Color.BLACK)
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                     }
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-            },
-            update = { view ->
-                if (view.player != exoPlayer) {
-                    view.player = exoPlayer
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+                },
+                update = { view ->
+                    if (view.player !== exoPlayer) {
+                        view.player = exoPlayer
+                    }
+                    // AndroidView is reused by Compose; always apply the latest ratio mode.
+                    view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(targetAspectRatio)
+            )
+        }
 
         // Shimmer / Poster Fallback when buffering or error
         if (isBuffering || hasError) {
