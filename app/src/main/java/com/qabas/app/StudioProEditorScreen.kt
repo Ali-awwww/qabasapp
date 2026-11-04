@@ -553,8 +553,10 @@ fun StudioProEditorScreen(
                                         if (!track.isLocked) projectState = projectState.copy(selectedClipId = clipId)
                                     },
                                     onTransitionClick = { clipId ->
-                                        selectedTransitionClipId = clipId
-                                        showTransitionPicker = true
+                                        if (!track.isLocked) {
+                                            selectedTransitionClipId = clipId
+                                            showTransitionPicker = true
+                                        }
                                     }
                                 )
                             }
