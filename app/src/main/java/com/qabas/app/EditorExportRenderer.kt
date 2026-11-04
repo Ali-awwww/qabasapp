@@ -12,7 +12,8 @@ internal data class EditorExportPlan(
     val width: Int,
     val height: Int,
     val fps: Int,
-    val durationMs: Long
+    val durationMs: Long,
+    val includeAudio: Boolean
 )
 
 internal data class EditorExportPlanResult(
@@ -49,6 +50,9 @@ internal fun createEditorExportPlan(
     }
 
     val (track, clip) = visualClips.single()
+    if (track.type != TrackType.VIDEO || visibleTracks.flatMap { it.clips }.size != 1) {
+        return EditorExportPlanResult(error = "لا يمكن تصدير مسارات صوت أو طبقات إضافية قبل دعم الميكس والتركيب متعدد المسارات")
+    }
     if (clip.resourceUri.isBlank() || clip.durationMs <= 0L || state.totalDurationMs <= 0L) {
         return EditorExportPlanResult(error = "المقطع أو مدة المشروع غير صالحين للتصدير")
     }
@@ -91,7 +95,8 @@ internal fun createEditorExportPlan(
             width = width,
             height = height,
             fps = fps,
-            durationMs = maxOf(1000L, clip.startOffsetMs + clip.durationMs)
+            durationMs = maxOf(1000L, clip.startOffsetMs + clip.durationMs),
+            includeAudio = isEditorTrackIncludedInMix(state, track)
         )
     )
 }
@@ -137,7 +142,7 @@ internal fun buildEditorExportCommand(
         .append(" -vf ")
         .append(quote(filters.joinToString(",")))
         .append(" -map 0:v:0 ")
-    if (hasAudio && !plan.track.isMuted && clip.volume > 0f) {
+    if (hasAudio && plan.includeAudio && clip.volume > 0f) {
         val atempo = buildList {
             var remaining = speed
             while (remaining > 2f) { add("atempo=2.0"); remaining /= 2f }
