@@ -206,7 +206,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
             titleKey = "القرآن الكريم والتجويد",
             subtitleKey = "المصحف المرتل وتدبر الآيات",
             descKey = "تلاوات خاشعة لكبار القراء، أحكام التجويد، تفاسير معتمدة، وتزامن الآيات.",
-            badgeKey = "114 سورة • 6236 آية",
+            badgeKey = "المصحف الشريف",
             categoryKey = "الوحيين الشريفين",
             icon = Icons.Default.MenuBook,
             accentColor = Color(0xFF10B981),
@@ -290,7 +290,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _quranStats = MutableStateFlow("114 سورة")
     val quranStats = _quranStats.asStateFlow()
 
-    private val _hadithStats = MutableStateFlow("46 حديثاً محققاً")
+    private val _hadithStats = MutableStateFlow("أحاديث صحيحة")
     val hadithStats = _hadithStats.asStateFlow()
 
     private val _azkarStats = MutableStateFlow("أذكار مأثورة")
