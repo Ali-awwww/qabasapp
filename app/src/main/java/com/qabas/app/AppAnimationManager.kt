@@ -164,8 +164,13 @@ object AppAnimationManager {
     fun createTransitionSpec(
         initialState: AppState,
         targetState: AppState,
-        creationStepsOrder: List<AppState> = emptyList()
+        creationStepsOrder: List<AppState> = emptyList(),
+        reducedMotion: Boolean = false
     ): ContentTransform {
+        if (reducedMotion) {
+            return EnterTransition.None togetherWith ExitTransition.None
+        }
+
         val animStyle = _currentAnimation.value
         val duration = _currentSpeed.value.durationMs
 
