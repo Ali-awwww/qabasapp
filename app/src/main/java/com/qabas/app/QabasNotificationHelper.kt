@@ -532,7 +532,11 @@ object QabasNotificationHelper {
 
         val notifId = nextNotificationId(context) ?: return
         val title = "قبس • تجربة الإشعارات التفاعلية 🔔"
-        val verseText = "﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾\nتم تفعيل ظهور أيقونة قبس بجانب الإشعار بنجاح! جرب أدوات الإشعار التفاعلية بالأسفل الآن:"
+        val ayahText = QuranDataProvider.getVerseText(13, 28)
+        val verseText = listOfNotNull(
+            ayahText?.let { "﴿$it﴾" },
+            "تم تفعيل ظهور أيقونة قبس بجانب الإشعار بنجاح! جرب أدوات الإشعار التفاعلية بالأسفل الآن:"
+        ).joinToString("\n")
 
         val builder = createBaseBuilder(context, CHANNEL_SPIRITUAL, title, verseText) ?: return
 
@@ -541,7 +545,7 @@ object QabasNotificationHelper {
             builder = builder,
             context = context,
             notifId = notifId,
-            audioTitle = "سورة الرعد - آية الطمأنينة",
+            audioTitle = "سورة الرعد",
             audioUrl = "https://server8.mp3quran.net/afs/013.mp3"
         )
 
@@ -550,7 +554,7 @@ object QabasNotificationHelper {
             builder = builder,
             context = context,
             notifId = notifId,
-            shareText = "﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾ 🌿 من تطبيق قبس"
+            shareText = ayahText?.let { "﴿$it﴾ 🌿 من تطبيق قبس" } ?: "من تطبيق قبس 🌿"
         )
 
         // أداة 3: تأكيد القراءة وتسجيل الورد
