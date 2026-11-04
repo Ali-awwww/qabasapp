@@ -7,48 +7,13 @@ package com.qabas.app
 object ScholarCuratedLectures {
 
     fun getCuratedLectures(scholarId: String, scholarName: String): List<ScholarLecture> {
-        val specific = CURATED_MAP[scholarId]
-        if (!specific.isNullOrEmpty()) {
-            return specific
-        }
-
         if (scholarId == SamirMustafaAqaidAlBalaaData.SCHOLAR_ID || scholarName.contains("سمير مصطفى")) {
             return SamirMustafaAqaidAlBalaaData.toScholarLectures()
         }
 
-        // Generic deep educational entry for any other scholar/companion
-        val cleanName = scholarName.replace("الإمام", "").replace("الصحابي", "").trim()
-        val searchQuery = "سيرة $cleanName دروس ومحاضرات".replace(" ", "+")
-        return listOf(
-            ScholarLecture(
-                id = "curated_${scholarId}_1",
-                scholarId = scholarId,
-                scholarName = scholarName,
-                title = "محطات الثبات والمحنة في سيرة $scholarName",
-                speaker = "نخبة من كبار العلماء والدعاة",
-                url = "https://www.youtube.com/results?search_query=$searchQuery",
-                type = "يوتيوب / مرئي",
-                category = "المحنة والثبات",
-                synopsis = "سرد مفصل وشامل يتناول أعظم المحطات التاريخية والمحن التي مر بها $scholarName وكيف كان ثباته منارة للأمة عبر العصور، مع استنباط الدروس التربوية والإيمانية المعاصرة.",
-                durationApprox = "سلسلة علمية موثقة",
-                isOfficialDeveloperCurated = true,
-                notes = "مادة معتمدة وموصى بها للاستماع والتأسي."
-            ),
-            ScholarLecture(
-                id = "curated_${scholarId}_2",
-                scholarId = scholarId,
-                scholarName = scholarName,
-                title = "المناقب والآثار العلمية والجهادية للإمام $cleanName",
-                speaker = "سلاسل أعلام الإسلام",
-                url = "https://www.youtube.com/results?search_query=${"مناقب $cleanName فقه وحديث".replace(" ", "+")}",
-                type = "صوتي / بودكاست",
-                category = "المناقب والفضائل",
-                synopsis = "تسليط الضوء على الأثر الخالد للإمام وما تركه من بصمات في نشر الدين، والتمسك بالحق، وتربية الأجيال.",
-                durationApprox = "45 دقيقة",
-                isOfficialDeveloperCurated = true,
-                notes = "مادة صوتية نقية مناسبة للاستماع اليومي."
-            )
-        )
+        // لا نعرض روابط بحث عامة على أنها محاضرات محددة أو مواد اعتمدها المطور.
+        // تُضاف المحاضرات هنا بعد التحقق من الرابط والمتحدث ومضمون المادة.
+        return emptyList()
     }
 
     private val CURATED_MAP: Map<String, List<ScholarLecture>> = mapOf(
