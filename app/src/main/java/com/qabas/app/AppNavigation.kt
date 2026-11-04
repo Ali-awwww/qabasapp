@@ -360,7 +360,6 @@ fun AppNavigation(
             StudioProEditorScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
                 onSave = {
-                    Toast.makeText(context, Translator.tr("جاري معالجة وتصدير الفيديو..."), Toast.LENGTH_LONG).show()
                     viewModel.updateState { copy(appState = AppState.PROJECTS) }
                 }
             )
