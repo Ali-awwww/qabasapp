@@ -537,7 +537,7 @@ fun StudioProEditorScreen(
                                             val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
                                             val transitionAlpha = if (overlayClip.transitionIn == "Fade In") transitionProgress else 1f
                                             val transitionScale = if (overlayClip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
-                                            val slideOffset = if (overlayClip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
+                                            val slideOffset = if (overlayClip.transitionIn == "Slide In") -transitionSlideDistancePx * (1f - transitionProgress) else 0f
                                             alpha = SmartFeaturesEngine.interpolateProperty(
                                                 overlayClip.keyframes, relativeTime, "opacity", 1f
                                             ) * transitionAlpha
