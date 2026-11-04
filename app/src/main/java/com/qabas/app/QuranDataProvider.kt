@@ -4,6 +4,12 @@ import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.withLock
 
 /**
  * RawAyah
@@ -23,6 +29,21 @@ data class RawAyah(
  */
 
 object QuranDataProvider {
+
+    private val datasetLoadMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * نقطة الدخول الموحدة لتحميل النص. تمنع قارئ السور وقارئ الصفحات من
+     * بدء تنزيلين متزامنين للبيانات نفسها عند فتحهما بسرعة.
+     */
+    suspend fun ensureQuranLoaded(context: Context): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            datasetLoadMutex.withLock {
+                loadFromAssets(context) ||
+                    loadFromCache(context) ||
+                    downloadAndCacheFromNetwork(context)
+            }
+        }
 
     private const val TAG = "QuranDataProvider"
 
@@ -107,21 +128,52 @@ object QuranDataProvider {
 
     /** ملاذ شبكي صادق: تفسير الميسر عربي من spa5k/tafsir_api عبر CDN (بلا مفتاح). null عند الفشل */
     suspend fun fetchRemoteTafsir(surahId: Int, ayah: Int): String? {
+        if (surahId !in 1..114 || ayah !in 1..286) return null
         val key = "$surahId:$ayah"
-        tafsirMap?.get(key)?.let { return it }
+        tafsirMap?.get(key)?.takeIf { it.isNotBlank() }?.let { return it }
         remoteTafsirCache[key]?.let { return it }
+
         return try {
-            val url = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/ar-muyassar/$surahId/$ayah.json"
-            val req = okhttp3.Request.Builder().url(url).build()
+            // المصدر الرسمي لواجهة التفسير الميسر: QuranEnc، مفتاح arabic_moyassar.
+            val url = "https://quranenc.com/api/v1/tafsir/aya/arabic_moyassar/$surahId/$ayah"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
             val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
             val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                client.newCall(req).execute().use { it.body?.string() ?: "" }
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
             }
             if (body.isBlank()) return null
-            val root = JSONObject(body)
-            val text = root.optString("text", root.optString("tafsir", ""))
+
+            val blocks = try {
+                val root = JSONObject(body)
+                root.optJSONArray("result")
+                    ?: root.optJSONArray("data")
+                    ?: if (root.has("text")) JSONArray().put(root) else JSONArray()
+            } catch (_: Exception) {
+                try { JSONArray(body) } catch (_: Exception) { JSONArray() }
+            }
+
+            val passages = LinkedHashSet<String>()
+            for (index in 0 until blocks.length()) {
+                val block = blocks.optJSONObject(index) ?: continue
+                val blockSurah = block.optInt("sura", surahId)
+                val fromAyah = block.optInt("from_aya", ayah)
+                val toAyah = block.optInt("to_aya", ayah)
+                if (blockSurah != surahId || ayah !in fromAyah..toAyah) continue
+                val passage = block.optString("text").trim()
+                if (passage.isNotBlank()) passages.add(passage)
+            }
+
+            val text = passages.joinToString("\n\n")
             if (text.isBlank()) null else {
                 remoteTafsirCache[key] = text
                 val mutable = (tafsirMap ?: emptyMap()).toMutableMap()
@@ -129,7 +181,153 @@ object QuranDataProvider {
                 tafsirMap = mutable
                 text
             }
-        } catch (_: Exception) { null }
+        } catch (error: Exception) {
+            Log.w(TAG, "Unable to load Tafsir Muyassar for $key", error)
+            null
+        }
+    }
+
+    /** لا نعتمد نسخة نصية إلا إذا حملت إشعار Tanzil المطلوب كاملاً. */
+    private fun hasTanzilNotice(jsonText: String): Boolean {
+        return try {
+            val root = JSONObject(jsonText)
+            val notice = root.optString("sourceNotice", root.optString("notice", ""))
+            notice.contains("Tanzil Quran Text") &&
+                notice.contains("Copyright (C) 2007-2021 Tanzil Project") &&
+                notice.contains("Creative Commons Attribution 3.0") &&
+                notice.contains("CHANGING IT IS NOT ALLOWED") &&
+                notice.contains("tanzil.net")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** تحقق بنيوي من اكتمال السور والآيات وتسلسل أرقامها دون تعديل النص. */
+    private fun isCompleteQuran(ayahs: List<RawAyah>): Boolean {
+        if (ayahs.size != 6236) return false
+        val grouped = ayahs.groupBy { it.surah }
+        if (grouped.keys != (1..114).toSet()) return false
+        return grouped.all { (surah, verses) ->
+            val numbers = verses.map { it.ayah }.sorted()
+            numbers == (1..numbers.size).toList() && verses.all { it.text.isNotBlank() }
+        }
+    }
+
+    /**
+     * تحميل نسخة عثمانية جاهزة من Tanzil عبر حزمة quran-json.
+     * لا يُنشأ نص قرآني هنا: كل نص آية يُنقل كما ورد في JSON المصدر.
+     * تُحفظ النسخة محلياً بعد اكتمال التحقق لتعمل القراءة لاحقاً دون اتصال.
+     */
+    suspend fun downloadAndCacheFromNetwork(context: Context): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                // تنزيل السور بالتوازي المحدود لتقليل زمن الإعداد دون إغراق الخادم.
+                val semaphore = Semaphore(6)
+                val chapters = coroutineScope {
+                    (1..114).map { surahNumber ->
+                        async {
+                            semaphore.withPermit {
+                                val url = "https://quran-json.risanb.com/text/uthmani/chapters/$surahNumber.json"
+                                val request = okhttp3.Request.Builder().url(url).get().build()
+                                val responseText = client.newCall(request).execute().use { response ->
+                                    if (!response.isSuccessful) throw java.io.IOException("HTTP ${response.code} for surah $surahNumber")
+                                    response.body?.string() ?: throw java.io.IOException("Empty response for surah $surahNumber")
+                                }
+                                val chapter = JSONObject(responseText)
+                                if (chapter.optInt("id", -1) != surahNumber) {
+                                    throw java.io.IOException("Unexpected surah identifier: $surahNumber")
+                                }
+                                val verses = chapter.optJSONArray("verses")
+                                    ?: throw java.io.IOException("Missing verses for surah $surahNumber")
+                                if (verses.length() == 0) throw java.io.IOException("No verses for surah $surahNumber")
+
+                                for (index in 0 until verses.length()) {
+                                    val verse = verses.optJSONObject(index)
+                                        ?: throw java.io.IOException("Invalid verse object at $surahNumber:${index + 1}")
+                                    if (verse.optInt("id", -1) != index + 1 || verse.optString("text").isBlank()) {
+                                        throw java.io.IOException("Invalid verse sequence at $surahNumber:${index + 1}")
+                                    }
+                                }
+                                Triple(surahNumber, verses, chapter.optString("notice"))
+                            }
+                        }
+                    }.awaitAll().sortedBy { it.first }
+                }
+
+                val downloadedSurahs = JSONArray()
+                var totalAyahs = 0
+                val sourceNotice = chapters.firstOrNull()?.third.orEmpty()
+                val noticeIsValid = sourceNotice.contains("Tanzil Quran Text") &&
+                    sourceNotice.contains("Copyright (C) 2007-2021 Tanzil Project") &&
+                    sourceNotice.contains("Creative Commons Attribution 3.0") &&
+                    sourceNotice.contains("CHANGING IT IS NOT ALLOWED") &&
+                    sourceNotice.contains("tanzil.net")
+                if (!noticeIsValid || chapters.any { !it.third.contains("Tanzil Quran Text") }) {
+                    throw java.io.IOException("Required Tanzil copyright notice is missing from the Quran dataset")
+                }
+                chapters.forEach { (surahNumber, verses, _) ->
+                    // نحافظ على كائنات الآيات ونصوصها كما وصلت من المصدر دون إعادة صياغة.
+                    downloadedSurahs.put(JSONObject().put("id", surahNumber).put("verses", verses))
+                    totalAyahs += verses.length()
+                }
+
+                if (downloadedSurahs.length() != 114 || totalAyahs != 6236) {
+                    throw java.io.IOException("Quran dataset validation failed: ${downloadedSurahs.length()} surahs, $totalAyahs ayahs")
+                }
+
+                val cachedDocument = JSONObject()
+                    .put("sourceNotice", sourceNotice)
+                    .put("surahs", downloadedSurahs)
+                val parsed = parseQuranJson(cachedDocument.toString())
+                val parsedCount = parsed.size
+                if (!isCompleteQuran(parsed)) {
+                    throw java.io.IOException("Parsed Quran validation failed: $parsedCount ayahs")
+                }
+
+                val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
+                val temporaryFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.tmp")
+                temporaryFile.writeText(cachedDocument.toString(), Charsets.UTF_8)
+                if (!temporaryFile.renameTo(cacheFile)) {
+                    temporaryFile.copyTo(cacheFile, overwrite = true)
+                    temporaryFile.delete()
+                }
+
+                versesMap = parsed.groupBy { it.surah }
+                Log.i(TAG, "Downloaded and cached verified Uthmani text: 114 surahs, 6236 ayahs")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Unable to download verified Quran dataset: ${e.message}", e)
+                false
+            }
+        }
+
+    /** تحميل النسخة التي سبق تنزيلها والتحقق من اكتمالها قبل استخدامها. */
+    fun loadFromCache(context: Context): Boolean {
+        if (versesMap?.values?.flatten()?.let { isCompleteQuran(it) } == true) return true
+        return try {
+            val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
+            if (!cacheFile.isFile || cacheFile.length() == 0L) return false
+            val cachedJson = cacheFile.readText(Charsets.UTF_8)
+            if (!hasTanzilNotice(cachedJson)) {
+                Log.w(TAG, "Cached Quran dataset is missing the required Tanzil notice")
+                return false
+            }
+            val parsed = parseQuranJson(cachedJson)
+            if (!isCompleteQuran(parsed)) {
+                Log.w(TAG, "Cached Quran dataset failed validation")
+                return false
+            }
+            versesMap = parsed.groupBy { it.surah }
+            Log.i(TAG, "Loaded verified Uthmani text from local cache")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load Quran cache: ${e.message}")
+            false
+        }
     }
 
     /**
@@ -137,7 +335,7 @@ object QuranDataProvider {
      * تفحص المسارات المحتملة: "quran/uthmani.json" ثم "quran/quran.json"
      */
     fun loadFromAssets(context: Context): Boolean {
-        if (versesMap != null && versesMap!!.isNotEmpty()) {
+        if (versesMap?.values?.flatten()?.let { isCompleteQuran(it) } == true) {
             return true
         }
 
@@ -148,8 +346,12 @@ object QuranDataProvider {
                     inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 }
                 if (jsonString.isNotBlank()) {
+                    if (!hasTanzilNotice(jsonString)) {
+                        Log.w(TAG, "Skipping Quran asset without the required Tanzil notice: $path")
+                        continue
+                    }
                     val parsed = parseQuranJson(jsonString)
-                    if (parsed.isNotEmpty()) {
+                    if (isCompleteQuran(parsed)) {
                         versesMap = parsed.groupBy { it.surah }
                         Log.i(TAG, "Successfully loaded ${parsed.size} ayahs from asset: $path")
                         return true
