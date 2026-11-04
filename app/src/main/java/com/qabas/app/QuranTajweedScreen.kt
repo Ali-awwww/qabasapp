@@ -544,7 +544,12 @@ fun QuranTajweedScreen(
                 0 -> {
                     if (isPageReaderMode) {
                         MushafReaderScreen(
-                            onClose = { isPageReaderMode = false }
+                            onClose = { isPageReaderMode = false },
+                            onReciterChange = { reciterId ->
+                                val reciterName = QuranAudioService.getReciterInfo(reciterId).nameAr
+                                selectedReciter = reciterName
+                                qabasPrefs.edit().putString("selected_reciter", reciterName).apply()
+                            }
                         )
                     } else if (isReadingMode) {
                         val activeSurah = surahList.find { it.id == activeSurahId } ?: surahList[0]
