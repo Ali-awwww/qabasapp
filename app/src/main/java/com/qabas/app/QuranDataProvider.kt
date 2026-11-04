@@ -239,6 +239,26 @@ object QuranDataProvider {
     fun getVerseText(surahId: Int, ayah: Int): String? =
         versesMap?.get(surahId)?.firstOrNull { it.ayah == ayah }?.text
 
+    /** العدد الفعلي للآيات من ملف المصحف المحمّل، لا رقم ثابت في الواجهة. */
+    fun getTotalAyahCount(): Int = versesMap?.values?.sumOf { it.size } ?: 0
+
+    /**
+     * إرجاع آية عشوائية من النص القرآني المحمّل مع اسم السورة والتفسير المتاح.
+     * تُرجع null عند عدم تحميل ملف المصحف بدلاً من اختلاق نص بديل.
+     */
+    fun getRandomVerse(): QuranVerseDetail? {
+        val loadedAyahs = versesMap?.values?.flatten()?.takeIf { it.isNotEmpty() } ?: return null
+        val ayah = loadedAyahs.random()
+        return QuranVerseDetail(
+            surahNumber = ayah.surah,
+            surahName = getSurahName(ayah.surah),
+            verseNumber = ayah.ayah,
+            verseText = ayah.text,
+            tafseer = tafsirMap?.get("${ayah.surah}:${ayah.ayah}") ?: "",
+            tajweedNotes = ""
+        )
+    }
+
     /** اسم السورة علناً (يُستخدم في قارئ الصفحات). */
     fun surahNameOf(surahId: Int): String = getSurahName(surahId)
 
