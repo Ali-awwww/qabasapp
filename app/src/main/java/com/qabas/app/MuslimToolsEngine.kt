@@ -76,6 +76,11 @@ class MuslimToolsEngine(context: Context) {
     // --- Quran Khatma Planner Logic ---
     @Serializable
     data class KhatmaPlan(val days: Int, val pagesPerDay: Double, val portionsPerDay: String)
+
+    private companion object {
+        const val KEY_SAVED_KHATMA_PLAN = "saved_khatma_plan"
+    }
+
     fun generateKhatmaPlan(days: Int): KhatmaPlan {
         val safeDays = days.coerceAtLeast(1)
         val totalPages = 604.0
@@ -89,6 +94,20 @@ class MuslimToolsEngine(context: Context) {
             else -> "${String.format(Locale.US, "%.1f", pagesPerDay)} صفحة"
         }
         return KhatmaPlan(safeDays, pagesPerDay, portions)
+    }
+
+    /** Persist the user's chosen plan locally; no reading progress is implied by saving it. */
+    fun saveKhatmaPlan(days: Int): Boolean {
+        val plan = generateKhatmaPlan(days)
+        val encoded = Json.encodeToString(plan)
+        return prefs.edit().putString(KEY_SAVED_KHATMA_PLAN, encoded).commit()
+    }
+
+    fun getSavedKhatmaPlan(): KhatmaPlan? {
+        val raw = prefs.getString(KEY_SAVED_KHATMA_PLAN, null) ?: return null
+        return runCatching { Json.decodeFromString<KhatmaPlan>(raw) }
+            .getOrNull()
+            ?.takeIf { it.days > 0 && it.pagesPerDay.isFinite() && it.pagesPerDay > 0.0 && it.portionsPerDay.isNotBlank() }
     }
 
     // --- Smart Tasbeeh Logic ---
