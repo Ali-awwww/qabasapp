@@ -588,7 +588,7 @@ fun StudioProEditorScreen(
                                 val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
                                 val transitionAlpha = if (textClip.transitionIn == "Fade In") transitionProgress else 1f
                                 val transitionScale = if (textClip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
-                                val slideOffset = if (textClip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
+                                val slideOffset = if (textClip.transitionIn == "Slide In") -transitionSlideDistancePx * (1f - transitionProgress) else 0f
                                 val currentOpacity = SmartFeaturesEngine.interpolateProperty(
                                     textClip.keyframes, relativeTime, "opacity", 1f
                                 ) * transitionAlpha
