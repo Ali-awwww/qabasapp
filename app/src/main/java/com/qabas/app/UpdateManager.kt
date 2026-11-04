@@ -443,8 +443,12 @@ object UpdateManager {
                 val active = SupabaseServices.Database.getLatestActiveUpdateOrThrow()
                 prefs.edit().putLong(PREF_LAST_CHECK, System.currentTimeMillis()).apply()
 
-                if (active == null || !active.isActive) return@withContext null
+                if (active == null || !active.isActive) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
+                    return@withContext null
+                }
                 if (active.versionCode <= currentVersionCode) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
                     Log.d(TAG, "ℹ️ No approved build newer than installed build")
                     return@withContext null
                 }
@@ -452,6 +456,7 @@ object UpdateManager {
                         "https://github.com/Ali-awwww/qabasapp/releases/download/"
                     )
                 ) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
                     Log.e(TAG, "Rejected approved update with an untrusted APK URL")
                     return@withContext null
                 }
