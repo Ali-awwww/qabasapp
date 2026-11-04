@@ -476,7 +476,7 @@ fun AudioLibrarySection(
     // Combine cloud tracks, curated scholar tracks, and local uploaded audio tracks without ANY dummy/placeholder records
     val allRealTracks = remember(cloudTracks, savedTracks) {
         val list = mutableListOf<LiveAudioItem>()
-        // 1. سلاسل الدروس العلمية المعتمدة لفضيلة الشيخ سمير مصطفى (عقائد البلاء)
+        // لا نضيف صفحات أرشيف الويب هنا كأنها ملفات MP3 مباشرة؛ روابط المواد الرسمية موجودة في قسم دروس الترجمة.
         list.addAll(SamirMustafaAqaidAlBalaaData.toLiveAudioItems())
 
         // 2. Cloud tracks from Supabase
