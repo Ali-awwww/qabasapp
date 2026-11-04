@@ -43,6 +43,8 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -112,7 +114,30 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadAllAzkar()
         loadSavedProgress()
+        // حمّل نص القرآن الموثّق للختمات والأذكار التي تتضمن آيات.
+        viewModelScope.launch {
+            if (QuranDataProvider.ensureQuranLoaded(application)) {
+                loadAllAzkar()
+            }
+        }
     }
+
+    private fun quranAyah(surah: Int, ayah: Int): String =
+        QuranDataProvider.getVerseText(surah, ayah)
+            ?: "نص الآية غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات."
+
+    private fun quranSurahs(vararg surahIds: Int): String =
+        surahIds.mapNotNull { id ->
+            QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(" ") { it.verseText }
+        }.joinToString("\n\n")
+            .ifBlank { "نص السور غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات." }
+
+    private fun lastTwoBaqarahAyat(): String =
+        listOf(285, 286).mapNotNull { QuranDataProvider.getVerseText(2, it) }
+            .joinToString(" ")
+            .ifBlank { "نص الآيتين غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات." }
 
     private fun loadSavedProgress() {
         val allIds = (_morningAzkar.value + _eveningAzkar.value + _sleepAzkar.value + _wakingAzkar.value + _prayerAzkar.value + _mosqueAzkar.value).map { it.id }
@@ -235,7 +260,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "m1",
                 title = "آية الكرسي",
-                text = "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ الْعَلِيُّ الْعَظِيمُ",
+                text = quranAyah(2, 255),
                 fadl = "من قالها حين يصبح أُجير من الجن والشياطين حتى يمسي.",
                 source = "سورة البقرة: 255 (صحيح الترغيب)",
                 targetCount = 1,
@@ -245,7 +270,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "m2",
                 title = "المعوذات الثلاث (الإخلاص والفلق والناس)",
-                text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ هُوَ اللَّهُ أَحَدٌ ﴿١﴾ اللَّهُ الصَّمَدُ ﴿٢﴾ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴿٣﴾ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ ﴿٤﴾\n\nبِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴿١﴾ مِن شَرِّ مَا خَلَقَ ﴿٢﴾ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ﴿٣﴾ وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ﴿٤﴾ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ ﴿٥﴾\n\nبِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴿١﴾ مَلِكِ النَّاسِ ﴿٢﴾ إِلَٰهِ النَّاسِ ﴿٣﴾ مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ﴿٤﴾ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ﴿٥﴾ مِنَ الْجِنَّةِ وَالنَّاسِ ﴿٦﴾",
+                text = quranSurahs(112, 113, 114),
                 fadl = "قال النبي ﷺ: «قُلْ هُوَ اللَّهُ أَحَدٌ، والمُعَوِّذَتَيْنِ حِينَ تُمْسِي وحِينَ تُصْبِحُ ثَلاثَ مَرَّاتٍ، تَكْفِيكَ مِنْ كُلِّ شَيْءٍ».",
                 source = "رواه أبو داود والترمذي وحسنه الألباني",
                 targetCount = 3,
@@ -345,7 +370,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "m12",
                 title = "حسبي الله لا إله إلا هو",
-                text = "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ ۖ عَلَيْهِ تَوَكَّلْتُ ۖ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ.",
+                text = quranAyah(9, 129),
                 fadl = "من قالها سبع مرات حين يصبح وحين يمسي كفاه الله ما أهمه من أمر دنياه وآخرته.",
                 source = "رواه أبو داود موقوفاً وصححه جماعة من أهل الحديث",
                 targetCount = 7,
@@ -408,7 +433,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "e2",
                 title = "خواتيم سورة البقرة",
-                text = "آمَنَ الرَّسُولُ بِمَا أُنزِلَ إِلَيْهِ مِن رَّبِّهِ وَالْمُؤْمِنُونَ ۚ كُلٌّ آمَنَ بِاللَّهِ وَمَلَائِكَتِهِ وَكُتُبِهِ وَرُسُلِهِ لَا نُفَرِّقُ بَيْنَ أَحَدٍ مِّن رُّسُلِهِ ۚ وَقَالُوا سَمِعْنَا وَأَطَعْنَا ۖ غُفْرَانَكَ رَبَّنَا وَإِلَيْكَ الْمَصِيرُ ﴿٢٨٥﴾ لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا ۚ لَهَا مَا كَسَبَتْ وَعَلَيْهَا مَا اكْتَسَبَتْ ۗ رَبَّنَا لَا تُؤَاخِذْنَا إِن نَّسِينَا أَوْ أَخْطَأْنَا ۚ رَبَّنَا وَلَا تَحْمِلْ عَلَيْنَا إِصْرًا كَمَا حَمَلْتَهُ عَلَى الَّذِينَ مِن قَبْلِنَا ۚ رَبَّنَا وَلَا تُحَمِّلْنَا مَا لَا طَاقَةَ لَنَا بِهِ ۖ وَاعْفُ عَنَّا وَاغْفِرْ لَنَا وَارْحَمْنَا ۚ أَنتَ مَوْلَانَا فَانصُرْنَا عَلَى الْقَوْمِ الْكَافِرِينَ ﴿٢٨٦﴾",
+                text = lastTwoBaqarahAyat(),
                 fadl = "قال رسول الله ﷺ: «مَنْ قَرَأَ بِالْآيَتَيْنِ مِنْ آخِرِ سُورَةِ الْبَقَرَةِ فِي لَيْلَةٍ كَفَتَاهُ».",
                 source = "متفق عليه (البخاري ومسلم)",
                 targetCount = 1,
@@ -418,7 +443,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "e3",
                 title = "المعوذات الثلاث (الإخلاص والفلق والناس)",
-                text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ هُوَ اللَّهُ أَحَدٌ ﴿١﴾ اللَّهُ الصَّمَدُ ﴿٢﴾ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴿٣﴾ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ ﴿٤﴾\n\nبِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴿١﴾ مِن شَرِّ مَا خَلَقَ ﴿٢﴾ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ﴿٣﴾ وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ﴿٤﴾ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ ﴿٥﴾\n\nبِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴿١﴾ مَلِكِ النَّاسِ ﴿٢﴾ إِلَٰهِ النَّاسِ ﴿٣﴾ مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ﴿٤﴾ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ﴿٥﴾ مِنَ الْجِنَّةِ وَالنَّاسِ ﴿٦﴾",
+                text = quranSurahs(112, 113, 114),
                 fadl = "«تَكْفِيكَ مِنْ كُلِّ شَيْءٍ» حين تمسي وتصبح.",
                 source = "رواه أبو داود والترمذي وحسنه الألباني",
                 targetCount = 3,
@@ -571,7 +596,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "s1",
                 title = "آية الكرسي",
-                text = "اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهو الْعَلِيُّ الْعَظِيمُ",
+                text = quranAyah(2, 255),
                 fadl = "من قرأها إذا أوى إلى فراشه لم يزل عليه من الله حافظ ولا يقربه شيطان حتى يصبح.",
                 source = "رواه البخاري",
                 targetCount = 1,
@@ -1231,7 +1256,7 @@ fun AzkarHeaderSummary(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "﴿ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ ﴾",
+                    QuranDataProvider.getVerseText(13, 28) ?: "افتح المصحف لقراءة الآية.",
                     color = OldInk,
                     fontFamily = AmiriFont,
                     fontWeight = FontWeight.Bold,
