@@ -18,7 +18,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  # Use a fresh group namespace to release runs queued under the previous key.
+  # Newer pushes on the same branch cancel the older in-progress build.
+  group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
