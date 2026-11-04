@@ -50,6 +50,11 @@ internal fun createEditorExportPlan(
     }
 
     val (track, clip) = visualClips.single()
+    if (visibleTracks.any { candidate ->
+            candidate.type == TrackType.AUDIO && candidate.clips.isNotEmpty()
+        }) {
+        return EditorExportPlanResult(error = "مسارات الصوت المنفصلة غير مدعومة بعد؛ أزلها أو انتظر دعم الميكس متعدد المسارات")
+    }
     if (track.type != TrackType.VIDEO || visibleTracks.flatMap { it.clips }.size != 1) {
         return EditorExportPlanResult(error = "لا يمكن تصدير مسارات صوت أو طبقات إضافية قبل دعم الميكس والتركيب متعدد المسارات")
     }
@@ -81,11 +86,6 @@ internal fun createEditorExportPlan(
     }
     if (clip.filters.temperature != 0f || clip.filters.vignette != 0f) {
         return EditorExportPlanResult(error = "تأثيرا حرارة اللون والتظليل غير مدعومين في إصدار الرندر الحالي")
-    }
-    if (visibleTracks.any { candidate ->
-            candidate.type == TrackType.AUDIO && candidate.clips.isNotEmpty()
-        }) {
-        return EditorExportPlanResult(error = "مسارات الصوت المنفصلة غير مدعومة بعد؛ أزلها أو انتظر دعم الميكس متعدد المسارات")
     }
 
     return EditorExportPlanResult(
@@ -239,8 +239,8 @@ internal object EditorExportRenderer {
         return try {
             retriever.setDataSource(file.absolutePath)
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
-        } catch (_: Exception) {
-            false
+        } catch (error: Exception) {
+            throw IllegalStateException("تعذر فحص المسار الصوتي لملف المصدر", error)
         } finally {
             runCatching { retriever.release() }
         }
