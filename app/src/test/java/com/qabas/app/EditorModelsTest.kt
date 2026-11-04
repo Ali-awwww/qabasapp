@@ -179,7 +179,7 @@ class EditorModelsTest {
 
     @Test
     fun textClipCreationUsesUnlockedTextTrackAndSelectsNewClip() {
-        val state = createBlankEditorProjectState().copy(currentTimeMs = 12000L)
+        val state = createBlankEditorProjectState().copy(currentTimeMs = 12000L, totalDurationMs = 20000L)
         val updated = addEditorTextClip(state, "  نص دعوي  ")!!
 
         val textTrack = updated.tracks.single { it.type == TrackType.TEXT }
