@@ -802,6 +802,7 @@ object UpdateManager {
                     var selectedName: String? = null
                     var selectedUrl: String? = null
                     var selectedSize = 0L
+                    var selectedDigest: String? = null
                     for (assetIndex in 0 until assets.length()) {
                         val asset = assets.optJSONObject(assetIndex) ?: continue
                         val name = asset.optString("name", "")
@@ -814,6 +815,8 @@ object UpdateManager {
                             selectedName = name
                             selectedUrl = url
                             selectedSize = size
+                            val digest = asset.optString("digest", "").removePrefix("sha256:")
+                            selectedDigest = digest.takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }?.lowercase()
                         }
                     }
                     val apkName = selectedName ?: continue
