@@ -48,7 +48,7 @@ object AgentPrefs {
         GEMINI_KEY, GROQ_KEY, OPENAI_KEY, OPENROUTER_KEY, ANTHROPIC_KEY,
         HUGGINGFACE_KEY, OPENCODE_KEY,
         "azure_speech_key", "azure_speech_region", "elevenlabs_key",
-        "pexels_key", "pixabay_key", "coverr_key", "higgsfield_api_key",
+        "pexels_key", "pixabay_key", "coverr_key",
         "leonardo_api_key",
         "supabase_anon_key", "api_server_key",
         GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO,
