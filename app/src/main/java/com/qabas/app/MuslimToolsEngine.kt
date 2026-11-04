@@ -189,10 +189,7 @@ class MuslimToolsEngine(context: Context) {
                 val candidate = (start.clone() as Calendar).apply {
                     add(Calendar.DAY_OF_YEAR, dayOffset)
                 }
-                val dateParts = getHijriDate(candidate.timeInMillis).split(" ")
-                dateParts.size >= 3 &&
-                    dateParts[0].toIntOrNull() == targetDay &&
-                    dateParts[1] == targetMonth
+                getHijriDate(candidate.timeInMillis).startsWith("$targetDay $targetMonth ")
             } ?: return@mapNotNull null
 
             IslamicEvent(name, offset, "$targetDay $targetMonth")
