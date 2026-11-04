@@ -724,7 +724,8 @@ fun QuranTajweedScreen(
                                     academySubTab = 1
                                 }
                             )
-                            1 -> AiVoiceRecitationTestView(
+                            1 -> QuranRecitationRecordingView(
+                                activeSurahId = activeSurahId,
                                 activeSurahName = surahList.find { it.id == activeSurahId }?.name ?: "الفاتحة",
                                 isRecording = isRecordingRecitation,
                                 isAnalyzing = isAnalyzingVoice,
@@ -2318,7 +2319,8 @@ fun TajweedAcademyStagesView(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AiVoiceRecitationTestView(
+fun QuranRecitationRecordingView(
+    activeSurahId: Int,
     activeSurahName: String,
     isRecording: Boolean,
     isAnalyzing: Boolean,
