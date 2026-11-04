@@ -668,7 +668,7 @@ fun HealthDiagnosticsHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات", "🐞 البلاغات", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق")
+    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات", "🐞 البلاغات", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق", "📦 إدارة التحديثات")
 
     DevHubScaffold(
         title = "مركز الصحة والتشخيص الشامل",
@@ -692,6 +692,7 @@ fun HealthDiagnosticsHubScreen(
             4 -> BuildDiagnosticSection()
             5 -> ProductionPipelineSection()
             6 -> AuditLogSection(context = context)
+            7 -> UpdateManagementSection()
         }
     }
 }
