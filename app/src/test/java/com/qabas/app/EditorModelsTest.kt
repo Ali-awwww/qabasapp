@@ -268,7 +268,12 @@ class EditorModelsTest {
             durationMs = 4000L,
             trackIndex = 0,
             type = TrackType.VIDEO,
-            color = androidx.compose.ui.graphics.Color.Blue
+            color = androidx.compose.ui.graphics.Color.Blue,
+            keyframes = listOf(
+                EditorKeyframe(500L, "scale", 1f),
+                EditorKeyframe(2000L, "scale", 1.5f),
+                EditorKeyframe(3500L, "opacity", 0.5f)
+            )
         )
         val state = EditorProjectState(
             projectId = "trim-test",
@@ -282,11 +287,14 @@ class EditorModelsTest {
         assertEquals(2500L, leadingTrim.startOffsetMs)
         assertEquals(2500L, leadingTrim.durationMs)
         assertEquals(1500L, leadingTrim.sourceStartMs)
+        assertEquals(2, leadingTrim.keyframes.size)
+        assertEquals(500L, leadingTrim.keyframes.first { it.property == "scale" && it.value == 1.5f }.timeMs)
 
         val trailingTrim = trimEditorClipEnd(state, clip.id, 3800L)!!
             .tracks.single().clips.single()
         assertEquals(1000L, trailingTrim.startOffsetMs)
         assertEquals(2800L, trailingTrim.durationMs)
+        assertEquals(2, trailingTrim.keyframes.size)
 
         val minimum = trimEditorClipEnd(state, clip.id, 1050L)!!
             .tracks.single().clips.single()
