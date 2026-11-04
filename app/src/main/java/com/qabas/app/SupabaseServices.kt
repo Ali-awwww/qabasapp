@@ -78,6 +78,16 @@ object SupabaseServices {
                 .onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }
                 .getOrNull()
 
+        suspend fun getAppUpdateAuditOrThrow(): List<AppUpdateAudit> {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            return client.postgrest.from("app_update_audit")
+                .select {
+                    order("created_at", Order.DESCENDING)
+                    limit(20)
+                }
+                .decodeList<AppUpdateAudit>()
+        }
+
         suspend fun getAppUpdateHistoryOrThrow(): List<ActiveUpdate> {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             return client.postgrest.from("app_updates")
@@ -2936,6 +2946,19 @@ data class ActiveUpdate(
     val sha256Hash: String? get() = sha256_hash
     val githubReleaseUrl: String? get() = github_release_url
 }
+@Serializable
+data class AppUpdateAudit(
+    val id: Long = 0,
+    @SerialName("actor_id") val actorId: String = "",
+    @SerialName("actor_role") val actorRole: String = "",
+    val action: String = "",
+    @SerialName("old_version_code") val oldVersionCode: Int? = null,
+    @SerialName("new_version_code") val newVersionCode: Int? = null,
+    @SerialName("version_name") val versionName: String? = null,
+    @SerialName("is_mandatory") val isMandatory: Boolean = false,
+    @SerialName("created_at") val createdAt: String = ""
+)
+
 @Serializable
 data class AccountAvailabilityResponse(
     @SerialName("email_taken") val emailTaken: Boolean,
