@@ -64,6 +64,7 @@ fun StudioProEditorScreen(
     var showMediaBrowser by remember { mutableStateOf(false) }
     var showLayerManager by remember { mutableStateOf(false) }
     var showAdjustPanel by remember { mutableStateOf(false) }
+    var showAnimationPanel by remember { mutableStateOf(false) }
     var showTransitionPicker by remember { mutableStateOf(false) }
     var showAiMagicPanel by remember { mutableStateOf(false) }
     var showTextEditor by remember { mutableStateOf(false) }
@@ -613,8 +614,8 @@ fun StudioProEditorScreen(
                             }
                         }
                     )
-                    ToolButton(Icons.Default.AutoAwesome, "تأثيرات", onClick = {})
-                    ToolButton(Icons.Default.Animation, "تحريك", onClick = {})
+                    ToolButton(Icons.Default.AutoAwesome, "تأثيرات", onClick = { showAdjustPanel = true }, enabled = selectedEditorClip != null && selectedClipTrack?.isLocked != true)
+                    ToolButton(Icons.Default.Animation, "تحريك", onClick = { showAnimationPanel = true }, enabled = selectedEditorClip != null && selectedEditorClip.type != TrackType.AUDIO && selectedClipTrack?.isLocked != true)
                     ToolButton(Icons.Default.AutoFixHigh, "سحر AI", onClick = { showAiMagicPanel = true })
                     ToolButton(Icons.Default.ContentCopy, "ملصقات", onClick = { showMediaBrowser = true })
                     ToolButton(Icons.Default.Tune, "ضبط", onClick = { showAdjustPanel = true }, enabled = projectState.selectedClipId != null && selectedClipTrack?.isLocked != true)
@@ -681,6 +682,30 @@ fun StudioProEditorScreen(
                 }
             }
         )
+    }
+
+    if (showAnimationPanel && selectedEditorClip != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showAnimationPanel = false },
+            containerColor = Color(0xFF1A1A1A)
+        ) {
+            AnimationWorkspace(
+                clip = selectedEditorClip,
+                onTransformChanged = { transform ->
+                    val clipId = selectedEditorClip.id
+                    projectState = projectState.copy(
+                        tracks = projectState.tracks.map { track ->
+                            if (track.id == selectedClipTrack?.id) {
+                                track.copy(clips = track.clips.map { clip ->
+                                    if (clip.id == clipId) clip.copy(transform = transform) else clip
+                                })
+                            } else track
+                        }
+                    )
+                },
+                onEditStarted = { saveToHistory() }
+            )
+        }
     }
 
     // AI tools remain informational until real transcription and background-removal services are connected.
@@ -1051,6 +1076,85 @@ fun TimelineTrackRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AnimationWorkspace(
+    clip: EditorClip,
+    onTransformChanged: (TransformParams) -> Unit,
+    onEditStarted: () -> Unit
+) {
+    var editingControl by remember { mutableStateOf<String?>(null) }
+
+    fun beginEdit(control: String) {
+        if (editingControl != control) {
+            onEditStarted()
+            editingControl = control
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+        Text("تحريك وتحويل المقطع", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text("تُطبّق القيم مباشرة على معاينة المقطع المحدد.", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("الحجم", color = Color.White, fontFamily = CairoFont)
+            Text(String.format("%.2f×", clip.transform.scaleX), color = GoldPrimary, fontFamily = RobotoMonoFont)
+        }
+        Slider(
+            value = clip.transform.scaleX.coerceIn(0.25f, 3f),
+            onValueChange = { value ->
+                beginEdit("scale")
+                onTransformChanged(clip.transform.copy(scaleX = value, scaleY = value))
+            },
+            onValueChangeFinished = { editingControl = null },
+            valueRange = 0.25f..3f
+        )
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("الدوران", color = Color.White, fontFamily = CairoFont)
+            Text("${clip.transform.rotation.toInt()}°", color = GoldPrimary, fontFamily = RobotoMonoFont)
+        }
+        Slider(
+            value = clip.transform.rotation.coerceIn(-180f, 180f),
+            onValueChange = { value ->
+                beginEdit("rotation")
+                onTransformChanged(clip.transform.copy(rotation = value))
+            },
+            onValueChangeFinished = { editingControl = null },
+            valueRange = -180f..180f
+        )
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("الموضع الأفقي", color = Color.White, fontFamily = CairoFont)
+            Text("${clip.transform.posX.toInt()} px", color = GoldPrimary, fontFamily = RobotoMonoFont)
+        }
+        Slider(
+            value = clip.transform.posX.coerceIn(-500f, 500f),
+            onValueChange = { value ->
+                beginEdit("position-x")
+                onTransformChanged(clip.transform.copy(posX = value))
+            },
+            onValueChangeFinished = { editingControl = null },
+            valueRange = -500f..500f
+        )
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("الموضع العمودي", color = Color.White, fontFamily = CairoFont)
+            Text("${clip.transform.posY.toInt()} px", color = GoldPrimary, fontFamily = RobotoMonoFont)
+        }
+        Slider(
+            value = clip.transform.posY.coerceIn(-500f, 500f),
+            onValueChange = { value ->
+                beginEdit("position-y")
+                onTransformChanged(clip.transform.copy(posY = value))
+            },
+            onValueChangeFinished = { editingControl = null },
+            valueRange = -500f..500f
+        )
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
