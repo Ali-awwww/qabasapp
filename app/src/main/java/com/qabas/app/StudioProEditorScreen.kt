@@ -626,7 +626,7 @@ fun StudioProEditorScreen(
                     ToolButton(Icons.Default.Animation, "تحريك", onClick = {})
                     ToolButton(Icons.Default.AutoFixHigh, "سحر AI", onClick = { showAiMagicPanel = true })
                     ToolButton(Icons.Default.ContentCopy, "ملصقات", onClick = { showMediaBrowser = true })
-                    ToolButton(Icons.Default.Tune, "ضبط", onClick = { showAdjustPanel = true })
+                    ToolButton(Icons.Default.Tune, "ضبط", onClick = { showAdjustPanel = true }, enabled = projectState.selectedClipId != null && selectedClipTrack?.isLocked != true)
                 }
             }
         }
@@ -1165,7 +1165,6 @@ fun ExportWorkspace(onExport: () -> Unit) {
 @Composable
 fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<EditorTrack>) -> Unit) {
     val audioTracks = state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
-    val hasSoloTrack = audioTracks.any { it.isSolo }
 
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
         Text("ميكسر الصوت الاحترافي (Audio Mixer)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
@@ -1181,7 +1180,7 @@ fun AudioMixerWorkspace(state: EditorProjectState, onTracksUpdated: (List<Editor
             Text("أضف مسار فيديو أو صوتاً لبدء ضبط مستويات الصوت.", color = Color.Gray, fontFamily = CairoFont)
         } else {
             audioTracks.forEach { track ->
-                val effectivelyAudible = !track.isMuted && (!hasSoloTrack || track.isSolo)
+                val effectivelyAudible = isEditorTrackIncludedInMix(state, track)
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
