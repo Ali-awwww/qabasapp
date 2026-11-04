@@ -7,7 +7,7 @@ package com.qabas.app
 object SahabaData {
     val sahabaList: List<ScholarBiography> = listOf(
         ScholarBiography(
-            id = "1",
+            id = "sahabi_1",
             name = "الصحابي الجليل أبو بكر الصديق رضي الله عنه",
             brief = "عبد الله بن أبي قحافة، صاحب رسول الله ﷺ وأول الخلفاء الراشدين، وثاني اثنين في الغار. قاد المسلمين بعد وفاة النبي ﷺ وثبت الدولة في حروب الردة.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -28,7 +28,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "2",
+            id = "sahabi_2",
             name = "الصحابي الجليل عمر بن الخطاب رضي الله عنه",
             brief = "عمر بن الخطاب العدوي، ثاني الخلفاء الراشدين، وأحد كبار أصحاب النبي ﷺ. اتسعت الدولة في خلافته، ووُضع التأريخ الهجري في عهده.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -49,7 +49,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "3",
+            id = "sahabi_3",
             name = "الصحابي الجليل عثمان بن عفان رضي الله عنه",
             brief = "عثمان بن عفان الأموي، ثالث الخلفاء الراشدين، ومن السابقين إلى الإسلام، لُقّب بذي النورين. في خلافته نُسخت المصاحف وأُرسلت إلى الأمصار.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -70,7 +70,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "4",
+            id = "sahabi_4",
             name = "الصحابي الجليل علي بن أبي طالب رضي الله عنه",
             brief = "علي بن أبي طالب الهاشمي، ابن عم النبي ﷺ وزوج فاطمة، ورابع الخلفاء الراشدين. تولى الخلافة زمن الفتنة، وكانت عاصمته الكوفة.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -91,7 +91,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "5",
+            id = "sahabi_5",
             name = "الصحابي الجليل أبو عبيدة عامر بن الجراح رضي الله عنه",
             brief = "أبو عبيدة عامر بن عبد الله بن الجراح، من السابقين إلى الإسلام وأحد العشرة المبشرين بالجنة، ووصفه النبي ﷺ بأنه أمين هذه الأمة.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -112,7 +112,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "6",
+            id = "sahabi_6",
             name = "الصحابي الجليل سعد بن أبي وقاص رضي الله عنه",
             brief = "سعد بن أبي وقاص الزهري، من السابقين إلى الإسلام وأحد العشرة المبشرين بالجنة، وأول من رمى بسهم في سبيل الله بحسب الروايات المشهورة. قاد المسلمين في القادسية.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -133,7 +133,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "7",
+            id = "sahabi_7",
             name = "الصحابي الجليل الزبير بن العوام رضي الله عنه",
             brief = "الزبير بن العوام الأسدي، حواري رسول الله ﷺ وابن عمته صفية، وأحد العشرة المبشرين بالجنة وأصحاب الشورى.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -154,7 +154,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "8",
+            id = "sahabi_8",
             name = "الصحابي الجليل طلحة بن عبيد الله رضي الله عنه",
             brief = "طلحة بن عبيد الله التيمي، من السابقين إلى الإسلام وأحد العشرة المبشرين بالجنة وأصحاب الشورى. عُرف بموقفه في غزوة أحد.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -175,7 +175,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "9",
+            id = "sahabi_9",
             name = "الصحابي الجليل عبد الرحمن بن عوف رضي الله عنه",
             brief = "عبد الرحمن بن عوف الزهري، من السابقين إلى الإسلام وأحد العشرة المبشرين بالجنة وأصحاب الشورى، وكان من كبار تجار الصحابة المعروفين بالصدقة والإنفاق.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -196,7 +196,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "10",
+            id = "sahabi_10",
             name = "الصحابي الجليل سعيد بن زيد رضي الله عنه",
             brief = "سعيد بن زيد العدوي، من السابقين إلى الإسلام وأحد العشرة المبشرين بالجنة. كان من أهل السابقة والفضل، وتوفي في خلافة معاوية.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -217,7 +217,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "11",
+            id = "sahabi_11",
             name = "الصحابي الجليل حمزة بن عبد المطلب رضي الله عنه",
             brief = "حمزة بن عبد المطلب الهاشمي، عم النبي ﷺ وأخوه من الرضاعة، وأحد كبار السابقين إلى الإسلام. استشهد في غزوة أحد.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -238,7 +238,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "12",
+            id = "sahabi_12",
             name = "الصحابي الجليل جعفر بن أبي طالب رضي الله عنه",
             brief = "جعفر بن أبي طالب الهاشمي، ابن عم النبي ﷺ وأخو علي، من السابقين إلى الإسلام، وقائد المسلمين في مؤتة بعد استشهاد زيد بن حارثة.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -259,7 +259,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "13",
+            id = "sahabi_13",
             name = "الصحابي الجليل خالد بن الوليد رضي الله عنه",
             brief = "خالد بن الوليد المخزومي، القائد العسكري المعروف، أسلم قبل فتح مكة، وقاد جيوش المسلمين في حروب الردة وفتوح العراق والشام. لُقّب بسيف الله.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -280,7 +280,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "14",
+            id = "sahabi_14",
             name = "الصحابي الجليل بلال بن رباح رضي الله عنه",
             brief = "بلال بن رباح الحبشي، مؤذن رسول الله ﷺ ومن السابقين إلى الإسلام، عُذّب بمكة لثباته على التوحيد ثم أعتقه أبو بكر.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -301,7 +301,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "15",
+            id = "sahabi_15",
             name = "الصحابي الجليل مصعب بن عمير رضي الله عنه",
             brief = "مصعب بن عمير العبدري، من السابقين إلى الإسلام، اختاره النبي ﷺ ليكون أول سفير إلى يثرب، فكان له أثر في انتشار الإسلام بين أهل المدينة قبل الهجرة.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -322,7 +322,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "16",
+            id = "sahabi_16",
             name = "الصحابي الجليل عبد الله بن مسعود رضي الله عنه",
             brief = "عبد الله بن مسعود الهذلي، من السابقين إلى الإسلام، ومن كبار قراء القرآن وفقهاء الصحابة، لازم النبي ﷺ وخدمه، ثم علّم أهل الكوفة.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -343,7 +343,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "17",
+            id = "sahabi_17",
             name = "الصحابي الجليل سلمان الفارسي رضي الله عنه",
             brief = "سلمان الفارسي، صحابي من أهل فارس، رحل في طلب الدين حتى وصل إلى النبي ﷺ، واشتهر بمشورته في حفر الخندق يوم الأحزاب.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -364,7 +364,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "18",
+            id = "sahabi_18",
             name = "الصحابي خُبَيْب بن عدي رضي الله عنه",
             brief = "خبيب بن عدي الأنصاري، من أصحاب النبي ﷺ، أسره المشركون في حادثة الرجيع ثم قتلوه بمكة سنة 4 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -385,7 +385,7 @@ object SahabaData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "19",
+            id = "sahabi_19",
             name = "الصحابي عبد الله بن الزبير رضي الله عنه",
             brief = "عبد الله بن الزبير بن العوام، أول مولود للمهاجرين بالمدينة بعد الهجرة على المشهور، وابن أسماء بنت أبي بكر. تولى الخلافة بمكة في زمن الفتنة الثانية.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
