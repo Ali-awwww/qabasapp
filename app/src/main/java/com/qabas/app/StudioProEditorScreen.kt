@@ -188,7 +188,7 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(activeVideoClip?.id, activeVideoClip?.resourceUri) {
+    LaunchedEffect(activeVideoClip?.id, activeVideoClip?.resourceUri, activeVideoClip?.sourceStartMs, activeVideoClip?.startOffsetMs) {
         editorPlayer.pause()
         previewPlaybackError = null
         val clip = activeVideoClip
@@ -216,7 +216,7 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(projectState.currentTimeMs, activeVideoClip?.id, projectState.isPlaying) {
+    LaunchedEffect(projectState.currentTimeMs, activeVideoClip?.id, activeVideoClip?.startOffsetMs, activeVideoClip?.sourceStartMs, projectState.isPlaying) {
         if (!projectState.isPlaying && activeVideoClip != null) {
             val relativePosition = activeVideoClip.sourceStartMs +
                 ((projectState.currentTimeMs - activeVideoClip.startOffsetMs).coerceAtLeast(0L) *
@@ -228,7 +228,7 @@ fun StudioProEditorScreen(
     }
 
     LaunchedEffect(
-        activeAudioClips.map { it.second.id to it.second.resourceUri },
+        activeAudioClips.map { listOf(it.second.id, it.second.resourceUri, it.second.startOffsetMs, it.second.durationMs) },
         activeAudioClips.map { it.second.volume to it.first.volume },
         activeAudioClips.map { it.second.speed to it.second.sourceStartMs },
         activeAudioClips.map { it.first.isMuted to it.first.isSolo },
@@ -263,7 +263,7 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(projectState.currentTimeMs, activeAudioClips.map { it.second.id }, projectState.isPlaying) {
+    LaunchedEffect(projectState.currentTimeMs, activeAudioClips.map { listOf(it.second.id, it.second.startOffsetMs, it.second.sourceStartMs, it.second.speed) }, projectState.isPlaying) {
         if (!projectState.isPlaying) {
             activeAudioClips.forEach { (track, clip) ->
                 val player = audioPlayers[clip.id] ?: return@forEach
@@ -275,7 +275,15 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(projectState.isPlaying, activeVideoClip?.id, activeAudioClips.map { it.second.id }) {
+    LaunchedEffect(
+        projectState.isPlaying,
+        activeVideoClip?.id,
+        activeVideoClip?.startOffsetMs,
+        activeVideoClip?.sourceStartMs,
+        activeVideoClip?.durationMs,
+        activeVideoClip?.speed,
+        activeAudioClips.map { listOf(it.second.id, it.second.startOffsetMs, it.second.sourceStartMs, it.second.durationMs, it.second.speed) }
+    ) {
         if (!projectState.isPlaying) {
             editorPlayer.pause()
             audioPlayers.values.forEach { it.pause() }
