@@ -159,9 +159,7 @@ fun QuranTajweedScreen(
 
     LaunchedEffect(quranLoadAttempt) {
         val ready = withContext(Dispatchers.IO) {
-            val loaded = QuranDataProvider.loadFromAssets(context) ||
-                QuranDataProvider.loadFromCache(context) ||
-                QuranDataProvider.downloadAndCacheFromNetwork(context)
+            val loaded = QuranDataProvider.ensureQuranLoaded(context)
             QuranDataProvider.loadTafsirFromAssets(context)
             loaded
         }
