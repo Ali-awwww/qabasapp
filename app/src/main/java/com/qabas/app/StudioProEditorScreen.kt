@@ -29,8 +29,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,7 +86,7 @@ fun StudioProEditorScreen(
     var selectedTransitionClipId by remember { mutableStateOf<String?>(null) }
     val selectedClipTrack = projectState.tracks.firstOrNull { track -> track.clips.any { it.id == projectState.selectedClipId } }
     val selectedEditorClip = selectedClipTrack?.clips?.firstOrNull { it.id == projectState.selectedClipId }
-    val activeVideoTrack = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible && !it.isLocked }
+    val activeVideoTrack = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible }
     val activeVideoClip = activeVideoTrack?.clips?.firstOrNull {
         projectState.currentTimeMs >= it.startOffsetMs &&
             projectState.currentTimeMs < it.startOffsetMs + it.durationMs
@@ -363,10 +361,23 @@ fun StudioProEditorScreen(
                                 update = { playerView ->
                                     if (playerView.player !== editorPlayer) playerView.player = editorPlayer
                                 },
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize().graphicsLayer {
+                                    activeVideoClip?.let { clip ->
+                                        val relativeTime = (projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L)
+                                        val animatedScale = SmartFeaturesEngine.interpolateProperty(
+                                            clip.keyframes, relativeTime, "scale", 1f
+                                        )
+                                        alpha = SmartFeaturesEngine.interpolateProperty(
+                                            clip.keyframes, relativeTime, "opacity", 1f
+                                        )
+                                        scaleX = clip.transform.scaleX * animatedScale
+                                        scaleY = clip.transform.scaleY * animatedScale
+                                        rotationZ = clip.transform.rotation
+                                        translationX = clip.transform.posX
+                                        translationY = clip.transform.posY
+                                    }
+                                }
                             )
-                        } else {
-                            Icon(Icons.Default.Movie, null, tint = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(72.dp))
                         }
                         if (previewPlaybackError != null) {
                             Text(
@@ -380,7 +391,7 @@ fun StudioProEditorScreen(
                         
                         // Active Text Layer or Kinetic Captions
                         val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT && it.isVisible }?.clips?.firstOrNull { 
-                            projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
+                            projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs < it.startOffsetMs + it.durationMs
                         }
                         
                         if (activeVideoClip == null && activeTextClip == null) {
@@ -399,52 +410,6 @@ fun StudioProEditorScreen(
                                     Text("استيراد وسائط", color = GoldPrimary, fontFamily = CairoFont)
                                 }
                             }
-                        }
-
-                        // Render the selected clip's visual properties over the preview surface.
-                        Box(
-                            modifier = Modifier.fillMaxSize()
-                                .graphicsLayer {
-                                    activeVideoClip?.let { clip ->
-                                        // Apply Keyframe Interpolation for Video Properties if they exist
-                                        val relativeTime = projectState.currentTimeMs - clip.startOffsetMs
-                                        val scale = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "scale", 1f)
-                                        val opacity = SmartFeaturesEngine.interpolateProperty(clip.keyframes, relativeTime, "opacity", 1f)
-                                        
-                                        // الشفافية من خاصية opacity فقط — كان السطوع يقود alpha فيختفي المقطع
-                                        alpha = opacity
-                                        // السطوع والتباين والتشبّع تُطبَّق كمرشّح لوني حقيقي (سابقاً كانت بلا أي أثر)
-                                        val b = clip.filters.brightness.coerceIn(0f, 2f)
-                                        val ct = clip.filters.contrast.coerceIn(0f, 2f)
-                                        val sat = clip.filters.saturation.coerceIn(0f, 2f)
-                                        val k = b * ct
-                                        val o = 0.5f * (1f - ct) + (b - 1f) * 0.25f
-                                        val lr = 0.2126f; val lg = 0.7152f; val lb = 0.0722f
-                                        val inv = 1f - sat
-                                        colorFilter = ColorFilter.colorMatrix(
-                                            ColorMatrix(
-                                                floatArrayOf(
-                                                    inv * lr + sat * k, inv * lg, inv * lb, 0f, sat * o * 255f,
-                                                    inv * lr, inv * lg + sat * k, inv * lb, 0f, sat * o * 255f,
-                                                    inv * lr, inv * lg, inv * lb + sat * k, 0f, sat * o * 255f,
-                                                    0f, 0f, 0f, 1f, 0f
-                                                )
-                                            )
-                                        )
-                                        scaleX = clip.transform.scaleX * scale
-                                        scaleY = clip.transform.scaleY * scale
-                                        rotationZ = clip.transform.rotation
-                                        translationX = clip.transform.posX
-                                        translationY = clip.transform.posY
-                                    }
-                                }
-                        ) {
-                            Icon(
-                                Icons.Default.Movie, 
-                                null, 
-                                tint = activeVideoClip?.color?.copy(alpha = 0.1f) ?: Color.White.copy(alpha = 0.05f), 
-                                modifier = Modifier.size(120.dp).align(Alignment.Center)
-                            )
                         }
 
                         if (activeTextClip != null) {
