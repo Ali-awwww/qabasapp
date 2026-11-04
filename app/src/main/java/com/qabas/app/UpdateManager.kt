@@ -349,7 +349,13 @@ object UpdateManager {
         val apkSize: Long,
         val xdeltaUrls: Map<String, String> = emptyMap(),
         val isForce: Boolean = false,
-        val checksum: String? = null
+        val checksum: String? = null,
+        val commitSha: String? = null,
+        val buildNumber: String? = null,
+        val builtAt: String? = null,
+        val sourceBranch: String? = null,
+        val workflowRunUrl: String? = null,
+        val releaseUrl: String? = null
     ) {
         /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
         val deltaUsable: Boolean
@@ -563,7 +569,13 @@ object UpdateManager {
             val deltas: List<DeltaAsset>,
             val xdeltaUrls: Map<String, String>,
             val isForce: Boolean = false,
-            val checksum: String? = null
+            val checksum: String? = null,
+            val commitSha: String? = null,
+            val buildNumber: String? = null,
+            val builtAt: String? = null,
+            val sourceBranch: String? = null,
+            val workflowRunUrl: String? = null,
+            val releaseUrl: String? = null
         )
 
         var best: Candidate? = null
@@ -625,8 +637,18 @@ object UpdateManager {
             if (apkUrl == null) continue
 
             val releaseNotes = release.optString("body", "")
-            val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) || 
+            val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) ||
                          release.optString("name", "").contains("[FORCE]", ignoreCase = true)
+            fun noteValue(label: String): String? =
+                Regex("(?im)^\\s*[-*]?\\s*\${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
+                    .find(releaseNotes)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+            val commitSha = Regex("(?i)commit\\s+([0-9a-f]{7,40})")
+                .find(releaseNotes)?.groupValues?.getOrNull(1)
+            val buildNumber = noteValue("Build Number")
+            val builtAt = noteValue("Built at")
+            val sourceBranch = noteValue("Branch")?.removePrefix("refs/heads/")
+            val workflowRunUrl = noteValue("Workflow Run")
+                ?.takeIf { it.startsWith("https://github.com/") }
 
             val candidate = Candidate(
                 tagName = tagName,
@@ -638,7 +660,13 @@ object UpdateManager {
                 deltas = deltas,
                 xdeltaUrls = xdeltaUrls,
                 isForce = isForce,
-                checksum = releaseChecksum
+                checksum = releaseChecksum,
+                commitSha = commitSha,
+                buildNumber = buildNumber,
+                builtAt = builtAt,
+                sourceBranch = sourceBranch,
+                workflowRunUrl = workflowRunUrl,
+                releaseUrl = release.optString("html_url").takeIf { it.startsWith("https://") }
             )
             
             // اختيار الإصدار الأفضل (الأعلى اسماً، ثم الأعلى رقم بناء عند تساوي الأسماء)
@@ -693,7 +721,13 @@ object UpdateManager {
             apkSize = candidate.apkSize,
             xdeltaUrls = candidate.xdeltaUrls,
             isForce = candidate.isForce,
-            checksum = candidate.checksum
+            checksum = candidate.checksum,
+            commitSha = candidate.commitSha,
+            buildNumber = candidate.buildNumber,
+            builtAt = candidate.builtAt,
+            sourceBranch = candidate.sourceBranch,
+            workflowRunUrl = candidate.workflowRunUrl,
+            releaseUrl = candidate.releaseUrl
         )
     }
 
@@ -754,8 +788,13 @@ object UpdateManager {
                 if (apkUrl.isEmpty()) continue
 
                 val releaseNotes = release.optString("body", "")
-                val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) || 
+                val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) ||
                              release.optString("name", "").contains("[FORCE]", ignoreCase = true)
+                fun noteValue(label: String): String? =
+                    Regex("(?im)^\\s*[-*]?\\s*${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
+                        .find(releaseNotes)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+                val commitSha = Regex("(?i)commit\\s+([0-9a-f]{7,40})")
+                    .find(releaseNotes)?.groupValues?.getOrNull(1)
 
                 history.add(UpdateInfo(
                     versionName = releaseVersionName,
@@ -767,7 +806,13 @@ object UpdateManager {
                     apkSize = apkSize,
                     xdeltaUrls = xdeltaUrls,
                     isForce = isForce,
-                    checksum = releaseChecksum
+                    checksum = releaseChecksum,
+                    commitSha = commitSha,
+                    buildNumber = noteValue("Build Number"),
+                    builtAt = noteValue("Built at"),
+                    sourceBranch = noteValue("Branch")?.removePrefix("refs/heads/"),
+                    workflowRunUrl = noteValue("Workflow Run")?.takeIf { it.startsWith("https://github.com/") },
+                    releaseUrl = release.optString("html_url").takeIf { it.startsWith("https://") }
                 ))
             }
             history.sortedByDescending { it.versionCode }
