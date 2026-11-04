@@ -2,9 +2,8 @@ package com.qabas.app
 
 /**
  * QuranTajweedScreen.kt
- * تم تحسين هذا الملف لدعم التصفح السلس للقرآن الكريم، ومحرك فحص التجويد الصوتي،
- * وموسوعة أحكام التجويد الشاملة مع إمكانية تصدير شهادات الإتقان وربط الآيات مباشرة
- * بمسار إنتاج الريلز والفيديوهات القرآنية (9:16) بضغطة زر واحدة.
+ * شاشة أدوات القرآن: قارئ السور والصفحات، البحث، التلاوة الصوتية،
+ * التفسير عند توفر مصدره، تسجيل صوت المستخدم للمراجعة اليدوية، وأدوات الحفظ والتدبر.
  */
 
 import android.Manifest
@@ -706,7 +705,7 @@ fun QuranTajweedScreen(
                             Tab(
                                 selected = academySubTab == 1,
                                 onClick = { academySubTab = 1 },
-                                text = { Text("اختبار التلاوة 🎙️", fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+                                text = { Text("تسجيل التلاوة 🎙️", fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
                             )
                             Tab(
                                 selected = academySubTab == 2,
@@ -751,7 +750,7 @@ fun QuranTajweedScreen(
                                 onStartRecording = {
                                     micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 },
-                                onStopRecordingAndAnalyze = {
+                                onStopRecording = {
                                     isRecordingRecitation = false
                                     val file = recorderHelper.stopRecording()
                                     isAnalyzingVoice = true
@@ -2330,7 +2329,7 @@ fun QuranRecitationRecordingView(
     hasRecordedAudio: Boolean = false,
     onPlayRecordedAudio: () -> Unit = {},
     onStartRecording: () -> Unit,
-    onStopRecordingAndAnalyze: () -> Unit
+    onStopRecording: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "recitationMicPulse")
     val micPulseRadius by infiniteTransition.animateFloat(
@@ -2511,7 +2510,7 @@ fun QuranRecitationRecordingView(
                             modifier = Modifier
                                 .size(84.dp)
                                 .clickable {
-                                    if (isRecording) onStopRecordingAndAnalyze() else onStartRecording()
+                                    if (isRecording) onStopRecording() else onStartRecording()
                                 }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
