@@ -185,10 +185,15 @@ fun QuranTajweedScreen(
     var readerTargetVerseNumber by remember { mutableIntStateOf(-1) }
     var isPlayingAudio by remember { mutableStateOf(false) }
     var selectedReciter by remember { mutableStateOf(qabasPrefs.getString("selected_reciter", "الشيخ محمود خليل الحصري") ?: "الشيخ محمود خليل الحصري") }
-    var selectedRiwaya by remember { mutableStateOf(qabasPrefs.getString("selected_riwaya", "حفص عن عاصم") ?: "حفص عن عاصم") } // رواية التلاوة
+    var selectedRiwaya by remember { mutableStateOf("حفص عن عاصم") } // النص الصوتي المتاح حالياً برواية حفص فقط
 
     LaunchedEffect(selectedReciter) {
-        QuranAudioService.getReciterIdForArabicName(selectedReciter)?.let { reciterId ->
+        val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+        if (reciterId == null) {
+            selectedReciter = "الشيخ محمود خليل الحصري"
+            qabasPrefs.edit().putString("selected_reciter", "الشيخ محمود خليل الحصري").apply()
+            UserPreferencesManager.setQuranReciter(context, "husary")
+        } else {
             UserPreferencesManager.setQuranReciter(context, reciterId)
         }
     }
@@ -565,6 +570,8 @@ fun QuranTajweedScreen(
                                 }
                             },
                             onSelectReciter = {
+                                QuranAudioPlayer.stop()
+                                isPlayingAudio = false
                                 selectedReciter = it
                                 qabasPrefs.edit().putString("selected_reciter", it).apply()
                                 QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
@@ -572,6 +579,8 @@ fun QuranTajweedScreen(
                                 }
                             },
                             onCloseReader = {
+                                QuranAudioPlayer.stop()
+                                isPlayingAudio = false
                                 isReadingMode = false
                                 readerTargetVerseNumber = -1
                                 qabasPrefs.edit().putInt("last_read_surah", activeSurahId).apply()
