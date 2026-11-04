@@ -40,8 +40,7 @@ object VersionManager {
             context, 
             update.versionName, 
             update.versionCode, 
-            update.apkSize,
-            update.apkSha256
+            update.apkSize
         )
     }
 
