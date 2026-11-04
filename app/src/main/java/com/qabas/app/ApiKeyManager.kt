@@ -5,8 +5,8 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * 🔑 مدير مفاتيح الـ API المشفر (BYOK - Bring Your Own Key)
- * يقوم بتخزين مفاتيح Leonardo.ai و Higgsfield AI بشكل مشفر ومحلي.
+ * 🔑 مدير مفاتيح Leonardo.ai المحلية المشفرة.
+ * مفاتيح Higgsfield تُدار حصرياً عبر بوابة الخادم المشفرة.
  */
 object ApiKeyManager {
     fun saveLeonardoKey(context: Context, key: String) {
