@@ -3139,7 +3139,14 @@ fun MemorizationSystemView(
         // لا نعرض تحدياً بإنجاز وهمي؛ تقدمه يُحتسب من سجلات الحفظ التي يدخلها المستخدم.
         scope.launch {
             val active = db.quranChallengeDao().getActiveChallengesOnce()
-            if (active.none { it.type == "MEMORIZATION" }) {
+            // التحدي القديم كان يعرض تقدماً ثابتاً لا يرتبط بسجل قراءة؛ نغلقه دون احتساب تقدمه.
+            active.filter { it.id == "daily_read_5" && it.type == "READING" }.forEach { legacy ->
+                db.quranChallengeDao().updateChallenge(
+                    legacy.copy(currentValue = 0, isCompleted = true)
+                )
+            }
+            val currentChallenges = db.quranChallengeDao().getActiveChallengesOnce()
+            if (currentChallenges.none { it.type == "MEMORIZATION" }) {
                 db.quranChallengeDao().insertChallenge(
                     QuranChallengeRecord(
                         id = "memorize_5_verses",
