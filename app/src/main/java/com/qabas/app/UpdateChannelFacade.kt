@@ -45,16 +45,16 @@ object UpdateChannelFacade {
 
     /** وصف نقطة الفحص — للمطور يذكر المصدر، وللمستخدم يذكر behavior فقط */
     fun checkSourceLabel(context: Context): String =
-        if (isDeveloper(context)) "GitHub Releases API" else "قناة التحديث الرسمية"
+        if (isDeveloper(context)) "Supabase App Updates" else "قناة التحديث الرسمية"
 
     /** نص زر الفحص (غير أثناء الفحص) */
     fun checkButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "فحص التحديثات الآن عبر GitHub Releases 🔄"
+        if (isDeveloper(context)) "فحص الإصدار المعتمد عبر Supabase 🔄"
         else "فحص التحديثات الآن 🔄"
 
     /** نص زر الفحص (أثناء الفحص) */
     fun checkingButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "جاري التحقق من GitHub Releases..."
+        if (isDeveloper(context)) "جاري التحقق من الإصدار المعتمد في Supabase..."
         else "جاري التحقق من التحديثات..."
 
     /** نص نافذة الفحص (Toast) */
@@ -76,12 +76,12 @@ object UpdateChannelFacade {
     fun behaviorText(context: Context): String {
         val interval = UpdateManager.getAutoCheckIntervalHours(context)
         return if (isDeveloper(context)) {
-            "• يفحص التطبيق تلقائياً مستودع GitHub كل $interval ساعة (الحد الأدنى ساعتان، وقابل للتغيير من مركز التنزيلات).\n" +
+            "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
                 "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
                 "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
                 "زر التثبيت اليدوي متاحاً هنا في أي وقت."
         } else {
-            "• يفحص التطبيق القناة الرسمية تلقائياً كل $interval ساعة (الحد الأدنى ساعتان، وقابل للتغيير من مركز التنزيلات).\n" +
+            "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
                 "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
                 "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
                 "زر التثبيت اليدوي متاحاً هنا في أي وقت."
