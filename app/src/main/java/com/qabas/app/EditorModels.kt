@@ -93,8 +93,10 @@ internal fun findAdjacentEditorClip(
 ): EditorClip? {
     val clips = projectState.tracks.flatMap { it.clips }
     return if (forward) {
-        clips.filter { it.startOffsetMs > projectState.currentTimeMs }
-            .minByOrNull { it.startOffsetMs }
+        clips.filter {
+            it.startOffsetMs > projectState.currentTimeMs ||
+                (projectState.selectedClipId == null && it.startOffsetMs == projectState.currentTimeMs)
+        }.minByOrNull { it.startOffsetMs }
     } else {
         clips.filter { it.startOffsetMs < projectState.currentTimeMs }
             .maxByOrNull { it.startOffsetMs }
