@@ -36,7 +36,7 @@ object UpdateManager {
     const val MIN_AUTO_CHECK_INTERVAL_HOURS = 2
     const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = 2
     private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
-    private const val PREF_LAST_CHECK = "update_last_check"
+    private const val PREF_LAST_CHECK = "update_last_check_supabase"
 
     fun getAutoCheckIntervalHours(context: Context): Int {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
