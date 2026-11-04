@@ -41,30 +41,30 @@ object UpdateChannelFacade {
 
     /** تسمية القناة حسب صلاحية المستخدم */
     fun channelLabel(context: Context): String =
-        if (isDeveloper(context)) "إدارة الإصدار المعتمد" else PUBLIC_CHANNEL_NAME
+        if (isVerifiedDeveloper()) "إدارة الإصدار المعتمد" else PUBLIC_CHANNEL_NAME
 
     /** وصف نقطة الفحص — للمطور يذكر المصدر، وللمستخدم يذكر behavior فقط */
     fun checkSourceLabel(context: Context): String =
-        if (isDeveloper(context)) "Supabase — الإصدار المعتمد" else "قناة التحديث الرسمية"
+        if (isVerifiedDeveloper()) "Supabase — الإصدار المعتمد" else "قناة التحديث الرسمية"
 
     /** نص زر الفحص (غير أثناء الفحص) */
     fun checkButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "فحص الإصدار المعتمد عبر Supabase 🔄"
+        if (isVerifiedDeveloper()) "فحص الإصدار المعتمد عبر Supabase 🔄"
         else "فحص التحديثات الآن 🔄"
 
     /** نص زر الفحص (أثناء الفحص) */
     fun checkingButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "جاري التحقق من الإصدار المعتمد في Supabase..."
+        if (isVerifiedDeveloper()) "جاري التحقق من الإصدار المعتمد في Supabase..."
         else "جاري التحقق من التحديثات..."
 
     /** نص نافذة الفحص (Toast) */
     fun checkingToast(context: Context): String =
-        if (isDeveloper(context)) "جاري فحص الإصدار المعتمد في Supabase 🔍"
+        if (isVerifiedDeveloper()) "جاري فحص الإصدار المعتمد في Supabase 🔍"
         else "جاري فحص التحديثات 🔍"
 
     /** فقرة «عن التحديثات» في مركز التنزيلات */
     fun aboutText(context: Context, currentVersionName: String): String =
-        if (isDeveloper(context)) {
+        if (isVerifiedDeveloper()) {
             "أنت تستخدم النسخة v$currentVersionName. لا يصل للمستخدمين إلا الإصدار الذي تعتمده في Supabase؛ " +
                 "نشر إصدار جديد على GitHub وحده لا يغيّر النسخة الموزعة."
         } else {
@@ -74,7 +74,7 @@ object UpdateChannelFacade {
     /** سياسة التوزيع التي يطبقها التطبيق */
     fun behaviorText(context: Context): String {
         val interval = UpdateManager.getAutoCheckIntervalHours(context)
-        val source = if (isDeveloper(context)) {
+        val source = if (isVerifiedDeveloper()) {
             "يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة."
         } else {
             "يتحقق التطبيق تلقائياً من التحديثات كل $interval ساعة."
@@ -104,5 +104,5 @@ object UpdateChannelFacade {
      * هل نُخفي التفاصيل التقنية عن هذا المستخدم؟
      * نعم لكل من ليس مطوراً.
      */
-    fun hidesTechnicalDetails(context: Context): Boolean = !isDeveloper(context)
+    fun hidesTechnicalDetails(context: Context): Boolean = !isVerifiedDeveloper()
 }
