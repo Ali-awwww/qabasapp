@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -35,7 +36,7 @@ object UpdateManager {
     const val MIN_AUTO_CHECK_INTERVAL_HOURS = 2
     const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = 2
     private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
-    private const val PREF_LAST_CHECK = "update_last_check"
+    private const val PREF_LAST_CHECK = "update_last_check_supabase"
 
     fun getAutoCheckIntervalHours(context: Context): Int {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -355,7 +356,8 @@ object UpdateManager {
         val builtAt: String? = null,
         val sourceBranch: String? = null,
         val workflowRunUrl: String? = null,
-        val releaseUrl: String? = null
+        val releaseUrl: String? = null,
+        val apkSha256: String? = null
     ) {
         /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
         val deltaUsable: Boolean
@@ -380,6 +382,19 @@ object UpdateManager {
         val isNewerThanCurrent: Boolean
     )
 
+    data class AdminGitHubRelease(
+        val tagName: String,
+        val versionName: String,
+        val versionCode: Int,
+        val publishedAt: String,
+        val releaseNotes: String,
+        val releaseUrl: String,
+        val assetName: String,
+        val apkUrl: String,
+        val apkSize: Long,
+        val sha256Hash: String?
+    )
+
     enum class Phase { DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
 
     data class DownloadProgress(
@@ -398,8 +413,21 @@ object UpdateManager {
 
     private class DownloadCancelledException : Exception("أُلغي التحديث بواسطة المستخدم")
 
-    suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? = withContext(Dispatchers.IO) {
-        try {
+    internal fun sanitizePublicReleaseNotes(raw: String): String {
+        val hiddenLabels = listOf("Build Number:", "Built at:", "Branch:", "Workflow Run:", "Workflow Run URL:", "Commit:", "Commit SHA:")
+        return raw.lineSequence()
+            .filterNot { line ->
+                val trimmed = line.trim()
+                hiddenLabels.any { label -> trimmed.contains(label, ignoreCase = true) } ||
+                    line.contains("github.com/", ignoreCase = true)
+            }
+            .joinToString("\n")
+            .replace(Regex("(?i)\\[FORCE\\]"), "")
+            .trim()
+    }
+
+    suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? =
+        withContext(Dispatchers.IO) {
             val lastCheck = getLastCheckTime(context)
             val intervalMs = getAutoCheckIntervalMs(context)
             if (!force && System.currentTimeMillis() - lastCheck < intervalMs) {
@@ -409,60 +437,57 @@ object UpdateManager {
 
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val currentVersionCode = getCurrentVersionCode(context)
-            val currentVersionName = getCurrentVersionName(context)
-            Log.d(TAG, "🔍 Checking updates… currentCode=$currentVersionCode, currentName=$currentVersionName")
+            try {
+                // Supabase is the sole authority for distribution. GitHub is used only
+                // by the verified developer release-management screen.
+                val active = SupabaseServices.Database.getLatestActiveUpdateOrThrow()
+                prefs.edit().putLong(PREF_LAST_CHECK, System.currentTimeMillis()).apply()
 
-            // GitHub Releases هي القناة الرسمية: إن فُحصت بنجاح فقرارها نهائي
-            // (وجد تحديثاً → استُخدم، أو قال محدّث → لا تحديث).
-            val githubUpdate = runCatching { checkGitHubLatestRelease(context) }
-            if (githubUpdate.isSuccess) {
-                return@withContext githubUpdate.getOrThrow()
-            }
-            Log.w(
-                TAG,
-                "⚠️ GitHub check failed (${githubUpdate.exceptionOrNull()?.message}) — Supabase fallback"
-            )
-
-            // فشل فحص GitHub نفسه (شبكة/API) — قناة Supabase احتياطية فقط عندئذٍ
-            val supabaseUpdate = runCatching {
-                SupabaseServices.Database.getLatestActiveUpdate()
-            }.getOrNull()
-
-            if (supabaseUpdate != null && supabaseUpdate.isActive) {
-                // قارن هوية الإصدار كاملة: versionName أولاً ثم versionCode عند تساوي الاسم.
-                val isNewer = compareReleaseVersions(
-                    supabaseUpdate.versionName,
-                    supabaseUpdate.versionCode,
-                    currentVersionName,
-                    currentVersionCode
-                ) > 0
-
-                if (isNewer) {
-                    prefs.edit()
-                        .putLong("update_last_check", System.currentTimeMillis())
-                        .putInt("update_last_version_code", supabaseUpdate.versionCode)
-                        .apply()
-
-                    return@withContext UpdateInfo(
-                        versionName = supabaseUpdate.versionName,
-                        versionCode = supabaseUpdate.versionCode,
-                        deltaUrl = null,
-                        apkUrl = supabaseUpdate.apkUrl,
-                        releaseNotes = supabaseUpdate.releaseNotes.ifBlank { "إصدار جديد متاح للتحميل والتثبيت الفوري 🚀" },
-                        deltaSize = 0L,
-                        apkSize = supabaseUpdate.fileSizeBytes,
-                        xdeltaUrls = emptyMap()
-                    )
+                if (active == null || !active.isActive) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
+                    return@withContext null
                 }
-            }
+                if (active.versionCode <= currentVersionCode) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
+                    Log.d(TAG, "ℹ️ No approved build newer than installed build")
+                    return@withContext null
+                }
+                if (!active.downloadUrl.startsWith(
+                        "https://github.com/Ali-awwww/qabasapp/releases/download/"
+                    )
+                ) {
+                    withContext(Dispatchers.Main) { setPendingUpdate(null) }
+                    Log.e(TAG, "Rejected approved update with an untrusted APK URL")
+                    return@withContext null
+                }
 
-            // لا تحديث في قناة الاحتياط أيضاً
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ check failed: ${e.message}")
-            null
+                prefs.edit()
+                    .putInt("update_last_version_code", active.versionCode)
+                    .apply()
+
+                UpdateInfo(
+                    versionName = active.versionName,
+                    versionCode = active.versionCode,
+                    deltaUrl = null,
+                    apkUrl = active.downloadUrl,
+                    releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
+                        "إصدار جديد متاح للتحميل والتثبيت 🚀"
+                    },
+                    deltaSize = 0L,
+                    apkSize = active.fileSizeBytes,
+                    xdeltaUrls = emptyMap(),
+                    isForce = active.isMandatory,
+                    checksum = null,
+                    releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
+                    apkSha256 = active.sha256Hash?.takeIf { it.isNotBlank() }
+                )
+            } catch (e: Exception) {
+                // Fail closed: never bypass an unavailable control plane by selecting
+                // the newest GitHub release automatically.
+                Log.e(TAG, "❌ Supabase update check failed; distribution paused safely: ${e.message}")
+                null
+            }
         }
-    }
 
     /**
      * يمثّل دلتا واحدة مرفقة بالريليز مع الأساس الذي بُنيت منه.
@@ -731,94 +756,100 @@ object UpdateManager {
         )
     }
 
-    suspend fun getUpdateHistory(context: Context): List<UpdateInfo> = withContext(Dispatchers.IO) {
-        try {
-            val effectiveRepo = getEffectiveRepo(context)
-            val effectiveToken = getEffectiveToken(context)
+    suspend fun getUpdateHistory(context: Context): List<UpdateInfo> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                SupabaseServices.Database.getAppUpdateHistoryOrThrow().map { update ->
+                    UpdateInfo(
+                        versionName = update.versionName,
+                        versionCode = update.versionCode,
+                        deltaUrl = null,
+                        apkUrl = update.downloadUrl,
+                        releaseNotes = sanitizePublicReleaseNotes(update.releaseNotes),
+                        deltaSize = 0L,
+                        apkSize = update.fileSizeBytes,
+                        xdeltaUrls = emptyMap(),
+                        isForce = update.isMandatory,
+                        checksum = null,
+                        releaseUrl = update.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
+                        apkSha256 = update.sha256Hash?.takeIf { it.isNotBlank() }
+                    )
+                }
+            }.onFailure { Log.e(TAG, "getUpdateHistory from Supabase failed: ${it.message}") }
+                .getOrDefault(emptyList())
+        }
 
+    suspend fun getAdminGitHubReleases(
+        context: Context
+    ): Result<List<AdminGitHubRelease>> = withContext(Dispatchers.IO) {
+        runCatching {
+            // The update channel is fixed to the official Qabas repository.
+            val targetRepo = DEFAULT_REPO
+            val token = getEffectiveToken(context)
             val requestBuilder = Request.Builder()
-                .url("https://api.github.com/repos/$effectiveRepo/releases?per_page=30")
-                .header("Accept", "application/vnd.github.v3+json")
+                .url("https://api.github.com/repos/$targetRepo/releases?per_page=50")
+                .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "Qabas-Studio")
-
-            if (!effectiveToken.isNullOrBlank()) {
-                requestBuilder.header("Authorization", "Bearer $effectiveToken")
-            }
+            if (!token.isNullOrBlank()) requestBuilder.header("Authorization", "Bearer $token")
 
             val response = client.newCall(requestBuilder.build()).execute()
-            if (!response.isSuccessful) return@withContext emptyList()
-
-            val body = response.body?.string() ?: return@withContext emptyList()
+            val body = response.use {
+                if (!it.isSuccessful) throw IllegalStateException("GitHub API ${it.code}")
+                it.body?.string() ?: throw IllegalStateException("استجابة GitHub فارغة")
+            }
             val releases = JSONArray(body)
-            val history = mutableListOf<UpdateInfo>()
-
-            for (i in 0 until releases.length()) {
-                val release = releases.optJSONObject(i) ?: continue
-                if (release.optBoolean("draft", false)) continue
-
-                val tagName = release.optString("tag_name", "")
-                val releaseVersionCode = parseReleaseVersionCode(tagName)
-                val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
-
-                val assets = release.optJSONArray("assets") ?: continue
-                var apkUrl = ""
-                var apkSize = 0L
-                val xdeltaUrls = mutableMapOf<String, String>()
-                var releaseChecksum: String? = null
-
-                for (j in 0 until assets.length()) {
-                    val asset = assets.optJSONObject(j) ?: continue
-                    val name = asset.optString("name")
-                    val url = asset.optString("browser_download_url")
-                    val size = asset.optLong("size", 0L)
-                    when {
-                        name.endsWith(".apk") -> {
-                            if (apkUrl.isEmpty() || size > apkSize) {
-                                apkUrl = url
-                                apkSize = size
-                            }
-                        }
-                        name.startsWith("xdelta3-") -> xdeltaUrls[name] = url
-                        name.endsWith(".sha256") -> {
-                            if (name.contains("delta")) releaseChecksum = name.substringBefore(".")
+            buildList {
+                for (index in 0 until releases.length()) {
+                    val release = releases.optJSONObject(index) ?: continue
+                    if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false)) continue
+                    val tag = release.optString("tag_name", "").trim()
+                    val versionCode = parseReleaseVersionCode(tag)
+                    val versionName = tag.removePrefix("v").substringBefore("+").trim()
+                    if (versionCode <= 0 || versionName.isBlank()) continue
+                    val assets = release.optJSONArray("assets") ?: continue
+                    var selectedName: String? = null
+                    var selectedUrl: String? = null
+                    var selectedSize = 0L
+                    var selectedDigest: String? = null
+                    for (assetIndex in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(assetIndex) ?: continue
+                        val name = asset.optString("name", "")
+                        val url = asset.optString("browser_download_url", "")
+                        val size = asset.optLong("size", 0L)
+                        if (name.endsWith(".apk", ignoreCase = true) &&
+                            url.startsWith("https://github.com/$targetRepo/releases/download/") &&
+                            size > selectedSize
+                        ) {
+                            selectedName = name
+                            selectedUrl = url
+                            selectedSize = size
+                            val digest = asset.optString("digest", "").removePrefix("sha256:")
+                            selectedDigest = digest.takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }?.lowercase()
                         }
                     }
+                    val apkName = selectedName ?: continue
+                    val apkUrl = selectedUrl ?: continue
+                    val notes = release.optString("body", "")
+                    val sha = selectedDigest ?: Regex("(?i)\\b[0-9a-f]{64}\\b")
+                        .find(notes)?.value?.lowercase()
+                    val releaseUrl = release.optString("html_url", "")
+                    if (!releaseUrl.startsWith("https://github.com/$targetRepo/releases/tag/")) continue
+                    add(
+                        AdminGitHubRelease(
+                            tagName = tag,
+                            versionName = versionName,
+                            versionCode = versionCode,
+                            publishedAt = release.optString("published_at", ""),
+                            releaseNotes = sanitizePublicReleaseNotes(notes),
+                            releaseUrl = releaseUrl,
+                            assetName = apkName,
+                            apkUrl = apkUrl,
+                            apkSize = selectedSize,
+                            sha256Hash = sha
+                        )
+                    )
                 }
-
-                if (apkUrl.isEmpty()) continue
-
-                val releaseNotes = release.optString("body", "")
-                val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) ||
-                             release.optString("name", "").contains("[FORCE]", ignoreCase = true)
-                fun noteValue(label: String): String? =
-                    Regex("(?im)^\\s*[-*]?\\s*${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
-                        .find(releaseNotes)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
-                val commitSha = Regex("(?i)commit[^0-9a-f]*([0-9a-f]{7,40})")
-                    .find(releaseNotes)?.groupValues?.getOrNull(1)
-
-                history.add(UpdateInfo(
-                    versionName = releaseVersionName,
-                    versionCode = releaseVersionCode,
-                    deltaUrl = null, // لا نعرض الدلتا في السجل عادة
-                    apkUrl = apkUrl,
-                    releaseNotes = releaseNotes,
-                    deltaSize = 0L,
-                    apkSize = apkSize,
-                    xdeltaUrls = xdeltaUrls,
-                    isForce = isForce,
-                    checksum = releaseChecksum,
-                    commitSha = commitSha,
-                    buildNumber = noteValue("Build Number"),
-                    builtAt = noteValue("Built at"),
-                    sourceBranch = noteValue("Branch")?.removePrefix("refs/heads/"),
-                    workflowRunUrl = noteValue("Workflow Run")?.takeIf { it.startsWith("https://github.com/") },
-                    releaseUrl = release.optString("html_url").takeIf { it.startsWith("https://") }
-                ))
-            }
-            history.sortedByDescending { it.versionCode }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ getUpdateHistory failed: ${e.message}")
-            emptyList()
+            }.sortedByDescending { it.versionCode }
         }
     }
 
@@ -1047,7 +1078,7 @@ object UpdateManager {
                     Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
                     val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
-                        if (isApkValid(context, patched, update.versionCode)) {
+                        if (isApkValid(context, patched, update.versionCode) && isSha256Valid(patched, update.apkSha256)) {
                             withContext(Dispatchers.Main) {
                                 if (appInForeground) {
                                     // المقدمة: سجّل النسخة ثم افتح المثبّت. تُستهلك
@@ -1092,8 +1123,9 @@ object UpdateManager {
                 if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000) {
                     // الحجم الكلي معروف من الريليز — تطابق تام يضمن اكتمال التنزيل
                     val sizeMatches = update.apkSize <= 0L || apkFile.length() == update.apkSize
-                    if (!sizeMatches || !isApkValid(context, apkFile, update.versionCode)) {
-                        Log.e(TAG, "❌ Downloaded APK failed validation (size=${apkFile.length()}, expected=${update.apkSize})")
+                    val digestMatches = isSha256Valid(apkFile, update.apkSha256)
+                    if (!sizeMatches || !digestMatches || !isApkValid(context, apkFile, update.versionCode)) {
+                        Log.e(TAG, "❌ Downloaded APK failed validation (size=${apkFile.length()}, expected=${update.apkSize}, sha256=$digestMatches)")
                         runCatching { apkFile.delete() }
                         withContext(Dispatchers.Main) { emitDone(false, "الحزمة المنزّلة غير سليمة — أعد المحاولة") }
                     } else {
@@ -1631,6 +1663,26 @@ object UpdateManager {
         }
     }
 
+    /** SHA-256 integrity check for downloaded APK assets. Empty hashes mean no digest was published. */
+    fun isSha256Valid(file: File, expectedSha256: String?): Boolean {
+        if (expectedSha256.isNullOrBlank()) return true
+        return runCatching {
+            val expected = expectedSha256.trim().removePrefix("sha256:").lowercase()
+            if (!expected.matches(Regex("[0-9a-f]{64}"))) return@runCatching false
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            val actual = digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+            actual.equals(expected, ignoreCase = true)
+        }.getOrDefault(false)
+    }
+
     /**
      * الحزمة المنزّلة لإصدار محدد إن كانت سليمة ومطابقة — وتُحذف تلقائياً إن كانت تالفة.
      * يتحقق من كل مرشح على حدة: المُرقّعة أولاً ثم الكاملة، حتى لا تحجب
@@ -1641,20 +1693,21 @@ object UpdateManager {
         context: Context,
         versionName: String,
         versionCode: Int,
-        expectedSize: Long = 0L
+        expectedSize: Long = 0L,
+        expectedSha256: String? = null
     ): File? {
         val updatesDir = File(context.cacheDir, "updates")
         val patched = File(updatesDir, "qabas-$versionName-$versionCode-patched.apk")
         if (patched.exists() && patched.length() > 1_000_000) {
             val sizeOk = expectedSize <= 0L || patched.length() == expectedSize
-            if (sizeOk && isApkValid(context, patched, versionCode)) return patched
+            if (sizeOk && isSha256Valid(patched, expectedSha256) && isApkValid(context, patched, versionCode)) return patched
             Log.w(TAG, "⚠️ Patched APK failed validation — deleting: ${patched.name}")
             runCatching { patched.delete() }
         }
         val full = File(updatesDir, "qabas-$versionName-$versionCode.apk")
         if (full.exists() && full.length() > 1_000_000) {
             val sizeOk = expectedSize <= 0L || full.length() == expectedSize
-            if (sizeOk && isApkValid(context, full, versionCode)) return full
+            if (sizeOk && isSha256Valid(full, expectedSha256) && isApkValid(context, full, versionCode)) return full
             Log.w(TAG, "⚠️ Downloaded APK failed validation — deleting: ${full.name}")
             runCatching { full.delete() }
         }

@@ -23,13 +23,13 @@ object UpdateChannelFacade {
 
     /**
      * صلاحية اللوحة التقنية الداخلية (اسم المستودع، رابط API، بصمة التوقيع).
-     * تتحقق من هوية سحابية موثّقة فقط (المالك أو دور developer/owner في Supabase)،
+     * تتحقق من دور موثوق داخل app_metadata فقط، بما يطابق تفويض RPC على الخادم،
      * ولا تعتمد على العَلَم المحلي is_developer لأنه قابل للتعديل على الجهاز.
      */
     fun isVerifiedDeveloper(): Boolean =
         runCatching {
-            AdminGuard.isCloudUserOwner() ||
-                SupabaseServices.Auth.verifiedRole.value in setOf("developer", "owner")
+            // Match the server-side RPC authorization: only trusted app_metadata roles count.
+            SupabaseServices.Auth.isDeveloperRole(SupabaseServices.Auth.getCurrentUserAppRole())
         }.getOrDefault(false)
 
     // ─────────────────────────────────────────────────────────────
@@ -41,51 +41,48 @@ object UpdateChannelFacade {
 
     /** تسمية القناة حسب صلاحية المستخدم */
     fun channelLabel(context: Context): String =
-        if (isDeveloper(context)) "المستودع الرسمي" else PUBLIC_CHANNEL_NAME
+        if (isVerifiedDeveloper()) "إدارة الإصدار المعتمد" else PUBLIC_CHANNEL_NAME
 
     /** وصف نقطة الفحص — للمطور يذكر المصدر، وللمستخدم يذكر behavior فقط */
     fun checkSourceLabel(context: Context): String =
-        if (isDeveloper(context)) "GitHub Releases API" else "قناة التحديث الرسمية"
+        if (isVerifiedDeveloper()) "Supabase — الإصدار المعتمد" else "قناة التحديث الرسمية"
 
     /** نص زر الفحص (غير أثناء الفحص) */
     fun checkButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "فحص التحديثات الآن عبر GitHub Releases 🔄"
+        if (isVerifiedDeveloper()) "فحص الإصدار المعتمد عبر Supabase 🔄"
         else "فحص التحديثات الآن 🔄"
 
     /** نص زر الفحص (أثناء الفحص) */
     fun checkingButtonLabel(context: Context): String =
-        if (isDeveloper(context)) "جاري التحقق من GitHub Releases..."
+        if (isVerifiedDeveloper()) "جاري التحقق من الإصدار المعتمد في Supabase..."
         else "جاري التحقق من التحديثات..."
 
     /** نص نافذة الفحص (Toast) */
     fun checkingToast(context: Context): String =
-        if (isDeveloper(context)) "جاري فحص التحديثات عبر GitHub Releases 🔍"
+        if (isVerifiedDeveloper()) "جاري فحص الإصدار المعتمد في Supabase 🔍"
         else "جاري فحص التحديثات 🔍"
 
     /** فقرة «عن التحديثات» في مركز التنزيلات */
     fun aboutText(context: Context, currentVersionName: String): String =
-        if (isDeveloper(context)) {
-            "أنت تستخدم النسخة v$currentVersionName. عند توفر أي إصدار أحدث على GitHub Releases، " +
-                "سيبدأ النظام بتنزيله تلقائياً وعرضه مباشرة في مركز التنزيلات."
+        if (isVerifiedDeveloper()) {
+            "أنت تستخدم النسخة v$currentVersionName. لا يصل للمستخدمين إلا الإصدار الذي تعتمده في Supabase؛ " +
+                "نشر إصدار جديد على GitHub وحده لا يغيّر النسخة الموزعة."
         } else {
-            "أنت تستخدم النسخة v$currentVersionName. عند توفر أي إصدار أحدث، " +
-                "سيبدأ النظام بتنزيله تلقائياً وعرضه مباشرة في مركز التنزيلات."
+            "أنت تستخدم النسخة v$currentVersionName. سيصلك التحديث عند اعتماد إصدار جديد من فريق قبس."
         }
 
-    /** قائمة السلوك التلقائي */
+    /** سياسة التوزيع التي يطبقها التطبيق */
     fun behaviorText(context: Context): String {
         val interval = UpdateManager.getAutoCheckIntervalHours(context)
-        return if (isDeveloper(context)) {
-            "• يفحص التطبيق تلقائياً مستودع GitHub كل $interval ساعة (الحد الأدنى ساعتان، وقابل للتغيير من مركز التنزيلات).\n" +
-                "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
-                "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
-                "زر التثبيت اليدوي متاحاً هنا في أي وقت."
+        val source = if (isVerifiedDeveloper()) {
+            "يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة."
         } else {
-            "• يفحص التطبيق القناة الرسمية تلقائياً كل $interval ساعة (الحد الأدنى ساعتان، وقابل للتغيير من مركز التنزيلات).\n" +
-                "• يبدأ التنزيل فوراً في الخلفية مع إشعار دائم ونبضات في مركز التنزيلات.\n" +
-                "• فور اكتمال التنزيل، يُطلب من نظام أندرويد فتح نافذة التثبيت تلقائياً مع بقاء " +
-                "زر التثبيت اليدوي متاحاً هنا في أي وقت."
+            "يتحقق التطبيق تلقائياً من التحديثات كل $interval ساعة."
         }
+        return "$source (الحد الأدنى ساعتان).\n" +
+            "• التحديث الإجباري يبدأ تنزيله في الخلفية مع إشعار بالتقدم.\n" +
+            "• التحديث الاختياري يعرض نافذة، ولا يبدأ تنزيله إلا بعد اختيار المستخدم.\n" +
+            "• بعد اكتمال التنزيل، يعرض أندرويد خطوة التثبيت التي تتطلب موافقة المستخدم."
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -107,5 +104,5 @@ object UpdateChannelFacade {
      * هل نُخفي التفاصيل التقنية عن هذا المستخدم؟
      * نعم لكل من ليس مطوراً.
      */
-    fun hidesTechnicalDetails(context: Context): Boolean = !isDeveloper(context)
+    fun hidesTechnicalDetails(context: Context): Boolean = !isVerifiedDeveloper()
 }

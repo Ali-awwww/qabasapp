@@ -767,91 +767,92 @@ object DownloadsHubManager {
     }
 
     /**
-     * التحقق من وجود إصدار جديد عبر GitHub Releases والبدء الفوري في تنزيله
-     * وبث التقدم مباشرة في مركز التنزيلات
+     * Supabase يحدد الإصدار المعتمد:
+     * - الإجباري: يبدأ تنزيله في الخلفية تلقائياً.
+     * - الاختياري: يعرض نافذة القرار فقط ولا يبدأ التنزيل قبل موافقة المستخدم.
      */
     fun checkAndStartAutoUpdate(context: Context, force: Boolean = false) {
         if (_isCheckingUpdate.value) return
         val currentDownload = _appUpdateDownload.value
         if (currentDownload != null && currentDownload.isDownloading) return
 
-        // تخطي التنزيل التلقائي في بيئة المعاينة (Preview / Emulator / Debug) ما لم يطلبه المستخدم يدوياً
         val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic") ||
-                android.os.Build.MODEL.contains("google_sdk") ||
-                android.os.Build.MODEL.contains("Emulator") ||
-                android.os.Build.HARDWARE.contains("goldfish") ||
-                android.os.Build.HARDWARE.contains("ranchu")
+            android.os.Build.MODEL.contains("google_sdk") ||
+            android.os.Build.MODEL.contains("Emulator") ||
+            android.os.Build.HARDWARE.contains("goldfish") ||
+            android.os.Build.HARDWARE.contains("ranchu")
         if (!force && (BuildConfig.DEBUG || isEmulator)) {
-            Log.d(TAG, "⏭️ تخطي التنزيل التلقائي للتحديث في بيئة المعاينة والتطوير (Preview/Emulator/Debug)")
+            Log.d(TAG, "⏭️ تخطي الفحص التلقائي في بيئة التطوير")
             return
         }
 
         _isCheckingUpdate.value = true
         scope.launch(Dispatchers.IO) {
             try {
-                Log.d(TAG, "🔍 Checking for updates via GitHub Releases for auto-download...")
                 val update = VersionManager.checkRemoteVersion(context, force = force)
-                if (update != null) {
-                    Log.d(TAG, "🚀 New update detected: ${update.versionName} - starting auto download!")
-                    
-                    // 🔔 إظهار نافذة التحديث HUD (للتأكد من ظهور الرسالة عند أول تشغيل)
-                    withContext(Dispatchers.Main) {
+                if (update == null) {
+                    Log.d(TAG, "✅ لا يوجد إصدار معتمد أحدث")
+                    return@launch
+                }
+
+                withContext(Dispatchers.Main) {
+                    if (update.isForce || !UpdateManager.isUpdateDismissedForSession) {
                         UpdateManager.setPendingUpdate(update)
                     }
-                    
-                    // تحقق مما إذا كانت الحزمة منزلة وموجودة بالفعل
-                    val existingApk = UpdateManager.getValidatedDownloadedApk(
+                }
+
+                if (!update.isForce) {
+                    Log.d(TAG, "ℹ️ تحديث اختياري: بانتظار اختيار المستخدم")
+                    return@launch
+                }
+
+                Log.d(TAG, "🚨 تحديث إجباري؛ بدء التنزيل الخلفي: ${update.versionName}")
+                val existingApk = UpdateManager.getValidatedDownloadedApk(
+                    context, update.versionName, update.versionCode, update.apkSize, update.apkSha256
+                )
+                if (existingApk != null && existingApk.exists() &&
+                    existingApk.length() > 1_000_000L
+                ) {
+                    _appUpdateDownload.value = AppUpdateDownloadItem(
+                        versionName = update.versionName,
+                        versionCode = update.versionCode,
+                        releaseNotes = update.releaseNotes,
+                        apkUrl = update.apkUrl,
+                        deltaUrl = null,
+                        totalBytes = existingApk.length(),
+                        expectedApkSize = update.apkSize,
+                        downloadedBytes = existingApk.length(),
+                        progress = 1f,
+                        phase = "COMPLETED",
+                        isDownloading = false,
+                        isCompleted = true,
+                        localApkPath = existingApk.absolutePath
+                    )
+                    UpdateDownloadService.notifyInstallReady(
                         context, update.versionName, update.versionCode, update.apkSize
                     )
-                    if (existingApk != null && existingApk.exists() && existingApk.length() > 1_000_000) {
-                        Log.d(TAG, "📦 Update package already exists: ${existingApk.absolutePath}")
-                        _appUpdateDownload.value = AppUpdateDownloadItem(
-                            versionName = update.versionName,
-                            versionCode = update.versionCode,
-                            releaseNotes = update.releaseNotes,
-                            apkUrl = update.apkUrl,
-                            deltaUrl = update.deltaUrl,
-                            totalBytes = existingApk.length(),
-                            expectedApkSize = update.apkSize,
-                            downloadedBytes = existingApk.length(),
-                            progress = 1f,
-                            phase = "COMPLETED",
-                            isDownloading = false,
-                            isCompleted = true,
-                            localApkPath = existingApk.absolutePath
-                        )
-                        // فتح المثبّت من الخلفية محجوب في أندرويد 10+ — إشعار
-                        // «ثبّت الآن» يفتح النشاط في المقدمة ثم واجهة التثبيت.
-                        UpdateDownloadService.notifyInstallReady(
-                            context, update.versionName, update.versionCode, update.apkSize
-                        )
-                    } else {
-                        // بدء التنزيل التلقائي فوراً
-                        val targetSize = if (update.deltaUsable) update.deltaSize else update.apkSize
-                        _appUpdateDownload.value = AppUpdateDownloadItem(
-                            versionName = update.versionName,
-                            versionCode = update.versionCode,
-                            releaseNotes = update.releaseNotes,
-                            apkUrl = update.apkUrl,
-                            deltaUrl = update.deltaUrl,
-                            totalBytes = targetSize,
-                            expectedApkSize = update.apkSize,
-                            downloadedBytes = 0L,
-                            progress = 0f,
-                            phase = "DOWNLOADING",
-                            isDownloading = true,
-                            isCompleted = false,
-                            isError = false
-                        )
-                        withContext(Dispatchers.Main) {
-                            UpdateDownloadService.start(context, update)
-                        }
-                    }
                 } else {
-                    Log.d(TAG, "✅ App is already up to date.")
+                    _appUpdateDownload.value = AppUpdateDownloadItem(
+                        versionName = update.versionName,
+                        versionCode = update.versionCode,
+                        releaseNotes = update.releaseNotes,
+                        apkUrl = update.apkUrl,
+                        deltaUrl = null,
+                        totalBytes = update.apkSize,
+                        expectedApkSize = update.apkSize,
+                        downloadedBytes = 0L,
+                        progress = 0f,
+                        phase = "DOWNLOADING",
+                        isDownloading = true,
+                        isCompleted = false,
+                        isError = false
+                    )
+                    withContext(Dispatchers.Main) {
+                        UpdateDownloadService.start(context, update, forceFull = true)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error in checkAndStartAutoUpdate: ${e.message}", e)
+                Log.e(TAG, "❌ فشل فحص/بدء التحديث المعتمد: ${e.message}", e)
             } finally {
                 _isCheckingUpdate.value = false
             }
