@@ -870,7 +870,6 @@ private fun SpatialSpiritualBeacon(
     selectedCity: CityLocation,
     onOpenCitySelector: () -> Unit,
     onPrayerTimes: () -> Unit,
-    onMishkatHub: () -> Unit,
     onHadithStudio: () -> Unit,
     onAzkar: () -> Unit,
     isDeveloper: Boolean = false
@@ -1642,7 +1641,6 @@ private fun SpatialStudiosSector(
  */
 @Composable
 private fun SpatialIslamicSuiteSector(
-    onMishkatHub: () -> Unit,
     onHadithStudio: () -> Unit,
     onIslamicLibrary: () -> Unit,
     onAzkar: () -> Unit,
