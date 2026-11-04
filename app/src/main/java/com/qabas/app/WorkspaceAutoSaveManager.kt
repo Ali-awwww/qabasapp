@@ -245,7 +245,7 @@ object WorkspaceAutoSaveManager {
     // ==================== Pro Editor Workspace Auto-Save ====================
 
     fun scheduleProEditorSave(state: EditorProjectState, debounceMs: Long = 1000L) {
-        val currentHash = state.projectId.hashCode() xor state.tracks.size xor state.tracks.sumOf { it.clips.size }
+        val currentHash = state.hashCode()
         if (currentHash == lastSavedProHash) return
 
         debounceJob?.cancel()
@@ -269,7 +269,7 @@ object WorkspaceAutoSaveManager {
                 stateJson = json,
                 lastScreen = "PRO_EDITOR"
             )
-            lastSavedProHash = state.projectId.hashCode() xor state.tracks.size xor state.tracks.sumOf { it.clips.size }
+            lastSavedProHash = state.hashCode()
             val now = System.currentTimeMillis()
             _status.value = _status.value.copy(
                 isSaving = false,
@@ -304,6 +304,9 @@ object WorkspaceAutoSaveManager {
             tObj.put("name", track.name)
             tObj.put("isMuted", track.isMuted)
             tObj.put("isLocked", track.isLocked)
+            tObj.put("isVisible", track.isVisible)
+            tObj.put("volume", track.volume.toDouble())
+            tObj.put("isSolo", track.isSolo)
 
             val clipsArr = JSONArray()
             track.clips.forEach { clip ->
@@ -402,7 +405,10 @@ object WorkspaceAutoSaveManager {
                             name = t.optString("name", "مسار"),
                             clips = clips,
                             isMuted = t.optBoolean("isMuted", false),
-                            isLocked = t.optBoolean("isLocked", false)
+                            isLocked = t.optBoolean("isLocked", false),
+                            isVisible = t.optBoolean("isVisible", true),
+                            volume = t.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f),
+                            isSolo = t.optBoolean("isSolo", false)
                         )
                     )
                 }
