@@ -2332,9 +2332,7 @@ fun QuranRecitationRecordingView(
     onStartRecording: () -> Unit,
     onStopRecordingAndAnalyze: () -> Unit
 ) {
-    var highlightedWordIndex by remember { mutableIntStateOf(0) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "tarteelMicPulse")
+    val infiniteTransition = rememberInfiniteTransition(label = "recitationMicPulse")
     val micPulseRadius by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.35f,
@@ -2350,24 +2348,11 @@ fun QuranRecitationRecordingView(
     val wave3 by infiniteTransition.animateFloat(initialValue = 15f, targetValue = 42f, animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse), label = "w3")
     val wave4 by infiniteTransition.animateFloat(initialValue = 35f, targetValue = 18f, animationSpec = infiniteRepeatable(tween(480), RepeatMode.Reverse), label = "w4")
 
-    LaunchedEffect(isRecording) {
-        if (isRecording) {
-            highlightedWordIndex = 0
-            while (isRecording) {
-                delay(800)
-                highlightedWordIndex = (highlightedWordIndex + 1) % 12
-            }
-        }
-    }
-
-    val sampleVerseWords = remember(activeSurahName) {
-        if (activeSurahName.contains("الإخلاص")) {
-            listOf("قُلْ", "هُوَ", "اللَّهُ", "أَحَدٌ", "﴿١﴾", "اللَّهُ", "الصَّمَدُ", "﴿٢﴾", "لَمْ", "يَلِدْ", "وَلَمْ", "يُولَدْ", "﴿٣﴾")
-        } else if (activeSurahName.contains("الفلق")) {
-            listOf("قُلْ", "أَعُوذُ", "بِرَبِّ", "الْفَلَقِ", "﴿١﴾", "مِن", "شَرِّ", "مَا", "خَلَقَ", "﴿٢﴾", "وَمِن", "شَرِّ", "غَاسِقٍ", "﴿٣﴾")
-        } else {
-            listOf("الْحَمْدُ", "لِلَّهِ", "رَبِّ", "الْعَالَمِينَ", "﴿١﴾", "الرَّحْمَٰنِ", "الرَّحِيمِ", "﴿٢﴾", "مَالِكِ", "يَوْمِ", "الدِّينِ", "﴿٣﴾")
-        }
+    // النص المعروض يأتي من بيانات القرآن المحمّلة، ولا تُكتب آيات يدوياً.
+    val sampleVerseWords = remember(activeSurahId, activeSurahName) {
+        QuranDataProvider.getVersesForSurah(activeSurahId, activeSurahName)
+            .take(3)
+            .flatMap { it.verseText.split(Regex("\\s+")) }
     }
 
     LazyColumn(
