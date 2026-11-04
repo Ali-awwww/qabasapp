@@ -89,15 +89,27 @@ fun StudioProEditorScreen(
     var selectedTransitionClipId by remember { mutableStateOf<String?>(null) }
     val selectedClipTrack = projectState.tracks.firstOrNull { track -> track.clips.any { it.id == projectState.selectedClipId } }
     val selectedEditorClip = selectedClipTrack?.clips?.firstOrNull { it.id == projectState.selectedClipId }
-    val activeVideoTrack = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible }
+    val activeVideoTrack = projectState.tracks.lastOrNull { track ->
+        track.type == TrackType.VIDEO && track.isVisible && track.clips.any {
+            projectState.currentTimeMs >= it.startOffsetMs &&
+                projectState.currentTimeMs < it.startOffsetMs + it.durationMs
+        }
+    }
     val activeVideoClip = activeVideoTrack?.clips?.firstOrNull {
         projectState.currentTimeMs >= it.startOffsetMs &&
             projectState.currentTimeMs < it.startOffsetMs + it.durationMs
     }
-    val activeOverlayClip = projectState.tracks
+    val activeOverlayClips = projectState.tracks
         .filter { it.type == TrackType.OVERLAY && it.isVisible }
         .flatMap { it.clips }
-        .firstOrNull {
+        .filter {
+            projectState.currentTimeMs >= it.startOffsetMs &&
+                projectState.currentTimeMs < it.startOffsetMs + it.durationMs
+        }
+    val activeTextClips = projectState.tracks
+        .filter { it.type == TrackType.TEXT && it.isVisible }
+        .flatMap { it.clips }
+        .filter {
             projectState.currentTimeMs >= it.startOffsetMs &&
                 projectState.currentTimeMs < it.startOffsetMs + it.durationMs
         }
@@ -400,34 +412,34 @@ fun StudioProEditorScreen(
                             )
                         }
                         
-                        if (activeOverlayClip != null && activeOverlayClip.resourceUri.isNotBlank()) {
-                            AsyncImage(
-                                model = activeOverlayClip.resourceUri,
-                                contentDescription = activeOverlayClip.title,
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxSize().graphicsLayer {
-                                    val relativeTime = (projectState.currentTimeMs - activeOverlayClip.startOffsetMs).coerceAtLeast(0L)
-                                    val animatedScale = SmartFeaturesEngine.interpolateProperty(
-                                        activeOverlayClip.keyframes, relativeTime, "scale", 1f
+                        activeOverlayClips.forEach { overlayClip ->
+                            if (overlayClip.resourceUri.isNotBlank()) {
+                                key(overlayClip.id) {
+                                    AsyncImage(
+                                        model = overlayClip.resourceUri,
+                                        contentDescription = overlayClip.title,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                                            val relativeTime = (projectState.currentTimeMs - overlayClip.startOffsetMs).coerceAtLeast(0L)
+                                            val animatedScale = SmartFeaturesEngine.interpolateProperty(
+                                                overlayClip.keyframes, relativeTime, "scale", 1f
+                                            )
+                                            alpha = SmartFeaturesEngine.interpolateProperty(
+                                                overlayClip.keyframes, relativeTime, "opacity", 1f
+                                            )
+                                            scaleX = overlayClip.transform.scaleX * animatedScale
+                                            scaleY = overlayClip.transform.scaleY * animatedScale
+                                            rotationZ = overlayClip.transform.rotation
+                                            translationX = overlayClip.transform.posX
+                                            translationY = overlayClip.transform.posY
+                                        }
                                     )
-                                    alpha = SmartFeaturesEngine.interpolateProperty(
-                                        activeOverlayClip.keyframes, relativeTime, "opacity", 1f
-                                    )
-                                    scaleX = activeOverlayClip.transform.scaleX * animatedScale
-                                    scaleY = activeOverlayClip.transform.scaleY * animatedScale
-                                    rotationZ = activeOverlayClip.transform.rotation
-                                    translationX = activeOverlayClip.transform.posX
-                                    translationY = activeOverlayClip.transform.posY
                                 }
-                            )
+                            }
                         }
 
-                        // Active Text Layer or Kinetic Captions
-                        val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT && it.isVisible }?.clips?.firstOrNull { 
-                            projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs < it.startOffsetMs + it.durationMs
-                        }
-                        
-                        if (activeVideoClip == null && activeTextClip == null) {
+                        // Active text layers
+                        if (activeVideoClip == null && activeOverlayClips.isEmpty() && activeTextClips.isEmpty()) {
                             Column(
                                 modifier = Modifier.align(Alignment.Center).padding(16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -445,29 +457,32 @@ fun StudioProEditorScreen(
                             }
                         }
 
-                        if (activeTextClip != null) {
-                            val currentScale = SmartFeaturesEngine.interpolateProperty(
-                                activeTextClip.keyframes,
-                                projectState.currentTimeMs - activeTextClip.startOffsetMs,
-                                "scale",
-                                1f
-                            )
-                            val currentOpacity = SmartFeaturesEngine.interpolateProperty(
-                                activeTextClip.keyframes,
-                                projectState.currentTimeMs - activeTextClip.startOffsetMs,
-                                "opacity",
-                                1f
-                            )
-
-                            Text(
-                                activeTextClip.title,
-                                color = Color.White.copy(alpha = currentOpacity),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = (20 * currentScale).sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.align(Alignment.Center).padding(horizontal = 20.dp)
-                            )
+                        activeTextClips.forEach { textClip ->
+                            key(textClip.id) {
+                                val relativeTime = projectState.currentTimeMs - textClip.startOffsetMs
+                                val currentScale = SmartFeaturesEngine.interpolateProperty(
+                                    textClip.keyframes, relativeTime, "scale", 1f
+                                )
+                                val currentOpacity = SmartFeaturesEngine.interpolateProperty(
+                                    textClip.keyframes, relativeTime, "opacity", 1f
+                                )
+                                Text(
+                                    textClip.title,
+                                    color = Color.White.copy(alpha = currentOpacity),
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = (20 * currentScale).sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 20.dp)
+                                        .graphicsLayer {
+                                            scaleX = textClip.transform.scaleX
+                                            scaleY = textClip.transform.scaleY
+                                            rotationZ = textClip.transform.rotation
+                                            translationX = textClip.transform.posX
+                                            translationY = textClip.transform.posY
+                                        }
+                                )
+                            }
                         }
                     }
                 }
