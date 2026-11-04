@@ -89,7 +89,7 @@ internal fun buildEditorExportCommand(
     hasAudio: Boolean
 ): String {
     fun number(value: Float) = String.format(Locale.US, "%.4f", value)
-    fun quote(value: String) = "\"${value.replace("\"", "\\\\"")}\""
+    fun quote(value: String) = "\"\${value.replace("\"", "\\\"")}\""
 
     val clip = plan.clip
     val speed = clip.speed.coerceIn(0.1f, 5f)
@@ -184,7 +184,7 @@ internal object EditorExportRenderer {
         }
         val destination = File(context.cacheDir, "editor_source_${rawUri.hashCode().toUInt()}.media")
         context.contentResolver.openInputStream(uri)?.use { input ->
-            destination.outputStream().use(input::copyTo)
+            destination.outputStream().use { output -> input.copyTo(output) }
         } ?: throw IllegalArgumentException("تعذر قراءة ملف الوسائط المحدد")
         if (!destination.isFile || destination.length() == 0L) {
             destination.delete()
