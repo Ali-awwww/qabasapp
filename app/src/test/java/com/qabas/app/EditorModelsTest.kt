@@ -747,4 +747,65 @@ class EditorModelsTest {
         assertTrue(result.plan == null)
         assertTrue(result.error?.contains("يتجاوز مدة ملف المصدر") == true)
     }
+
+    @Test
+    fun editorExportPlanRejectsKeyframesUntilAnimatedRenderingIsImplemented() {
+        val clip = EditorClip(
+            id = "animated-video",
+            title = "Animated",
+            resourceUri = "/private/animated.mp4",
+            startOffsetMs = 0L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            keyframes = listOf(EditorKeyframe(timeMs = 1000L, property = "scale", value = 1.5f))
+        )
+        val state = EditorProjectState(
+            projectId = "animated-export",
+            title = "Animated",
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))),
+            totalDurationMs = 5000L
+        )
+
+        val result = createEditorExportPlan(state, 1080, 1920, 30)
+
+        assertTrue(result.plan == null)
+        assertTrue(result.error?.contains("المفاتيح الزمنية") == true)
+    }
+
+    @Test
+    fun editorExportCommandDelaysAndPadsAudioToMatchVideoTimeline() {
+        val clip = EditorClip(
+            id = "offset-video",
+            title = "Offset video",
+            resourceUri = "/private/input.mp4",
+            startOffsetMs = 2500L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue,
+            speed = 1.5f
+        )
+        val track = EditorTrack(type = TrackType.VIDEO, name = "Video", clips = listOf(clip))
+        val plan = createEditorExportPlan(
+            EditorProjectState(
+                projectId = "offset-export",
+                title = "Offset",
+                tracks = listOf(track),
+                totalDurationMs = 7500L
+            ),
+            1080,
+            1920,
+            30
+        ).plan!!
+
+        val command = buildEditorExportCommand(plan, "/private/input.mp4", "/private/output.mp4", hasAudio = true)
+
+        assertTrue(command.contains("adelay=2500:all=1"))
+        assertTrue(command.contains("apad"))
+        assertTrue(command.contains("atrim=duration=7.5"))
+        assertTrue(command.contains("-t 7.5"))
+        assertTrue(command.contains("tpad=start_mode=add:start_duration=2.5"))
+    }
 }
