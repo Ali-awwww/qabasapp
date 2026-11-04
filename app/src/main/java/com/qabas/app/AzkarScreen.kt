@@ -126,13 +126,17 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
         QuranDataProvider.getVerseText(surah, ayah)
             ?: "نص الآية غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات."
 
-    private fun quranSurahs(vararg surahIds: Int): String =
-        surahIds.mapNotNull { id ->
+    private fun quranSurahs(vararg surahIds: Int): String {
+        val basmala = QuranDataProvider.getVerseText(1, 1).orEmpty()
+        val surahTexts = surahIds.mapNotNull { id ->
             QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
                 .takeIf { it.isNotEmpty() }
                 ?.joinToString(" ") { it.verseText }
-        }.joinToString("\n\n")
-            .ifBlank { "نص السور غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات." }
+        }
+        return surahTexts.joinToString("\n\n") { surahText ->
+            listOf(basmala, surahText).filter { it.isNotBlank() }.joinToString("\n")
+        }.ifBlank { "نص السور غير متاح حالياً؛ افتح المصحف وحاول بعد تحميل البيانات." }
+    }
 
     private fun lastTwoBaqarahAyat(): String =
         listOf(285, 286).mapNotNull { QuranDataProvider.getVerseText(2, it) }
