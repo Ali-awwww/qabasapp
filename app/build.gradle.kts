@@ -20,7 +20,7 @@ android {
     // قناة التحديث: CI يحقن versionCode/versionName تلقائياً لكل بناء عبر -PappVersionCode
     // و -PappVersionName، فتتزايد الأكواد والإصدارات مع كل دفع ناجح (أساس دلتا xdelta).
     versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 105
-    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.6"
+    versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.7"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     // Safe secret resolution for GitHub OAuth keys
