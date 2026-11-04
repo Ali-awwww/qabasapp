@@ -132,6 +132,17 @@ object QuranDataProvider {
         } catch (_: Exception) { null }
     }
 
+    /** تحقق بنيوي من اكتمال السور والآيات وتسلسل أرقامها دون تعديل النص. */
+    private fun isCompleteQuran(ayahs: List<RawAyah>): Boolean {
+        if (ayahs.size != 6236) return false
+        val grouped = ayahs.groupBy { it.surah }
+        if (grouped.keys != (1..114).toSet()) return false
+        return grouped.all { (surah, verses) ->
+            val numbers = verses.map { it.ayah }.sorted()
+            numbers == (1..numbers.size).toList() && verses.all { it.text.isNotBlank() }
+        }
+    }
+
     /**
      * تحميل نسخة عثمانية جاهزة من Tanzil عبر حزمة quran-json.
      * لا يُنشأ نص قرآني هنا: كل نص آية يُنقل كما ورد في JSON المصدر.
@@ -190,7 +201,7 @@ object QuranDataProvider {
                     .put("surahs", downloadedSurahs)
                 val parsed = parseQuranJson(cachedDocument.toString())
                 val parsedCount = parsed.size
-                if (parsedCount != 6236 || parsed.map { it.surah }.distinct().size != 114) {
+                if (!isCompleteQuran(parsed)) {
                     throw java.io.IOException("Parsed Quran validation failed: $parsedCount ayahs")
                 }
 
@@ -218,7 +229,7 @@ object QuranDataProvider {
             val cacheFile = java.io.File(context.filesDir, "quran_uthmani_tanzil.json")
             if (!cacheFile.isFile || cacheFile.length() == 0L) return false
             val parsed = parseQuranJson(cacheFile.readText(Charsets.UTF_8))
-            if (parsed.size != 6236 || parsed.map { it.surah }.distinct().size != 114) {
+            if (!isCompleteQuran(parsed)) {
                 Log.w(TAG, "Cached Quran dataset failed validation")
                 return false
             }
@@ -248,7 +259,7 @@ object QuranDataProvider {
                 }
                 if (jsonString.isNotBlank()) {
                     val parsed = parseQuranJson(jsonString)
-                    if (parsed.isNotEmpty()) {
+                    if (isCompleteQuran(parsed)) {
                         versesMap = parsed.groupBy { it.surah }
                         Log.i(TAG, "Successfully loaded ${parsed.size} ayahs from asset: $path")
                         return true
