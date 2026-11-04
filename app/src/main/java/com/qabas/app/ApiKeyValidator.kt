@@ -63,7 +63,6 @@ object ApiKeyValidator {
             "pixabay" -> "Pixabay"
             "azure" -> "Azure TTS"
             "elevenlabs" -> "ElevenLabs"
-            "higgsfield" -> "Higgsfield AI"
             "leonardo" -> "Leonardo.ai"
             "firebase" -> "Firebase"
             else -> serviceType.replaceFirstChar { it.uppercase() }
@@ -551,29 +550,6 @@ object ApiKeyValidator {
                             rawError = bodyStr.take(200),
                             explanation = "استجاب خادم Coverr بكود خطأ ($code).",
                             suggestedFix = "تأكد من صحة مفتاح Coverr API من لوحة تحكم coverr.co."
-                        )
-                    }
-                }
-                "higgsfield" -> {
-                    val (isSuccess, message) = HiggsfieldVideoService.testConnection(context, trimmedKey)
-                    if (isSuccess) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Higgsfield AI متصل وسليم (Video Engine - 200 OK)", Color(0xFF4CAF50))
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Higgsfield Video AI جاهز)",
-                            errorCode = 200,
-                            explanation = "تم التحقق الفعلي من خوادم منصة Higgsfield AI بنجاح (200 OK). محرك التوليد السينمائي الفائق وتحريك الصور بالذكاء الاصطناعي متصل ومستعد للعمل.",
-                            suggestedFix = "المفتاح جاهز للاستخدام الفوري في الاستوديو الموحد واستوديو الصور."
-                        )
-                    } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Higgsfield AI: $message", Color(0xFFEF4444))
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴",
-                            errorCode = 401,
-                            rawError = message,
-                            explanation = message,
-                            suggestedFix = "ادخل إلى منصة higgsfield.ai ثم انسخ مفتاح API Key وضعه هنا."
                         )
                     }
                 }
