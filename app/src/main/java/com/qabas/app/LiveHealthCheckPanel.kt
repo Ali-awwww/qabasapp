@@ -47,7 +47,7 @@ fun LiveHealthCheckPanel() {
             LiveServiceCheck("elevenlabs", "ElevenLabs (نطق)", "https://elevenlabs.io/app/settings/api-keys", AgentPrefs.getString(context, "elevenlabs_key"), freeFallback = "النطق المدمج في أندرويد (TextToSpeech) يعمل مجاناً دائماً"),
             LiveServiceCheck("pexels", "Pexels (B-Roll)", "https://www.pexels.com/api/", AgentPrefs.getString(context, "pexels_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),
             LiveServiceCheck("pixabay", "Pixabay (B-Roll)", "https://pixabay.com/api/docs/", AgentPrefs.getString(context, "pixabay_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),
-            LiveServiceCheck("higgsfield", "Higgsfield AI (فيديو سينمائي)", "https://higgsfield.ai", AgentPrefs.getString(context, "higgsfield_api_key"), freeFallback = "قوالب الفيديو ومحركات المونتاج المحلية المدمجة مجاناً")
+            LiveServiceCheck("higgsfield", "Higgsfield AI (فيديو سينمائي)", "https://higgsfield.ai", AgentPrefs.getString(context, "higgsfield_api_key"), freeFallback = "يُدار مفتاح المزود مركزياً عبر بوابة الاستوديو؛ افتح إعدادات الاستوديو للتحقق من حالته")
         )
     }
 
