@@ -1578,7 +1578,7 @@ fun ExportWorkspace(state: EditorProjectState) {
 
     val (width, height) = when (selectedResolution) {
         "720p" -> 720 to 1280
-        "4K" -> 2160 to 3840
+        "4K عمودي" -> 2160 to 3840
         else -> 1080 to 1920
     }
     val validation = createEditorExportPlan(state, width, height, selectedFps)
@@ -1592,7 +1592,7 @@ fun ExportWorkspace(state: EditorProjectState) {
 
         Text("الدقة", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("720p", "1080p", "4K").forEach { option ->
+            listOf("720p", "1080p", "4K عمودي").forEach { option ->
                 FilterChip(
                     selected = selectedResolution == option,
                     onClick = { selectedResolution = option; statusMessage = null },
@@ -1968,7 +1968,7 @@ fun AdjustPanel(
         when (selectedTab) {
             "الألوان" -> {
                 Text(
-                    "تُحفظ قيم اللون ضمن المشروع، لكن تطبيقها على إطارات الفيديو والرندر النهائي لم يُربط بعد.",
+                    "تُحفظ إعدادات اللون ضمن المشروع وتُطبّق عند تصدير المقطع الواحد؛ المعاينة الحية لا تعرض تأثيرها قبل الرندر.",
                     color = Color(0xFFFBBF24),
                     fontSize = 11.sp,
                     fontFamily = CairoFont
