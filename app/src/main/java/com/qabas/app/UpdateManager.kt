@@ -418,7 +418,7 @@ object UpdateManager {
         return raw.lineSequence()
             .filterNot { line ->
                 val trimmed = line.trim()
-                hiddenLabels.any { label -> trimmed.startsWith(label, ignoreCase = true) } ||
+                hiddenLabels.any { label -> trimmed.contains(label, ignoreCase = true) } ||
                     line.contains("github.com/", ignoreCase = true)
             }
             .joinToString("\n")
