@@ -234,6 +234,10 @@ private fun snapEditorTimelinePosition(
     return if (nearest != null && kotlin.math.abs(nearest - requestedMs) <= toleranceMs) nearest else requestedMs.coerceAtLeast(0L)
 }
 
+/** Recalculate project duration after destructive timeline edits without retaining stale empty tail space. */
+private fun calculateEditorTimelineDurationMs(tracks: List<EditorTrack>): Long =
+    maxOf(1000L, tracks.flatMap { it.clips }.maxOfOrNull { it.startOffsetMs + it.durationMs } ?: 0L)
+
 /** Move a clip horizontally without changing its source duration or track. */
 internal fun moveEditorClip(
     state: EditorProjectState,
@@ -251,7 +255,7 @@ internal fun moveEditorClip(
     }
     return state.copy(
         tracks = updatedTracks,
-        totalDurationMs = maxOf(state.totalDurationMs, snappedStart + clip.durationMs),
+        totalDurationMs = calculateEditorTimelineDurationMs(updatedTracks),
         selectedClipId = clipId
     )
 }
@@ -318,7 +322,11 @@ internal fun trimEditorClipEnd(
     return updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
     }.copy(
-        totalDurationMs = maxOf(state.totalDurationMs, snappedEnd),
+        totalDurationMs = calculateEditorTimelineDurationMs(
+            updateEditorTrack(state, track.id) { current ->
+                current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
+            }.tracks
+        ),
         selectedClipId = clipId
     )
 }
