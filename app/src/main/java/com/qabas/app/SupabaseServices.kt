@@ -62,18 +62,67 @@ object SupabaseServices {
             true
         }.getOrDefault(false)
 
-        suspend fun getLatestActiveUpdate(): ActiveUpdate? = runCatching {
-            val client = client ?: return null
-            client.postgrest.from("app_updates")
+        suspend fun getLatestActiveUpdateOrThrow(): ActiveUpdate? {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            return client.postgrest.from("app_updates")
                 .select {
-                    filter {
-                        eq("is_active", true)
-                    }
+                    filter { eq("is_active", true) }
                     order("version_code", Order.DESCENDING)
                     limit(1)
                 }
                 .decodeSingleOrNull<ActiveUpdate>()
-        }.onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }.getOrNull()
+        }
+
+        suspend fun getLatestActiveUpdate(): ActiveUpdate? =
+            runCatching { getLatestActiveUpdateOrThrow() }
+                .onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }
+                .getOrNull()
+
+        suspend fun getAppUpdateHistoryOrThrow(): List<ActiveUpdate> {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            return client.postgrest.from("app_updates")
+                .select { order("version_code", Order.DESCENDING) }
+                .decodeList<ActiveUpdate>()
+        }
+
+        suspend fun publishAppUpdate(
+            versionName: String,
+            versionCode: Int,
+            downloadUrl: String,
+            releaseNotes: String,
+            fileSizeBytes: Long,
+            sha256Hash: String?,
+            isMandatory: Boolean,
+            githubReleaseUrl: String,
+            releaseTag: String,
+            assetName: String
+        ): ActiveUpdate {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val params = buildJsonObject {
+                put("p_version_name", versionName)
+                put("p_version_code", versionCode)
+                put("p_download_url", downloadUrl)
+                put("p_release_notes", releaseNotes)
+                put("p_file_size_bytes", fileSizeBytes)
+                put("p_sha256_hash", sha256Hash ?: "")
+                put("p_is_mandatory", isMandatory)
+                put("p_github_release_url", githubReleaseUrl)
+                put("p_release_tag", releaseTag)
+                put("p_asset_name", assetName)
+            }
+            return client.postgrest.rpc("publish_qabas_app_update", params)
+                .decodeAs<ActiveUpdate>()
+        }
+
+        suspend fun setAppUpdateActive(updateId: String?, isActive: Boolean): Boolean {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val params = buildJsonObject {
+                put("p_update_id", updateId ?: "")
+                put("p_is_active", isActive)
+            }
+            return client.postgrest.rpc("set_qabas_app_update_active", params)
+                .decodeAs<Boolean>()
+        }
 
         /**
          * Checks if the email or custom_id is already taken in the cloud database.
@@ -2862,20 +2911,30 @@ object SupabaseServices {
 
 @Serializable
 data class ActiveUpdate(
-    val id: Long = 0,
+    val id: String = "",
     @SerialName("version_name") val version_name: String = "",
     @SerialName("version_code") val version_code: Int = 0,
-    @SerialName("apk_url") val apk_url: String = "",
+    @SerialName("download_url") val download_url: String = "",
     @SerialName("release_notes") val release_notes: String = "",
     @SerialName("file_size_bytes") val file_size_bytes: Long = 0L,
-    @SerialName("is_active") val is_active: Boolean = true
+    @SerialName("is_active") val is_active: Boolean = true,
+    @SerialName("is_mandatory") val is_mandatory: Boolean = false,
+    @SerialName("sha256_hash") val sha256_hash: String? = null,
+    @SerialName("github_release_url") val github_release_url: String? = null,
+    @SerialName("release_tag") val release_tag: String? = null,
+    @SerialName("asset_name") val asset_name: String? = null,
+    @SerialName("released_at") val released_at: String? = null
 ) {
     val versionName: String get() = version_name
     val versionCode: Int get() = version_code
-    val apkUrl: String get() = apk_url
+    val apkUrl: String get() = download_url
+    val downloadUrl: String get() = download_url
     val releaseNotes: String get() = release_notes
     val fileSizeBytes: Long get() = file_size_bytes
     val isActive: Boolean get() = is_active
+    val isMandatory: Boolean get() = is_mandatory
+    val sha256Hash: String? get() = sha256_hash
+    val githubReleaseUrl: String? get() = github_release_url
 }
 @Serializable
 data class AccountAvailabilityResponse(
