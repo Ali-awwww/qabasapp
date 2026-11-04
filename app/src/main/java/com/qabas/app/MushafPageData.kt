@@ -9,13 +9,11 @@ import org.json.JSONObject
  *
  * طبقة بيانات قارئ المصحف بالصفحات (تصميم أصلي لقبس — لا كود منقول).
  *
- * - حدود الصفحات الـ 604 (مصحف المدينة) تُقرأ من ملف مولّد محلياً:
- *   `assets/quran/madani_pages.json` بصيغة:
- *   {"pages":[[[سورة,آية],...],...], "juzFirstVerse":[[سورة,آية],...]}
- * - مصدر التوليد: fawazahmed0/quran-api (رخصة Unlicense — ملكية عامة،
- *   تسمح بالاستخدام التجاري) — نفس مصدر `uthmani.json` المستخدم أصلاً.
- * - نصوص الآيات نفسها من `QuranDataProvider` (ملف `uthmani.json` المحلي) —
- *   لا يُحمَّل أي نص من الشبكة.
+ * - حدود الصفحات الـ 604 تُقرأ من خريطة محلية جاهزة:
+ *   `assets/quran/madani_pages.json`.
+ * - مصدر خريطة الصفحات: fawazahmed0/quran-api (Unlicense).
+ * - نص الآيات منفصل عن خريطة الصفحات، ويُحمّل عبر QuranDataProvider
+ *   من نسخة Uthmani موثقة، ثم يُخزّن محلياً بعد التحقق.
  */
 object MushafPageData {
 
