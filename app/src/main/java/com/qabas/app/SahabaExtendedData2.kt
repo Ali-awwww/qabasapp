@@ -6,7 +6,7 @@ package com.qabas.app
 object SahabaExtendedData2 {
     val extendedList: List<ScholarBiography> = listOf(
         ScholarBiography(
-            id = "30",
+            id = "sahabi_30",
             name = "الصحابي الجليل أسامة بن زيد رضي الله عنهما",
             brief = "أسامة بن زيد الكلبي، حب رسول الله ﷺ وابن حبه، أمّره النبي ﷺ على جيش إلى الشام في أواخر حياته، وأنفذ أبو بكر الجيش بعد وفاته.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -27,7 +27,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "31",
+            id = "sahabi_31",
             name = "الصحابي الجليل البراء بن مالك رضي الله عنه",
             brief = "البراء بن مالك الأنصاري، أخو أنس بن مالك، من فرسان المسلمين في حروب الردة والفتوح. تذكر المصادر مقتله في تستر نحو سنة 20 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -48,7 +48,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "32",
+            id = "sahabi_32",
             name = "القعقاع بن عمرو التميمي",
             brief = "القعقاع بن عمرو التميمي: تذكره كتب الرجال والفتوح، ونُسبت إليه الصحبة، لكن تفاصيل أخباره العسكرية المشهورة تحتاج إلى نقد؛ فكثير منها يروى من طريق سيف بن عمر، وهو ضعيف عند نقاد الحديث. لذلك نورد أصل الذكر مع التحفظ على الأخبار المنفردة.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -69,7 +69,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "33",
+            id = "sahabi_33",
             name = "الصحابي الجليل زيد بن ثابت رضي الله عنه",
             brief = "زيد بن ثابت الأنصاري، كاتب الوحي، ومن كبار علماء الصحابة في الفرائض والقرآن. تولى جمع القرآن في عهد أبي بكر، وشارك في نسخ المصاحف في عهد عثمان.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -90,7 +90,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "34",
+            id = "sahabi_34",
             name = "الصحابي الجليل حذيفة بن اليمان رضي الله عنه",
             brief = "حذيفة بن اليمان العبسي، من أصحاب النبي ﷺ، عُرف بعلمه بأحاديث الفتن وبأن النبي ﷺ أطلعه على أسماء بعض المنافقين، وشهد الخندق.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -111,7 +111,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "35",
+            id = "sahabi_35",
             name = "الصحابي الجليل أبو الدرداء الأنصاري رضي الله عنه",
             brief = "أبو الدرداء الأنصاري، من الصحابة المعروفين بالفقه والعبادة وتعليم القرآن، أقام بالشام وكان من أشهر معلمي أهل دمشق. وتختلف كتب التراجم في اسمه ونسبه التفصيلي.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -132,7 +132,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "36",
+            id = "sahabi_36",
             name = "الصحابي الجليل زيد بن حارثة رضي الله عنه",
             brief = "زيد بن حارثة الكلبي، مولى رسول الله ﷺ وحبه، والصحابي الذي ورد اسمه صريحاً في القرآن في سورة الأحزاب. كان أول قادة جيش مؤتة واستشهد فيها سنة 8 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -153,7 +153,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "37",
+            id = "sahabi_37",
             name = "الصحابي الجليل ثابت بن قيس بن شماس رضي الله عنه",
             brief = "ثابت بن قيس بن شماس الأنصاري، خطيب الأنصار وخطيب النبي ﷺ، عُرف بفصاحته، وتذكر المصادر استشهاده في وقعة اليمامة.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -174,7 +174,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "38",
+            id = "sahabi_38",
             name = "الصحابي الجليل عمرو بن العاص رضي الله عنه",
             brief = "عمرو بن العاص السهمي، صحابي وقائد، أسلم قبل فتح مكة، وتولى قيادة فتح مصر ثم ولايتها، وتوفي سنة 43 هـ على المشهور.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -195,7 +195,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "39",
+            id = "sahabi_39",
             name = "الصحابي الجليل عبد الله بن حذافة السهمي رضي الله عنه",
             brief = "عبد الله بن حذافة السهمي، صحابي أرسله النبي ﷺ في بعض المكاتبات، وتذكر كتب التاريخ أسره في بلاد الروم وقصصاً عن ثباته، لكن تفاصيل قصة القدور المغلية والمفاوضات ليست محل اتفاق.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -216,7 +216,7 @@ object SahabaExtendedData2 {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "40",
+            id = "sahabi_40",
             name = "الصحابي الجليل سعيد بن عامر الجمحي رضي الله عنه",
             brief = "سعيد بن عامر الجمحي، من الصحابة، تولى إمارة حمص في خلافة عمر بن الخطاب، واشتهر في كتب الزهد بأخبار عدله وقلة تكلفه.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
