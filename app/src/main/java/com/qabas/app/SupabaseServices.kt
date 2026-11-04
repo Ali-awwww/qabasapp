@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -81,16 +83,18 @@ object SupabaseServices {
             val client = client ?: return false
             val userId = Auth.getCurrentUserId() ?: return false
             val cleanVideoUrl = videoUrl?.trim()?.takeIf { it.isNotBlank() }
-            val row = MishkatReminderContent(
-                id = "global",
-                quoteText = quoteText.trim(),
-                attribution = attribution.trim(),
-                videoUrl = cleanVideoUrl,
-                isEnabled = isEnabled,
-                updatedBy = userId,
-                updatedAt = java.time.Instant.now().toString()
-            )
-            client.postgrest.from("mishkat_reminder_content").upsert(row)
+            val payload = buildJsonObject {
+                put("id", "global")
+                put("quote_text", quoteText.trim())
+                put("attribution", attribution.trim())
+                put("video_url", cleanVideoUrl?.let { JsonPrimitive(it) } ?: JsonNull)
+                put("is_enabled", isEnabled)
+                put("updated_by", userId)
+                put("updated_at", java.time.Instant.now().toString())
+            }
+            client.postgrest.from("mishkat_reminder_content").upsert(payload) {
+                onConflict = "id"
+            }
             true
         }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
 
