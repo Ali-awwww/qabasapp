@@ -52,8 +52,22 @@ internal fun createEditorExportPlan(
     if (clip.resourceUri.isBlank() || clip.durationMs <= 0L || state.totalDurationMs <= 0L) {
         return EditorExportPlanResult(error = "المقطع أو مدة المشروع غير صالحين للتصدير")
     }
-    if (clip.speed !in 0.1f..5f) {
-        return EditorExportPlanResult(error = "سرعة المقطع خارج النطاق المدعوم")
+    if (clip.speed !in 0.1f..5f || clip.sourceStartMs < 0L || clip.startOffsetMs < 0L) {
+        return EditorExportPlanResult(error = "توقيت المصدر أو سرعة المقطع خارج النطاق المدعوم")
+    }
+    val numericValues = listOf(
+        clip.volume, track.volume, clip.transform.scaleX, clip.transform.scaleY,
+        clip.transform.rotation, clip.transform.posX, clip.transform.posY,
+        clip.filters.brightness, clip.filters.contrast, clip.filters.saturation,
+        clip.filters.temperature, clip.filters.vignette, clip.filters.sharpness
+    )
+    if (numericValues.any { !it.isFinite() }) {
+        return EditorExportPlanResult(error = "تحتوي إعدادات المقطع على قيمة رقمية غير صالحة")
+    }
+    if (clip.sourceDurationMs > 0L && clip.sourceDurationMs != Long.MAX_VALUE &&
+        clip.sourceStartMs + (clip.durationMs * clip.speed).toLong() > clip.sourceDurationMs
+    ) {
+        return EditorExportPlanResult(error = "نطاق القص يتجاوز مدة ملف المصدر")
     }
     if (clip.transitionIn != null || clip.blendMode != "Normal") {
         return EditorExportPlanResult(error = "الانتقالات وأنماط المزج غير مدعومة في إصدار الرندر الحالي")
@@ -77,7 +91,7 @@ internal fun createEditorExportPlan(
             width = width,
             height = height,
             fps = fps,
-            durationMs = state.totalDurationMs
+            durationMs = maxOf(1000L, clip.startOffsetMs + clip.durationMs)
         )
     )
 }
@@ -166,9 +180,12 @@ internal object EditorExportRenderer {
             operationDescription = "تصدير المحرر الاحترافي",
             timeoutMs = timeout
         )
-        if (!success || !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE)) {
+        if (!success ||
+            !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE) ||
+            !matchesExportMetadata(output, plan)
+        ) {
             output.delete()
-            throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً")
+            throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً بالمواصفات المطلوبة")
         }
         return output
     }
@@ -194,6 +211,22 @@ internal object EditorExportRenderer {
             throw IllegalArgumentException("ملف الوسائط فارغ أو غير قابل للقراءة")
         }
         return destination
+    }
+
+    private fun matchesExportMetadata(file: File, plan: EditorExportPlan): Boolean {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            width == plan.width && height == plan.height && duration != null &&
+                kotlin.math.abs(duration - plan.durationMs) <= maxOf(1500L, 2000L / plan.fps)
+        } catch (_: Exception) {
+            false
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 
     private fun hasAudioTrack(file: File): Boolean {
