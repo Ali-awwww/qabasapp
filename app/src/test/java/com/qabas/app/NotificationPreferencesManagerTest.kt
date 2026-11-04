@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
  * 4. تتبع الورد (سلسلة الأيام) يعمل ويزداد.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class NotificationPreferencesManagerTest {
 
     private lateinit var context: Context
