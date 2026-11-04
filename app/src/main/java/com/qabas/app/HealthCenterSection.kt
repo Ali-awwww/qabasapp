@@ -45,7 +45,8 @@ object HealthCenterState {
 @Composable
 fun HealthCenterSection(
     devLogs: SnapshotStateList<SystemLogEntry>,
-    initialTab: Int = HealthCenterState.lastTab
+    initialTab: Int = HealthCenterState.lastTab,
+    onNavigateToKeys: () -> Unit
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -116,7 +117,7 @@ fun HealthCenterSection(
         // ── المحتوى ──
         Box(modifier = Modifier.fillMaxSize()) {
             when (HealthTab.values()[selectedTab]) {
-                HealthTab.DOCTOR -> AppDoctorSection(context = context)
+                HealthTab.DOCTOR -> AppDoctorSection(context = context, onNavigateToKeys = onNavigateToKeys)
                 HealthTab.DIAGNOSTICS -> DiagnosticsDashboardSection()
                 HealthTab.LOGS -> LogsSection(devLogs = devLogs)
                 HealthTab.CRASHES -> CrashLogsHubScreen(onBack = null)
