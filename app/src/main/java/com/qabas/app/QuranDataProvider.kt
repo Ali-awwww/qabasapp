@@ -247,7 +247,7 @@ object QuranDataProvider {
      * تفحص المسارات المحتملة: "quran/uthmani.json" ثم "quran/quran.json"
      */
     fun loadFromAssets(context: Context): Boolean {
-        if (versesMap != null && versesMap!!.isNotEmpty()) {
+        if (versesMap?.values?.flatten()?.let { isCompleteQuran(it) } == true) {
             return true
         }
 
