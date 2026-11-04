@@ -71,7 +71,7 @@ fun SocialStatsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = GoldPrimary)
                     }
                 },
                 actions = {
@@ -85,7 +85,7 @@ fun SocialStatsScreen(
                     }) {
                         Icon(
                             Icons.Default.Sync, 
-                            contentDescription = null, 
+                            contentDescription = "مزامنة الإحصائيات", 
                             tint = GoldPrimary,
                             modifier = if (isSyncing) Modifier.clip(CircleShape) else Modifier
                         )
