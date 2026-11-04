@@ -4,6 +4,11 @@ import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * RawAyah
@@ -155,40 +160,45 @@ object QuranDataProvider {
                     .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
                     .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                     .build()
+                // تنزيل السور بالتوازي المحدود لتقليل زمن الإعداد دون إغراق الخادم.
+                val semaphore = Semaphore(6)
+                val chapters = coroutineScope {
+                    (1..114).map { surahNumber ->
+                        async {
+                            semaphore.withPermit {
+                                val url = "https://quran-json.risanb.com/text/uthmani/chapters/$surahNumber.json"
+                                val request = okhttp3.Request.Builder().url(url).get().build()
+                                val responseText = client.newCall(request).execute().use { response ->
+                                    if (!response.isSuccessful) throw java.io.IOException("HTTP ${response.code} for surah $surahNumber")
+                                    response.body?.string() ?: throw java.io.IOException("Empty response for surah $surahNumber")
+                                }
+                                val chapter = JSONObject(responseText)
+                                if (chapter.optInt("id", -1) != surahNumber) {
+                                    throw java.io.IOException("Unexpected surah identifier: $surahNumber")
+                                }
+                                val verses = chapter.optJSONArray("verses")
+                                    ?: throw java.io.IOException("Missing verses for surah $surahNumber")
+                                if (verses.length() == 0) throw java.io.IOException("No verses for surah $surahNumber")
+
+                                for (index in 0 until verses.length()) {
+                                    val verse = verses.optJSONObject(index)
+                                        ?: throw java.io.IOException("Invalid verse object at $surahNumber:${index + 1}")
+                                    if (verse.optInt("id", -1) != index + 1 || verse.optString("text").isBlank()) {
+                                        throw java.io.IOException("Invalid verse sequence at $surahNumber:${index + 1}")
+                                    }
+                                }
+                                Triple(surahNumber, verses, chapter.optString("notice"))
+                            }
+                        }
+                    }.awaitAll().sortedBy { it.first }
+                }
+
                 val downloadedSurahs = JSONArray()
                 var totalAyahs = 0
-                var sourceNotice = ""
-
-                for (surahNumber in 1..114) {
-                    val url = "https://quran-json.risanb.com/text/uthmani/chapters/$surahNumber.json"
-                    val request = okhttp3.Request.Builder().url(url).get().build()
-                    val responseText = client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) throw java.io.IOException("HTTP ${response.code} for surah $surahNumber")
-                        response.body?.string() ?: throw java.io.IOException("Empty response for surah $surahNumber")
-                    }
-                    val chapter = JSONObject(responseText)
-                    if (chapter.optInt("id", -1) != surahNumber) {
-                        throw java.io.IOException("Unexpected surah identifier: $surahNumber")
-                    }
-                    val verses = chapter.optJSONArray("verses")
-                        ?: throw java.io.IOException("Missing verses for surah $surahNumber")
-                    if (verses.length() == 0) throw java.io.IOException("No verses for surah $surahNumber")
-
-                    for (index in 0 until verses.length()) {
-                        val verse = verses.optJSONObject(index)
-                            ?: throw java.io.IOException("Invalid verse object at $surahNumber:${index + 1}")
-                        if (verse.optInt("id", -1) != index + 1 || verse.optString("text").isBlank()) {
-                            throw java.io.IOException("Invalid verse sequence at $surahNumber:${index + 1}")
-                        }
-                    }
-
-                    if (sourceNotice.isBlank()) sourceNotice = chapter.optString("notice")
-                    // نحافظ على كائنات الآيات ونصوصها كما وصلت من المصدر.
-                    downloadedSurahs.put(
-                        JSONObject()
-                            .put("id", surahNumber)
-                            .put("verses", verses)
-                    )
+                val sourceNotice = chapters.firstOrNull()?.third.orEmpty()
+                chapters.forEach { (surahNumber, verses, _) ->
+                    // نحافظ على كائنات الآيات ونصوصها كما وصلت من المصدر دون إعادة صياغة.
+                    downloadedSurahs.put(JSONObject().put("id", surahNumber).put("verses", verses))
                     totalAyahs += verses.length()
                 }
 
