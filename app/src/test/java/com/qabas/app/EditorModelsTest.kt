@@ -409,4 +409,41 @@ class EditorModelsTest {
         assertEquals(7000L, updated.tracks[1].clips.single().startOffsetMs)
         assertNull(updated.selectedClipId)
     }
+
+    @Test
+    fun mediaImportCreatesMissingOverlayTrackAndSelectsTheAsset() {
+        val state = createBlankEditorProjectState().copy(currentTimeMs = 4200L)
+        val updated = addEditorMediaClip(
+            state = state,
+            title = "صورة الغلاف",
+            resourceUri = "content://media/cover",
+            type = TrackType.OVERLAY,
+            durationMs = 5000L
+        )!!
+
+        val overlayTrack = updated.tracks.single { it.type == TrackType.OVERLAY }
+        val clip = overlayTrack.clips.single()
+        assertEquals("صورة الغلاف", clip.title)
+        assertEquals(4200L, clip.startOffsetMs)
+        assertEquals(5000L, clip.durationMs)
+        assertEquals(clip.id, updated.selectedClipId)
+        assertEquals(9200L, updated.totalDurationMs)
+    }
+
+    @Test
+    fun mediaImportUsesAnUnlockedTrackAndRejectsMissingMediaOrDuration() {
+        val state = createBlankEditorProjectState().copy(
+            tracks = listOf(EditorTrack(type = TrackType.VIDEO, name = "Locked", isLocked = true))
+        )
+        val updated = addEditorMediaClip(
+            state, "Video", "content://media/video", TrackType.VIDEO, 8000L
+        )!!
+
+        assertEquals(2, updated.tracks.size)
+        assertTrue(updated.tracks.first().isLocked)
+        assertEquals(1, updated.tracks.last().clips.size)
+        assertNull(addEditorMediaClip(state, "", "content://media/video", TrackType.VIDEO, 8000L))
+        assertNull(addEditorMediaClip(state, "Video", "", TrackType.VIDEO, 8000L))
+        assertNull(addEditorMediaClip(state, "Video", "content://media/video", TrackType.VIDEO, 0L))
+    }
 }
