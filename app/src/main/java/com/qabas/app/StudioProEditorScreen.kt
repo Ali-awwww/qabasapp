@@ -703,25 +703,27 @@ fun StudioProEditorScreen(
                             Icon(Icons.Default.ZoomIn, null, tint = Color.Gray, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 1.2f).coerceAtMost(5f)) })
                         }
                         
-                        Spacer(modifier = Modifier.width(40.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .horizontalScroll(timelineHorizontalScroll)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(timelineContentWidth)
-                                    .fillMaxHeight()
-                                    .pointerInput(projectState.zoomLevel) {
-                                        detectTapGestures { offset ->
-                                            val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
-                                            projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
+                            Row(modifier = Modifier.width(timelineContentWidth + 40.dp).fillMaxHeight()) {
+                                Spacer(modifier = Modifier.width(40.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(timelineContentWidth)
+                                        .fillMaxHeight()
+                                        .pointerInput(projectState.zoomLevel) {
+                                            detectTapGestures { offset ->
+                                                val clickedMs = (offset.x / projectState.zoomLevel * 10f).toLong()
+                                                projectState = projectState.copy(currentTimeMs = clickedMs.coerceIn(0, projectState.totalDurationMs))
+                                            }
                                         }
-                                    }
-                            ) {
-                                TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel, Modifier.fillMaxSize())
+                                ) {
+                                    TimelineRuler(projectState.totalDurationMs, projectState.zoomLevel, Modifier.fillMaxSize())
+                                }
                             }
                         }
                         
