@@ -568,12 +568,12 @@ class EditorModelsTest {
             .tracks.single().clips.single()
         assertEquals(4000L, faster.durationMs)
         assertEquals(2f, faster.speed)
-        assertEquals(10000L, faster.sourceStartMs + faster.durationMs * faster.speed)
+        assertEquals(10000L, faster.sourceStartMs + (faster.durationMs * faster.speed).toLong())
 
         val slower = setEditorClipSpeed(state, clip.id, 0.5f)!!
             .tracks.single().clips.single()
         assertEquals(16000L, slower.durationMs)
-        assertEquals(10000L, slower.sourceStartMs + slower.durationMs * slower.speed)
+        assertEquals(10000L, slower.sourceStartMs + (slower.durationMs * slower.speed).toLong())
 
         val locked = state.copy(
             tracks = listOf(state.tracks.single().copy(isLocked = true))
