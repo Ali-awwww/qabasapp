@@ -23,7 +23,7 @@ object UpdateChannelFacade {
 
     /**
      * صلاحية اللوحة التقنية الداخلية (اسم المستودع، رابط API، بصمة التوقيع).
-     * تتحقق من هوية سحابية موثّقة فقط (المالك أو دور developer/owner في Supabase)،
+     * تتحقق من دور موثوق داخل app_metadata فقط، بما يطابق تفويض RPC على الخادم،
      * ولا تعتمد على العَلَم المحلي is_developer لأنه قابل للتعديل على الجهاز.
      */
     fun isVerifiedDeveloper(): Boolean =
@@ -64,13 +64,22 @@ object UpdateChannelFacade {
 
     /** فقرة «عن التحديثات» في مركز التنزيلات */
     fun aboutText(context: Context, currentVersionName: String): String =
-        "أنت تستخدم النسخة v$currentVersionName. لا يصل للمستخدمين إلا الإصدار الذي يعتمده المطوّر في Supabase. " +
-            "نشر إصدار جديد على GitHub وحده لا يغيّر النسخة التي يتلقاها التطبيق."
+        if (isDeveloper(context)) {
+            "أنت تستخدم النسخة v$currentVersionName. لا يصل للمستخدمين إلا الإصدار الذي تعتمده في Supabase؛ " +
+                "نشر إصدار جديد على GitHub وحده لا يغيّر النسخة الموزعة."
+        } else {
+            "أنت تستخدم النسخة v$currentVersionName. سيصلك التحديث عند اعتماد إصدار جديد من فريق قبس."
+        }
 
     /** سياسة التوزيع التي يطبقها التطبيق */
     fun behaviorText(context: Context): String {
         val interval = UpdateManager.getAutoCheckIntervalHours(context)
-        return "• يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة (الحد الأدنى ساعتان).\n" +
+        val source = if (isDeveloper(context)) {
+            "يتحقق التطبيق من الإصدار المعتمد في Supabase كل $interval ساعة."
+        } else {
+            "يتحقق التطبيق تلقائياً من التحديثات كل $interval ساعة."
+        }
+        return "$source (الحد الأدنى ساعتان).\n" +
             "• التحديث الإجباري يبدأ تنزيله في الخلفية مع إشعار بالتقدم.\n" +
             "• التحديث الاختياري يعرض نافذة، ولا يبدأ تنزيله إلا بعد اختيار المستخدم.\n" +
             "• بعد اكتمال التنزيل، يعرض أندرويد خطوة التثبيت التي تتطلب موافقة المستخدم."
