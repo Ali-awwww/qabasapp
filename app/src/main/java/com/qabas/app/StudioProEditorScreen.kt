@@ -223,6 +223,8 @@ fun StudioProEditorScreen(
         activeAudioClips.map { it.second.volume to it.first.volume },
         activeAudioClips.map { it.second.speed to it.second.sourceStartMs },
         activeAudioClips.map { it.first.isMuted to it.first.isSolo },
+        projectState.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
+            .map { Triple(it.id, it.isMuted, it.isSolo) },
         projectState.isPlaying
     ) {
         val activeIds = activeAudioClips.map { it.second.id }.toSet()
@@ -310,7 +312,14 @@ fun StudioProEditorScreen(
         }
     }
 
-    LaunchedEffect(activeVideoClip?.id, activeVideoClip?.volume, activeVideoTrack?.volume, activeVideoTrack?.isMuted, projectState.tracks.any { it.isSolo }) {
+    LaunchedEffect(
+        activeVideoClip?.id,
+        activeVideoClip?.volume,
+        activeVideoTrack?.volume,
+        activeVideoTrack?.isMuted,
+        projectState.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
+            .map { Triple(it.id, it.isMuted, it.isSolo) }
+    ) {
         val track = activeVideoTrack
         val included = track != null && isEditorTrackIncludedInMix(projectState, track)
         editorPlayer.volume = if (included && activeVideoClip != null) {
