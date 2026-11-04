@@ -64,7 +64,8 @@ object CreatorFollowManager {
         val isFollowing: Boolean,
         val followers: FollowerCount,
         val followingCount: Int,
-        val cloudAvailable: Boolean
+        val cloudAvailable: Boolean,
+        val customId: String? = null
     )
 
     @Serializable
@@ -468,6 +469,9 @@ object CreatorFollowManager {
             )
         }
 
+        val publicCustomId = if (creatorId.isBlank()) null else
+            SupabaseServices.Profiles.getCreatorCustomId(creatorId)
+
         CreatorCommunity(
             creatorId = creatorId,
             displayName = if (isOwn) viewer.displayName else resolvedName,
@@ -476,7 +480,8 @@ object CreatorFollowManager {
             isFollowing = localFollowing && !isOwn,
             followers = followers,
             followingCount = if (isOwn) followedIds(context.applicationContext).size else 0,
-            cloudAvailable = cloudCount != null || remoteFollowing != null
+            cloudAvailable = cloudCount != null || remoteFollowing != null,
+            customId = publicCustomId
         )
     }
 }
