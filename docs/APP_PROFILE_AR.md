@@ -126,7 +126,7 @@
 | الاستوديو | `StudioGatewayScreen`, `StudioProEditorScreen`, `AdvancedEditScreen`, `PhotoStudioScreen`, `ReelsScreen` |
 | الإنتاج | `ProductionPipelineSection`, `ProductionPipelineTracker`, `BuildCenterSection`, `CinematicExportScreen` |
 | الذكاء الاصطناعي | `AIAssistantScreen`, `AiEditorSection`, `AiSmartDirectorScreen`, `AgentRoomSection`, `DirectorChatScreen` |
-| القرآن والمحتوى | `IslamicLibraryScreen`, `AzkarScreen`, `PrayerTimesScreen` |
+| المحتوى الإسلامي | `IslamicLibraryScreen`, `AzkarScreen`, `PrayerTimesScreen`, `HasanatHubScreen` |
 | المعرفة | `KnowledgeHubScreen`, `ScholarBiographiesScreen`, `ScholarDetailScreen`, `SahihReaderView`, `QasasStorytellerScreen` |
 | النشر | `SocialStatsScreen`, `YouTubeStudioScreen`, `SmartPublishScheduleDialog`, `DirectPublisherDialog` |
 | الاشتراك | `StoreScreen`, `PaymentScreen`, `PremiumUpgradeScreen`, `RewardsScreen`, `HasanatHubScreen` |
@@ -239,7 +239,7 @@
 - اختبارات الأجهزة في `app/src/androidTest`.
 - اختبار واجهات Compose باستخدام Compose UI Test.
 - اختبارات لقطات الشاشة عبر Roborazzi حيث تُستخدم.
-- فحص مسار الدخول، إنشاء المشروع، الحفظ التلقائي، المعالجة، التصدير، القراءة القرآنية، وتشغيل الصوت قبل الإصدار.
+- فحص مسار الدخول، إنشاء المشروع، الحفظ التلقائي، المعالجة، التصدير، معاينة الآيات داخل المشكاة، وتشغيل الصوت قبل الإصدار.
 - اختبار حالات انقطاع الشبكة، غياب المفاتيح، انتهاء الحصة، رفض الصلاحيات، وفشل الخدمة.
 - التحقق من RTL، أحجام الخطوط، TalkBack، والتنقل بلوحة المفاتيح/إمكانية الوصول حيث ينطبق.
 
