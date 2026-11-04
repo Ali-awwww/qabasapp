@@ -281,6 +281,7 @@ class EditorModelsTest {
             .tracks.single().clips.single()
         assertEquals(2500L, leadingTrim.startOffsetMs)
         assertEquals(2500L, leadingTrim.durationMs)
+        assertEquals(1500L, leadingTrim.sourceStartMs)
 
         val trailingTrim = trimEditorClipEnd(state, clip.id, 3800L)!!
             .tracks.single().clips.single()
@@ -346,6 +347,8 @@ class EditorModelsTest {
         assertEquals(2000L, parts[0].durationMs)
         assertEquals(4000L, parts[1].startOffsetMs)
         assertEquals(3000L, parts[1].durationMs)
+        assertEquals(2000L, parts[1].sourceStartMs)
+        assertEquals(0L, parts[0].sourceStartMs)
         assertEquals(1, parts[0].keyframes.size)
         assertEquals(2, parts[1].keyframes.size)
         assertEquals(500L, parts[1].keyframes.first { it.property == "scale" }.timeMs)
@@ -412,7 +415,7 @@ class EditorModelsTest {
 
     @Test
     fun mediaImportCreatesMissingOverlayTrackAndSelectsTheAsset() {
-        val state = createBlankEditorProjectState().copy(currentTimeMs = 4200L)
+        val state = createBlankEditorProjectState().copy(currentTimeMs = 4200L, totalDurationMs = 5000L)
         val updated = addEditorMediaClip(
             state = state,
             title = "صورة الغلاف",
