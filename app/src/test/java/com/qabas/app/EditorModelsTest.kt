@@ -53,4 +53,49 @@ class EditorModelsTest {
         assertFalse(restored.tracks.first { it.id == target.id }.isMuted)
         assertFalse(restored.tracks.first { it.id == target.id }.isLocked)
     }
+
+    @Test
+    fun navigationSkipsLockedTracks() {
+        val lockedClip = EditorClip(
+            id = "locked",
+            title = "Locked",
+            resourceUri = "content://locked",
+            startOffsetMs = 1000L,
+            durationMs = 5000L,
+            trackIndex = 0,
+            type = TrackType.VIDEO,
+            color = androidx.compose.ui.graphics.Color.Blue
+        )
+        val availableClip = lockedClip.copy(
+            id = "available",
+            title = "Available",
+            startOffsetMs = 2000L
+        )
+        val state = EditorProjectState(
+            projectId = "navigation-test",
+            title = "Test",
+            tracks = listOf(
+                EditorTrack(type = TrackType.VIDEO, name = "Locked", clips = listOf(lockedClip), isLocked = true),
+                EditorTrack(type = TrackType.VIDEO, name = "Available", clips = listOf(availableClip))
+            )
+        )
+
+        assertEquals("available", findAdjacentEditorClip(state, forward = true)?.id)
+    }
+
+    @Test
+    fun soloIncludesOnlySoloTracksAndMuteAlwaysExcludesTrack() {
+        val first = EditorTrack(type = TrackType.AUDIO, name = "Voice", isSolo = true)
+        val second = EditorTrack(type = TrackType.AUDIO, name = "Music")
+        val third = EditorTrack(type = TrackType.AUDIO, name = "Muted", isSolo = true, isMuted = true)
+        val state = EditorProjectState(
+            projectId = "mixer-test",
+            title = "Mixer",
+            tracks = listOf(first, second, third)
+        )
+
+        assertTrue(isEditorTrackIncludedInMix(state, first))
+        assertFalse(isEditorTrackIncludedInMix(state, second))
+        assertFalse(isEditorTrackIncludedInMix(state, third))
+    }
 }
