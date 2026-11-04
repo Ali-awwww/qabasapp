@@ -28,8 +28,8 @@ object UpdateChannelFacade {
      */
     fun isVerifiedDeveloper(): Boolean =
         runCatching {
-            AdminGuard.isCloudUserOwner() ||
-                SupabaseServices.Auth.verifiedRole.value.lowercase() in setOf("developer", "admin", "owner", "مطور", "مكور")
+            // Match the server-side RPC authorization: only trusted app_metadata roles count.
+            SupabaseServices.Auth.isDeveloperRole(SupabaseServices.Auth.getCurrentUserAppRole())
         }.getOrDefault(false)
 
     // ─────────────────────────────────────────────────────────────
