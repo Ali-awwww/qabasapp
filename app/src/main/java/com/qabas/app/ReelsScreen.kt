@@ -1638,19 +1638,38 @@ fun ReelsScreen(
         ReelHistorySheet(
             onDismiss = { showHistorySheet = false },
             onSelectReel = { targetReelId ->
-                val targetIndex = displayReels.indexOfFirst { it.id == targetReelId }
-                if (targetIndex >= 0) {
-                    scope.launch {
-                        pagerState.scrollToPage(targetIndex)
-                    }
-                } else {
-                    val inAllIndex = allReels.indexOfFirst { it.id == targetReelId }
-                    if (inAllIndex >= 0) {
-                        hiddenReelIds = hiddenReelIds - targetReelId
-                        selectedCategory = "ALL"
-                        searchQuery = ""
-                        scope.launch {
-                            pagerState.scrollToPage(inAllIndex)
+                scope.launch {
+                    selectedTab = 0
+                    isAlAtharMode = false
+                    selectedCategory = "ALL"
+                    isSearchActive = false
+                    searchQuery = ""
+                    hiddenReelIds = hiddenReelIds - targetReelId
+
+                    val reel = allReels.firstOrNull { it.id == targetReelId }
+                        ?: withTimeoutOrNull(10_000L) {
+                            SupabaseServices.Profiles.getReelById(targetReelId)
+                        }
+
+                    if (reel == null || !reel.isActive) {
+                        Toast.makeText(
+                            context,
+                            "هذا المقطع لم يعد متاحاً للتشغيل.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        val updatedReels = if (allReels.any { it.id == reel.id }) {
+                            allReels
+                        } else {
+                            allReels + reel
+                        }
+                        allReels = updatedReels
+
+                        // Allow the pager to receive its new page count before navigating.
+                        delay(120)
+                        val targetIndex = updatedReels.indexOfFirst { it.id == targetReelId }
+                        if (targetIndex >= 0) {
+                            pagerState.scrollToPage(targetIndex)
                         }
                     }
                 }

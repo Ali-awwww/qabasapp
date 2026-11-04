@@ -1844,6 +1844,133 @@ object SupabaseServices {
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
         }.onFailure { Log.e(TAG, "getLikedReelIds failed: ${it.message}") }.getOrNull()
 
+        /**
+         * Returns the signed-in user's activity only. RLS is enforced by Supabase as a
+         * second boundary; this method also verifies that the supplied UID is the live UID.
+         */
+        suspend fun getUserReelActivity(userId: String): ReelActivitySnapshot? = runCatching {
+            val client = client ?: return null
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return null
+            if (authUid != userId) return null
+
+            val historyRows = client.postgrest.from("reel_history").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list(
+                    "reel_id, watched_duration_sec, created_at"
+                )
+            ) {
+                filter { eq("user_id", authUid) }
+                order("created_at", Order.DESCENDING)
+                limit(100)
+            }.decodeList<ReelHistoryActivityRow>()
+
+            val savedRows = client.postgrest.from("reel_bookmarks").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id, created_at")
+            ) {
+                filter { eq("user_id", authUid) }
+                order("created_at", Order.DESCENDING)
+                limit(100)
+            }.decodeList<ReelActivityRelationRow>()
+
+            val likedRows = client.postgrest.from("reel_likes").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id, created_at")
+            ) {
+                filter { eq("user_id", authUid) }
+                order("created_at", Order.DESCENDING)
+                limit(100)
+            }.decodeList<ReelActivityRelationRow>()
+
+            val reelIds = (historyRows.map { it.reelId } +
+                savedRows.map { it.reelId } +
+                likedRows.map { it.reelId })
+                .filter { it.isNotBlank() }
+                .distinct()
+
+            if (reelIds.isEmpty()) {
+                return ReelActivitySnapshot()
+            }
+
+            val reelsById = client.postgrest.from("reels").select {
+                filter { isIn("id", reelIds) }
+                limit(100)
+            }.decodeList<ReelRow>().associateBy { it.id }
+
+            fun toActivityItem(
+                reelId: String,
+                createdAt: String?,
+                watchedDurationSec: Int = 0
+            ): ReelHistoryItem? {
+                val reel = reelsById[reelId] ?: return null
+                val timestamp = createdAt?.let { value ->
+                    runCatching {
+                        java.time.OffsetDateTime.parse(value).toInstant().toEpochMilli()
+                    }.getOrNull()
+                } ?: System.currentTimeMillis()
+                return ReelHistoryItem(
+                    reelId = reel.id,
+                    title = reel.title.ifBlank { "ريلز قبس" },
+                    userName = reel.userName.ifBlank { "صانع محتوى قبس" },
+                    userAvatar = reel.userAvatar,
+                    videoUrl = reel.videoUrl,
+                    timestamp = timestamp,
+                    watchedDurationSec = watchedDurationSec.coerceAtLeast(0),
+                    category = reel.tags.firstOrNull()?.takeIf { it.isNotBlank() } ?: "عام",
+                    thumbnailUrl = reel.thumbnailUrl
+                )
+            }
+
+            ReelActivitySnapshot(
+                watchHistory = historyRows.mapNotNull {
+                    toActivityItem(it.reelId, it.createdAt, it.watchedDurationSec)
+                },
+                savedReels = savedRows.mapNotNull {
+                    toActivityItem(it.reelId, it.createdAt)
+                },
+                likedReels = likedRows.mapNotNull {
+                    toActivityItem(it.reelId, it.createdAt)
+                },
+                totalWatchSeconds = historyRows.sumOf {
+                    it.watchedDurationSec.coerceAtLeast(0).toLong()
+                }
+            )
+        }.onFailure {
+            Log.e(TAG, "getUserReelActivity failed: ${it.message}", it)
+        }.getOrNull()
+
+        suspend fun removeReelWatchHistory(reelId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return false
+            if (authUid != userId || reelId.isBlank()) return false
+            client.postgrest.from("reel_history").delete {
+                filter {
+                    eq("reel_id", reelId)
+                    eq("user_id", authUid)
+                }
+            }
+            true
+        }.onFailure { Log.e(TAG, "removeReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun clearReelWatchHistory(userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return false
+            if (authUid != userId) return false
+            client.postgrest.from("reel_history").delete {
+                filter { eq("user_id", authUid) }
+            }
+            true
+        }.onFailure { Log.e(TAG, "clearReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun getReelById(reelId: String): ReelRow? = runCatching {
+            if (reelId.isBlank()) return null
+            val client = client ?: return null
+            client.postgrest.from("reels").select {
+                filter { eq("id", reelId) }
+                limit(1)
+            }.decodeList<ReelRow>().firstOrNull()
+        }.onFailure { Log.e(TAG, "getReelById failed: ${it.message}") }.getOrNull()
+
         // ==========================================
         // سجل المشاهدات السحابي (reel_history)
         // ==========================================
@@ -2554,6 +2681,19 @@ object SupabaseServices {
     data class ReelBookmarkRow(
         @SerialName("reel_id") val reelId: String,
         @SerialName("user_id") val userId: String
+    )
+
+    @Serializable
+    data class ReelHistoryActivityRow(
+        @SerialName("reel_id") val reelId: String,
+        @SerialName("watched_duration_sec") val watchedDurationSec: Int = 0,
+        @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
+    data class ReelActivityRelationRow(
+        @SerialName("reel_id") val reelId: String,
+        @SerialName("created_at") val createdAt: String? = null
     )
 
     @Serializable

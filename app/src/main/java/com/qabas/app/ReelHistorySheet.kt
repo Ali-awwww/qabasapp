@@ -39,14 +39,60 @@ fun ReelHistorySheet(
     onSelectReel: (reelId: String) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val watchHistory by ReelPreferencesManager.watchHistory.collectAsState()
     val savedReels by ReelPreferencesManager.savedReels.collectAsState()
     val likedReels by ReelPreferencesManager.likedReels.collectAsState()
     val userStats by ReelPreferencesManager.userStats.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: السجل, 1: المحفوظات, 2: المعجبات, 3: الإحصائيات
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var loadFailed by remember { mutableStateOf(false) }
+
+    suspend fun refreshActivity(initialLoad: Boolean = false) {
+        if (initialLoad) isLoading = true else isRefreshing = true
+        loadFailed = false
+
+        val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        val activity = userId?.let { SupabaseServices.Profiles.getUserReelActivity(it) }
+        if (activity != null) {
+            ReelPreferencesManager.replaceActivityFromCloud(context, activity)
+        } else {
+            loadFailed = true
+        }
+
+        isLoading = false
+        isRefreshing = false
+    }
+
+    suspend fun removeActivityItem(tab: Int, item: ReelHistoryItem) {
+        val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        if (userId == null) {
+            Toast.makeText(context, "انتهت جلسة الدخول. سجّل الدخول ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val removed = when (tab) {
+            0 -> SupabaseServices.Profiles.removeReelWatchHistory(item.reelId, userId)
+            1 -> SupabaseServices.Profiles.removeReelBookmark(item.reelId, userId)
+            else -> SupabaseServices.Profiles.unlikeReel(item.reelId, userId)
+        }
+
+        if (removed) {
+            refreshActivity()
+            ReelPreferencesManager.triggerHaptic(context)
+        } else {
+            Toast.makeText(context, "تعذّر تحديث النشاط في السحابة. حاول مرة أخرى.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        ReelPreferencesManager.init(context)
+        refreshActivity(initialLoad = true)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -62,7 +108,6 @@ fun ReelHistorySheet(
                 .fillMaxHeight(0.85f)
                 .padding(horizontal = 16.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,7 +168,6 @@ fun ReelHistorySheet(
                 }
             }
 
-            // Tab bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -176,121 +220,150 @@ fun ReelHistorySheet(
                 }
             }
 
-            // Content per tab
-            when (selectedTab) {
-                0 -> {
-                    // Watch History
-                    if (watchHistory.isEmpty()) {
-                        EmptyStatePlaceholder(
-                            icon = Icons.Default.HistoryToggleOff,
-                            title = "سجل المشاهدات فارغ",
-                            subtitle = "المقاطع التي تشاهدها في قسم الريلز ستظهر هنا تلقائياً لسهولة الرجوع إليها."
-                        )
-                    } else {
-                        LazyColumn(
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    isLoading || isRefreshing -> {
+                        Box(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(bottom = 24.dp)
+                            contentAlignment = Alignment.Center
                         ) {
-                            items(watchHistory, key = { it.reelId + it.timestamp }) { item ->
-                                ReelHistoryCard(
-                                    item = item,
-                                    onPlay = {
-                                        onSelectReel(item.reelId)
-                                        onDismiss()
-                                    },
-                                    onDelete = {
-                                        ReelPreferencesManager.removeFromWatchHistory(context, item.reelId)
-                                        ReelPreferencesManager.triggerHaptic(context)
-                                    }
+                            CircularProgressIndicator(color = GoldPrimary)
+                        }
+                    }
+                    loadFailed -> {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudOff,
+                                contentDescription = null,
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(38.dp)
+                            )
+                            Text(
+                                text = "تعذّر تحميل نشاط حسابك",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "تحقق من الاتصال وجلسة الدخول ثم أعد المحاولة.",
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontFamily = CairoFont,
+                                fontSize = 12.sp
+                            )
+                            Button(
+                                onClick = { coroutineScope.launch { refreshActivity() } },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = GoldPrimary,
+                                    contentColor = DeepSlate
                                 )
+                            ) {
+                                Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                }
-                1 -> {
-                    // Saved / Bookmarks
-                    if (savedReels.isEmpty()) {
-                        EmptyStatePlaceholder(
-                            icon = Icons.Default.BookmarkBorder,
-                            title = "لا توجد مقاطع محفوظة بعد",
-                            subtitle = "اضغط على أيقونة الحفظ (🔖) في أي ريل لتثبيته في قائمة المحفوظات الخاصة بك."
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(bottom = 24.dp)
-                        ) {
-                            items(savedReels, key = { it.reelId }) { item ->
-                                ReelHistoryCard(
-                                    item = item,
-                                    showDeleteAsUnsave = true,
-                                    onPlay = {
-                                        onSelectReel(item.reelId)
-                                        onDismiss()
-                                    },
-                                    onDelete = {
-                                        ReelPreferencesManager.toggleSave(
-                                            context = context,
-                                            reelId = item.reelId,
-                                            title = item.title,
-                                            userName = item.userName,
-                                            userAvatar = item.userAvatar,
-                                            videoUrl = item.videoUrl
-                                        )
+                    else -> {
+                        when (selectedTab) {
+                            0 -> {
+                                if (watchHistory.isEmpty()) {
+                                    EmptyStatePlaceholder(
+                                        icon = Icons.Default.HistoryToggleOff,
+                                        title = "سجل المشاهدات فارغ",
+                                        subtitle = "المقاطع التي تشاهدها في قسم الريلز ستظهر هنا تلقائياً لسهولة الرجوع إليها."
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(bottom = 24.dp)
+                                    ) {
+                                        items(watchHistory, key = { it.reelId }) { item ->
+                                            ReelHistoryCard(
+                                                item = item,
+                                                onPlay = {
+                                                    onSelectReel(item.reelId)
+                                                    onDismiss()
+                                                },
+                                                onDelete = {
+                                                    coroutineScope.launch { removeActivityItem(0, item) }
+                                                }
+                                            )
+                                        }
                                     }
-                                )
+                                }
                             }
+                            1 -> {
+                                if (savedReels.isEmpty()) {
+                                    EmptyStatePlaceholder(
+                                        icon = Icons.Default.BookmarkBorder,
+                                        title = "لا توجد مقاطع محفوظة بعد",
+                                        subtitle = "اضغط على أيقونة الحفظ في أي ريل لإضافته إلى قائمة المحفوظات الخاصة بك."
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(bottom = 24.dp)
+                                    ) {
+                                        items(savedReels, key = { it.reelId }) { item ->
+                                            ReelHistoryCard(
+                                                item = item,
+                                                showDeleteAsUnsave = true,
+                                                onPlay = {
+                                                    onSelectReel(item.reelId)
+                                                    onDismiss()
+                                                },
+                                                onDelete = {
+                                                    coroutineScope.launch { removeActivityItem(1, item) }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            2 -> {
+                                if (likedReels.isEmpty()) {
+                                    EmptyStatePlaceholder(
+                                        icon = Icons.Default.FavoriteBorder,
+                                        title = "لا توجد مقاطع معجب بها بعد",
+                                        subtitle = "اضغط على القلب لإضافة المقاطع إلى قائمة إعجاباتك."
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(bottom = 24.dp)
+                                    ) {
+                                        items(likedReels, key = { it.reelId }) { item ->
+                                            ReelHistoryCard(
+                                                item = item,
+                                                showDeleteAsUnlike = true,
+                                                onPlay = {
+                                                    onSelectReel(item.reelId)
+                                                    onDismiss()
+                                                },
+                                                onDelete = {
+                                                    coroutineScope.launch { removeActivityItem(2, item) }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            3 -> ReelStatsView(stats = userStats)
                         }
                     }
-                }
-                2 -> {
-                    // Liked Reels
-                    if (likedReels.isEmpty()) {
-                        EmptyStatePlaceholder(
-                            icon = Icons.Default.FavoriteBorder,
-                            title = "لا توجد مقاطع معجب بها بعد",
-                            subtitle = "انقر نقراً مزدوجاً أو اضغط على القلب (❤️) لإضافة المقاطع إلى مفضلتك."
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(bottom = 24.dp)
-                        ) {
-                            items(likedReels, key = { it.reelId }) { item ->
-                                ReelHistoryCard(
-                                    item = item,
-                                    showDeleteAsUnlike = true,
-                                    onPlay = {
-                                        onSelectReel(item.reelId)
-                                        onDismiss()
-                                    },
-                                    onDelete = {
-                                        ReelPreferencesManager.toggleLiked(
-                                            context = context,
-                                            reelId = item.reelId,
-                                            title = item.title,
-                                            userName = item.userName,
-                                            userAvatar = item.userAvatar,
-                                            videoUrl = item.videoUrl
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                3 -> {
-                    // Analytics & Stats
-                    ReelStatsView(stats = userStats)
                 }
             }
         }
     }
 
-    // Confirm Clear Dialog
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
@@ -305,7 +378,7 @@ fun ReelHistorySheet(
             },
             text = {
                 Text(
-                    text = "سيتم مسح جميع مقاطع الريلز المسجلة في السجل. هذا الإجراء لا يمكن التراجع عنه.",
+                    text = "سيتم حذف سجل المشاهدات من حسابك السحابي، مع الإبقاء على الإعجابات والمحفوظات.",
                     fontFamily = CairoFont,
                     fontSize = 13.sp,
                     color = Color.White.copy(alpha = 0.8f)
@@ -314,9 +387,20 @@ fun ReelHistorySheet(
             confirmButton = {
                 Button(
                     onClick = {
-                        ReelPreferencesManager.clearWatchHistory(context)
                         showClearConfirmDialog = false
-                        Toast.makeText(context, "تم مسح سجل المشاهدات بالكامل", Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch {
+                            val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                            val cleared = userId?.let {
+                                SupabaseServices.Profiles.clearReelWatchHistory(it)
+                            } ?: false
+                            if (cleared) {
+                                ReelPreferencesManager.clearWatchHistory(context)
+                                refreshActivity()
+                                Toast.makeText(context, "تم مسح سجل المشاهدات", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "تعذّر مسح السجل من السحابة. حاول مرة أخرى.", Toast.LENGTH_LONG).show()
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
                 ) {
@@ -371,12 +455,21 @@ fun ReelHistoryCard(
                     .background(Color(0xFF1E293B)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayCircleFilled,
-                    contentDescription = null,
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(28.dp)
-                )
+                if (!item.thumbnailUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleFilled,
+                        contentDescription = null,
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -519,7 +612,7 @@ fun ReelStatsView(stats: ReelUserStats) {
             }
         }
 
-        // 2x2 Stats Grid
+        // Watched and time spent
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -558,6 +651,20 @@ fun ReelStatsView(stats: ReelUserStats) {
                 icon = Icons.Default.Bookmark,
                 color = GoldPrimary
             )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReelStatCard(
+                modifier = Modifier.weight(1f),
+                title = "المشاركات على هذا الجهاز",
+                value = "${stats.totalShares}",
+                icon = Icons.Default.Share,
+                color = Color(0xFF38BDF8)
+            )
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

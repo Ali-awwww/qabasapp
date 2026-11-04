@@ -29,7 +29,8 @@ data class ReelHistoryItem(
     val videoUrl: String,
     val timestamp: Long = System.currentTimeMillis(),
     val watchedDurationSec: Int = 0,
-    val category: String = "عام"
+    val category: String = "عام",
+    val thumbnailUrl: String? = null
 )
 
 /**
@@ -42,6 +43,14 @@ data class ReelUserStats(
     val totalLikes: Int = 0,
     val totalSaved: Int = 0,
     val totalShares: Int = 0
+)
+
+@Immutable
+data class ReelActivitySnapshot(
+    val watchHistory: List<ReelHistoryItem> = emptyList(),
+    val savedReels: List<ReelHistoryItem> = emptyList(),
+    val likedReels: List<ReelHistoryItem> = emptyList(),
+    val totalWatchSeconds: Long = 0L
 )
 
 /**
@@ -276,17 +285,58 @@ object ReelPreferencesManager {
 
     fun removeFromWatchHistory(context: Context, reelId: String) {
         init(context)
+        val removedSeconds = _watchHistory.value
+            .filter { it.reelId == reelId }
+            .sumOf { it.watchedDurationSec.coerceAtLeast(0).toLong() }
         val currentList = _watchHistory.value.filterNot { it.reelId == reelId }
         _watchHistory.value = currentList
+        val stats = _userStats.value.copy(
+            totalWatched = currentList.size,
+            totalWatchSeconds = (_userStats.value.totalWatchSeconds - removedSeconds).coerceAtLeast(0L)
+        )
+        _userStats.value = stats
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_WATCH_HISTORY, serializeItemsJson(currentList)).apply()
+        saveStats(context, stats)
     }
 
     fun clearWatchHistory(context: Context) {
         init(context)
         _watchHistory.value = emptyList()
+        val stats = _userStats.value.copy(totalWatched = 0, totalWatchSeconds = 0L)
+        _userStats.value = stats
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_WATCH_HISTORY, "[]").apply()
+        saveStats(context, stats)
+    }
+
+    /** Replace the cached activity with the rows returned by Supabase for the signed-in UID. */
+    fun replaceActivityFromCloud(context: Context, snapshot: ReelActivitySnapshot) {
+        init(context)
+        val history = snapshot.watchHistory.take(ReelSafetyGuardrails.MAX_WATCH_HISTORY_COUNT)
+        val saved = snapshot.savedReels.take(ReelSafetyGuardrails.MAX_SAVED_REELS_COUNT)
+        val liked = snapshot.likedReels.take(ReelSafetyGuardrails.MAX_LIKED_REELS_COUNT)
+
+        _watchHistory.value = history
+        _savedReels.value = saved
+        _likedReels.value = liked
+
+        val stats = ReelUserStats(
+            totalWatched = history.size,
+            totalWatchSeconds = snapshot.totalWatchSeconds.coerceAtLeast(0L),
+            totalLikes = liked.size,
+            totalSaved = saved.size,
+            // Share events are currently device-local; keep that count separate from cloud totals.
+            totalShares = _userStats.value.totalShares
+        )
+        _userStats.value = stats
+
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_WATCH_HISTORY, serializeItemsJson(history))
+            .putString(KEY_SAVED_REELS, serializeItemsJson(saved))
+            .putString(KEY_LIKED_REELS, serializeItemsJson(liked))
+            .apply()
+        saveStats(context, stats)
     }
 
     // --- Saved / Bookmarks Operations ---
@@ -472,6 +522,7 @@ object ReelPreferencesManager {
                 put("user_name", item.userName)
                 put("user_avatar", item.userAvatar ?: "")
                 put("video_url", item.videoUrl)
+                put("thumbnail_url", item.thumbnailUrl ?: "")
                 put("timestamp", item.timestamp)
                 put("duration", item.watchedDurationSec)
                 put("category", item.category)
@@ -495,6 +546,7 @@ object ReelPreferencesManager {
                         userAvatar = obj.optString("user_avatar", "").ifBlank { null },
                         videoUrl = obj.optString("video_url", ""),
                         timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                        thumbnailUrl = obj.optString("thumbnail_url", "").ifBlank { null },
                         watchedDurationSec = obj.optInt("duration", 0),
                         category = obj.optString("category", "عام")
                     )
