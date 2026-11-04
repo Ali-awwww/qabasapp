@@ -56,8 +56,8 @@ object QuranDataProvider {
     private var tafsirMap: Map<String, String>? = null
 
     /**
-     * تحميل آمن من assets للتفسير الميسر (مجمع الملك فهد) المدمج محلياً
-     * من ملف "quran/tafsir_muyassar.json". يُعاد التحميل مرة واحدة فقط.
+     * يحاول تحميل نسخة تفسير محلية إن وُجدت وكانت صالحة؛ النسخة الحالية
+     * تعتمد على جلب QuranEnc عند الطلب ولا تفترض وجود ملف مدمج.
      */
     fun loadTafsirFromAssets(context: Context): Boolean {
         if (tafsirMap != null && tafsirMap!!.isNotEmpty()) {
