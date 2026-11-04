@@ -208,6 +208,12 @@ fun StudioProEditorScreen(
         }
     }
 
+    LaunchedEffect(activeVideoClip?.speed) {
+        activeVideoClip?.let { clip ->
+            editorPlayer.setPlaybackSpeed(clip.speed.coerceIn(0.1f, 5f))
+        }
+    }
+
     LaunchedEffect(projectState.currentTimeMs, activeVideoClip?.id, projectState.isPlaying) {
         if (!projectState.isPlaying && activeVideoClip != null) {
             val relativePosition = activeVideoClip.sourceStartMs +
