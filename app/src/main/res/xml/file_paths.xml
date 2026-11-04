@@ -5,4 +5,5 @@
     <files-path name="reels" path="published_reels/" />
     <files-path name="silent_reels" path="silent_reels/" />
     <cache-path name="updates" path="updates/" />
+    <external-files-path name="editor_exports" path="Movies/QabasExports/" />
 </paths>
