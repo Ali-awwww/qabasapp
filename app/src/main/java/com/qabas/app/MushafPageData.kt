@@ -69,6 +69,15 @@ object MushafPageData {
                         juzFirst.add(pair.optInt(0, 1) to pair.optInt(1, 1))
                     }
                 }
+                val hizbArray = root.optJSONArray("hizbFirstVerse")
+                val hizbFirst = ArrayList<Pair<Int, Int>>(HIZB_COUNT)
+                if (hizbArray != null) {
+                    for (j in 0 until hizbArray.length()) {
+                        val pair = hizbArray.optJSONArray(j) ?: continue
+                        hizbFirst.add(pair.optInt(0, 0) to pair.optInt(1, 0))
+                    }
+                }
+
                 val allRefs = pages.flatten()
                 val refsAreValid =
                     pages.size == PAGE_COUNT &&
@@ -79,20 +88,22 @@ object MushafPageData {
                     allRefs.lastOrNull() == (114 to 6) &&
                     allRefs.zipWithNext().all { (previous, next) ->
                         refOrder(previous) < refOrder(next)
+                    } &&
+                    juzFirst.size == JUZ_COUNT &&
+                    juzFirst.all { it in allRefs } &&
+                    juzFirst.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
+                    } &&
+                    hizbFirst.size == HIZB_COUNT &&
+                    hizbFirst.all { it in allRefs } &&
+                    hizbFirst.zipWithNext().all { (previous, next) ->
+                        refOrder(previous) < refOrder(next)
                     }
 
                 if (refsAreValid) {
                     pageRefs = pages
                     juzFirstRefs = juzFirst
-                    val hizbArray = root.optJSONArray("hizbFirstVerse")
-                    if (hizbArray != null) {
-                        val hizbFirst = ArrayList<Pair<Int, Int>>(HIZB_COUNT)
-                        for (j in 0 until hizbArray.length()) {
-                            val pair = hizbArray.optJSONArray(j) ?: continue
-                            hizbFirst.add(pair.optInt(0, 1) to pair.optInt(1, 1))
-                        }
-                        hizbFirstRefs = hizbFirst
-                    }
+                    hizbFirstRefs = hizbFirst
                     Log.i(TAG, "Loaded $PAGE_COUNT madani pages from $path")
                     return true
                 }
