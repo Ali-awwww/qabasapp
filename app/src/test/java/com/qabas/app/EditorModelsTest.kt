@@ -16,4 +16,12 @@ class EditorModelsTest {
         assertTrue(state.tracks.isNotEmpty())
         assertTrue(state.tracks.all { it.clips.isEmpty() })
     }
+
+    @Test
+    fun blankEditorProjectHasNoAdjacentClipsToNavigateTo() {
+        val state = createBlankEditorProjectState()
+
+        assertEquals(null, findAdjacentEditorClip(state, forward = false))
+        assertEquals(null, findAdjacentEditorClip(state, forward = true))
+    }
 }
