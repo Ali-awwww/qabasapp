@@ -87,6 +87,7 @@ fun SettingsScreen(
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val allBugReports by BugReportRepository.reports.collectAsState()
@@ -512,7 +513,9 @@ fun SettingsScreen(
     AnimatedContent(
         targetState = currentSubScreen,
         transitionSpec = {
-            if (targetState != SettingsSubScreen.MAIN) {
+            if (reducedMotion) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else if (targetState != SettingsSubScreen.MAIN) {
                 slideInHorizontally { width -> -width } + fadeIn() togetherWith slideOutHorizontally { width -> width } + fadeOut()
             } else {
                 slideInHorizontally { width -> width } + fadeIn() togetherWith slideOutHorizontally { width -> -width } + fadeOut()
