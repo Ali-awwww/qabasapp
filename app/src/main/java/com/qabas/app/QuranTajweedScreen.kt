@@ -152,7 +152,6 @@ fun QuranTajweedScreen(
         }
     }
 
-    var quranDataReady by remember { mutableStateOf(false) }
     var quranDataVersion by remember { mutableIntStateOf(QuranDataProvider.getTotalAyahCount()) }
 
     LaunchedEffect(Unit) {
@@ -164,15 +163,8 @@ fun QuranTajweedScreen(
             loaded
         }
         quranDataVersion = QuranDataProvider.getTotalAyahCount()
-        quranDataReady = ready && quranDataVersion == 6236
-        if (!quranDataReady) {
+        if (!ready || quranDataVersion != 6236) {
             Toast.makeText(context, "تعذر تحميل النص القرآني الكامل. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    LaunchedEffect(selectedReciter) {
-        QuranAudioService.getReciterIdForArabicName(selectedReciter)?.let { reciterId ->
-            UserPreferencesManager.setQuranReciter(context, reciterId)
         }
     }
 
@@ -194,6 +186,12 @@ fun QuranTajweedScreen(
     var isPlayingAudio by remember { mutableStateOf(false) }
     var selectedReciter by remember { mutableStateOf(qabasPrefs.getString("selected_reciter", "الشيخ محمود خليل الحصري") ?: "الشيخ محمود خليل الحصري") }
     var selectedRiwaya by remember { mutableStateOf(qabasPrefs.getString("selected_riwaya", "حفص عن عاصم") ?: "حفص عن عاصم") } // رواية التلاوة
+
+    LaunchedEffect(selectedReciter) {
+        QuranAudioService.getReciterIdForArabicName(selectedReciter)?.let { reciterId ->
+            UserPreferencesManager.setQuranReciter(context, reciterId)
+        }
+    }
     var academySubTab by remember { mutableIntStateOf(0) } // داخل الأكاديمية: 0 المراحل, 1 اختبار الصوت, 2 الموسوعة
     var showTafseerDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showTadabburDialog by remember { mutableStateOf<QuranVerseDetail?>(null) }
