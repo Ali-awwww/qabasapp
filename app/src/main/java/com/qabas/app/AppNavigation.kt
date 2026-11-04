@@ -202,7 +202,7 @@ fun AppNavigation(
                 onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
                 onKnowledgeHub = { viewModel.updateState { copy(appState = AppState.KNOWLEDGE_HUB) } },
                 onContentGuard = { viewModel.updateState { copy(appState = AppState.CONTENT_GUARD) } },
-                onQuranHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
+                onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
                 onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
                 onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
@@ -284,22 +284,8 @@ fun AppNavigation(
             )
         }
         AppState.QURAN_HUB -> {
-            QuranTajweedScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onCreateVideoFromVerse = { verseText, surahName, verseNumber ->
-                    viewModel.updateState {
-                        copy(
-                            selectedVerseText = verseText,
-                            selectedSurahName = surahName,
-                            selectedVerseNumber = verseNumber,
-                            appState = AppState.HADITH_STUDIO,
-                            selectedRatio = "9:16"
-                        )
-                    }
-                },
-                onNavigateToAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
-                bottomBar = bottomNav
-            )
+            // Legacy state compatibility: the standalone Quran section has been removed.
+            viewModel.updateState { copy(appState = AppState.HASANAT_HUB) }
         }
         AppState.HASANAT_HUB -> {
             HasanatHubScreen(
@@ -1187,7 +1173,7 @@ fun AppNavigation(
                 onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
                 onKnowledgeHub = { viewModel.updateState { copy(appState = AppState.KNOWLEDGE_HUB) } },
                 onContentGuard = { viewModel.updateState { copy(appState = AppState.CONTENT_GUARD) } },
-                onQuranHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
+                onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
                 onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
                 onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
