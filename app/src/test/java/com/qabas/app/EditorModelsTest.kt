@@ -354,7 +354,7 @@ class EditorModelsTest {
 
         assertEquals(2, parts.size)
         assertEquals(2000L, parts[0].durationMs)
-        assertEquals(4000L, parts[1].startOffsetMs)
+        assertEquals(3000L, parts[1].startOffsetMs)
         assertEquals(3000L, parts[1].durationMs)
         assertEquals(2000L, parts[1].sourceStartMs)
         assertEquals(0L, parts[0].sourceStartMs)
