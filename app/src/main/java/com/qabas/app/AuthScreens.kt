@@ -675,22 +675,24 @@ fun ForgotPasswordScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val isRecoveryVerified by PasswordRecoveryManager.isRecoveryVerified.collectAsState()
     var email by remember { mutableStateOf("") }
     var isSubmitted by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isResetComplete by remember { mutableStateOf(false) }
 
     val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DeepSlate)
     ) {
-        // Background HUD
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
+            val w = size.width
+            val h = size.height
             val step = 60.dp.toPx()
             for (i in 0..(w / step).toInt()) {
                 drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
@@ -712,194 +714,202 @@ fun ForgotPasswordScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                IconButton(onClick = onNavigateToLogin) {
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            if (isRecoveryVerified) {
+                                runCatching { SupabaseConfig.client.auth.signOut() }
+                                PasswordRecoveryManager.clear(context)
+                            }
+                            onNavigateToLogin()
+                        }
+                    }
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = primaryColor)
                 }
             }
 
-            if (isSubmitted) {
-                var verificationCode by remember { mutableStateOf("") }
-                var newPassword by remember { mutableStateOf("") }
-                var isResetComplete by remember { mutableStateOf(false) }
+            if (isResetComplete) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = primaryColor,
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "تم تغيير كلمة المرور بنجاح!",
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "يمكنك الآن تسجيل الدخول باستخدام كلمة المرور الجديدة.",
+                    color = TextSecondary.copy(alpha = 0.8f),
+                    fontFamily = CairoFont,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = onNavigateToLogin,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                    shape = CutCornerShape(12.dp)
+                ) {
+                    Text("العودة لتسجيل الدخول", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                }
+            } else if (isRecoveryVerified) {
+                Text(
+                    text = "تعيين كلمة مرور جديدة",
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 24.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "تم التحقق من رابط Supabase بنجاح. أدخل كلمة مرور جديدة ثم أكدها.",
+                    color = TextSecondary.copy(alpha = 0.85f),
+                    fontFamily = CairoFont,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
 
-                if (isResetComplete) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = primaryColor,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "تم تغيير كلمة المرور بنجاح!",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة بسهولة.",
-                        color = TextSecondary.copy(alpha = 0.8f),
-                        fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Button(
-                        onClick = onNavigateToLogin,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                        shape = CutCornerShape(12.dp)
+                GlassmorphicSurface(
+                    modifier = Modifier.fillMaxWidth().border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.05f),
+                        CutCornerShape(16.dp)
+                    ),
+                    shape = CutCornerShape(16.dp),
+                    backgroundColor = CardSurface.copy(alpha = 0.7f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("العودة لتسجيل الدخول", fontFamily = CairoFont, fontWeight = FontWeight.Black)
-                    }
-                } else {
-                    Text(
-                        text = "تم إرسال بروتوكول الاستعادة",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 24.sp
-                    )
-                    Text(
-                        text = "تمت المعالجة لبريدك ($email)",
-                        color = TextSecondary.copy(alpha = 0.8f),
-                        fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = newPassword,
+                            onValueChange = { newPassword = it },
+                            label = { Text("كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                            ),
+                            shape = CutCornerShape(8.dp),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = confirmPassword,
+                            onValueChange = { confirmPassword = it },
+                            label = { Text("تأكيد كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                            ),
+                            shape = CutCornerShape(8.dp),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                val password = newPassword
+                                if (password.length < 6) {
+                                    Toast.makeText(
+                                        context,
+                                        "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@Button
+                                }
+                                if (password != confirmPassword) {
+                                    Toast.makeText(
+                                        context,
+                                        "كلمتا المرور غير متطابقتين",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@Button
+                                }
 
-                    // Explanation card for Supabase Link vs Code
-                    Surface(
-                        color = primaryColor.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f)),
-                        shape = CutCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "💡 تنبيه بخصوص رسالة البريد:",
-                                color = primaryColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "رسالة Supabase تحتوي على رابط (Reset password) وليس كوداً رقمياً. إذا لم يفتح الرابط، قم بإدخال كلمة المرور الجديدة أدناه واضغط 'تحديث كلمة المرور مباشرة'.",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    GlassmorphicSurface(
-                        modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = 0.05f), CutCornerShape(16.dp)),
-                        shape = CutCornerShape(16.dp),
-                        backgroundColor = CardSurface.copy(alpha = 0.7f)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            OutlinedTextField(
-                                value = verificationCode,
-                                onValueChange = { verificationCode = it },
-                                label = { Text("رمز/توكن الاستعادة (اختياري)", fontFamily = CairoFont, fontSize = 12.sp) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
-                                shape = CutCornerShape(8.dp),
-                                singleLine = true
-                            )
-
-                            OutlinedTextField(
-                                value = newPassword,
-                                onValueChange = { newPassword = it },
-                                label = { Text("كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
-                                shape = CutCornerShape(8.dp),
-                                singleLine = true
-                            )
-
-                            Button(
-                                onClick = {
-                                    val trimmedPass = newPassword.trim()
-                                    if (trimmedPass.length < 6) {
-                                        Toast.makeText(context, "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل", Toast.LENGTH_SHORT).show()
-                                        return@Button
+                                isLoading = true
+                                coroutineScope.launch {
+                                    val updated = SupabaseServices.Auth.updateRecoveredPassword(password)
+                                    isLoading = false
+                                    if (updated) {
+                                        runCatching { SupabaseConfig.client.auth.signOut() }
+                                        PasswordRecoveryManager.clear(context)
+                                        newPassword = ""
+                                        confirmPassword = ""
+                                        isResetComplete = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "تعذّر تحديث كلمة المرور. قد تكون الجلسة انتهت؛ أرسل رابط استعادة جديداً.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
-                                    isLoading = true
-                                    coroutineScope.launch {
-                                        val trimmedEmail = email.trim().lowercase(java.util.Locale.ROOT)
-                                        val trimmedCode = verificationCode.trim()
-                                        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-
-                                        var updateSuccess = false
-                                        var errorMessage: String? = null
-
-                                        if (SupabaseServices.isSupabaseAvailable) {
-                                            try {
-                                                val client = SupabaseConfig.client
-                                                if (trimmedCode.isNotBlank()) {
-                                                    client.auth.verifyEmailOtp(
-                                                        type = io.github.jan.supabase.auth.OtpType.Email.RECOVERY,
-                                                        email = trimmedEmail,
-                                                        token = trimmedCode
-                                                    )
-                                                }
-                                                client.auth.updateUser {
-                                                    password = trimmedPass
-                                                }
-                                                updateSuccess = true
-                                            } catch (e: Exception) {
-                                                Log.e("ForgotPassword", "Password reset failed", e)
-                                                errorMessage = e.localizedMessage ?: "فشل التحقق من رمز الاستعادة أو تحديث كلمة المرور في الخادم"
-                                            }
-                                        } else {
-                                            // Fixing Vulnerability: Remove fake success for local accounts
-                                            errorMessage = "خدمة استعادة كلمة المرور تتطلب اتصالاً بخادم قبس السحابي. يرجى التحقق من الاتصال."
-                                        }
-
-                                        isLoading = false
-
-                                        if (updateSuccess) {
-                                            prefs.edit().apply {
-                                                putString("saved_login_email", trimmedEmail)
-                                                remove("saved_login_password")
-                                                apply()
-                                            }
-                                            Toast.makeText(context, "تم تعيين كلمة المرور الجديدة بنجاح! ✓", Toast.LENGTH_SHORT).show()
-                                            isResetComplete = true
-                                        } else {
-                                            Toast.makeText(context, errorMessage ?: "فشل تعيين كلمة المرور ⚠️", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                                shape = CutCornerShape(12.dp)
-                            ) {
-                                if (isLoading) CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
-                                else Text("تحديث كلمة المرور مباشرة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                                }
+                            },
+                            enabled = !isLoading,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = primaryColor,
+                                contentColor = DeepSlate
+                            ),
+                            shape = CutCornerShape(12.dp)
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
+                            } else {
+                                Text("حفظ كلمة المرور الجديدة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
                             }
                         }
                     }
                 }
+            } else if (isSubmitted) {
+                Text(
+                    text = "تم إرسال رابط الاستعادة",
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 24.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق قبس، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
+                    color = TextSecondary.copy(alpha = 0.9f),
+                    fontFamily = CairoFont,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { isSubmitted = false },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
+                    shape = CutCornerShape(12.dp)
+                ) {
+                    Text("إرسال رابط آخر", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                }
             } else {
                 Text(
-                    text = "استعادة مفتاح العبور",
+                    text = "استعادة كلمة المرور",
                     color = Color.White,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Black,
                     fontSize = 26.sp
                 )
                 Text(
-                    text = "أدخل بريدك الإلكتروني لإرسال بروتوكول الاستعادة",
+                    text = "أدخل بريدك الإلكتروني لإرسال رابط آمن لإعادة التعيين",
                     color = TextSecondary.copy(alpha = 0.7f),
                     fontFamily = CairoFont,
                     fontSize = 13.sp,
@@ -912,10 +922,14 @@ fun ForgotPasswordScreen(
                     onValueChange = { email = it },
                     label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = primaryColor, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
-                    shape = CutCornerShape(8.dp)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = primaryColor,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                    ),
+                    shape = CutCornerShape(8.dp),
+                    singleLine = true
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
@@ -926,25 +940,31 @@ fun ForgotPasswordScreen(
                         }
                         isLoading = true
                         coroutineScope.launch {
-                            var success = false
-                            if (SupabaseServices.isSupabaseAvailable) {
-                                success = SupabaseServices.Auth.resetPassword(email.trim())
-                            }
-                            if (!success && !SupabaseServices.isSupabaseAvailable) success = true
-                            if (success) isSubmitted = true
-                            else Toast.makeText(context, "فشل الإرسال. تأكد من صحة البريد", Toast.LENGTH_LONG).show()
+                            val success = SupabaseServices.Auth.resetPassword(email.trim())
                             isLoading = false
+                            if (success) {
+                                isSubmitted = true
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "فشل إرسال رابط الاستعادة. تحقق من الاتصال ثم حاول مجدداً.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     },
+                    enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
                     shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
                 ) {
-                    if (isLoading) CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
-                    else Text("إرسال مفتاح الاستعادة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                    if (isLoading) {
+                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("إرسال رابط الاستعادة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                    }
                 }
             }
         }
     }
 }
-
