@@ -1180,11 +1180,13 @@ private fun MushafAyahActionSheet(
     val surahName = remember(surahId) { QuranDataProvider.surahNameOf(surahId) }
     val verseText = remember(surahId, ayah) { QuranDataProvider.getVerseText(surahId, ayah) ?: "" }
     var tafsirText by remember { mutableStateOf<String?>(QuranDataProvider.getTafsirForVerse(surahId, ayah)) }
+    var tafsirLoadFailed by remember { mutableStateOf(false) }
     var isPlayingSingleAyah by remember { mutableStateOf(false) }
 
     LaunchedEffect(surahId, ayah) {
-        if (tafsirText == null) {
+        if (tafsirText.isNullOrBlank()) {
             tafsirText = QuranDataProvider.fetchRemoteTafsir(surahId, ayah)
+            tafsirLoadFailed = tafsirText.isNullOrBlank()
         }
     }
 
@@ -1326,7 +1328,11 @@ private fun MushafAyahActionSheet(
             ) {
                 Box(Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
                     Text(
-                        text = tafsirText ?: "جاري جلب التفسير الميسر…",
+                        text = when {
+                            !tafsirText.isNullOrBlank() -> tafsirText.orEmpty()
+                            tafsirLoadFailed -> "تعذر جلب التفسير الميسر. تحقق من الاتصال ثم أعد فتح الآية."
+                            else -> "جاري جلب التفسير الميسر…"
+                        },
                         color = Color.White.copy(alpha = 0.9f),
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
@@ -1334,6 +1340,14 @@ private fun MushafAyahActionSheet(
                         textAlign = TextAlign.Right
                     )
                 }
+            }
+            if (!tafsirText.isNullOrBlank()) {
+                Text(
+                    "المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف، عبر QuranEnc.com",
+                    color = GoldSecondary.copy(alpha = 0.85f),
+                    fontFamily = CairoFont,
+                    fontSize = 10.sp
+                )
             }
 
             Spacer(Modifier.height(20.dp))
