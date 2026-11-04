@@ -59,8 +59,7 @@ fun UpdateManagementSection() {
 
     val selectedRelease = releases.firstOrNull { it.tagName == selectedTag }
     val latestPublishedCode = history.maxOfOrNull { it.versionCode } ?: 0
-    val minimumEligibleCode = maxOf(latestPublishedCode, UpdateManager.getCurrentVersionCode(context))
-    val eligibleReleases = releases.filter { it.versionCode > minimumEligibleCode }
+    val eligibleReleases = releases.filter { it.versionCode > latestPublishedCode }
 
     suspend fun refresh() {
         isLoading = true
@@ -75,10 +74,7 @@ fun UpdateManagementSection() {
             audit = fetchedAudit
             activeUpdate = current
             val nextSelection = fetchedReleases.firstOrNull {
-                it.versionCode > maxOf(
-                    fetchedHistory.maxOfOrNull { row -> row.versionCode } ?: 0,
-                    UpdateManager.getCurrentVersionCode(context)
-                )
+                it.versionCode > (fetchedHistory.maxOfOrNull { row -> row.versionCode } ?: 0)
             }
             selectedTag = nextSelection?.tagName
             releaseNotes = nextSelection?.releaseNotes.orEmpty()
@@ -209,7 +205,7 @@ fun UpdateManagementSection() {
             item {
                 Text(
                     if (releases.isEmpty()) "لم يتم العثور على إصدارات منشورة تحتوي على APK صالح."
-                    else "لا توجد إصدارات أحدث من البناء المثبت وآخر بناء منشور في Supabase.",
+                    else "لا توجد إصدارات أحدث من آخر بناء منشور في Supabase.",
                     color = Color.LightGray,
                     fontSize = 12.sp
                 )
