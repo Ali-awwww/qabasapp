@@ -29,7 +29,7 @@ object UpdateChannelFacade {
     fun isVerifiedDeveloper(): Boolean =
         runCatching {
             AdminGuard.isCloudUserOwner() ||
-                SupabaseServices.Auth.verifiedRole.value in setOf("developer", "owner")
+                SupabaseServices.Auth.verifiedRole.value.lowercase() in setOf("developer", "admin", "owner", "مطور", "مكور")
         }.getOrDefault(false)
 
     // ─────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ object UpdateChannelFacade {
 
     /** تسمية القناة حسب صلاحية المستخدم */
     fun channelLabel(context: Context): String =
-        if (isDeveloper(context)) "المستودع الرسمي" else PUBLIC_CHANNEL_NAME
+        if (isDeveloper(context)) "إدارة الإصدار المعتمد" else PUBLIC_CHANNEL_NAME
 
     /** وصف نقطة الفحص — للمطور يذكر المصدر، وللمستخدم يذكر behavior فقط */
     fun checkSourceLabel(context: Context): String =
