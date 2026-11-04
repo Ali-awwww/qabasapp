@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -54,6 +56,7 @@ fun HasanatHubScreen(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    val hapticFeedback = LocalHapticFeedback.current
     
     // ViewModel state
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -1006,7 +1009,11 @@ fun HasanatHubScreen(
                             Button(
                                 onClick = {
                                     val nextCount = tasbeehCount + 1
-                                    if (vibrateEvery33 && (nextCount % 33 == 0 || nextCount % 100 == 0)) {
+                                    val reached33 = nextCount % 33 == 0
+                                    if (vibrateEvery33 && reached33) {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    if (reached33 || nextCount % 100 == 0) {
                                         AppSoundManager.playSuccess()
                                     } else {
                                         AppSoundManager.playDhikr()
