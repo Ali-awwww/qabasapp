@@ -1,15 +1,5 @@
 package com.qabas.app
 
-/**
- * HiggsfieldVideoService.kt
- * خدمة الربط والتوليد السينمائي بالذكاء الاصطناعي مع منصة Higgsfield AI (api.higgsfield.ai)
- * تدعم:
- * 1. تحويل النصوص السينمائية والدعوية إلى فيديو (Text-to-Video).
- * 2. تحريك الصور الثابتة والمساجد والمخطوطات (Image-to-Video).
- * 3. نظام الرصد غير المتزامن (Async Task Polling) مع إشعار بالتقدم اللحظي.
- * 4. نظام العودة الآمنة التلقائية (Fail-safe Fallback) للمكتبة المحلية عند غياب المفتاح أو نفاد الرصيد.
- */
-
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -23,81 +13,27 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
 import java.net.URL
 
+/** Higgsfield Kling 4.0 integration through the server-side Qabas gateway. */
 object HiggsfieldVideoService {
-
     private const val TAG = "HiggsfieldVideoService"
-    private const val BASE_URL = "https://api.higgsfield.ai/v1"
-    private const val PREFS_NAME = "qabas_prefs"
-    private const val KEY_HIGGSFIELD_API_KEY = "higgsfield_api_key"
-    private const val KEY_HIGGSFIELD_KEY_ID = "higgsfield_key_id"
-    private const val KEY_HIGGSFIELD_KEY_SECRET = "higgsfield_key_secret"
+    private const val MAX_POLL_ATTEMPTS = 120
+    private const val POLL_INTERVAL_MS = 3_000L
 
-    /**
-     * التحقق مما إذا كان مفتاح Higgsfield متوفراً ومضبوطاً في إعدادات التطبيق.
-     */
-    fun isConfigured(context: Context): Boolean {
-        val apiKey = ApiKeyManager.getHiggsfieldKey(context)
-        return apiKey.isNotEmpty()
-    }
+    suspend fun isConfigured(context: Context): Boolean =
+        PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
 
-    /**
-     * استرجاع ترويسة المصادقة المعتمدة لـ Higgsfield
-     */
-    fun getAuthHeader(context: Context): String {
-        val apiKey = ApiKeyManager.getHiggsfieldKey(context)
-        if (apiKey.isNotEmpty()) {
-            return if (apiKey.startsWith("Bearer ", ignoreCase = true)) apiKey else "Bearer $apiKey"
-        }
-        return ""
-    }
-
-    /**
-     * فحص الاتصال واختبار صلاحية المفتاح
-     */
-    suspend fun testConnection(context: Context, explicitKey: String? = null): Pair<Boolean, String> = withContext(Dispatchers.IO) {
-        try {
-            val auth = explicitKey?.trim()?.takeIf { it.isNotEmpty() }?.let {
-                if (it.startsWith("Bearer ", ignoreCase = true) || it.startsWith("Basic ", ignoreCase = true)) it else "Bearer $it"
-            } ?: getAuthHeader(context)
-
-            if (auth.isEmpty()) {
-                return@withContext Pair(false, "لم يتم إدخال مفتاح Higgsfield بعد.")
-            }
-
-            // فحص نقطة نهاية النماذج أو الحساب
-            val url = URL("$BASE_URL/models")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("Authorization", auth)
-            conn.setRequestProperty("Accept", "application/json")
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-
-            val code = conn.responseCode
-            if (code in 200..299) {
-                return@withContext Pair(true, "تم الاتصال بنجاح بمحرك Higgsfield AI 🎬✨")
-            } else if (code == 401 || code == 403) {
-                return@withContext Pair(false, "مفتاح Higgsfield غير صالح أو منتهي الصلاحية (كود $code).")
-            } else {
-                // بعض النقاط قد ترجع 404 إذا كانت المسارات متغيرة ولكن المصادقة مقبولة
-                val body = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                if (code == 404 || body.contains("models", ignoreCase = true)) {
-                    return@withContext Pair(true, "تم التحقق من الاتصال والمفتاح بنجاح ✦")
-                }
-                return@withContext Pair(false, "استجابة الخادم: كود $code")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "testConnection error: ${e.message}")
-            return@withContext Pair(false, "تعذر الوصول لخوادم Higgsfield: ${e.localizedMessage ?: "تحقق من الإنترنت"}")
+    /** Checks server-side registration only; it does not claim provider credentials are valid. */
+    suspend fun testConnection(context: Context): Pair<Boolean, String> {
+        val configured = PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
+        return if (configured) {
+            true to "مفتاح Higgsfield محفوظ في الخادم. صلاحية المفتاح الفعلية تُثبت عند أول طلب توليد."
+        } else {
+            false to "لا يوجد مفتاح Higgsfield محفوظ في بوابة الخادم، أو تعذر الوصول إليها."
         }
     }
 
-    /**
-     * توليد مقطع فيديو من سكريبت أو وصف نصي (Text-to-Video)
-     */
     suspend fun generateTextToVideo(
         context: Context,
         prompt: String,
@@ -105,239 +41,200 @@ object HiggsfieldVideoService {
         durationSeconds: Int = 5,
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): File? = withContext(Dispatchers.IO) {
-        val auth = getAuthHeader(context)
-        if (auth.isEmpty()) {
-            SystemLogsManager.addLog("WARN", "مفتاح Higgsfield غير متوفر، سيتم استخدام المسار المحلي التلقائي", Color(0xFFF59E0B))
-            return@withContext null
+        if (prompt.isBlank()) return@withContext null
+
+        val enrichedPrompt = buildString {
+            append(prompt.trim())
+            append(", cinematic lighting, photorealistic, reverent atmosphere, steady camera movement: ")
+            append(cameraMotion.trim().ifBlank { "cinematic" })
+        }
+        val payload = buildTextToVideoPayload(enrichedPrompt, durationSeconds).apply {
+            put("operation", "text_to_video")
         }
 
         try {
-            onProgress(0.15f, "إرسال أوامر المشهد السينمائي إلى Higgsfield AI...")
-            SystemLogsManager.addLog("INFO", "جاري إرسال وصف المشهد إلى خوادم Higgsfield AI 🎬...", Color(0xFF38BDF8))
+            onProgress(0.12f, "إرسال طلب Kling 4.0 عبر بوابة قبس الآمنة...")
+            SystemLogsManager.addLog("INFO", "جاري إرسال طلب فيديو إلى Kling 4.0 عبر الخادم الآمن...", Color(0xFF38BDF8))
 
-            // صياغة البيلود بأسلوب سينمائي يراعي حركة الكاميرا
-            val enrichedPrompt = buildString {
-                append(prompt.trim())
-                append(", cinematic lighting, photorealistic 8k, holy reverent atmosphere, steady camera movement: ")
-                append(cameraMotion)
-            }
-
-            val payload = JSONObject().apply {
-                put("prompt", enrichedPrompt)
-                put("duration", durationSeconds.coerceIn(3, 10))
-                put("aspect_ratio", "9:16")
-                put("camera_motion", cameraMotion)
-                put("model", "kling-v1.5") // أو نموذج Higgsfield Soul / DoP
-            }
-
-            val requestUrl = URL("$BASE_URL/generate/video")
-            val conn = requestUrl.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Authorization", auth)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("Accept", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 15000
-            conn.readTimeout = 20000
-
-            conn.outputStream.use { os ->
-                os.write(payload.toString().toByteArray(Charsets.UTF_8))
-                os.flush()
-            }
-
-            val responseCode = conn.responseCode
-            if (responseCode !in 200..299) {
-                val errBody = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                Log.e(TAG, "Higgsfield API error: $responseCode -> $errBody")
-                SystemLogsManager.addLog("WARN", "Higgsfield رفض الطلب (كود $responseCode) — الانتقال للمسار المحلي", Color(0xFFEF4444))
+            val response = PlatformGatewayClient.proxyHiggsfieldSuspend(payload)
+                ?: return@withContext gatewayUnavailable()
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Kling 4.0 submission rejected with HTTP ${response.statusCode}")
+                SystemLogsManager.addLog("WARN", "رفضت بوابة Higgsfield طلب التوليد (HTTP ${response.statusCode}).", Color(0xFFEF4444))
                 return@withContext null
             }
 
-            val respString = conn.inputStream.bufferedReader().readText()
-            val json = JSONObject(respString)
-            val taskId = json.optString("task_id").ifEmpty { json.optString("id") }
-            val directVideoUrl = json.optString("video_url").ifEmpty { json.optString("url") }
-
-            // إذا أرجع رابط مباشر فوراً
-            if (directVideoUrl.isNotBlank() && directVideoUrl.startsWith("http")) {
-                onProgress(0.85f, "تنزيل المقطع السينمائي المولد...")
-                return@withContext downloadVideoToCache(context, directVideoUrl)
-            }
-
-            if (taskId.isBlank()) {
-                SystemLogsManager.addLog("WARN", "لم يرجع Higgsfield معرّف للمهمة، جاري التراجع للمحلي", Color(0xFFF59E0B))
+            val requestId = response.body?.let(::extractRequestId).orEmpty()
+            if (requestId.isBlank()) {
+                Log.w(TAG, "Kling 4.0 response did not include request_id")
+                SystemLogsManager.addLog("WARN", "لم يُرجع Kling 4.0 معرّف الطلب المتوقع.", Color(0xFFEF4444))
                 return@withContext null
             }
 
-            // فحص المهمة في حلقة استطلاع غير متزامنة (Async Polling Loop)
-            return@withContext pollTaskUntilFinished(context, taskId, auth, onProgress)
-
+            pollRequestUntilFinished(context, requestId, onProgress)
         } catch (e: Exception) {
-            Log.e(TAG, "generateTextToVideo failed: ${e.message}", e)
-            SystemLogsManager.addLog("WARN", "تعذر إتمام الرندرة عبر Higgsfield: ${e.localizedMessage}", Color(0xFFEF4444))
-            return@withContext null
+            Log.e(TAG, "Kling 4.0 text-to-video failed", e)
+            SystemLogsManager.addLog("WARN", "تعذر إكمال توليد الفيديو عبر Kling 4.0.", Color(0xFFEF4444))
+            null
         }
     }
 
-    /**
-     * تحريك صورة ثابتة وتحويلها لمشهد فيديو سينمائي (Image-to-Video)
-     */
+    /** Uploads the source image through Higgsfield's signed-upload flow before Kling 4.0 animation. */
     suspend fun animateImage(
         context: Context,
         imageFile: File,
-        prompt: String = "subtle holy atmosphere, smooth cinematic camera orbit, particles in air, 8k",
+        prompt: String = "subtle holy atmosphere, smooth cinematic camera movement, particles in air",
         cameraMotion: String = "orbit",
         durationSeconds: Int = 5,
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): File? = withContext(Dispatchers.IO) {
-        val auth = getAuthHeader(context)
-        if (auth.isEmpty() || !imageFile.exists()) {
-            return@withContext null
-        }
+        if (!imageFile.exists() || imageFile.length() <= 0L || prompt.isBlank()) return@withContext null
 
+        var bitmap: Bitmap? = null
         try {
-            onProgress(0.2f, "رفع المشهد وتحليله في Higgsfield Image2Video...")
-            SystemLogsManager.addLog("INFO", "جاري تحريك الصورة (${imageFile.name}) بواسطة Higgsfield AI 🛸...", Color(0xFF10B981))
+            onProgress(0.08f, "تهيئة الصورة للرفع الآمن...")
+            bitmap = BitmapFactory.decodeFile(imageFile.absolutePath) ?: return@withContext null
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)
+            val imageBytes = output.toByteArray()
+            bitmap.recycle()
+            bitmap = null
 
-            // تحويل الصورة إلى Base64
-            val bmp = BitmapFactory.decodeFile(imageFile.absolutePath) ?: return@withContext null
-            val baos = ByteArrayOutputStream()
-            bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
-            val base64Image = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-
-            val payload = JSONObject().apply {
-                put("image", base64Image)
-                put("prompt", prompt)
-                put("camera_motion", cameraMotion)
-                put("duration", durationSeconds.coerceIn(3, 10))
-                put("aspect_ratio", "9:16")
+            val uploadPayload = JSONObject().apply {
+                put("operation", "upload_image")
+                put("content_type", "image/jpeg")
+                put("image_base64", Base64.encodeToString(imageBytes, Base64.NO_WRAP))
             }
-
-            val requestUrl = URL("$BASE_URL/generate/image2video")
-            val conn = requestUrl.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Authorization", auth)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("Accept", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 20000
-            conn.readTimeout = 25000
-
-            conn.outputStream.use { os ->
-                os.write(payload.toString().toByteArray(Charsets.UTF_8))
-                os.flush()
-            }
-
-            if (conn.responseCode !in 200..299) {
-                val err = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                Log.w(TAG, "Image2Video rejected: ${conn.responseCode} -> $err")
+            onProgress(0.18f, "رفع الصورة إلى تخزين Higgsfield المؤقت...")
+            val uploadResponse = PlatformGatewayClient.proxyHiggsfieldSuspend(uploadPayload)
+                ?: return@withContext gatewayUnavailable()
+            if (!uploadResponse.isSuccessful) {
+                Log.w(TAG, "Higgsfield signed upload failed with HTTP ${uploadResponse.statusCode}")
                 return@withContext null
             }
+            val imageUrl = uploadResponse.body?.optString("public_url").orEmpty()
+            if (!imageUrl.startsWith("https://")) return@withContext null
 
-            val resp = JSONObject(conn.inputStream.bufferedReader().readText())
-            val taskId = resp.optString("task_id").ifEmpty { resp.optString("id") }
-            val directUrl = resp.optString("video_url").ifEmpty { resp.optString("url") }
-
-            if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                onProgress(0.9f, "جاري تنزيل الفيديو السينمائي...")
-                return@withContext downloadVideoToCache(context, directUrl)
+            val imagePrompt = "${prompt.trim()}, camera movement: ${cameraMotion.trim().ifBlank { "cinematic" }}"
+            val generationPayload = JSONObject().apply {
+                put("operation", "image_to_video")
+                put("image_url", imageUrl)
+                put("prompt", imagePrompt)
+                put("duration", durationSeconds.coerceIn(3, 30))
+                put("resolution", "1080p")
             }
 
-            if (taskId.isNotBlank()) {
-                return@withContext pollTaskUntilFinished(context, taskId, auth, onProgress)
+            onProgress(0.28f, "إرسال الصورة إلى Kling 4.0...")
+            val generationResponse = PlatformGatewayClient.proxyHiggsfieldSuspend(generationPayload)
+                ?: return@withContext gatewayUnavailable()
+            if (!generationResponse.isSuccessful) {
+                Log.w(TAG, "Kling 4.0 image-to-video rejected with HTTP ${generationResponse.statusCode}")
+                return@withContext null
             }
+            val requestId = generationResponse.body?.let(::extractRequestId).orEmpty()
+            if (requestId.isBlank()) return@withContext null
 
-            return@withContext null
+            pollRequestUntilFinished(context, requestId, onProgress)
         } catch (e: Exception) {
-            Log.e(TAG, "animateImage error: ${e.message}")
-            return@withContext null
+            Log.e(TAG, "Kling 4.0 image-to-video failed", e)
+            null
+        } finally {
+            bitmap?.recycle()
         }
     }
 
-    /**
-     * استطلاع حالة المهمة السحابية حتى اكتمالها
-     */
-    private suspend fun pollTaskUntilFinished(
+    private suspend fun pollRequestUntilFinished(
         context: Context,
-        taskId: String,
-        auth: String,
+        requestId: String,
         onProgress: (Float, String) -> Unit
     ): File? {
-        val maxAttempts = 35 // حتى 70 ثانية
-        var attempts = 0
+        repeat(MAX_POLL_ATTEMPTS) { attempt ->
+            delay(POLL_INTERVAL_MS)
+            onProgress(
+                (0.30f + 0.55f * ((attempt + 1).toFloat() / MAX_POLL_ATTEMPTS)).coerceAtMost(0.88f),
+                "ينفذ Kling 4.0 عملية الرندرة... (${(attempt + 1) * 3} ثانية)"
+            )
 
-        while (attempts < maxAttempts) {
-            delay(2200)
-            attempts++
+            val response = PlatformGatewayClient.proxyHiggsfieldSuspend(
+                JSONObject().put("operation", "status").put("request_id", requestId)
+            ) ?: return null
 
-            val progressRatio = 0.2f + (0.65f * (attempts.toFloat() / maxAttempts.toFloat()))
-            onProgress(progressRatio, "رندرة الفيديو الكوانتي عبر Higgsfield... (${attempts * 2}ث)")
+            if (!response.isSuccessful || response.body == null) {
+                Log.w(TAG, "Kling 4.0 status request returned HTTP ${response.statusCode}")
+                return null
+            }
 
-            try {
-                val checkUrl = URL("$BASE_URL/tasks/$taskId")
-                val conn = checkUrl.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.setRequestProperty("Authorization", auth)
-                conn.setRequestProperty("Accept", "application/json")
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
-
-                if (conn.responseCode in 200..299) {
-                    val body = conn.inputStream.bufferedReader().readText()
-                    val taskJson = JSONObject(body)
-                    val status = taskJson.optString("status", "").lowercase()
-
-                    if (status == "completed" || status == "succeeded" || status == "success") {
-                        val videoUrl = taskJson.optString("video_url").ifEmpty {
-                            taskJson.optJSONObject("output")?.optString("video_url") ?: ""
-                        }.ifEmpty {
-                            taskJson.optString("url")
-                        }
-
-                        if (videoUrl.isNotBlank()) {
-                            onProgress(0.92f, "اكتملت الرندرة! جاري تنزيل ملف MP4...")
-                            SystemLogsManager.addLog("SUCCESS", "تمت رندرة الفيديو عبر Higgsfield AI بنجاح! 🎬✨", Color(0xFF10B981))
-                            return downloadVideoToCache(context, videoUrl)
-                        }
-                    } else if (status == "failed" || status == "error") {
-                        val failReason = taskJson.optString("error", "فشل التوليد من خادم Higgsfield")
-                        SystemLogsManager.addLog("WARN", "فشلت رندرة Higgsfield: $failReason", Color(0xFFEF4444))
+            val statusJson = response.body
+            val status = statusJson.optString("status").lowercase()
+            when {
+                status == "completed" -> {
+                    val videoUrl = extractVideoUrl(statusJson)
+                    if (!videoUrl.startsWith("https://")) {
+                        Log.w(TAG, "Completed Kling 4.0 request did not include video.url")
                         return null
                     }
+                    onProgress(0.93f, "اكتمل التوليد. جارٍ تنزيل ملف الفيديو...")
+                    val file = downloadVideoToCache(context, videoUrl) ?: return null
+                    onProgress(1f, "اكتمل تنزيل فيديو Kling 4.0.")
+                    SystemLogsManager.addLog("SUCCESS", "اكتمل توليد وتنزيل الفيديو عبر Kling 4.0.", Color(0xFF10B981))
+                    return file
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "polling attempt $attempts failed: ${e.message}")
+                status in setOf("failed", "nsfw", "canceled") -> {
+                    Log.w(TAG, "Kling 4.0 request ended with status: $status")
+                    SystemLogsManager.addLog("WARN", "انتهى طلب Kling 4.0 بالحالة: $status.", Color(0xFFEF4444))
+                    return null
+                }
+                status !in setOf("queued", "in_progress") -> {
+                    Log.w(TAG, "Kling 4.0 returned an unknown request status")
+                    return null
+                }
             }
         }
 
-        SystemLogsManager.addLog("WARN", "تجاوز وقت انتظار Higgsfield AI (Timeout) — التراجع للمحلي", Color(0xFFF59E0B))
+        SystemLogsManager.addLog("WARN", "انتهت مهلة انتظار Kling 4.0 قبل اكتمال الطلب.", Color(0xFFF59E0B))
         return null
     }
 
-    /**
-     * تنزيل ملف MP4 وحفظه في مجلد الكاش
-     */
     private fun downloadVideoToCache(context: Context, downloadUrl: String): File? {
         return try {
             val url = URL(downloadUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 15000
-            conn.readTimeout = 25000
-            conn.connect()
-
-            val outFile = File(context.cacheDir, "higgsfield_cinematic_${System.currentTimeMillis()}.mp4")
-            conn.inputStream.use { input ->
-                FileOutputStream(outFile).use { output ->
-                    input.copyTo(output)
+            require(url.protocol.equals("https", ignoreCase = true))
+            val connection = url.openConnection()
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            connection.getInputStream().use { input ->
+                val outFile = File(context.cacheDir, "kling4_video_${System.currentTimeMillis()}.mp4")
+                FileOutputStream(outFile).use { output -> input.copyTo(output) }
+                if (outFile.exists() && outFile.length() > 0L) outFile else {
+                    outFile.delete()
+                    null
                 }
             }
-
-            if (outFile.exists() && outFile.length() > 0) {
-                outFile
-            } else null
         } catch (e: Exception) {
-            Log.e(TAG, "downloadVideoToCache failed: ${e.message}")
+            Log.e(TAG, "Kling 4.0 video download failed", e)
             null
         }
     }
+
+    private fun gatewayUnavailable(): File? {
+        SystemLogsManager.addLog("WARN", "بوابة Higgsfield غير متاحة أو لم يُضبط مفتاح المزود على الخادم.", Color(0xFFF59E0B))
+        return null
+    }
+
+    internal fun buildTextToVideoPayload(prompt: String, durationSeconds: Int): JSONObject =
+        JSONObject().apply {
+            put("prompt", prompt.trim())
+            put("duration", durationSeconds.coerceIn(3, 30))
+            put("resolution", "1080p")
+            put("aspect_ratio", "9:16")
+        }
+
+    internal fun extractRequestId(response: JSONObject): String =
+        response.optString("request_id").trim()
+
+    internal fun extractVideoUrl(response: JSONObject): String =
+        response.optJSONObject("video")?.optString("url").orEmpty().trim()
+
+    internal fun isTerminalStatus(status: String): Boolean =
+        status.lowercase() in setOf("completed", "failed", "nsfw", "canceled")
 }
