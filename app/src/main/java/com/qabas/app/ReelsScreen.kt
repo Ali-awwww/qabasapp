@@ -366,14 +366,35 @@ fun ReelsScreen(
     var showGuestLoginPrompt by remember { mutableStateOf(false) }
     var pendingInteractionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
+    suspend fun refreshLikedReelsFromCloud(userId: String? = null) {
+        val authId = userId ?: SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        if (authId.isNullOrBlank()) {
+            if (accountAuthState !is AuthState.Authenticated) likedReelIds.clear()
+            return
+        }
+
+        // A null result means the request failed; an empty set is a valid cloud state
+        // and must clear stale local likes.
+        val cloudLikedIds = withTimeoutOrNull(7_000L) {
+            SupabaseServices.Profiles.getLikedReelIds(authId)
+        } ?: return
+
+        likedReelIds.clear()
+        cloudLikedIds.forEach { likedReelIds[it] = true }
+    }
+
     LaunchedEffect(accountAuthState) {
         if (accountAuthState is AuthState.Authenticated) {
+            refreshLikedReelsFromCloud()
             val pending = pendingInteractionAction
             if (pending != null) {
                 pendingInteractionAction = null
                 pending()
                 Toast.makeText(context, "تم توثيق الحساب واستئناف العملية تلقائياً ✨", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            // Prevent a previous account's state from surviving a sign-out.
+            likedReelIds.clear()
         }
     }
 
@@ -531,19 +552,18 @@ fun ReelsScreen(
             if (isManualRetry) isRetrying = false
             loadError = fetchFailed && allReels.isEmpty()
 
-            val authId = SupabaseServices.Auth.getCurrentUserId()
-            if (authId != null) {
-                runCatching {
-                    withTimeoutOrNull(5000L) {
-                        SupabaseServices.Profiles.getBookmarkedReelIds(authId)?.let { ids ->
-                            if (ids.isNotEmpty()) cloudBookmarks = ids
-                        }
-                        SupabaseServices.Profiles.getLikedReelIds(authId)?.let { ids ->
-                            likedReelIds.clear()
-                            ids.forEach { likedReelIds[it] = true }
-                        }
+            // Wait for Supabase Auth restoration before reading account-owned interactions.
+            val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+            if (!authId.isNullOrBlank()) {
+                withTimeoutOrNull(8_000L) {
+                    SupabaseServices.Profiles.getBookmarkedReelIds(authId)?.let { ids ->
+                        // Empty is authoritative too: remove stale local bookmarks.
+                        cloudBookmarks = ids
                     }
+                    refreshLikedReelsFromCloud(authId)
                 }
+            } else {
+                refreshLikedReelsFromCloud()
             }
         }
     }
@@ -905,18 +925,40 @@ fun ReelsScreen(
                                         scope.launch {
                                             val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
                                             if (authId == null) {
+                                                // Keep the UI rolled back until sign-in succeeds and Supabase confirms the write.
                                                 likedReelIds[reel.id] = !newLikedState
                                                 allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = currentLikes) else it }
                                                 pendingInteractionAction = {
-                                                    likedReelIds[reel.id] = newLikedState
-                                                    val pendingCount = if (newLikedState) currentLikes + 1 else (currentLikes - 1).coerceAtLeast(0)
-                                                    allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = pendingCount) else it }
                                                     scope.launch {
+                                                        likeInFlight[reel.id] = true
                                                         val resId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                                        if (resId != null) {
-                                                            if (newLikedState) SupabaseServices.Profiles.likeReel(reel.id, resId)
-                                                            else SupabaseServices.Profiles.unlikeReel(reel.id, resId)
+                                                        val saved = resId != null && runCatching {
+                                                            withTimeoutOrNull(10_000L) {
+                                                                if (newLikedState) {
+                                                                    SupabaseServices.Profiles.likeReel(reel.id, resId)
+                                                                } else {
+                                                                    SupabaseServices.Profiles.unlikeReel(reel.id, resId)
+                                                                }
+                                                            } ?: false
+                                                        }.getOrDefault(false)
+
+                                                        if (saved) {
+                                                            likedReelIds[reel.id] = newLikedState
+                                                            allReels = allReels.map {
+                                                                if (it.id == reel.id) it.copy(likesCount = updatedCount) else it
+                                                            }
+                                                        } else {
+                                                            likedReelIds[reel.id] = !newLikedState
+                                                            allReels = allReels.map {
+                                                                if (it.id == reel.id) it.copy(likesCount = currentLikes) else it
+                                                            }
+                                                            Toast.makeText(
+                                                                context,
+                                                                "تعذر حفظ الإعجاب سحابياً. حاول مرة أخرى.",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
                                                         }
+                                                        likeInFlight[reel.id] = false
                                                     }
                                                 }
                                                 showGuestLoginPrompt = true
