@@ -344,7 +344,7 @@ fun UpdateManagementSection() {
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Text(actionLabel, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${entry.actorRole} • ${entry.createdAt} • Build ${entry.newVersionCode ?: entry.oldVersionCode ?: "—"}",
+                        "${entry.actorRole} • حساب ${entry.actorId.take(8)} • ${entry.createdAt} • Build ${entry.newVersionCode ?: entry.oldVersionCode ?: "—"}",
                         color = Color.LightGray,
                         fontSize = 10.sp
                     )
