@@ -90,8 +90,8 @@ internal fun createEditorExportPlan(
     if (clip.keyframes.isNotEmpty()) {
         return EditorExportPlanResult(error = "التحريك بالمفاتيح الزمنية غير مدعوم في إصدار الرندر الحالي؛ أزل المفاتيح أو انتظر محرك التحريك")
     }
-    if (clip.transitionIn != null || clip.blendMode != "Normal") {
-        return EditorExportPlanResult(error = "الانتقالات وأنماط المزج غير مدعومة في إصدار الرندر الحالي")
+    if (clip.transitionIn !in listOf(null, "Fade In", "Zoom In") || clip.blendMode != "Normal") {
+        return EditorExportPlanResult(error = "هذا الانتقال أو نمط المزج غير مدعوم في إصدار الرندر الحالي")
     }
     if (clip.transform.posX != 0f || clip.transform.posY != 0f) {
         return EditorExportPlanResult(error = "إزاحة موضع المقطع غير مدعومة في إصدار الرندر الحالي")
@@ -130,7 +130,11 @@ internal fun buildEditorExportCommand(
     val sourceDurationSeconds = clip.durationMs * speed / 1000.0
     val filters = mutableListOf<String>()
     filters += "setpts=PTS/${number(speed)}"
-    filters += "scale=iw*${number(clip.transform.scaleX.coerceIn(0.1f, 10f))}:ih*${number(clip.transform.scaleY.coerceIn(0.1f, 10f))}"
+    if (clip.transitionIn == "Zoom In") {
+        filters += "scale=w='iw*${number(clip.transform.scaleX)}*(0.85+0.15*min(t/0.6\\,1))':h='ih*${number(clip.transform.scaleY)}*(0.85+0.15*min(t/0.6\\,1))':eval=frame"
+    } else {
+        filters += "scale=iw*${number(clip.transform.scaleX)}:ih*${number(clip.transform.scaleY)}"
+    }
     if (clip.transform.rotation != 0f) {
         filters += "rotate=${number(clip.transform.rotation)}*PI/180:ow=rotw(iw):oh=roth(ih):c=black"
     }
@@ -143,6 +147,7 @@ internal fun buildEditorExportCommand(
     if (clip.filters.sharpness > 0f) {
         filters += "unsharp=5:5:${number(clip.filters.sharpness.coerceIn(0f, 5f))}"
     }
+    if (clip.transitionIn == "Fade In") filters += "fade=t=in:st=0:d=0.6"
     filters += "fps=${plan.fps}"
     filters += "tpad=start_mode=add:start_duration=${clip.startOffsetMs / 1000.0}:stop_mode=add:stop_duration=${(plan.durationMs - clip.startOffsetMs - clip.durationMs).coerceAtLeast(0L) / 1000.0}:color=black"
     filters += "trim=duration=${plan.durationMs / 1000.0}"
