@@ -870,8 +870,8 @@ class EditorModelsTest {
             EditorKeyframe(timeMs = 3000L, property = "scale", value = 2f)
         )
         val expression = buildEditorScaleKeyframeExpression(keyframes)
-        assertTrue(expression.contains("if(lt(t\\\\,1.0)"))
-        assertTrue(expression.contains("if(lt(t\\\\,3.0)"))
+        assertTrue(expression.contains("if(lt(t\\,1.0)"))
+        assertTrue(expression.contains("if(lt(t\\,3.0)"))
         assertTrue(expression.contains("1.50000"))
         assertTrue(expression.contains("2.00000"))
 
