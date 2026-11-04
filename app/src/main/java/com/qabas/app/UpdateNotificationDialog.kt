@@ -253,7 +253,7 @@ fun UpdateNotificationDialog(
                         if (update.commitSha != null) {
                             TextButton(
                                 onClick = {
-                                    openBuildLink("https://github.com/\${UpdateManager.getEffectiveRepo(context)}/commit/\${update.commitSha}")
+                                    openBuildLink("https://github.com/${UpdateManager.getEffectiveRepo(context)}/commit/${update.commitSha}")
                                 },
                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                             ) {
