@@ -431,9 +431,9 @@ fun StudioProEditorScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                         modifier = Modifier.height(36.dp).padding(end = 8.dp)
                     ) {
-                        Icon(Icons.Default.IosShare, null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.FolderOpen, null, tint = DeepSlate, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("تصدير", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 13.sp)
+                        Text("المشاريع", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 13.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black)
@@ -969,7 +969,7 @@ fun StudioProEditorScreen(
             onDismissRequest = { projectState = projectState.copy(workspaceMode = WorkspaceMode.EDIT) },
             containerColor = Color(0xFF0F0F0F)
         ) {
-            ExportWorkspace(onExport = { onSave() })
+            ExportWorkspace()
         }
     }
 
@@ -1553,56 +1553,23 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
 }
 
 @Composable
-fun ExportWorkspace(onExport: () -> Unit) {
-    var selectedPreset by remember { mutableStateOf("TikTok / Reels") }
-    val presets = listOf("TikTok / Reels", "YouTube Shorts", "Instagram Post", "Original (9:16)")
-    
+fun ExportWorkspace() {
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("تصدير العمل النهائي", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Text("اختر المنصة المستهدفة لتحسين الجودة", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
+        Text("التصدير النهائي", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "محرك الرندر متعدد الطبقات لم يُربط بعد. المعاينة الحية وتحرير الخط الزمني يعملان، لكن هذه الشاشة لا تنشئ ملف MP4 نهائياً حالياً.",
+            color = Color(0xFFFBBF24),
+            fontSize = 13.sp,
+            fontFamily = CairoFont
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        
-        presets.forEach { preset ->
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { selectedPreset = preset },
-                color = if (selectedPreset == preset) GoldPrimary.copy(alpha = 0.1f) else Color(0xFF1A1A1A),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedPreset == preset) GoldPrimary else Color.Transparent)
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        if (selectedPreset == preset) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, 
-                        null, tint = if (selectedPreset == preset) GoldPrimary else Color.Gray
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(preset, color = Color.White, fontFamily = CairoFont)
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("إعدادات متقدمة", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("دقة الفيديو", color = Color.White, fontSize = 14.sp)
-            Text("1080p (Full HD)", color = GoldPrimary, fontSize = 14.sp)
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("معدل الإطارات", color = Color.White, fontSize = 14.sp)
-            Text("60 FPS", color = GoldPrimary, fontSize = 14.sp)
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(
-            onClick = onExport,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
-        ) {
-            Icon(Icons.Default.Upload, null, tint = DeepSlate)
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("تصدير ونشر الآن 🚀", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 16.sp)
-        }
+        Text(
+            "لن أظهر خيارات دقة أو معدل إطارات على أنها مطبقة قبل ربطها بمحرك التصدير والتحقق من الملف الناتج.",
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontFamily = CairoFont
+        )
     }
 }
 
@@ -1896,6 +1863,12 @@ fun AdjustPanel(
         
         when (selectedTab) {
             "الألوان" -> {
+                Text(
+                    "تُحفظ قيم اللون ضمن المشروع، لكن تطبيقها على إطارات الفيديو والرندر النهائي لم يُربط بعد.",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 11.sp,
+                    fontFamily = CairoFont
+                )
                 AdjustSlider("السطوع (Brightness)", filters.brightness, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(brightness = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
                 AdjustSlider("التباين (Contrast)", filters.contrast, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(contrast = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
                 AdjustSlider("التشبع (Saturation)", filters.saturation, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(saturation = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
@@ -1915,18 +1888,14 @@ fun AdjustPanel(
                 AdjustSlider("سرعة المقطع", speed, 0.1f..5f, onValueChange = onSpeedChanged, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
             }
             "المزج" -> {
-                Text("أنماط المزج (Blend Modes)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("أنماط المزج", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 Spacer(modifier = Modifier.height(12.dp))
-                val modes = listOf("Normal", "Overlay", "Screen", "Multiply", "Darken")
-                modes.forEach { mode ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { },
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(mode, color = Color.White, fontSize = 14.sp)
-                        if (mode == "Normal") Icon(Icons.Default.Check, null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    }
-                }
+                Text(
+                    "لم يتم ربط محرك تركيب الطبقات بأنماط المزج بعد؛ لذلك لا توجد اختيارات شكلية توحي بتأثير غير مطبق.",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 12.sp,
+                    fontFamily = CairoFont
+                )
             }
         }
         
@@ -1950,11 +1919,13 @@ fun AdjustPanel(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text("الانتقال (Transition)", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp)).padding(8.dp)
-                ) {
-                    Text("Fade In (تلاشي)", color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
-                }
+                Text(
+                    "استخدم علامة + بين مقطعين لتعيين انتقال دخول للمعاينة.",
+                    color = Color.Gray,
+                    fontSize = 10.sp,
+                    fontFamily = CairoFont,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
         
