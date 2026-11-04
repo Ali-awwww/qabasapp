@@ -141,15 +141,6 @@ object AppSelfDoctor {
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun higgsfieldCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder()
-                .url("https://api.higgsfield.ai/v1/models")
-                .header("Authorization", "Bearer $key")
-                .build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
-
     /** يبني تقريراً صادقاً بناءً على اختبار حقيقي — وجود المفتاح وحده لا يكفي */
     private fun liveStatusReport(
         serviceName: String,
@@ -214,7 +205,6 @@ object AppSelfDoctor {
         val huggingFaceKey = KeyVault.huggingface
         val pexelsKey = KeyVault.pexels
         val pixabayKey = KeyVault.pixabay
-        val higgsfieldKey = KeyVault.higgsfield
 
         // 1) فحوص الاتصال الحقيقية بالتوازي — طلب واحد خفيف لكل خدمة
         val liveResults = mutableMapOf<String, LiveCheck>()
@@ -234,8 +224,6 @@ object AppSelfDoctor {
                 jobs += async { "pexels" to pexelsCheck(pexelsKey) }
             if (isKeyValid(pixabayKey))
                 jobs += async { "pixabay" to pixabayCheck(pixabayKey) }
-            if (isKeyValid(higgsfieldKey))
-                jobs += async { "higgsfield" to higgsfieldCheck(higgsfieldKey) }
             if (SupabaseConfig.isConfigured)
                 jobs += async { "supabase" to supabaseCheck(SupabaseConfig.url, SupabaseConfig.key) }
             jobs.awaitAll().forEach { (name, check) -> liveResults[name] = check }
@@ -376,14 +364,17 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        if (isKeyValid(higgsfieldKey)) {
+        val higgsfieldConfiguredOnServer = runCatching {
+            PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
+        }.getOrDefault(false)
+        if (higgsfieldConfiguredOnServer) {
             reports.add(
-                liveStatusReport(
-                    serviceName = "Higgsfield AI Video",
-                    category = "خدمات",
-                    check = liveResults["higgsfield"] ?: LiveCheck(false, false, true),
-                    onOk = "محرك توليد الفيديو السينمائي الفائق وتحريك الصور من Higgsfield AI يستجيب فعلياً.",
-                    actionOk = "جاهز لإنتاج الفيديو الذكي والتحريك السينمائي."
+                DoctorReport(
+                    severity = "معلومة",
+                    title = "مفتاح Higgsfield محفوظ في بوابة الخادم",
+                    message = "تم تأكيد وجود إعداد المزود في الخزنة الخادمية. هذا الفحص لا يختبر صلاحية بيانات الاعتماد أو نجاح توليد الفيديو.",
+                    category = "تكامل",
+                    suggestedAction = "نفّذ اختبار توليد فعلياً من الاستوديو عند توفر الاعتماد والرصيد."
                 )
             )
         }
