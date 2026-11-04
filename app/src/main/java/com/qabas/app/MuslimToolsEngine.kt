@@ -114,6 +114,7 @@ class MuslimToolsEngine(context: Context) {
     fun toggleHabit(habitId: String) {
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val currentHabits = getHabits()
+        if (currentHabits.none { it.id == habitId }) return
         val wasDoneToday = currentHabits.any { it.id == habitId && it.lastDoneDate == today }
         val updatedHabits = currentHabits.map { habit ->
             if (habit.id == habitId) {
