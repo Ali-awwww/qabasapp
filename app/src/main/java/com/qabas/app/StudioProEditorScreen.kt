@@ -866,12 +866,42 @@ fun StudioProEditorScreen(
         ) {
             AdjustPanel(
                 filters = currentClip?.filters ?: FilterParams(),
+                transform = currentClip?.transform ?: TransformParams(),
+                speed = currentClip?.speed ?: 1f,
+                volume = currentClip?.volume ?: 1f,
+                onEditStarted = { saveToHistory() },
                 onFiltersChanged = { newFilters ->
-                    saveToHistory()
                     projectState = projectState.copy(
                         tracks = projectState.tracks.map { track ->
                             track.copy(clips = track.clips.map { clip ->
                                 if (clip.id == projectState.selectedClipId) clip.copy(filters = newFilters) else clip
+                            })
+                        }
+                    )
+                },
+                onTransformChanged = { newTransform ->
+                    projectState = projectState.copy(
+                        tracks = projectState.tracks.map { track ->
+                            track.copy(clips = track.clips.map { clip ->
+                                if (clip.id == projectState.selectedClipId) clip.copy(transform = newTransform) else clip
+                            })
+                        }
+                    )
+                },
+                onSpeedChanged = { newSpeed ->
+                    projectState = projectState.copy(
+                        tracks = projectState.tracks.map { track ->
+                            track.copy(clips = track.clips.map { clip ->
+                                if (clip.id == projectState.selectedClipId) clip.copy(speed = newSpeed.coerceIn(0.1f, 5f)) else clip
+                            })
+                        }
+                    )
+                },
+                onVolumeChanged = { newVolume ->
+                    projectState = projectState.copy(
+                        tracks = projectState.tracks.map { track ->
+                            track.copy(clips = track.clips.map { clip ->
+                                if (clip.id == projectState.selectedClipId) clip.copy(volume = newVolume.coerceIn(0f, 1f)) else clip
                             })
                         }
                     )
@@ -1573,13 +1603,30 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
 
 @Composable
 fun AdjustPanel(
-    filters: FilterParams, 
+    filters: FilterParams,
+    transform: TransformParams = TransformParams(),
+    speed: Float = 1f,
+    volume: Float = 1f,
+    onEditStarted: () -> Unit = {},
     onFiltersChanged: (FilterParams) -> Unit,
+    onTransformChanged: (TransformParams) -> Unit = {},
+    onSpeedChanged: (Float) -> Unit = {},
+    onVolumeChanged: (Float) -> Unit = {},
     onDelete: () -> Unit = {},
     onDuplicate: () -> Unit = {},
     onDismiss: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf("الألوان") }
+    var historyCaptured by remember { mutableStateOf(false) }
+    fun beginEdit() {
+        if (!historyCaptured) {
+            onEditStarted()
+            historyCaptured = true
+        }
+    }
+    fun finishEdit() {
+        historyCaptured = false
+    }
     
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
         Row(
@@ -1604,22 +1651,33 @@ fun AdjustPanel(
         
         when (selectedTab) {
             "الألوان" -> {
-                AdjustSlider("السطوع (Brightness)", filters.brightness, 0f..2f) { onFiltersChanged(filters.copy(brightness = it)) }
-                AdjustSlider("التباين (Contrast)", filters.contrast, 0f..2f) { onFiltersChanged(filters.copy(contrast = it)) }
-                AdjustSlider("التشبع (Saturation)", filters.saturation, 0f..2f) { onFiltersChanged(filters.copy(saturation = it)) }
-                AdjustSlider("الحدة (Sharpness)", filters.sharpness, 0f..1f) { onFiltersChanged(filters.copy(sharpness = it)) }
+                AdjustSlider("السطوع (Brightness)", filters.brightness, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(brightness = it)) }
+                AdjustSlider("التباين (Contrast)", filters.contrast, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(contrast = it)) }
+                AdjustSlider("التشبع (Saturation)", filters.saturation, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(saturation = it)) }
+                AdjustSlider("الحدة (Sharpness)", filters.sharpness, 0f..1f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(sharpness = it)) }
             }
             "التحويل" -> {
                 Text("الأبعاد والموقع (Desktop Precision)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 Spacer(modifier = Modifier.height(12.dp))
-                // Transform Sliders (Simulated Desktop-like controls)
-                AdjustSlider("الحجم X", 1.0f, 0.1f..3f) {}
-                AdjustSlider("الحجم Y", 1.0f, 0.1f..3f) {}
-                AdjustSlider("التدوير", 0f, -180f..180f) {}
-                
+                AdjustSlider("الحجم الأفقي", transform.scaleX, 0.1f..3f, ::beginEdit, ::finishEdit) {
+                    onTransformChanged(transform.copy(scaleX = it))
+                }
+                AdjustSlider("الحجم العمودي", transform.scaleY, 0.1f..3f, ::beginEdit, ::finishEdit) {
+                    onTransformChanged(transform.copy(scaleY = it))
+                }
+                AdjustSlider("الدوران", transform.rotation, -180f..180f, ::beginEdit, ::finishEdit) {
+                    onTransformChanged(transform.copy(rotation = it))
+                }
+                AdjustSlider("الموضع الأفقي", transform.posX, -500f..500f, ::beginEdit, ::finishEdit) {
+                    onTransformChanged(transform.copy(posX = it))
+                }
+                AdjustSlider("الموضع العمودي", transform.posY, -500f..500f, ::beginEdit, ::finishEdit) {
+                    onTransformChanged(transform.copy(posY = it))
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("السرعة (Speed Ramping)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
-                AdjustSlider("سرعة المقطع", 1.0f, 0.1f..5f) {}
+                Text("السرعة (Speed)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                AdjustSlider("سرعة المقطع", speed, 0.1f..5f, ::beginEdit, ::finishEdit, onSpeedChanged)
             }
             "المزج" -> {
                 Text("أنماط المزج (Blend Modes)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
@@ -1646,8 +1704,12 @@ fun AdjustPanel(
             Column(modifier = Modifier.weight(1f)) {
                 Text("مستوى الصوت", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
                 Slider(
-                    value = 0.8f, // Simulated current clip volume
-                    onValueChange = { },
+                    value = volume.coerceIn(0f, 1f),
+                    onValueChange = {
+                        beginEdit()
+                        onVolumeChanged(it)
+                    },
+                    onValueChangeFinished = ::finishEdit,
                     colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
                 )
             }
@@ -1696,15 +1758,26 @@ fun AdjustPanel(
 }
 
 @Composable
-fun AdjustSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onValueChange: (Float) -> Unit) {
+fun AdjustSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onEditStarted: () -> Unit = {},
+    onEditFinished: () -> Unit = {},
+    onValueChange: (Float) -> Unit
+) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
             Text(String.format("%.2f", value), color = GoldPrimary, fontSize = 12.sp, fontFamily = RobotoMonoFont)
         }
         Slider(
-            value = value,
-            onValueChange = onValueChange,
+            value = value.coerceIn(range.start, range.endInclusive),
+            onValueChange = {
+                onEditStarted()
+                onValueChange(it)
+            },
+            onValueChangeFinished = onEditFinished,
             valueRange = range,
             colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
         )
