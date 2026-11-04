@@ -808,7 +808,7 @@ object DownloadsHubManager {
 
                 Log.d(TAG, "🚨 تحديث إجباري؛ بدء التنزيل الخلفي: ${update.versionName}")
                 val existingApk = UpdateManager.getValidatedDownloadedApk(
-                    context, update.versionName, update.versionCode, update.apkSize
+                    context, update.versionName, update.versionCode, update.apkSize, update.apkSha256
                 )
                 if (existingApk != null && existingApk.exists() &&
                     existingApk.length() > 1_000_000L
