@@ -207,7 +207,7 @@ internal object EditorExportRenderer {
             )
             if (!success ||
                 !VideoProcessor.isValidVideoFile(output.absolutePath, VideoProcessor.MIN_OUTPUT_SIZE) ||
-                !matchesExportMetadata(output, plan)
+                !matchesExportMetadata(output, plan, requireAudio = hasAudio && plan.includeAudio && plan.clip.volume > 0f)
             ) {
                 output.delete()
                 throw IllegalStateException("لم ينتج محرك FFmpeg ملف MP4 صالحاً بالمواصفات المطلوبة")
@@ -249,14 +249,17 @@ internal object EditorExportRenderer {
         return ResolvedSource(destination, temporary = true)
     }
 
-    private fun matchesExportMetadata(file: File, plan: EditorExportPlan): Boolean {
+    private fun matchesExportMetadata(file: File, plan: EditorExportPlan, requireAudio: Boolean): Boolean {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(file.absolutePath)
             val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
             val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-            width == plan.width && height == plan.height && duration != null &&
+            val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+            val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+            hasVideo && (!requireAudio || hasAudio) &&
+                width == plan.width && height == plan.height && duration != null &&
                 kotlin.math.abs(duration - plan.durationMs) <= maxOf(1500L, 2000L / plan.fps)
         } catch (_: Exception) {
             false
