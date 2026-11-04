@@ -319,14 +319,11 @@ internal fun trimEditorClipEnd(
         durationMs = updatedDurationMs,
         keyframes = clip.keyframes.filter { it.timeMs <= updatedDurationMs }
     )
-    return updateEditorTrack(state, track.id) { current ->
+    val updated = updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
-    }.copy(
-        totalDurationMs = calculateEditorTimelineDurationMs(
-            updateEditorTrack(state, track.id) { current ->
-                current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
-            }.tracks
-        ),
+    }
+    return updated.copy(
+        totalDurationMs = calculateEditorTimelineDurationMs(updated.tracks),
         selectedClipId = clipId
     )
 }
