@@ -185,7 +185,12 @@ internal fun addEditorTextClip(state: EditorProjectState, rawText: String): Edit
     } else {
         state.tracks + EditorTrack(type = TrackType.TEXT, name = "نصوص", clips = listOf(clip))
     }
-    return state.copy(tracks = updatedTracks, currentTimeMs = startTime, selectedClipId = clip.id)
+    return state.copy(
+        tracks = updatedTracks,
+        currentTimeMs = startTime,
+        totalDurationMs = maxOf(state.totalDurationMs, clip.startOffsetMs + clip.durationMs),
+        selectedClipId = clip.id
+    )
 }
 
 /** Updates an existing text clip only when its owning track is unlocked. */
@@ -391,8 +396,12 @@ internal fun deleteEditorClip(
             candidate.copy(startOffsetMs = (candidate.startOffsetMs - clip.durationMs).coerceAtLeast(0L))
         } else candidate
     }
-    return updateEditorTrack(state, track.id) { it.copy(clips = updatedClips) }
-        .copy(selectedClipId = if (state.selectedClipId == clipId) null else state.selectedClipId)
+    val updated = updateEditorTrack(state, track.id) { it.copy(clips = updatedClips) }
+    val remainingEndMs = updated.tracks.flatMap { it.clips }.maxOfOrNull { it.startOffsetMs + it.durationMs } ?: 1000L
+    return updated.copy(
+        totalDurationMs = maxOf(1000L, remainingEndMs),
+        selectedClipId = if (state.selectedClipId == clipId) null else state.selectedClipId
+    )
 }
 
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
@@ -418,7 +427,8 @@ internal fun findAdjacentEditorClip(
 internal fun createBlankEditorProjectState(): EditorProjectState =
     EditorProjectState(
         projectId = UUID.randomUUID().toString(),
-        title = "مشروع جديد"
+        title = "مشروع جديد",
+        totalDurationMs = 1000L
     )
 
 data class MediaAsset(
