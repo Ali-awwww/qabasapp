@@ -157,6 +157,56 @@ internal fun addEditorKeyframesAtPlayhead(
     }
 }
 
+/** Adds a text clip to the first unlocked text track, creating a real track if necessary. */
+internal fun addEditorTextClip(state: EditorProjectState, rawText: String): EditorProjectState? {
+    val content = rawText.trim()
+    if (content.isEmpty()) return null
+
+    val endLimit = state.totalDurationMs.coerceAtLeast(1L)
+    val startTime = state.currentTimeMs.coerceIn(0L, endLimit - 1L)
+    val existingTrackIndex = state.tracks.indexOfFirst {
+        it.type == TrackType.TEXT && !it.isLocked
+    }
+    val targetIndex = if (existingTrackIndex >= 0) existingTrackIndex else state.tracks.size
+    val clip = EditorClip(
+        title = content,
+        resourceUri = "",
+        startOffsetMs = startTime,
+        durationMs = minOf(5000L, (endLimit - startTime).coerceAtLeast(1L)),
+        trackIndex = targetIndex,
+        type = TrackType.TEXT,
+        color = Color(0xFFFACC15)
+    )
+    val updatedTracks = if (existingTrackIndex >= 0) {
+        state.tracks.mapIndexed { index, track ->
+            if (index == existingTrackIndex) track.copy(clips = track.clips + clip) else track
+        }
+    } else {
+        state.tracks + EditorTrack(type = TrackType.TEXT, name = "نصوص", clips = listOf(clip))
+    }
+    return state.copy(tracks = updatedTracks, currentTimeMs = startTime, selectedClipId = clip.id)
+}
+
+/** Updates an existing text clip only when its owning track is unlocked. */
+internal fun updateEditorTextClip(
+    state: EditorProjectState,
+    clipId: String,
+    rawText: String
+): EditorProjectState? {
+    val content = rawText.trim()
+    if (content.isEmpty()) return null
+    val track = state.tracks.firstOrNull { candidate ->
+        candidate.type == TrackType.TEXT && candidate.clips.any { it.id == clipId }
+    } ?: return null
+    if (track.isLocked) return null
+
+    return updateEditorTrack(state, track.id) { current ->
+        current.copy(clips = current.clips.map { clip ->
+            if (clip.id == clipId) clip.copy(title = content) else clip
+        })
+    }
+}
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
