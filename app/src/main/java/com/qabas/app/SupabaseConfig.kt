@@ -166,7 +166,6 @@ object SupabaseConfig {
         if (!isConfigured) null else client.auth.currentSessionOrNull()
     }.getOrNull()
 }
-}
 
 /**
  * Tracks a password-recovery session only after Supabase has exchanged the
