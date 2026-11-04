@@ -80,7 +80,12 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _isGridView = MutableStateFlow(true)
     val isGridView = _isGridView.asStateFlow()
 
-    private val _tasbeehCount = MutableStateFlow(prefs.getInt("mishkat_tasbeeh_count", 0))
+    private val _tasbeehCount = MutableStateFlow(
+        if (prefs.getString("mishkat_tasbeeh_date", todayKey) != todayKey) {
+            prefs.edit().putInt("mishkat_tasbeeh_count", 0).putString("mishkat_tasbeeh_date", todayKey).apply()
+            0
+        } else prefs.getInt("mishkat_tasbeeh_count", 0)
+    )
     val tasbeehCount = _tasbeehCount.asStateFlow()
 
     private val _vibrateEvery33 = MutableStateFlow(prefs.getBoolean("mishkat_vibrate_33", true))
@@ -172,9 +177,9 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _currentTimeMillis = MutableStateFlow(System.currentTimeMillis())
     
     val prayerTimeInfo: StateFlow<PrayerTimeInfo> = _currentTimeMillis.map { time ->
-        val defaultCity = PrayerCalculationHelper.popularCities[0]
+        val selectedCity = PrayerCalculationHelper.getSavedCity(context)
         val cal = Calendar.getInstance().apply { timeInMillis = time }
-        val times = PrayerCalculationHelper.calculatePrayerTimes(cal, defaultCity, defaultCity.defaultMethod)
+        val times = PrayerCalculationHelper.calculatePrayerTimes(cal, selectedCity, selectedCity.defaultMethod)
         
         val nextName = times.nextPrayerName
         val nextTime = times.nextPrayerTimeFormatted
@@ -460,8 +465,19 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         viewModelScope.launch {
+            var observedDateKey = todayKey
             while (true) {
-                _currentTimeMillis.value = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                _currentTimeMillis.value = now
+                val currentDateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
+                if (currentDateKey != observedDateKey) {
+                    observedDateKey = currentDateKey
+                    _isWirdDone.value = prefs.getBoolean("daily_wird_$currentDateKey", false)
+                    _isMorningAzkarDone.value = prefs.getBoolean("daily_morning_azkar_$currentDateKey", false)
+                    _isEveningAzkarDone.value = prefs.getBoolean("daily_evening_azkar_$currentDateKey", false)
+                    _tasbeehCount.value = 0
+                    prefs.edit().putInt("mishkat_tasbeeh_count", 0).putString("mishkat_tasbeeh_date", currentDateKey).apply()
+                }
                 delay(1000L)
             }
         }
