@@ -1373,7 +1373,7 @@ fun AiStudioAgentScreen(
                         context = context,
                         scope = coroutineScope,
                         onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
+                        onOpenRepoSetup = { showRepoDialog = true }
                     )
                 }
             }
@@ -2158,7 +2158,7 @@ private fun UnifiedToolsAndReadinessSection(
     context: Context,
     scope: CoroutineScope,
     onJumpKeys: () -> Unit,
-    onJumpBuildCenter: () -> Unit = {},
+    onOpenRepoSetup: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var subTab by remember { mutableStateOf(0) }
@@ -2270,7 +2270,7 @@ private fun UnifiedToolsAndReadinessSection(
                 RequirementsTab(
                     context = context,
                     scope = scope,
-                    onJumpBuildCenter = onJumpBuildCenter,
+                    onOpenRepoSetup = onOpenRepoSetup,
                     onJumpKeys = onJumpKeys
                 )
             } else {
@@ -2412,7 +2412,7 @@ private fun AgentCyberSettingsBottomSheet(
                             fontSize = 13.sp
                         )
                         Text(
-                            text = "تشخيص المحرك الحي، سجل العمليات، ومركز البناء",
+                            text = "تشخيص المحرك الحي، سجل العمليات، وإعدادات الوكيل",
                             color = Color(0xFF94A3B8),
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp

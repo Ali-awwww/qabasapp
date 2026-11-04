@@ -265,36 +265,41 @@ object QabasTheme {
 
 @Composable
 fun MyApplicationTheme(
+    highContrastMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val preset = ThemeManager.currentPreset.collectAsState().value
     val darkTheme = preset.isDark
 
-    val designTheme = remember(preset, darkTheme) {
+    val designTheme = remember(preset, darkTheme, highContrastMode) {
         QabasDesignTheme(
             preset = preset,
-            primary = preset.primaryColor,
-            accent = preset.accentColor,
-            background = preset.backgroundColor,
-            cardSurface = preset.cardSurfaceColor,
-            textPrimary = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0B0F19),
-            textSecondary = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF64748B),
+            primary = if (highContrastMode) Color.White else preset.primaryColor,
+            accent = if (highContrastMode) Color.White else preset.accentColor,
+            background = if (highContrastMode && darkTheme) Color.Black else preset.backgroundColor,
+            cardSurface = if (highContrastMode && darkTheme) Color(0xFF111111) else preset.cardSurfaceColor,
+            textPrimary = if (darkTheme) Color.White else Color.Black,
+            textSecondary = if (darkTheme) {
+                if (highContrastMode) Color.White.copy(alpha = 0.9f) else Color(0xFF94A3B8)
+            } else {
+                if (highContrastMode) Color.Black else Color(0xFF64748B)
+            },
             isDark = darkTheme,
-            isCyberHud = (preset == AppThemePreset.CYBER_HUD_BLUE),
-            isNeon = preset.isNeon
+            isCyberHud = (preset == AppThemePreset.CYBER_HUD_BLUE) && !highContrastMode,
+            isNeon = preset.isNeon && !highContrastMode
         )
     }
 
     val dynamicColorScheme = if (darkTheme) {
         darkColorScheme(
-            primary = preset.primaryColor,
-            secondary = preset.accentColor,
-            tertiary = preset.primaryColor.copy(alpha = 0.8f),
-            background = preset.backgroundColor,
-            surface = preset.cardSurfaceColor,
-            onPrimary = Color.White,
-            onSecondary = preset.backgroundColor,
-            onTertiary = preset.backgroundColor,
+            primary = designTheme.primary,
+            secondary = designTheme.accent,
+            tertiary = designTheme.primary.copy(alpha = 0.8f),
+            background = designTheme.background,
+            surface = designTheme.cardSurface,
+            onPrimary = Color.Black,
+            onSecondary = Color.Black,
+            onTertiary = Color.Black,
             onBackground = designTheme.textPrimary,
             onSurface = designTheme.textPrimary
         )

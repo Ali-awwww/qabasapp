@@ -313,7 +313,7 @@ object MultiModelAgentOrchestrator {
             if (keys.isEmpty()) appMissing.add("مفتاح ${p.displayName} — أدخله من خانة المفاتيح (يُكتشف ويُفحص تلقائياً).")
         }
         if (RepoVaultManager.getActiveRepo(context) == null) {
-            appMissing.add("ربط المستودع — اربط مستودع GitHub من مركز البناء ليعرف القائد وجهة الدفع.")
+            appMissing.add("ربط المستودع — اربط مستودع GitHub من إعدادات الوكيل ليعرف القائد وجهة الدفع.")
         }
 
         // استجواب القائد: مستلزمات خاصة بالمهمة
@@ -431,7 +431,7 @@ object MultiModelAgentOrchestrator {
         val repoLine = if (repo != null) {
             "المستودع النشط: ${repo.owner}/${repo.repo} — الفرع: ${repo.defaultBranch.ifBlank { "main" }}."
         } else {
-            "لا يوجد مستودع مربوط حالياً — اطلب من المستخدم ربط مستودعه من مركز البناء قبل اقتراح دفع."
+            "لا يوجد مستودع مربوط حالياً — اطلب من المستخدم ربط مستودعه من إعدادات الوكيل قبل اقتراح دفع."
         }
         return """
             ═══ مواد المستودع والدفع ═══

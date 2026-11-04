@@ -1008,3 +1008,83 @@ private fun SettingToggleRow(
         )
     }
 }
+
+/**
+ * 5. قسم إعدادات سهولة الوصول (Accessibility)
+ */
+@Composable
+fun AccessibilitySettingsSection() {
+    val context = LocalContext.current
+    val highContrast by UserPreferencesManager.highContrastMode.collectAsState()
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
+    val globalTextScale by UserPreferencesManager.globalTextScale.collectAsState()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "تحسين الرؤية والتفاعل مع النظام:",
+            color = GoldPrimary,
+            fontFamily = CairoFont,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        // 1. High Contrast Mode
+        SettingToggleRow(
+            title = "وضع التباين العالي (High Contrast)",
+            subtitle = "زيادة وضوح النصوص والألوان لتسهيل القراءة في الإضاءة القوية",
+            checked = highContrast,
+            onCheckedChange = { UserPreferencesManager.setHighContrastMode(context, it) }
+        )
+
+        HorizontalDivider(color = Color(0xFF1E293B))
+
+        // 2. Reduced Motion
+        SettingToggleRow(
+            title = "تقليل الحركة (Reduced Motion)",
+            subtitle = "إيقاف أو تقليل الحركات والأنميشن لتسريع التنقل وتقليل إجهاد العين",
+            checked = reducedMotion,
+            onCheckedChange = { UserPreferencesManager.setReducedMotion(context, it) }
+        )
+
+        HorizontalDivider(color = Color(0xFF1E293B))
+
+        // 3. Global Text Scale
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TextFormat, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("حجم خط واجهة التطبيق:", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+                Text("${(globalTextScale * 100).toInt()}%", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Slider(
+                value = globalTextScale,
+                onValueChange = { UserPreferencesManager.setGlobalTextScale(context, it) },
+                valueRange = 0.8f..1.4f,
+                steps = 5,
+                colors = SliderDefaults.colors(
+                    thumbColor = GoldPrimary,
+                    activeTrackColor = GoldPrimary,
+                    inactiveTrackColor = Color(0xFF1E293B)
+                )
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("صغير جداً", color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
+                Text("افتراضي", color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
+                Text("كبير جداً", color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
+            }
+        }
+    }
+}

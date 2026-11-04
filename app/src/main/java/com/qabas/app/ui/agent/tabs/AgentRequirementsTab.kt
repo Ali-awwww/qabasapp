@@ -70,7 +70,7 @@ private enum class ReqState { CHECKING, OK, FAIL }
 internal fun RequirementsTab(
     context: Context,
     scope: kotlinx.coroutines.CoroutineScope,
-    onJumpBuildCenter: () -> Unit,
+    onOpenRepoSetup: () -> Unit,
     onJumpKeys: () -> Unit
 ) {
     val prefs = com.qabas.app.AgentPrefs.instance(context)
@@ -129,7 +129,7 @@ internal fun RequirementsTab(
                         )
                         "repo" -> it.copy(
                             state = if (repoOk) ReqState.OK else ReqState.FAIL,
-                            detail = if (repoOk) "$owner/$repo (الخزانة النشطة) ✅" else "اختر أو اربط مستودعاً من مركز البناء"
+                            detail = if (repoOk) "$owner/$repo (المستودع النشط) ✅" else "اختر أو اربط مستودعاً من إعدادات الوكيل"
                         )
                         "tools" -> it.copy(
                             state = ReqState.OK,
@@ -457,7 +457,7 @@ internal fun RequirementsTab(
                     if (r.state == ReqState.FAIL && !checking) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
-                            onClick = { if (r.id == "engine") onJumpKeys() else onJumpBuildCenter() },
+                            onClick = { if (r.id == "engine") onJumpKeys() else onOpenRepoSetup() },
                             colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),

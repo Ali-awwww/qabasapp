@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val appLanguage by UserPreferencesManager.appLanguage.collectAsState()
-            
+
             // Re-derive localized context and layout direction when language changes
             val localizedContext = remember(appLanguage) {
                 val locale = java.util.Locale.forLanguageTag(appLanguage)
@@ -193,15 +193,28 @@ class MainActivity : ComponentActivity() {
                 config.setLocale(locale)
                 createConfigurationContext(config)
             }
-            
+
             val layoutDirection = remember(appLanguage) {
                 if (appLanguage == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr
             }
 
-            MyApplicationTheme {
+            val highContrast by UserPreferencesManager.highContrastMode.collectAsState()
+            val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
+            val globalTextScale by UserPreferencesManager.globalTextScale.collectAsState()
+
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val customDensity = remember(density, globalTextScale) {
+                androidx.compose.ui.unit.Density(
+                    density = density.density,
+                    fontScale = density.fontScale * globalTextScale
+                )
+            }
+
+            MyApplicationTheme(highContrastMode = highContrast) {
                 CompositionLocalProvider(
                     LocalLayoutDirection provides layoutDirection,
                     LocalContext provides localizedContext,
+                    androidx.compose.ui.platform.LocalDensity provides customDensity,
                     androidx.activity.compose.LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
                     LaunchedEffect(Unit) {

@@ -780,7 +780,7 @@ private fun TeamConnectorsDialog(
                 Text("2) مستودع الدفع (GitHub)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF38BDF8))
                 Text(
                     if (repo != null) "✅ ${repo.owner}/${repo.repo} • ${repo.defaultBranch.ifBlank { "main" }} — الدفع يعمل (عام أو خاص بتوكن صالح)"
-                    else "❌ غير مربوط — اربطه من مركز البناء ليتعرف القائد على وجهة الدفع",
+                    else "❌ غير مربوط — اربطه من إعدادات الوكيل ليتعرف القائد على وجهة الدفع",
                     fontSize = 11.sp, color = Color.White
                 )
 

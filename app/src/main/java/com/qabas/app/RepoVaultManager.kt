@@ -55,7 +55,7 @@ data class RepoVaultEntry(
 }
 
 /**
- * مدير خزانة المستودعات المتعددة - يحفظ ويدير ويبدل بين مشاريع GitHub لمركز البناء وغرفة الوكيل
+ * مدير خزانة المستودعات المتعددة - يحفظ ويدير ويبدل بين مشاريع GitHub لغرفة الوكيل الذكي.
  */
 object RepoVaultManager {
     private const val PREFS_KEY = "multi_repo_vault_json_v2"

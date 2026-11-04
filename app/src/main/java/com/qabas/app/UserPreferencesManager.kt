@@ -128,7 +128,17 @@ object UserPreferencesManager {
     private val _appLanguage = MutableStateFlow("ar")
     val appLanguage: StateFlow<String> = _appLanguage.asStateFlow()
 
-    // ── 5. Supabase Cloud Sync States ──
+    // ── 5. Accessibility ──
+    private val _highContrastMode = MutableStateFlow(false)
+    val highContrastMode: StateFlow<Boolean> = _highContrastMode.asStateFlow()
+
+    private val _reducedMotion = MutableStateFlow(false)
+    val reducedMotion: StateFlow<Boolean> = _reducedMotion.asStateFlow()
+
+    private val _globalTextScale = MutableStateFlow(1.0f)
+    val globalTextScale: StateFlow<Float> = _globalTextScale.asStateFlow()
+
+    // ── 6. Supabase Cloud Sync States ──
     private val _cloudSyncEnabled = MutableStateFlow(true)
     val cloudSyncEnabled: StateFlow<Boolean> = _cloudSyncEnabled.asStateFlow()
 
@@ -193,6 +203,10 @@ object UserPreferencesManager {
         val lang = prefs.getString("app_language", "ar") ?: "ar"
         _appLanguage.value = lang
         Translator.setLanguage(lang)
+
+        _highContrastMode.value = prefs.getBoolean("high_contrast_mode", false)
+        _reducedMotion.value = prefs.getBoolean("reduced_motion", false)
+        _globalTextScale.value = prefs.getFloat("global_text_scale", 1.0f)
 
         _cloudSyncEnabled.value = prefs.getBoolean("cloud_sync_enabled", true)
         _lastSyncTime.value = prefs.getLong("last_sync_timestamp", 0L)
@@ -654,6 +668,9 @@ object UserPreferencesManager {
                 _quranReciter.value = prefsObj.optString("quran_reciter", "alafasy")
                 _appLanguage.value = prefsObj.optString("app_language", "ar")
                 Translator.setLanguage(_appLanguage.value)
+                _highContrastMode.value = prefsObj.optBoolean("high_contrast_mode", false)
+                _reducedMotion.value = prefsObj.optBoolean("reduced_motion", false)
+                _globalTextScale.value = prefsObj.optDouble("global_text_scale", 1.0).toFloat()
             }
             // استرجاع تفضيلات الهوية/الموقع/القراءة/المظهر إلى qabas_prefs
             if (root.has("identity_preferences")) {
@@ -683,4 +700,22 @@ object UserPreferencesManager {
             true
         }.getOrDefault(false)
     }
+    fun setHighContrastMode(context: Context, enabled: Boolean) {
+        _highContrastMode.value = enabled
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("high_contrast_mode", enabled).apply()
+        triggerAutoSync(context)
+    }
+
+    fun setReducedMotion(context: Context, enabled: Boolean) {
+        _reducedMotion.value = enabled
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("reduced_motion", enabled).apply()
+        triggerAutoSync(context)
+    }
+
+    fun setGlobalTextScale(context: Context, scale: Float) {
+        _globalTextScale.value = scale
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat("global_text_scale", scale).apply()
+        triggerAutoSync(context)
+    }
+
 }

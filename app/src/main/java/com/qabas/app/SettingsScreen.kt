@@ -59,8 +59,20 @@ enum class SettingsSubScreen {
     CRASH_LOGS,            // Spatial Crash Guard & Diagnostics HUD
     NOTIFICATION_SETTINGS, // Full Notification & Reminders Settings HUD
     GITHUB_XDELTA_HUB,     // Direct GitHub Connection & xdelta Updates HUD
-    BUG_CAMERA_CONTROL     // Spatial Bug Camera Button Control HUD
+    BUG_CAMERA_CONTROL,    // Spatial Bug Camera Button Control HUD
+    ACCESSIBILITY          // High Contrast, Text Size, Motion Control
 }
+
+data class SearchableSetting(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val subScreen: SettingsSubScreen,
+    val tags: List<String> = emptyList(),
+    val badge: String? = null,
+    val badgeColor: Color? = null,
+    val accentColor: Color = Color(0xFF00E5FF)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +109,7 @@ fun SettingsScreen(
 
     // حالة الشاشة الفرعية الحالية
     var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
+    var settingsSearchQuery by remember { mutableStateOf("") }
 
     // معالجة الرجوع بنظام BackHandler
     BackHandler(enabled = currentSubScreen != SettingsSubScreen.MAIN) {
@@ -107,6 +120,7 @@ fun SettingsScreen(
             SettingsSubScreen.CRASH_LOGS -> SettingsSubScreen.COMMUNITY_SUPPORT
             SettingsSubScreen.NOTIFICATION_SETTINGS -> SettingsSubScreen.MAIN
             SettingsSubScreen.GITHUB_XDELTA_HUB -> SettingsSubScreen.MAIN
+            SettingsSubScreen.ACCESSIBILITY -> SettingsSubScreen.MAIN
             else -> SettingsSubScreen.MAIN
         }
     }
@@ -143,6 +157,48 @@ fun SettingsScreen(
     }
     var defaultQuality by remember {
         mutableStateOf(prefs.getString("default_export_quality", "1080p") ?: "1080p")
+    }
+
+    val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
+    val isSyncing by UserPreferencesManager.isSyncing.collectAsState()
+
+    // تعريف جميع العناصر القابلة للبحث
+    val allSearchableItems = remember(isLoggedInAccount, isGuest, isDeveloperAccount, userBugReports) {
+        val unreadReportsCount = userBugReports.count { !it.isReadByUser }
+        listOf(
+            SearchableSetting("استوديو الواجهة والتفاعل", "الثيمات، لغة التطبيق، الأنميشن، والمؤثرات الصوتية", Icons.Default.AutoAwesomeMotion, SettingsSubScreen.UX_DESIGN_STUDIO, listOf("ديزاين", "ثيم", "لغة", "صوت"), badge = "تجربة المستخدم ✦", accentColor = Color(0xFF00E5FF)),
+            SearchableSetting("استوديو المؤثرات الصوتية والصدى", "التحكم بالأصوات التفاعلية، مستوى الصوت، أنماط النقر والاهتزاز", Icons.Default.GraphicEq, SettingsSubScreen.SOUND_STUDIO, listOf("صوت", "اهتزاز", "نقر"), badge = "صوتيات 🔊", accentColor = Color(0xFF38BDF8)),
+            SearchableSetting("الاستوديو الروحاني والمصحف الشريف", "تخصيص القراءة، الأذان، مواقيت الصلاة، والأذكار", Icons.Default.MenuBook, SettingsSubScreen.SPIRITUAL_STUDIO, listOf("قرآن", "صلاة", "أذان", "أذكار"), badge = "زاد إيماني 🕋", accentColor = Color(0xFF10B981)),
+            SearchableSetting("مركز الإنتاج والذكاء الاحترافي", "هوية الذكاء، العلامة المائية، وجودة التصدير", Icons.Default.Psychology, SettingsSubScreen.PRO_PRODUCTION_HUB, listOf("ذكاء", "فيديو", "إنتاج", "علامة مائية"), badge = "إبداع احترافي 🎬", accentColor = Color(0xFFA855F7)),
+            SearchableSetting("إعدادات الإشعارات والتنبيهات الإيمانية", "أوقات الأذان، تنبيه السحر، الفجر، الحديث اليومي، وتخصيص أدوات الإشعار", Icons.Default.NotificationsActive, SettingsSubScreen.NOTIFICATION_SETTINGS, listOf("تنبيه", "إشعار"), badge = "تفاعلي 🔔", accentColor = Color(0xFFF59E0B)),
+            SearchableSetting("مركز الأذونات وحماية النظام", "صلاحيات الميكروفون، الكاميرا، دقة الأذان، ودرع حماية الخلفية", Icons.Default.Shield, SettingsSubScreen.PERMISSIONS_HUB, listOf("أمان", "صلاحية"), badge = "درع فضائي 🛡️", accentColor = Color(0xFF00E5FF)),
+            SearchableSetting("إعدادات سهولة الوصول", "التباين العالي، تقليل الحركة، حجم خط واجهة التطبيق", Icons.Default.AccessibilityNew, SettingsSubScreen.ACCESSIBILITY, listOf("سهولة الوصول", "تباين", "خط", "حركة"), badge = "Accessibility ♿", accentColor = Color(0xFF10B981))
+        ).let { base ->
+            if (isDeveloperAccount) {
+                base + listOf(
+                    SearchableSetting("النظام والبيانات والمجتمع", "النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية", Icons.Default.SettingsSuggest, SettingsSubScreen.COMMUNITY_SUPPORT, listOf("كاش", "نظام", "بيانات", "احتياطي"), badge = "الاستدامة ⚙️", accentColor = GoldPrimary),
+                    SearchableSetting("تحديثات xdelta ومستودع GitHub المباشر", "اتصال مباشر بمستودع قبس، فحص إصدارات xdelta وتثبيت تفاضلي", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta"), badge = "تحديث تفاضلي ⚡", accentColor = Color(0xFF00E5FF))
+                )
+            } else base
+        }.let { base ->
+            if (isLoggedInAccount && !isGuest) {
+                base + listOf(
+                    SearchableSetting("مركز الدعم والدردشة المباشرة", "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬", accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8), badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else null),
+                    SearchableSetting("زر الكاميرا الفضائي للبلاغات والمشاكل", "التحكم الكامل بزر الكاميرا العائم للبلاغات والمشاكل", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "خاص بالحسابات 📸", accentColor = Color(0xFF00E5FF))
+                )
+            } else base
+        }
+    }
+
+    val filteredSettings = remember(settingsSearchQuery, allSearchableItems) {
+        if (settingsSearchQuery.isBlank()) allSearchableItems
+        else {
+            allSearchableItems.filter { item ->
+                item.title.contains(settingsSearchQuery, ignoreCase = true) ||
+                item.subtitle.contains(settingsSearchQuery, ignoreCase = true) ||
+                item.tags.any { it.contains(settingsSearchQuery, ignoreCase = true) }
+            }
+        }
     }
 
     // الحسابات وقنوات التواصل
@@ -251,7 +307,6 @@ fun SettingsScreen(
     var showPassphraseDialog by remember { mutableStateOf(false) }
     var passphraseInput by remember { mutableStateOf("") }
     var passphraseError by remember { mutableStateOf(false) }
-    val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
     val isDevMode = isDeveloperAccount
 
     // الحسابات الرسمية
@@ -510,285 +565,113 @@ fun SettingsScreen(
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. بطاقة الملف الشخصي الفاخرة المحدثة بنظام HUD الفضائي
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .luxuryCardStyle(shapeRadius = 22.dp, borderAlpha = 0.45f, glowElevation = 8.dp),
-                            shape = RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
-                        ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box {
-                                        Surface(
-                                            modifier = Modifier.size(58.dp),
-                                            shape = CircleShape,
-                                            color = Color(0xFF0F172A),
-                                            border = BorderStroke(2.dp, UiBrush.horizontalGradient(listOf(GoldPrimary, Color(0xFF38BDF8))))
-                                        ) {
-                                            if (avatarUriString.isNotBlank()) {
-                                                AsyncImage(
-                                                    model = avatarUriString,
-                                                    contentDescription = "Avatar",
-                                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                                    contentScale = ContentScale.Crop
-                                                )
-                                            } else {
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize().background(
-                                                        UiBrush.radialGradient(
-                                                            colors = listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF0F172A))
-                                                        )
-                                                    ),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = when (selectedPresetAvatar) {
-                                                            1 -> Icons.Default.AutoAwesome
-                                                            2 -> Icons.Default.MovieFilter
-                                                            3 -> Icons.Default.MenuBook
-                                                            4 -> Icons.Default.Psychology
-                                                            else -> Icons.Default.Person
-                                                        },
-                                                        contentDescription = null,
-                                                        tint = GoldPrimary,
-                                                        modifier = Modifier.size(30.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        // مؤشر متصل أونلاين 🟢
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .clip(CircleShape)
-                                                .background(EmeraldGreen)
-                                                .border(2.dp, DeepSlate, CircleShape)
-                                                .align(Alignment.BottomEnd)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(14.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Text(
-                                                text = savedDisplayName,
-                                                color = Color.White,
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 17.sp
-                                            )
-                                        }
-                                        Text(
-                                            text = if (isGuest) "guest@qabas.studio" else userEmail,
-                                            color = Color(0xFF94A3B8),
-                                            fontFamily = NotoSansFont,
-                                            fontSize = 11.5.sp
-                                        )
-
-                                        // المعرّف الخاص الفريد مع زر النسخ الفوري
-                                        val customId = remember(userEmail, isGuest) {
-                                            if (isGuest) "guest" else UserIdentifierManager.getCustomId(context, userEmail)
-                                        }
-                                        Surface(
-                                            color = Color(0xFF00E5FF).copy(alpha = 0.12f),
-                                            shape = RoundedCornerShape(6.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f)),
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .clickable { UserIdentifierManager.copyToClipboard(context, customId) }
-                                                    .padding(horizontal = 7.dp, vertical = 2.5.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Person,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFF00E5FF),
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                                Text(
-                                                    text = "المعرّف: ${UserIdentifierManager.formatDisplay(customId)}",
-                                                    color = Color(0xFF00E5FF),
-                                                    fontFamily = RobotoMonoFont,
-                                                    fontSize = 10.5.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Icon(
-                                                    Icons.Default.ContentCopy,
-                                                    contentDescription = "نسخ المعرّف",
-                                                    tint = Color(0xFF00E5FF).copy(alpha = 0.8f),
-                                                    modifier = Modifier.size(11.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Surface(
-                                                color = if (isAdmin || isRelative) GoldPrimary else Color(0xFF1E293B),
-                                                shape = RoundedCornerShape(8.dp),
-                                                border = BorderStroke(1.dp, if (isAdmin || isRelative) GoldPrimary else Color(0xFF334155))
-                                            ) {
-                                                Text(
-                                                    text = when {
-                                                        isAdmin -> Translator.tr("مطور النظام (صلاحيات كاملة) 👑")
-                                                        isRelative -> Translator.tr("حساب الاكتفاء الذاتي 🔑")
-                                                        isGuest -> Translator.tr("حساب مجاني 🏷️")
-                                                        else -> Translator.tr("عضوية ذهبية Pro ⭐")
-                                                    },
-                                                    color = if (isAdmin || isRelative) DeepSlate else Color.White,
-                                                    fontFamily = CairoFont,
-                                                    fontSize = 10.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    if (!isAdmin && !isGuest && !isRelative) {
-                                        IconButton(onClick = onNavigateToPremiumUpgrade) {
-                                            Icon(Icons.Default.WorkspacePremium, contentDescription = "ترقية", tint = GoldPrimary, modifier = Modifier.size(24.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── مراكز التحكم الموحدة (Unified Control Hubs) ──
-                        SettingsGroupHeader(Translator.tr("مراكز الضبط والتحكم الذكي ✦"))
-
-                        // 1. استوديو الواجهة والتفاعل (UX & Interaction)
-                        SettingsNavigationCard(
-                            title = "استوديو الواجهة والتفاعل",
-                            subtitle = "الثيمات، لغة التطبيق، الأنميشن، والمؤثرات الصوتية",
-                            icon = Icons.Default.AutoAwesomeMotion,
-                            badge = "تجربة المستخدم ✦",
-                            accentColor = Color(0xFF00E5FF),
-                            onClick = { currentSubScreen = SettingsSubScreen.UX_DESIGN_STUDIO }
+                        // 1. بطاقة الملف الشخصي
+                        ProfileSettingsCard(
+                            savedDisplayName = savedDisplayName,
+                            userEmail = if (isGuest) "guest@qabas.studio" else userEmail,
+                            avatarUriString = avatarUriString,
+                            selectedPresetAvatar = selectedPresetAvatar,
+                            isAdmin = isAdmin,
+                            isGuest = isGuest,
+                            isRelative = isRelative,
+                            onUpgrade = onNavigateToPremiumUpgrade,
+                            context = context
                         )
 
-                        // 1.1 استوديو المؤثرات الصوتية المباشر (Sound Studio)
-                        SettingsNavigationCard(
-                            title = "استوديو المؤثرات الصوتية والصدى",
-                            subtitle = "التحكم بالأصوات التفاعلية، مستوى الصوت، أنماط النقر والاهتزاز",
-                            icon = Icons.Default.GraphicEq,
-                            badge = "صوتيات 🔊",
-                            accentColor = Color(0xFF38BDF8),
-                            onClick = { currentSubScreen = SettingsSubScreen.SOUND_STUDIO }
+                        // 2. شريط البحث
+                        SettingsSearchBar(
+                            query = settingsSearchQuery,
+                            onQueryChange = { settingsSearchQuery = it }
                         )
 
-                        // 2. الاستوديو الروحاني والمصحف الشريف (Spiritual & Reading)
-                        SettingsNavigationCard(
-                            title = "الاستوديو الروحاني والمصحف الشريف",
-                            subtitle = "تخصيص القراءة، الأذان، مواقيت الصلاة، والأذكار",
-                            icon = Icons.Default.MenuBook,
-                            badge = "زاد إيماني 🕋",
-                            accentColor = Color(0xFF10B981),
-                            onClick = { currentSubScreen = SettingsSubScreen.SPIRITUAL_STUDIO }
-                        )
-
-                        // 2.5 مركز الدعم والدردشة المباشرة (Support Center) - يظهر للحسابات المسجلة فقط
-                        if (isLoggedInAccount && !isGuest) {
-                            val unreadReportsCount = remember(userBugReports) {
-                                userBugReports.count { !it.isReadByUser }
-                            }
-                            SettingsNavigationCard(
-                                title = "مركز الدعم والدردشة المباشرة",
-                                subtitle = "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية",
-                                icon = Icons.Default.SupportAgent,
-                                badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬",
-                                badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
-                                accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8),
-                                onClick = {
-                                    AppSoundManager.playClick()
-                                    showUserReportsDialog = true
-                                    // تمييز الكل كمقروء عند فتح المركز
+                        // 3. الأوامر السريعة (تظهر فقط عند عدم وجود بحث)
+                        if (settingsSearchQuery.isBlank()) {
+                            SettingsQuickActions(
+                                onClearCache = {
                                     coroutineScope.launch {
-                                        BugReportRepository.markReportsAsRead(context)
+                                        withContext(Dispatchers.IO) { context.cacheDir.deleteRecursively() }
+                                        cacheSizeBytes = 0L
+                                        Toast.makeText(context, "تم تنظيف الملفات المؤقتة بنجاح 🧹", Toast.LENGTH_SHORT).show()
                                     }
+                                },
+                                onSyncCloud = {
+                                    coroutineScope.launch {
+                                        UserPreferencesManager.syncToSupabase(context)
+                                        Toast.makeText(context, "تمت المزامنة بنجاح ☁️", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onCheckUpdate = {
+                                    coroutineScope.launch {
+                                        val info = VersionManager.checkRemoteVersion(context)
+                                        if (info != null) {
+                                            updateInfo = info
+                                            updateState = "found"
+                                            Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل ✅", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                isSyncing = isSyncing,
+                                isCheckingUpdate = updateState == "checking..."
+                            )
+                        }
+
+                        // 4. عرض النتائج المفلترة أو التصنيفات القياسية
+                        if (settingsSearchQuery.isNotBlank()) {
+                            SettingsGroupHeader("نتائج البحث (${filteredSettings.size})")
+                            filteredSettings.forEach { item ->
+                                SettingsNavigationCard(
+                                    title = item.title,
+                                    subtitle = item.subtitle,
+                                    icon = item.icon,
+                                    badge = item.badge ?: "",
+                                    badgeColor = item.badgeColor ?: item.accentColor,
+                                    accentColor = item.accentColor,
+                                    onClick = {
+                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
+                                            AppSoundManager.playClick()
+                                            showUserReportsDialog = true
+                                            coroutineScope.launch { BugReportRepository.markReportsAsRead(context) }
+                                        } else {
+                                            currentSubScreen = item.subScreen
+                                        }
+                                    }
+                                )
+                            }
+                            if (filteredSettings.isEmpty()) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                                    Text("لم نجد إعداداً بهذا الاسم... 🔍", color = Color.Gray, fontFamily = CairoFont, fontSize = 14.sp)
                                 }
-                            )
+                            }
+                        } else {
+                            // ── مراكز التحكم الموحدة (Unified Control Hubs) ──
+                            SettingsGroupHeader(Translator.tr("مراكز الضبط والتحكم الذكي ✦"))
+
+                            allSearchableItems.forEach { item ->
+                                SettingsNavigationCard(
+                                    title = item.title,
+                                    subtitle = item.subtitle,
+                                    icon = item.icon,
+                                    badge = item.badge ?: "",
+                                    badgeColor = item.badgeColor ?: item.accentColor,
+                                    accentColor = item.accentColor,
+                                    onClick = {
+                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
+                                            AppSoundManager.playClick()
+                                            showUserReportsDialog = true
+                                            coroutineScope.launch { BugReportRepository.markReportsAsRead(context) }
+                                        } else {
+                                            currentSubScreen = item.subScreen
+                                        }
+                                    }
+                                )
+                            }
                         }
 
-                        // 3. مركز الإنتاج والذكاء الاحترافي (Pro Production)
-                        SettingsNavigationCard(
-                            title = "مركز الإنتاج والذكاء الاحترافي",
-                            subtitle = "هوية الذكاء، العلامة المائية، وجودة التصدير",
-                            icon = Icons.Default.Psychology,
-                            badge = "إبداع احترافي 🎬",
-                            accentColor = Color(0xFFA855F7),
-                            onClick = { currentSubScreen = SettingsSubScreen.PRO_PRODUCTION_HUB }
-                        )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        // 3.4 إعدادات الإشعارات والتنبيهات الإيمانية
-                        SettingsNavigationCard(
-                            title = Translator.tr("إعدادات الإشعارات والتنبيهات الإيمانية"),
-                            subtitle = Translator.tr("أوقات الأذان، تنبيه السحر، الفجر، الحديث اليومي، وتخصيص أدوات الإشعار"),
-                            icon = Icons.Default.NotificationsActive,
-                            badge = "تفاعلي 🔔",
-                            accentColor = Color(0xFFF59E0B),
-                            onClick = { currentSubScreen = SettingsSubScreen.NOTIFICATION_SETTINGS }
-                        )
-
-                        // 3.5 مركز الأذونات وحماية النظام (Permissions & System Sentinel)
-                        SettingsNavigationCard(
-                            title = Translator.tr("مركز الأذونات وحماية النظام"),
-                            subtitle = Translator.tr("صلاحيات الميكروفون، الكاميرا، دقة الأذان، ودرع حماية الخلفية"),
-                            icon = Icons.Default.Shield,
-                            badge = "درع فضائي 🛡️",
-                            accentColor = Color(0xFF00E5FF),
-                            onClick = { currentSubScreen = SettingsSubScreen.PERMISSIONS_HUB }
-                        )
-
-                        // 4. النظام، البيانات والمجتمع + تحديثات xdelta المباشرة (أقسام خاصة برتبة وحسابات المطور فقط)
-                        if (isDeveloperAccount) {
-                            // 4.1 النظام والبيانات والمجتمع (System & Community)
-                            SettingsNavigationCard(
-                                title = Translator.tr("النظام والبيانات والمجتمع"),
-                                subtitle = Translator.tr("النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية"),
-                                icon = Icons.Default.SettingsSuggest,
-                                badge = "الاستدامة ⚙️",
-                                accentColor = GoldPrimary,
-                                onClick = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
-                            )
-
-                            // 4.2 اتصال GitHub المباشر وتحديثات xdelta الذكية (أداة مطوّر)
-                            SettingsNavigationCard(
-                                title = Translator.tr("تحديثات xdelta ومستودع GitHub المباشر"),
-                                subtitle = Translator.tr("اتصال مباشر بـ Ali-awwww/qabasapp، فحص إصدارات xdelta، وتثبيت تفاضلي فائق السرعة"),
-                                icon = Icons.Default.CloudSync,
-                                badge = "تحديث تفاضلي ⚡",
-                                accentColor = Color(0xFF00E5FF),
-                                onClick = { currentSubScreen = SettingsSubScreen.GITHUB_XDELTA_HUB }
-                            )
-                        }
-
-                        // 4.2 قسم تحكم زر الكاميرا الفضائي للبلاغات والمشاكل (يظهر للحسابات المسجلة فقط)
-                        if (isLoggedInAccount && !isGuest) {
-                            SettingsNavigationCard(
-                                title = Translator.tr("زر الكاميرا الفضائي للبلاغات والمشاكل"),
-                                subtitle = Translator.tr("التحكم الكامل بزر الكاميرا العائم: التفعيل، التعطيل، الشفافية، الاستقرار، وسلوك الالتقاط الفوري"),
-                                icon = Icons.Default.CameraAlt,
-                                badge = "خاص بالحسابات 📸",
-                                accentColor = Color(0xFF00E5FF),
-                                onClick = { currentSubScreen = SettingsSubScreen.BUG_CAMERA_CONTROL }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // زر تسجيل الخروج السريع
+                        // زر تسجيل الخروج السريع (Single Instance)
                         val logoutShape = androidx.compose.foundation.shape.CutCornerShape(8.dp)
                         Button(
                             onClick = onLogout,
@@ -808,7 +691,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
@@ -1069,6 +952,20 @@ fun SettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
                     onOpenMyReports = { showUserReportsDialog = true }
                 )
+            }
+
+            // ==========================================
+            // ♿ مركز إعدادات سهولة الوصول (Accessibility)
+            // ==========================================
+            SettingsSubScreen.ACCESSIBILITY -> {
+                SubScreenScaffold(
+                    title = "إعدادات سهولة الوصول",
+                    icon = Icons.Default.AccessibilityNew,
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN },
+                    bottomBar = bottomBar
+                ) {
+                    AccessibilitySettingsSection()
+                }
             }
         }
     }
@@ -3104,6 +3001,250 @@ fun TransitionAnimationsSubScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = { Text("البحث في الإعدادات...", fontFamily = CairoFont, fontSize = 13.sp, color = Color.Gray) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp)) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                }
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = GoldPrimary,
+            unfocusedBorderColor = Color(0xFF1E293B),
+            focusedContainerColor = Color(0xFF0F172A),
+            unfocusedContainerColor = Color(0xFF0F172A),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White
+        )
+    )
+}
+
+@Composable
+fun SettingsQuickActions(
+    onClearCache: () -> Unit,
+    onSyncCloud: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    isSyncing: Boolean,
+    isCheckingUpdate: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        QuickActionItem(
+            icon = Icons.Default.DeleteSweep,
+            label = "تنظيف الكاش",
+            onClick = onClearCache,
+            modifier = Modifier.weight(1f)
+        )
+        QuickActionItem(
+            icon = Icons.Default.CloudSync,
+            label = if (isSyncing) "جاري المزامنة..." else "مزامنة سحابية",
+            onClick = onSyncCloud,
+            enabled = !isSyncing,
+            modifier = Modifier.weight(1f)
+        )
+        QuickActionItem(
+            icon = Icons.Default.Update,
+            label = if (isCheckingUpdate) "جاري الفحص..." else "تحديثات",
+            onClick = onCheckUpdate,
+            enabled = !isCheckingUpdate,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun QuickActionItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(74.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF1E293B).copy(alpha = 0.6f),
+        border = BorderStroke(1.dp, Color(0xFF334155))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                label,
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+fun ProfileSettingsCard(
+    savedDisplayName: String,
+    userEmail: String,
+    avatarUriString: String,
+    selectedPresetAvatar: Int,
+    isAdmin: Boolean,
+    isGuest: Boolean,
+    isRelative: Boolean,
+    onUpgrade: () -> Unit,
+    context: Context
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .luxuryCardStyle(shapeRadius = 22.dp, borderAlpha = 0.45f, glowElevation = 8.dp),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box {
+                    Surface(
+                        modifier = Modifier.size(58.dp),
+                        shape = CircleShape,
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(2.dp, androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(GoldPrimary, Color(0xFF38BDF8))))
+                    ) {
+                        if (avatarUriString.isNotBlank()) {
+                            AsyncImage(
+                                model = avatarUriString,
+                                contentDescription = "Avatar",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(
+                                    androidx.compose.ui.graphics.Brush.radialGradient(
+                                        colors = listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF0F172A))
+                                    )
+                                ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when (selectedPresetAvatar) {
+                                        1 -> Icons.Default.AutoAwesome
+                                        2 -> Icons.Default.MovieFilter
+                                        3 -> Icons.Default.MenuBook
+                                        4 -> Icons.Default.Psychology
+                                        else -> Icons.Default.Person
+                                    },
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF10B981))
+                            .border(2.dp, Color(0xFF070B14), CircleShape)
+                            .align(Alignment.BottomEnd)
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = savedDisplayName,
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Text(
+                        text = userEmail,
+                        color = Color(0xFF94A3B8),
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp
+                    )
+
+                    val customId = remember(userEmail, isGuest) {
+                        if (isGuest) "guest" else UserIdentifierManager.getCustomId(context, userEmail)
+                    }
+                    Surface(
+                        color = Color(0xFF00E5FF).copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f)),
+                        modifier = Modifier.padding(top = 4.dp).clickable { UserIdentifierManager.copyToClipboard(context, customId) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(12.dp))
+                            Text(
+                                text = "المعرّف: ${UserIdentifierManager.formatDisplay(customId)}",
+                                color = Color(0xFF00E5FF),
+                                fontFamily = RobotoMonoFont,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF00E5FF).copy(alpha = 0.8f), modifier = Modifier.size(11.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        color = if (isAdmin || isRelative) GoldPrimary else Color(0xFF1E293B),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = when {
+                                isAdmin -> Translator.tr("مطور النظام 👑")
+                                isRelative -> Translator.tr("حساب الاكتفاء الذاتي 🔑")
+                                isGuest -> Translator.tr("حساب مجاني 🏷️")
+                                else -> Translator.tr("عضوية ذهبية Pro ⭐")
+                            },
+                            color = if (isAdmin || isRelative) Color(0xFF070B14) else Color.White,
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+                if (!isAdmin && !isGuest && !isRelative) {
+                    IconButton(onClick = onUpgrade) {
+                        Icon(Icons.Default.WorkspacePremium, contentDescription = "ترقية", tint = GoldPrimary, modifier = Modifier.size(24.dp))
                     }
                 }
             }

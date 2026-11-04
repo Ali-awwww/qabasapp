@@ -66,7 +66,6 @@ import java.util.zip.ZipOutputStream
 
 enum class DashboardSection {
     MAIN,
-    AGENT_BUILD_HUB,
     CLOUD_API_HUB,
     HEALTH_DIAGNOSTICS_HUB,
     BUG_REPORTS,
@@ -77,7 +76,7 @@ enum class DashboardSection {
     LIVE_KEY_STATUS_HUB, REQUESTS, SYSTEM_CONTROLS, NOTIFICATIONS, USERS, STATS,
     ACCOUNT_SETTINGS, MONEY_CENTER, DEV_STUDIO_SIGNATURE,
     STYLE_BRAIN,
-    API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, BUILD_CENTER, HEALTH_CENTER, AGENT_ROOM, CONNECTORS,
+    API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, HEALTH_CENTER, CONNECTORS,
     CRASH_LOGS, DEV_CHAT
 }
 
@@ -330,7 +329,6 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 DashboardSection.MAIN -> {
                     DashboardMainGrid(
                         onBack = handleBack,
-                        onAgentBuildHub = { currentSection = DashboardSection.AGENT_BUILD_HUB },
                         onCloudApiHub = { currentSection = DashboardSection.CLOUD_API_HUB },
                         onHealthDiagnosticsHub = { currentSection = DashboardSection.HEALTH_DIAGNOSTICS_HUB },
                         onUsersCommunityHub = { currentSection = DashboardSection.USERS_COMMUNITY_HUB },
@@ -343,11 +341,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     )
                 }
 
-                DashboardSection.AGENT_BUILD_HUB, DashboardSection.AGENT_ROOM, DashboardSection.BUILD_CENTER -> {
-                    LaunchedEffect(Unit) {
-                        onNavigateTo(AppState.AI_STUDIO_AGENT)
-                    }
-                }
+
 
                 // 2. مركز المفاتيح والربط السحابي
                 DashboardSection.CLOUD_API_HUB, DashboardSection.API_KEYS, DashboardSection.LIVE_KEY_STATUS_HUB, DashboardSection.CONNECTORS, DashboardSection.AI_MODEL_SWITCHER -> {
@@ -1394,7 +1388,6 @@ fun SystemIdentityHubScreen(
 @Composable
 fun DashboardMainGrid(
     onBack: () -> Unit = {},
-    onAgentBuildHub: () -> Unit = {},
     onCloudApiHub: () -> Unit = {},
     onHealthDiagnosticsHub: () -> Unit = {},
     onUsersCommunityHub: () -> Unit = {},
@@ -1411,7 +1404,6 @@ fun DashboardMainGrid(
     onUsers: () -> Unit = onUsersCommunityHub,
     onStats: () -> Unit = onBusinessRevenueHub,
     onHealthCenter: () -> Unit = onHealthDiagnosticsHub,
-    onAgentRoom: () -> Unit = onAgentBuildHub,
     onConnectors: () -> Unit = onCloudApiHub,
     onAccountSettings: () -> Unit = onSystemIdentityHub,
     onMoneyCenter: () -> Unit = onBusinessRevenueHub,
@@ -1421,7 +1413,6 @@ fun DashboardMainGrid(
     onAuditLog: () -> Unit = onHealthDiagnosticsHub,
     onBackup: () -> Unit = onSystemIdentityHub,
     onProductionPipeline: () -> Unit = onHealthDiagnosticsHub,
-    onBuildCenter: () -> Unit = onAgentBuildHub,
     userCount: Int = 0
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
@@ -1553,7 +1544,6 @@ fun DashboardMainGrid(
 
     val filterCategories = listOf(
         "الكل // ALL",
-        "🤖 الوكيل والبناء",
         "⚡ المفاتيح والسحابة",
         "🩺 الصحة والتشخيص",
         "👥 المستخدمون",
@@ -1670,12 +1660,11 @@ fun DashboardMainGrid(
                     filterCategories.forEachIndexed { index, title ->
                         val isSelected = selectedFilterIndex == index
                         val accentColor = when (index) {
-                            1 -> Violet
-                            2 -> Gold
-                            3 -> Cyan
-                            4 -> Green
-                            5 -> Amber
-                            6 -> Rose
+                            1 -> Gold
+                            2 -> Cyan
+                            3 -> Green
+                            4 -> Amber
+                            5 -> Rose
                             else -> GoldPrimary
                         }
                         Surface(

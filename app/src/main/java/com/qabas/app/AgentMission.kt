@@ -621,7 +621,7 @@ suspend fun triggerBuildDirectly(
             step.copy(
                 isRunning = false,
                 isSuccess = false,
-                outputSnippet = "لا يوجد مستودع مربوط — اربط مستودعك أولاً من مركز البناء 🔗"
+                outputSnippet = "لا يوجد مستودع مربوط — اربط مستودعك أولاً من إعدادات الوكيل 🔗"
             )
         )
         return@withContext
