@@ -153,8 +153,10 @@ fun QuranTajweedScreen(
     }
 
     var quranDataVersion by remember { mutableIntStateOf(QuranDataProvider.getTotalAyahCount()) }
+    var quranDataReady by remember { mutableStateOf(quranDataVersion == 6236) }
+    var quranLoadAttempt by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(quranLoadAttempt) {
         val ready = withContext(Dispatchers.IO) {
             val loaded = QuranDataProvider.loadFromAssets(context) ||
                 QuranDataProvider.loadFromCache(context) ||
@@ -163,7 +165,8 @@ fun QuranTajweedScreen(
             loaded
         }
         quranDataVersion = QuranDataProvider.getTotalAyahCount()
-        if (!ready || quranDataVersion != 6236) {
+        quranDataReady = ready && quranDataVersion == 6236
+        if (!quranDataReady) {
             Toast.makeText(context, "تعذر تحميل النص القرآني الكامل. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
         }
     }
@@ -549,6 +552,7 @@ fun QuranTajweedScreen(
                             selectedReciter = selectedReciter,
                             isPlayingAudio = isPlayingAudio,
                             dataVersion = quranDataVersion,
+                            onRetryData = { quranLoadAttempt++ },
                             highlightVerse = readerTargetVerseNumber,
                             isSakinaMode = isSakinaMode,
                             onToggleAudio = {
@@ -1270,6 +1274,7 @@ fun GoldenMushafReaderView(
     selectedReciter: String,
     isPlayingAudio: Boolean,
     dataVersion: Int = 0,
+    onRetryData: () -> Unit = {},
     onToggleAudio: () -> Unit,
     onSelectReciter: (String) -> Unit,
     onCloseReader: () -> Unit,
@@ -1465,6 +1470,16 @@ fun GoldenMushafReaderView(
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
+                        }
+                        if (!quranDataReady) {
+                            Button(
+                                onClick = onRetryData,
+                                colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("إعادة تحميل النص القرآني", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
                         Spacer(modifier = Modifier.height(20.dp))
                         OutlinedButton(
