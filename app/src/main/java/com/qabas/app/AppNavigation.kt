@@ -40,7 +40,9 @@ fun AppNavigation(
     // Reactive Auth state observer broadcasting from SupabaseRepository
     ReactiveAuthNavigationObserver(
         onAuthenticated = { isAdmin ->
-            if (appState == AppState.LOGIN || appState == AppState.REGISTER || appState == AppState.FORGOT_PASSWORD) {
+            if (!PasswordRecoveryManager.isRecoveryInProgress.value &&
+                (appState == AppState.LOGIN || appState == AppState.REGISTER || appState == AppState.FORGOT_PASSWORD)
+            ) {
                 val nextState = AppState.HOME
                 viewModel.updateState { copy(appState = nextState) }
             }
