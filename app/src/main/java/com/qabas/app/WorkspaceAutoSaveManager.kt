@@ -317,6 +317,7 @@ object WorkspaceAutoSaveManager {
                 cObj.put("startOffsetMs", clip.startOffsetMs)
                 cObj.put("durationMs", clip.durationMs)
                 cObj.put("sourceStartMs", clip.sourceStartMs)
+                cObj.put("sourceDurationMs", clip.sourceDurationMs)
                 cObj.put("trackIndex", clip.trackIndex)
                 cObj.put("type", clip.type.name)
                 cObj.put("volume", clip.volume.toDouble())
@@ -385,6 +386,7 @@ object WorkspaceAutoSaveManager {
                                     durationMs = c.optLong("durationMs", 5000L),
                                     trackIndex = c.optInt("trackIndex", i),
                                     sourceStartMs = c.optLong("sourceStartMs", 0L),
+                                    sourceDurationMs = c.optLong("sourceDurationMs", 0L),
                                     type = cType,
                                     color = when (cType) {
                                         TrackType.TEXT -> Color(0xFFFACC15)
