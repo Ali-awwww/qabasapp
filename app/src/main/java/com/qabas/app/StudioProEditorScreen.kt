@@ -1,9 +1,11 @@
 package com.qabas.app
 
+import android.content.Intent
 import android.widget.Toast
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.view.TextureView
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -1680,6 +1682,32 @@ fun ExportWorkspace(state: EditorProjectState) {
         }
         outputPath?.let { path ->
             Text("مكان الحفظ: $path", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
+            OutlinedButton(
+                onClick = {
+                    runCatching {
+                        val file = java.io.File(path)
+                        val contentUri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            file
+                        )
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "video/mp4"
+                            putExtra(Intent.EXTRA_STREAM, contentUri)
+                            clipData = android.content.ClipData.newUri(context.contentResolver, file.name, contentUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "مشاركة الفيديو المُصدّر"))
+                    }.onFailure {
+                        statusMessage = it.message ?: "تعذرت مشاركة ملف الفيديو"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Share, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("مشاركة ملف MP4", fontFamily = CairoFont)
+            }
         }
 
         Text(
