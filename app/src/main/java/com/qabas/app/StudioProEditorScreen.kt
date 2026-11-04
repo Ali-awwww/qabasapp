@@ -275,7 +275,25 @@ fun StudioProEditorScreen(
                             projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
                         }
 
-                        // Simulated Video Background with Filters and Transforms
+                        if (activeVideoClip == null && activeTextClip == null) {
+                            Column(
+                                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "لا توجد وسائط عند موضع التشغيل الحالي",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                TextButton(onClick = { showMediaBrowser = true }) {
+                                    Text("استيراد وسائط", color = GoldPrimary, fontFamily = CairoFont)
+                                }
+                            }
+                        }
+
+                        // Render the selected clip's visual properties over the preview surface.
                         Box(
                             modifier = Modifier.fillMaxSize()
                                 .graphicsLayer {
