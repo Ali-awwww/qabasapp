@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +79,7 @@ private fun getJuzName(juz: Int): String {
 fun MushafReaderScreen(
     onClose: () -> Unit,
     onOpenTafseer: (surahId: Int, ayah: Int) -> Unit = { _, _ -> },
+    onReciterChange: (reciterId: String) -> Unit = {},
     initialPage: Int? = null
 ) {
     val context = LocalContext.current
@@ -172,7 +172,8 @@ fun MushafReaderScreen(
                 onClose = {
                     onClose()
                 },
-                onOpenTafseer = onOpenTafseer
+                onOpenTafseer = onOpenTafseer,
+                onReciterChange = onReciterChange
             )
         }
     }
@@ -187,7 +188,8 @@ private fun MushafReaderContent(
     fontScale: Float,
     onFontScaleChange: (Float) -> Unit,
     onClose: () -> Unit,
-    onOpenTafseer: (Int, Int) -> Unit
+    onOpenTafseer: (Int, Int) -> Unit,
+    onReciterChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -298,6 +300,7 @@ private fun MushafReaderContent(
             selectedReciter = currentReciterKey,
             onReciterSelect = { reciterId ->
                 UserPreferencesManager.setQuranReciter(context, reciterId)
+                onReciterChange(reciterId)
                 stopAudio()
             },
             onFontScaleChange = onFontScaleChange,
