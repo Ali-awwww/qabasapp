@@ -1099,8 +1099,12 @@ object SupabaseServices {
         }.getOrDefault(false)
 
         suspend fun resetPassword(email: String): Boolean = runCatching {
+            if (!isSupabaseAvailable) return false
             val client = client ?: return false
-            client.auth.resetPasswordForEmail(email)
+            client.auth.resetPasswordForEmail(
+                email = email,
+                redirectUrl = SupabaseConfig.PASSWORD_RESET_REDIRECT_URL
+            )
             true
         }.onFailure { Log.e(TAG, "resetPassword failed: ${it.message}") }.getOrDefault(false)
 
@@ -1121,6 +1125,20 @@ object SupabaseServices {
             }
             true
         }.onFailure { Log.e(TAG, "updatePassword failed: ${it.message}") }.getOrDefault(false)
+
+        /**
+         * Password changes originating from the recovery screen must be backed
+         * by a verified Supabase recovery deep-link session.
+         */
+        suspend fun updateRecoveredPassword(newPassword: String): Boolean = runCatching {
+            if (!PasswordRecoveryManager.isRecoveryVerified.value) return false
+            val client = client ?: return false
+            if (client.auth.currentSessionOrNull() == null) return false
+            client.auth.updateUser {
+                password = newPassword
+            }
+            true
+        }.onFailure { Log.e(TAG, "updateRecoveredPassword failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun logout(): Boolean = runCatching {
             val client = client ?: return false
