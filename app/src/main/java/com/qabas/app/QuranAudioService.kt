@@ -225,6 +225,8 @@ object QuranAudioPlayer {
             }
             override fun onPlayerError(error: PlaybackException) {
                 android.util.Log.w("QuranAudioPlayer", "Audio playback error handled: ${error.message}")
+                onCompletionCallback?.invoke()
+                onCompletionCallback = null
             }
         })
         p.prepare()
