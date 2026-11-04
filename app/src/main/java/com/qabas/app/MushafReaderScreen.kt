@@ -463,7 +463,7 @@ private fun MushafPageCard(
     onOpenTafseer: (Int, Int) -> Unit
 ) {
     val refs = remember(page) { MushafPageData.getPageRefs(page) }
-    val pageScroll = remember(page) { androidx.compose.foundation.rememberScrollState() }
+    val pageScroll = androidx.compose.foundation.rememberScrollState()
     val pageText = remember(page) {
         buildAnnotatedString {
             refs.forEach { (surah, ayah) ->
