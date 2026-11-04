@@ -474,25 +474,25 @@ object QuranDataProvider {
     val dailyChallenges = listOf(
         QuranChallenge(
             id = "daily_reading",
-            title = "ورد الثبات اليومي 📖",
+            title = "هدف قراءة مقترح 📖",
             goal = "قراءة صفحتين من سورة البقرة",
-            progress = 0.5f,
+            progress = 0.0f,
             rewardHasanat = 500,
             icon = "MenuBook",
             type = ChallengeType.READING
         ),
         QuranChallenge(
             id = "memorization_intro",
-            title = "بداية الارتقاء 🧠",
+            title = "هدف حفظ مقترح 🧠",
             goal = "حفظ أول 5 آيات من سورة الملك",
-            progress = 0.2f,
+            progress = 0.0f,
             rewardHasanat = 1000,
             icon = "AutoAwesome",
             type = ChallengeType.MEMORIZATION
         ),
         QuranChallenge(
             id = "virtue_explorer",
-            title = "تدبّر الفضائل ✨",
+            title = "هدف تدبّر مقترح ✨",
             goal = "قراءة فضل سورة الكهف والعمل به",
             progress = 0.0f,
             rewardHasanat = 300,
@@ -506,8 +506,8 @@ object QuranDataProvider {
      */
     val surahs: List<QuranSurahItem> by lazy {
         listOf(
-            QuranSurahItem(1, "الفاتحة", "Al-Fatiha", "مكية", 7, 1, isLocked = false, isMastered = true, score = 98, "أحكام المد الطبيعي والنون الساكنة", emptyList(), "أم الكتاب والسبع المثاني والشفاء النافع"),
-            QuranSurahItem(2, "البقرة", "Al-Baqarah", "مدنية", 286, 1, isLocked = false, isMastered = false, score = 92, "أحكام الميم الساكنة والإدغام بغنة", emptyList(), "سنام القرآن وطاردة الشياطين، فيها آية الكرسي وخواتيمها كنز من تحت العرش"),
+            QuranSurahItem(1, "الفاتحة", "Al-Fatiha", "مكية", 7, 1, isLocked = false, isMastered = false, score = 0, "أحكام المد الطبيعي والنون الساكنة", emptyList(), "أم الكتاب والسبع المثاني والشفاء النافع"),
+            QuranSurahItem(2, "البقرة", "Al-Baqarah", "مدنية", 286, 1, isLocked = false, isMastered = false, score = 0, "أحكام الميم الساكنة والإدغام بغنة", emptyList(), "سنام القرآن وطاردة الشياطين، فيها آية الكرسي وخواتيمها كنز من تحت العرش"),
             QuranSurahItem(3, "آل عمران", "Ali 'Imran", "مدنية", 200, 3, isLocked = false, isMastered = false, score = 0, "المد المتصل والمنفصل", emptyList(), "إحدى الزهراوين، تحاج عن صاحبها يوم القيامة"),
             QuranSurahItem(4, "النساء", "An-Nisa", "مدنية", 176, 4, isLocked = false, isMastered = false, score = 0, "أحكام الوصل والوقف والمدود", emptyList()),
             QuranSurahItem(5, "المائدة", "Al-Ma'idah", "مدنية", 120, 6, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار والترقيق", emptyList()),
@@ -523,7 +523,7 @@ object QuranDataProvider {
             QuranSurahItem(15, "الحجر", "Al-Hijr", "مكية", 99, 14, isLocked = false, isMastered = false, score = 0, "الإظهار المطلق والغنة", emptyList()),
             QuranSurahItem(16, "النحل", "An-Nahl", "مكية", 128, 14, isLocked = false, isMastered = false, score = 0, "أحكام الاستعاذة والنبر", emptyList()),
             QuranSurahItem(17, "الإسراء", "Al-Isra", "مكية", 111, 15, isLocked = false, isMastered = false, score = 0, "أحكام الوقف الكافي والتفخيم", emptyList()),
-            QuranSurahItem(18, "الكهف", "Al-Kahf", "مكية", 110, 15, isLocked = false, isMastered = false, score = 90, "السكتات اللطيفة والإخفاء الشفوي", emptyList(), "نور ما بين الجمعتين وعصمة من فتنة الدجال لمن حفظ أوائلها"),
+            QuranSurahItem(18, "الكهف", "Al-Kahf", "مكية", 110, 15, isLocked = false, isMastered = false, score = 0, "السكتات اللطيفة والإخفاء الشفوي", emptyList(), "نور ما بين الجمعتين وعصمة من فتنة الدجال لمن حفظ أوائلها"),
             QuranSurahItem(19, "مريم", "Maryam", "مكية", 98, 16, isLocked = false, isMastered = false, score = 0, "المد اللازم الحرفي في (كهيعص)", emptyList()),
             QuranSurahItem(20, "طه", "Ta-Ha", "مكية", 135, 16, isLocked = false, isMastered = false, score = 0, "أحكام الفواتح والإمالة الصغرى", emptyList()),
             QuranSurahItem(21, "الأنبياء", "Al-Anbiya", "مكية", 112, 17, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة والإظهار", emptyList()),
@@ -541,7 +541,7 @@ object QuranDataProvider {
             QuranSurahItem(33, "الأحزاب", "Al-Ahzab", "مدنية", 73, 21, isLocked = false, isMastered = false, score = 0, "أحكام الصلاة على النبي ﷺ والمد", emptyList()),
             QuranSurahItem(34, "سبأ", "Saba", "مكية", 54, 22, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار والترقيق", emptyList()),
             QuranSurahItem(35, "فاطر", "Fatir", "مكية", 45, 22, isLocked = false, isMastered = false, score = 0, "صفات الحروف والمدود", emptyList()),
-            QuranSurahItem(36, "يس", "Ya-Sin", "مكية", 83, 22, isLocked = false, isMastered = false, score = 88, "أحكام الإظهار المطلق والغنة", emptyList(), "قلب القرآن، لا يقرؤها أحد يريد الله والدار الآخرة إلا غفر له"),
+            QuranSurahItem(36, "يس", "Ya-Sin", "مكية", 83, 22, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار المطلق والغنة", emptyList(), "قلب القرآن، لا يقرؤها أحد يريد الله والدار الآخرة إلا غفر له"),
             QuranSurahItem(37, "الصافات", "As-Saffat", "مكية", 182, 23, isLocked = false, isMastered = false, score = 0, "المد اللازم الكلمي المثقل", emptyList()),
             QuranSurahItem(38, "ص", "Sad", "مكية", 88, 23, isLocked = false, isMastered = false, score = 0, "حرف الصاد وتفخيمه والاستعلاء", emptyList()),
             QuranSurahItem(39, "الزمر", "Az-Zumar", "مكية", 75, 23, isLocked = false, isMastered = false, score = 0, "أحكام الرجاء والاستغفار", emptyList()),
@@ -560,7 +560,7 @@ object QuranDataProvider {
             QuranSurahItem(52, "الطور", "At-Tur", "مكية", 49, 27, isLocked = false, isMastered = false, score = 0, "الهمس في التاء والطاء", emptyList()),
             QuranSurahItem(53, "النجم", "An-Najm", "مكية", 62, 27, isLocked = false, isMastered = false, score = 0, "سجدة النجم والمدود", emptyList()),
             QuranSurahItem(54, "القمر", "Al-Qamar", "مكية", 55, 27, isLocked = false, isMastered = false, score = 0, "ترقيق الراء في (مُسْتَمِرّ)", emptyList()),
-            QuranSurahItem(55, "الرحمن", "Ar-Rahman", "مدنية", 78, 27, isLocked = false, isMastered = false, score = 94, "نبر الآيات والمد العارض للسكون", emptyList(), "عروس القرآن، تذكر بآلاء الله ونعمه الظاهرة والباطنة"),
+            QuranSurahItem(55, "الرحمن", "Ar-Rahman", "مدنية", 78, 27, isLocked = false, isMastered = false, score = 0, "نبر الآيات والمد العارض للسكون", emptyList(), "عروس القرآن، تذكر بآلاء الله ونعمه الظاهرة والباطنة"),
             QuranSurahItem(56, "الواقعة", "Al-Waqi'ah", "مكية", 96, 27, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة والتفخيم والترقيق", emptyList()),
             QuranSurahItem(57, "الحديد", "Al-Hadid", "مدنية", 29, 27, isLocked = false, isMastered = false, score = 0, "المسبحات وأحكام النون", emptyList()),
             QuranSurahItem(58, "المجادلة", "Al-Mujadila", "مدنية", 22, 28, isLocked = false, isMastered = false, score = 0, "لفظ الجلالة في كل آية", emptyList()),
@@ -572,7 +572,7 @@ object QuranDataProvider {
             QuranSurahItem(64, "التغابن", "At-Taghabun", "مدنية", 18, 28, isLocked = false, isMastered = false, score = 0, "التوكل على الله والمد", emptyList()),
             QuranSurahItem(65, "الطلاق", "At-Talaq", "مدنية", 12, 28, isLocked = false, isMastered = false, score = 0, "التقوى وتيسير الأمور", emptyList()),
             QuranSurahItem(66, "التحريم", "At-Tahrim", "مدنية", 12, 28, isLocked = false, isMastered = false, score = 0, "التوبة النصوح والإخفاء", emptyList()),
-            QuranSurahItem(67, "الملك", "Al-Mulk", "مكية", 30, 29, isLocked = false, isMastered = true, score = 96, "أحكام الميم الساكنة والمد اللازم", emptyList(), "المنجية من عذاب القبر والشافعة لصاحبها حتى يغفر له"),
+            QuranSurahItem(67, "الملك", "Al-Mulk", "مكية", 30, 29, isLocked = false, isMastered = false, score = 0, "أحكام الميم الساكنة والمد اللازم", emptyList(), "المنجية من عذاب القبر والشافعة لصاحبها حتى يغفر له"),
             QuranSurahItem(68, "القلم", "Al-Qalam", "مكية", 52, 29, isLocked = false, isMastered = false, score = 0, "إظهار النون في (ن ۚ وَالْقَلَمِ)", emptyList()),
             QuranSurahItem(69, "الحاقة", "Al-Haqqah", "مكية", 52, 29, isLocked = false, isMastered = false, score = 0, "المد اللازم الكلمي المثقل 6 حركات", emptyList()),
             QuranSurahItem(70, "المعارج", "Al-Ma'arij", "مكية", 44, 29, isLocked = false, isMastered = false, score = 0, "أحكام الصبر الجميل", emptyList()),
@@ -583,7 +583,7 @@ object QuranDataProvider {
             QuranSurahItem(75, "القيامة", "Al-Qiyamah", "مكية", 40, 29, isLocked = false, isMastered = false, score = 0, "السكت اللطيف في (مَنْ ۜ رَاقٍ)", emptyList()),
             QuranSurahItem(76, "الإنسان", "Al-Insan", "مدنية", 31, 29, isLocked = false, isMastered = false, score = 0, "نعيم الجنة والألفات السبعة", emptyList()),
             QuranSurahItem(77, "المرسلات", "Al-Mursalat", "مكية", 50, 29, isLocked = false, isMastered = false, score = 0, "إدغام القاف في الكاف في (أَلَمْ نَخْلُقكُّم)", emptyList()),
-            QuranSurahItem(78, "النبأ", "An-Naba", "مكية", 40, 30, isLocked = false, isMastered = false, score = 85, "المد العارض للسكون والقلقلة", emptyList()),
+            QuranSurahItem(78, "النبأ", "An-Naba", "مكية", 40, 30, isLocked = false, isMastered = false, score = 0, "المد العارض للسكون والقلقلة", emptyList()),
             QuranSurahItem(79, "النازعات", "An-Nazi'at", "مكية", 46, 30, isLocked = false, isMastered = false, score = 0, "الهمس والغنة", emptyList()),
             QuranSurahItem(80, "عبس", "'Abasa", "مكية", 42, 30, isLocked = false, isMastered = false, score = 0, "تذكرة القرآن والتفخيم", emptyList()),
             QuranSurahItem(81, "التكوير", "At-Takwir", "مكية", 29, 30, isLocked = false, isMastered = false, score = 0, "أحكام القسم وإذا الشمس كورت", emptyList()),
@@ -602,7 +602,7 @@ object QuranDataProvider {
             QuranSurahItem(94, "الشرح", "Ash-Sharh", "مكية", 8, 30, isLocked = false, isMastered = false, score = 0, "أحكام الإخفاء وانشراح الصدر", emptyList()),
             QuranSurahItem(95, "التين", "At-Tin", "مكية", 8, 30, isLocked = false, isMastered = false, score = 0, "قلقلة الدال وخلق الإنسان", emptyList()),
             QuranSurahItem(96, "العلق", "Al-'Alaq", "مكية", 19, 30, isLocked = false, isMastered = false, score = 0, "أول ما نزل وسجدة التلاوة", emptyList()),
-            QuranSurahItem(97, "القدر", "Al-Qadr", "مكية", 5, 30, isLocked = false, isMastered = false, score = 95, "أحكام التفخيم والترقيق في الراء", emptyList()),
+            QuranSurahItem(97, "القدر", "Al-Qadr", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "أحكام التفخيم والترقيق في الراء", emptyList()),
             QuranSurahItem(98, "البينة", "Al-Bayyinah", "مدنية", 8, 30, isLocked = false, isMastered = false, score = 0, "إخلاص الدين وأحكام النون", emptyList()),
             QuranSurahItem(99, "الزلزلة", "Az-Zalzalah", "مدنية", 8, 30, isLocked = false, isMastered = false, score = 0, "الإدغام بغنة في (فَمَن يَعْمَلْ)", emptyList()),
             QuranSurahItem(100, "العاديات", "Al-'Adiyat", "مكية", 11, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى في أواخر الآيات", emptyList()),
@@ -613,13 +613,13 @@ object QuranDataProvider {
             QuranSurahItem(105, "الفيل", "Al-Fil", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "الإظهار الشفوي في (أَلَمْ تَرَ)", emptyList()),
             QuranSurahItem(106, "قريش", "Quraysh", "مكية", 4, 30, isLocked = false, isMastered = false, score = 0, "مد اللين في (قُرَيْشٍ - خَوْفٍ)", emptyList()),
             QuranSurahItem(107, "الماعون", "Al-Ma'un", "مكية", 7, 30, isLocked = false, isMastered = false, score = 0, "إخلاص العبادة وإعانة المحتاج", emptyList()),
-            QuranSurahItem(108, "الكوثر", "Al-Kawthar", "مكية", 3, 30, isLocked = false, isMastered = true, score = 99, "أحكام قلقلة الدال والتفخيم", emptyList()),
+            QuranSurahItem(108, "الكوثر", "Al-Kawthar", "مكية", 3, 30, isLocked = false, isMastered = false, score = 0, "أحكام قلقلة الدال والتفخيم", emptyList()),
             QuranSurahItem(109, "الكافرون", "Al-Kafirun", "مكية", 6, 30, isLocked = false, isMastered = false, score = 0, "المد المنفصل والبراءة من الشرك", emptyList()),
             QuranSurahItem(110, "النصر", "An-Nasr", "مدنية", 3, 30, isLocked = false, isMastered = false, score = 0, "المد المتصل في (جَاءَ) والاستغفار", emptyList()),
             QuranSurahItem(111, "المسد", "Al-Masad", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى في (وَتَبَّ)", emptyList()),
-            QuranSurahItem(112, "الإخلاص", "Al-Ikhlas", "مكية", 4, 30, isLocked = false, isMastered = true, score = 100, "القلقلة الكبرى والصغرى", emptyList()),
-            QuranSurahItem(113, "الفلق", "Al-Falaq", "مكية", 5, 30, isLocked = false, isMastered = true, score = 98, "أحكام النون والميم المشددتين والقلقلة", emptyList()),
-            QuranSurahItem(114, "الناس", "An-Nas", "مكية", 6, 30, isLocked = false, isMastered = true, score = 97, "الغنة في النون المشددة والهمس", emptyList())
+            QuranSurahItem(112, "الإخلاص", "Al-Ikhlas", "مكية", 4, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى والصغرى", emptyList()),
+            QuranSurahItem(113, "الفلق", "Al-Falaq", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "أحكام النون والميم المشددتين والقلقلة", emptyList()),
+            QuranSurahItem(114, "الناس", "An-Nas", "مكية", 6, 30, isLocked = false, isMastered = false, score = 0, "الغنة في النون المشددة والهمس", emptyList())
         )
     }
 
