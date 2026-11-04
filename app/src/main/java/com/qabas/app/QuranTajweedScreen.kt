@@ -676,6 +676,8 @@ fun QuranTajweedScreen(
                 1 -> GoldenQuranRecitersView(
                     selectedReciter = selectedReciter,
                     onSelectReciter = {
+                        QuranAudioPlayer.stop()
+                        isPlayingAudio = false
                         selectedReciter = it
                         qabasPrefs.edit().putString("selected_reciter", it).apply()
                         QuranAudioService.getReciterIdForArabicName(it)?.let { id ->
