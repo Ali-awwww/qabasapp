@@ -268,11 +268,15 @@ internal fun trimEditorClipStart(
     val originalEnd = clip.startOffsetMs + clip.durationMs
     val snappedStart = snapEditorTimelinePosition(state, clipId, requestedStartMs, snapToleranceMs)
         .coerceIn(0L, (originalEnd - EDITOR_MIN_CLIP_DURATION_MS).coerceAtLeast(0L))
+    val removedTimelineMs = snappedStart - clip.startOffsetMs
     val updatedClip = clip.copy(
         startOffsetMs = snappedStart,
         durationMs = originalEnd - snappedStart,
         sourceStartMs = clip.sourceStartMs +
-            ((snappedStart - clip.startOffsetMs) * clip.speed.coerceIn(0.1f, 5f)).toLong()
+            (removedTimelineMs * clip.speed.coerceIn(0.1f, 5f)).toLong(),
+        keyframes = clip.keyframes
+            .filter { it.timeMs >= removedTimelineMs }
+            .map { it.copy(timeMs = it.timeMs - removedTimelineMs) }
     )
     return updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
@@ -291,7 +295,11 @@ internal fun trimEditorClipEnd(
     val clip = track.clips.first { it.id == clipId }
     val snappedEnd = snapEditorTimelinePosition(state, clipId, requestedEndMs, snapToleranceMs)
         .coerceAtLeast(clip.startOffsetMs + EDITOR_MIN_CLIP_DURATION_MS)
-    val updatedClip = clip.copy(durationMs = snappedEnd - clip.startOffsetMs)
+    val updatedDurationMs = snappedEnd - clip.startOffsetMs
+    val updatedClip = clip.copy(
+        durationMs = updatedDurationMs,
+        keyframes = clip.keyframes.filter { it.timeMs <= updatedDurationMs }
+    )
     return updateEditorTrack(state, track.id) { current ->
         current.copy(clips = current.clips.map { if (it.id == clipId) updatedClip else it })
     }.copy(
