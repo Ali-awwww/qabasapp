@@ -144,26 +144,30 @@ object SupabaseServices {
                 }
                 existing = readCanonical()
             } else {
-                val patch = buildMap<String, Any> {
-                    if (!existing.email.equals(authEmail, ignoreCase = true)) {
-                        put("email", authEmail)
-                    }
-                    if (!name.isNullOrBlank() && !name.trim().equals(existing.name?.trim(), ignoreCase = false)) {
-                        put("name", name.trim())
-                    }
-                    if (!normalizedInputId.isNullOrBlank() &&
-                        !normalizedInputId.equals(UserIdentifierManager.normalize(existing.customId ?: ""), ignoreCase = true)
-                    ) {
-                        put("custom_id", normalizedInputId)
-                    } else if (existing.customId.isNullOrBlank()) {
-                        put("custom_id", UserIdentifierManager.generateUniqueId(existing.name ?: authEmail))
-                    }
+                val shouldUpdateEmail = !existing.email.equals(authEmail, ignoreCase = true)
+                val shouldUpdateName = !name.isNullOrBlank() &&
+                    !name.trim().equals(existing.name?.trim(), ignoreCase = false)
+                val targetCustomId = when {
+                    !normalizedInputId.isNullOrBlank() &&
+                        !normalizedInputId.equals(
+                            UserIdentifierManager.normalize(existing.customId ?: ""),
+                            ignoreCase = true
+                        ) -> normalizedInputId
+                    existing.customId.isNullOrBlank() ->
+                        UserIdentifierManager.generateUniqueId(existing.name ?: authEmail)
+                    else -> null
                 }
-                if (patch.isNotEmpty()) {
-                    client.postgrest.from("users").update(patch) {
+
+                if (shouldUpdateEmail || shouldUpdateName || !targetCustomId.isNullOrBlank()) {
+                    val updated = client.postgrest.from("users").update({
+                        if (shouldUpdateEmail) set("email", authEmail)
+                        if (shouldUpdateName) set("name", name!!.trim())
+                        if (!targetCustomId.isNullOrBlank()) set("custom_id", targetCustomId)
+                    }) {
                         filter { eq("id", authUid) }
-                    }
-                    existing = readCanonical()
+                        select()
+                    }.decodeSingleOrNull<UserRow>()
+                    existing = updated ?: readCanonical()
                 }
             }
 
@@ -267,6 +271,71 @@ object SupabaseServices {
         }.onFailure { Log.e(TAG, "getUserByAccountNumber failed: ${it.message}") }.getOrNull()
 
 
+        /**
+         * Atomically updates the signed-in user's editable profile fields and
+         * returns the database row only after PostgREST confirms the update.
+         * Account number, UID and role remain server-owned.
+         */
+        suspend fun saveOwnProfile(
+            id: String,
+            name: String,
+            email: String,
+            customId: String
+        ): Result<UserRow> = withContext(Dispatchers.IO) {
+            try {
+                val client = client ?: throw IllegalStateException("خدمة السحابة غير متاحة")
+                val authUid = client.auth.currentUserOrNull()?.id
+                    ?: client.auth.currentSessionOrNull()?.user?.id
+                    ?: throw IllegalStateException("انتهت جلسة الدخول")
+                if (id != authUid) {
+                    throw SecurityException("جلسة الحساب لا تطابق الحساب المطلوب تحديثه")
+                }
+
+                val authEmail = (
+                    client.auth.currentUserOrNull()?.email
+                        ?: client.auth.currentSessionOrNull()?.user?.email
+                    )?.trim()?.lowercase(java.util.Locale.ROOT)
+                    ?: throw IllegalStateException("تعذر قراءة بريد الحساب من جلسة المصادقة")
+                if (!authEmail.equals(email.trim(), ignoreCase = true)) {
+                    throw SecurityException("بريد الحساب لا يطابق جلسة المصادقة")
+                }
+
+                val cleanName = name.trim()
+                val cleanCustomId = UserIdentifierManager.normalize(customId)
+                if (cleanName.isBlank()) {
+                    throw IllegalArgumentException("اسم الحساب لا يمكن أن يكون فارغاً")
+                }
+                if (cleanCustomId.length !in 3..25 ||
+                    !cleanCustomId.matches(Regex("^[a-z0-9][a-z0-9_-]{2,24}$"))
+                ) {
+                    throw IllegalArgumentException("صيغة اليوزر غير صحيحة")
+                }
+
+                val updated = client.postgrest.from("users").update({
+                    set("name", cleanName)
+                    set("custom_id", cleanCustomId)
+                }) {
+                    filter { eq("id", authUid) }
+                    select()
+                }.decodeSingleOrNull<UserRow>()
+                    ?: throw IllegalStateException("لم تُرجع السحابة سجل الحساب بعد التحديث")
+
+                if (updated.id != authUid) {
+                    throw SecurityException("رفضت السحابة تحديث سجل الحساب الحالي")
+                }
+                if (UserIdentifierManager.normalize(updated.customId.orEmpty()) != cleanCustomId) {
+                    throw IllegalStateException("لم تؤكد السحابة حفظ اليوزر المطلوب")
+                }
+
+                Result.success(updated)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e(TAG, "saveOwnProfile failed: ${error.message}", error)
+                Result.failure(error)
+            }
+        }
+
         suspend fun saveUser(
             id: String,
             name: String,
@@ -292,21 +361,21 @@ object SupabaseServices {
             // This compatibility method can update profile fields only.
             // UID, role, status and account number are server-owned.
             val targetCustomId = customId?.let { UserIdentifierManager.normalize(it) }?.takeIf { it.isNotBlank() }
-            val patch = buildMap<String, Any> {
-                if (name.isNotBlank()) put("name", name.trim())
-                if (!targetCustomId.isNullOrBlank()) put("custom_id", targetCustomId)
-            }
-            if (patch.isEmpty()) return true
-            client.postgrest.from("users").update(patch) {
+            if (name.isBlank() && targetCustomId.isNullOrBlank()) return true
+
+            val saved = client.postgrest.from("users").update({
+                if (name.isNotBlank()) set("name", name.trim())
+                if (!targetCustomId.isNullOrBlank()) set("custom_id", targetCustomId)
+            }) {
                 filter { eq("id", authUid) }
-            }
-            val saved = client.postgrest.from("users").select {
-                filter { eq("id", authUid) }
-                limit(1)
+                select()
             }.decodeSingleOrNull<UserRow>()
+
             saved?.id == authUid &&
-                !saved.customId.isNullOrBlank()
-        }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}") }.getOrDefault(false)
+                !saved.customId.isNullOrBlank() &&
+                (targetCustomId.isNullOrBlank() ||
+                    UserIdentifierManager.normalize(saved.customId) == targetCustomId)
+        }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}", it) }.getOrDefault(false)
 
         /**
          * جلسة نشطة واحدة للحساب: تحجز الجلسة إن لم تكن هناك جلسة حيّة أخرى،

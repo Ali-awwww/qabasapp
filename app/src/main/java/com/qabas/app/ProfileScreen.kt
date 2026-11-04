@@ -2513,32 +2513,48 @@ fun ProfileScreen(
                                     val normalizedCleanId = UserIdentifierManager.normalize(cleanId)
 
                                     val nextDisplayName = tempName.ifBlank { "مستخدم قبس" }
-                                    val saved = SupabaseServices.Database.saveUser(
+                                    val profileSaveResult = SupabaseServices.Database.saveOwnProfile(
                                         id = authUid,
                                         name = nextDisplayName,
                                         email = activeEmail,
                                         customId = normalizedCleanId
                                     )
-                                    val cloudUser = SupabaseServices.Database.ensureUser(
-                                        externalId = authUid,
-                                        email = activeEmail,
-                                        name = nextDisplayName,
-                                        customId = normalizedCleanId
-                                    )
 
-                                    val returnedCustomId = cloudUser?.customId?.let { UserIdentifierManager.normalize(it) } ?: ""
-                                    if (cloudUser == null ||
-                                        cloudUser.id != authUid ||
-                                        returnedCustomId != normalizedCleanId
-                                    ) {
+                                    if (profileSaveResult.isFailure) {
+                                        val errorText = profileSaveResult.exceptionOrNull()?.message.orEmpty()
+                                        val normalizedError = errorText.lowercase(java.util.Locale.ROOT)
+                                        tagError = when {
+                                            "users_custom_id_lower_unique" in normalizedError ||
+                                                "duplicate key" in normalizedError ||
+                                                "23505" in normalizedError ->
+                                                "هذا اليوزر مستخدم بالفعل. اختر معرفاً آخر."
+                                            "requested username is invalid" in normalizedError ||
+                                                "22023" in normalizedError ->
+                                                "صيغة اليوزر غير مقبولة. استخدم أحرفاً إنجليزية وأرقاماً أو _ أو -."
+                                            "42501" in normalizedError ||
+                                                "permission denied" in normalizedError ->
+                                                "رفضت صلاحيات الحساب التحديث. أعد تسجيل الدخول ثم حاول مجدداً."
+                                            "انتهت جلسة الدخول" in errorText ->
+                                                "انتهت جلسة الدخول. سجّل الدخول مجدداً ثم حاول."
+                                            else ->
+                                                "تعذر حفظ بيانات الملف في السحابة. تحقق من الاتصال وحاول مجدداً."
+                                        }
                                         isCheckingTag = false
-                                        tagError = "تعذر حفظ اليوزر في السحابة. لم يتم اعتماد التغيير."
                                         Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
                                         return@launch
                                     }
 
-                                    // Save bio directly to Supabase cloud
-                                    SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
+                                    val cloudUser = profileSaveResult.getOrNull()
+                                    if (cloudUser == null || cloudUser.id != authUid) {
+                                        isCheckingTag = false
+                                        tagError = "لم تؤكد السحابة حفظ بيانات الحساب. لم يتم اعتماد التغيير."
+                                        Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
+                                        return@launch
+                                    }
+
+                                    // Profile name and handle are confirmed by the returned cloud row.
+                                    // Bio is stored separately in user_settings.
+                                    val bioSaved = SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
 
                                     val resolvedAccNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
                                         ?: UserIdentifierManager.getAccountNumber(context, activeEmail)
@@ -2563,7 +2579,15 @@ fun ProfileScreen(
 
                                     isCheckingTag = false
                                     showEditProfileDialog = false
-                                    Toast.makeText(context, "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        if (bioSaved) {
+                                            "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾"
+                                        } else {
+                                            "تم حفظ الاسم واليوزر، لكن تعذرت مزامنة النبذة."
+                                        },
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 }
                             }
                         }
