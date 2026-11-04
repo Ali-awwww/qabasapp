@@ -88,6 +88,10 @@ object AgentPrefs {
             appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
         }
         migratePlainTextPrefs(appContext)
+        // Higgsfield credentials are now centrally managed by the encrypted server gateway.
+        instance(appContext).edit().remove("higgsfield_api_key").apply()
+        appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().remove("higgsfield_api_key").apply()
     }
 
     /** الوصول إلى كائن SharedPreferences المشفر (بعد التهيئة). آمن للاستخدام كبديل مباشر. */
