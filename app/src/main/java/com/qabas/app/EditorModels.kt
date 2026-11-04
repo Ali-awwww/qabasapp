@@ -107,6 +107,13 @@ internal fun toggleEditorTrackMute(state: EditorProjectState, trackId: String) =
 internal fun toggleEditorTrackLock(state: EditorProjectState, trackId: String) =
     updateEditorTrack(state, trackId) { it.copy(isLocked = !it.isLocked) }
 
+/** Indicates whether a track is included in the configured mixer state. */
+internal fun isEditorTrackIncludedInMix(state: EditorProjectState, track: EditorTrack): Boolean {
+    val audioTracks = state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
+    val hasSoloTrack = audioTracks.any { it.isSolo }
+    return !track.isMuted && (!hasSoloTrack || track.isSolo)
+}
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
