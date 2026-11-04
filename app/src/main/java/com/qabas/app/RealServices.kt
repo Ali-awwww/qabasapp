@@ -61,7 +61,6 @@ object KeyVault {
     val pexels: String get() = resolve("pexels_key", BuildConfig.PEXELS_API_KEY)
     val pixabay: String get() = resolve("pixabay_key", BuildConfig.PIXABAY_API_KEY)
     val coverr: String get() = (prefs().getString("coverr_key", "") ?: "").trim()
-    val higgsfield: String get() = (prefs().getString("higgsfield_api_key", "") ?: "").trim()
     val supabaseUrl: String get() = resolve("supabase_url", BuildConfig.SUPABASE_URL).ifBlank { SupabaseConfig.DEFAULT_SUPABASE_URL }
     val supabaseAnonKey: String get() = resolve("supabase_anon_key", BuildConfig.SUPABASE_ANON_KEY).ifBlank { SupabaseConfig.DEFAULT_SUPABASE_KEY }
 
@@ -77,7 +76,6 @@ object KeyVault {
         "openrouter_key", "openrouter" -> openrouter
         "pexels_key", "pexels" -> pexels
         "pixabay_key", "pixabay" -> pixabay
-        "higgsfield_api_key", "higgsfield" -> higgsfield
         "supabase_url" -> supabaseUrl
         "supabase_anon_key" -> supabaseAnonKey
         else -> (prefs().getString(prefsKey, "") ?: "").trim()
