@@ -864,7 +864,7 @@ class MainActivity : ComponentActivity() {
         val appState = when (target.lowercase()) {
             "prayer_times" -> AppState.PRAYER_TIMES
             "notifications" -> AppState.NOTIFICATIONS
-            "quran_hub" -> AppState.QURAN_HUB
+            "quran_hub" -> AppState.HASANAT_HUB
             "hadith_studio" -> AppState.HADITH_STUDIO
             "azkar" -> AppState.AZKAR
             "rewards" -> AppState.REWARDS
