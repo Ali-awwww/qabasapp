@@ -1508,8 +1508,6 @@ private fun EmptyCrashesState(
         )
 
         Spacer(modifier = Modifier.height(20.dp))
-
-        }
     }
 }
 
