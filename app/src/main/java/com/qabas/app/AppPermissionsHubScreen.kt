@@ -86,7 +86,6 @@ fun AppPermissionsHubScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Live permission states
@@ -103,7 +102,6 @@ fun AppPermissionsHubScreen(
         mutableStateOf(BackgroundPermissionManager.areNotificationsEnabled(context))
     }
 
-    var isDiagnosticRunning by remember { mutableStateOf(false) }
     var diagnosticMessage by remember { mutableStateOf<String?>(null) }
     var testWaveformLevel by remember { mutableFloatStateOf(0f) }
     var isTestingMic by remember { mutableStateOf(false) }
@@ -221,7 +219,7 @@ fun AppPermissionsHubScreen(
                                         sumSquare += sample * sample
                                     }
                                     val rms = kotlin.math.sqrt(sumSquare / readCount).toFloat()
-                                    val normalizedLevel = (rms / 6000f).coerceIn(0.05f, 1.0f)
+                                    val normalizedLevel = (rms / 6000f).coerceIn(0f, 1.0f)
                                     if (normalizedLevel > maxAmplitude) maxAmplitude = normalizedLevel
                                     withContext(Dispatchers.Main) {
                                         testWaveformLevel = normalizedLevel
@@ -387,31 +385,45 @@ fun AppPermissionsHubScreen(
                         AppSoundManager.playClick()
                     },
                     onRunDiagnostics = {
-                        isDiagnosticRunning = true
-                        coroutineScope.launch {
-                            diagnosticMessage = "جاري مسح العتاد وخطوط الربط الفضائية..."
-                            delay(400)
-                            refreshAllPermissionStates()
-                            delay(600)
-                            diagnosticMessage = "فحص المنبهات والأذان بالخلفية..."
-                            BackgroundPermissionManager.refreshBackgroundSchedulers(context)
-                            delay(500)
-                            isDiagnosticRunning = false
-                            diagnosticMessage = null
-                            Toast.makeText(context, "اكتمل الفحص: النظام يعمل بكفاءة $readinessPercentage% 🛡️", Toast.LENGTH_SHORT).show()
+                        refreshAllPermissionStates()
+                        BackgroundPermissionManager.refreshBackgroundSchedulers(context)
+
+                        val currentPermissions = listOf(
+                            "تجاهل تحسين البطارية" to BackgroundPermissionManager.isBatteryOptimizationIgnored(context),
+                            "المنبهات الدقيقة" to BackgroundPermissionManager.canScheduleExactAlarms(context),
+                            "الإشعارات" to BackgroundPermissionManager.areNotificationsEnabled(context),
+                            "العرض بملء الشاشة" to BackgroundPermissionManager.canUseFullScreenIntent(context),
+                            "الميكروفون" to (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED),
+                            "الكاميرا" to (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+                        )
+                        val enabledCount = currentPermissions.count { it.second }
+                        val missingPermissions = currentPermissions.filterNot { it.second }.joinToString("، ") { it.first }
+                        val resultMessage = if (missingPermissions.isEmpty()) {
+                            "تم تحديث الفحص: جميع الأذونات الستة المطلوبة مفعّلة."
+                        } else {
+                            "نتيجة الفحص: $enabledCount من ${currentPermissions.size} أذونات مفعّلة. غير مفعّل: $missingPermissions."
                         }
+                        diagnosticMessage = resultMessage
+                        Toast.makeText(context, resultMessage, Toast.LENGTH_LONG).show()
                     }
                 )
 
-                if (isDiagnosticRunning) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = Color(0xFF00E5FF),
-                        trackColor = Color(0xFF1E293B)
-                    )
+                diagnosticMessage?.let { result ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF0C1322),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = result,
+                            modifier = Modifier.padding(12.dp),
+                            color = Color(0xFFCBD5E1),
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
                 }
 
                 // ── 2. مصفوفة الصلاحيات التفصيلية (Cybernetic Matrix Cards) ──
@@ -950,12 +962,15 @@ private fun CyberPermissionCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     for (i in 0..18) {
-                        val heightFraction = (kotlin.math.sin(i.toDouble() + testWaveformLevel * 5) + 1.0) / 2.0
+                        val measuredSegments = (testWaveformLevel * 19).toInt().coerceIn(0, 19)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxHeight(heightFraction.toFloat().coerceIn(0.2f, 1f))
-                                .background(Color(0xFF38BDF8), RoundedCornerShape(1.dp))
+                                .fillMaxHeight()
+                                .background(
+                                    color = if (i < measuredSegments) Color(0xFF38BDF8) else Color(0xFF334155),
+                                    shape = RoundedCornerShape(1.dp)
+                                )
                         )
                     }
                 }
