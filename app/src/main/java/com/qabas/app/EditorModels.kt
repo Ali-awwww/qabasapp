@@ -292,6 +292,58 @@ internal fun trimEditorClipEnd(
     )
 }
 
+/** Split an unlocked clip at the playhead, keeping keyframes in each segment's local time. */
+internal fun splitEditorClip(
+    state: EditorProjectState,
+    clipId: String,
+    playheadMs: Long = state.currentTimeMs
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val splitOffsetMs = playheadMs - clip.startOffsetMs
+    if (splitOffsetMs < EDITOR_MIN_CLIP_DURATION_MS ||
+        splitOffsetMs > clip.durationMs - EDITOR_MIN_CLIP_DURATION_MS
+    ) return null
+
+    val firstPart = clip.copy(
+        durationMs = splitOffsetMs,
+        keyframes = clip.keyframes.filter { it.timeMs <= splitOffsetMs }
+    )
+    val secondPart = clip.copy(
+        id = UUID.randomUUID().toString(),
+        startOffsetMs = playheadMs,
+        durationMs = clip.durationMs - splitOffsetMs,
+        keyframes = clip.keyframes
+            .filter { it.timeMs > splitOffsetMs }
+            .map { it.copy(timeMs = it.timeMs - splitOffsetMs) },
+        transitionIn = null
+    )
+    val updated = updateEditorTrack(state, track.id) { current ->
+        current.copy(clips = current.clips.flatMap { if (it.id == clipId) listOf(firstPart, secondPart) else listOf(it) })
+    }
+    return updated.copy(selectedClipId = secondPart.id)
+}
+
+/** Delete one clip; magnetic ripple closes only the deleted clip's gap on its own track. */
+internal fun deleteEditorClip(
+    state: EditorProjectState,
+    clipId: String,
+    ripple: Boolean = state.isMagneticTimeline
+): EditorProjectState? {
+    val track = state.tracks.firstOrNull { candidate -> candidate.clips.any { it.id == clipId } } ?: return null
+    if (track.isLocked) return null
+    val clip = track.clips.first { it.id == clipId }
+    val deletedEndMs = clip.startOffsetMs + clip.durationMs
+    val updatedClips = track.clips.filterNot { it.id == clipId }.map { candidate ->
+        if (ripple && candidate.startOffsetMs >= deletedEndMs) {
+            candidate.copy(startOffsetMs = (candidate.startOffsetMs - clip.durationMs).coerceAtLeast(0L))
+        } else candidate
+    }
+    return updateEditorTrack(state, track.id) { it.copy(clips = updatedClips) }
+        .copy(selectedClipId = if (state.selectedClipId == clipId) null else state.selectedClipId)
+}
+
 /** Returns the nearest clip boundary in the requested direction, or null when none exists. */
 internal fun findAdjacentEditorClip(
     projectState: EditorProjectState,
