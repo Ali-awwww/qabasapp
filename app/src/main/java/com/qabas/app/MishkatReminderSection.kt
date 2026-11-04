@@ -138,7 +138,7 @@ fun MishkatReminderCard() {
                 ) {
                     HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                     Text(
-                        text = published.quoteText.replace("، ", "،\n"),
+                        text = published.quoteText.replace("، ", "،\n").replace("محطَّ نحس ", "محطَّ نحس\n"),
                         color = Color(0xFFF4EAD7),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
