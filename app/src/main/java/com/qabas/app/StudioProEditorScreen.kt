@@ -1144,13 +1144,9 @@ fun StudioProEditorScreen(
                     )
                 },
                 onSpeedChanged = { newSpeed ->
-                    projectState = projectState.copy(
-                        tracks = projectState.tracks.map { track ->
-                            track.copy(clips = track.clips.map { clip ->
-                                if (clip.id == projectState.selectedClipId) clip.copy(speed = newSpeed.coerceIn(0.1f, 5f)) else clip
-                            })
-                        }
-                    )
+                    projectState.selectedClipId?.let { clipId ->
+                        setEditorClipSpeed(projectState, clipId, newSpeed)?.let { projectState = it }
+                    }
                 },
                 onVolumeChanged = { newVolume ->
                     projectState = projectState.copy(
