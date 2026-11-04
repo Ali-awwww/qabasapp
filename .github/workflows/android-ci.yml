@@ -248,6 +248,21 @@ jobs:
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "✅ Release tag: $RELEASE_TAG (versionName=$VERSION_NAME, versionCode=$NEW_CODE)"
 
+      - name: Run Debug Unit Tests
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvmargs=\"-Xmx1536m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
+        run: |
+          ./gradlew testDebugUnitTest \
+            --stacktrace \
+            --no-daemon \
+            --max-workers=2 \
+            -PappVersionName="$VERSION_NAME" \
+            -PappVersionCode="$VERSION_CODE" \
+            -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+
       - name: Assemble Debug APK
         env:
           BUILD_NUMBER: ${{ github.run_number }}
