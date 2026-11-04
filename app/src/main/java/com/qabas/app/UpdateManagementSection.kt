@@ -282,7 +282,7 @@ fun UpdateManagementSection() {
                                             versionName = selectedRelease.versionName,
                                             versionCode = selectedRelease.versionCode,
                                             downloadUrl = selectedRelease.apkUrl,
-                                            releaseNotes = releaseNotes,
+                                            releaseNotes = UpdateManager.sanitizePublicReleaseNotes(releaseNotes),
                                             fileSizeBytes = selectedRelease.apkSize,
                                             sha256Hash = selectedRelease.sha256Hash,
                                             isMandatory = isMandatory,
