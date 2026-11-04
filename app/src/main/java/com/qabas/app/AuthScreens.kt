@@ -62,47 +62,34 @@ fun RegisterScreen(
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // 🔍 حالات التحقق الاستباقي من توفر الحساب
-    var isEmailTaken by remember { mutableStateOf<Boolean?>(null) }
+    // Public registration pre-checks only usernames; email existence stays private.
     var isCustomIdTaken by remember { mutableStateOf<Boolean?>(null) }
     var isCheckingAvailability by remember { mutableStateOf(false) }
-    var showConflictDialog by remember { mutableStateOf(false) }
-    var conflictMessage by remember { mutableStateOf("") }
-    var conflictTargetEmail by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         // A password must never be persisted in SharedPreferences.
         prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
     }
 
-    // 🛰️ محرك التحقق اللحظي التفاعلي (Debounced Availability Check)
-    LaunchedEffect(email, customId) {
-        val trimmedEmail = email.trim()
+    // Debounced availability lookup checks public handles only, never email addresses.
+    LaunchedEffect(customId) {
         val trimmedId = customId.trim()
-
-        if (trimmedEmail.isBlank() && trimmedId.isBlank()) {
-            isEmailTaken = null
+        if (trimmedId.length < 3 || !SupabaseServices.isSupabaseAvailable) {
             isCustomIdTaken = null
+            isCheckingAvailability = false
             return@LaunchedEffect
         }
 
-        delay(800) // تأخير طفيف لتجنب الاستعلامات الكثيرة أثناء الكتابة
-
-        if (SupabaseServices.isSupabaseAvailable) {
-            isCheckingAvailability = true
-            val checkEmail = if (trimmedEmail.contains("@") && trimmedEmail.length > 5) trimmedEmail else null
-            val checkId = if (trimmedId.length >= 3) trimmedId else null
-
-            if (checkEmail != null || checkId != null) {
-                SupabaseServices.Database.checkAccountAvailability(checkEmail, checkId)
-                    .onSuccess { res ->
-                        if (checkEmail != null) isEmailTaken = res.emailTaken
-                        if (checkId != null) isCustomIdTaken = res.customIdTaken
-                    }
-                    .onFailure {
-                        Log.w("RegisterScreen", "Availability check failed: ${it.message}")
-                    }
-            }
+        isCustomIdTaken = null
+        delay(800)
+        isCheckingAvailability = true
+        try {
+            SupabaseServices.Database.checkAccountAvailability(null, trimmedId)
+                .onSuccess { response -> isCustomIdTaken = response.customIdTaken }
+                .onFailure {
+                    Log.w("RegisterScreen", "Handle availability check failed: ${it.message}")
+                }
+        } finally {
             isCheckingAvailability = false
         }
     }
@@ -139,33 +126,6 @@ fun RegisterScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showConflictDialog) {
-                AlertDialog(
-                    onDismissRequest = { showConflictDialog = false },
-                    containerColor = Color(0xFF0F172A),
-                    icon = { Icon(Icons.Default.VpnKey, contentDescription = null, tint = primaryColor, modifier = Modifier.size(32.dp)) },
-                    title = { Text("الحساب مسجل مسبقاً 🔑", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White) },
-                    text = { Text(conflictMessage, fontFamily = CairoFont, fontSize = 13.sp, color = Color(0xFFCBD5E1)) },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                showConflictDialog = false
-                                onNavigateToLogin()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("تسجيل الدخول الآن", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showConflictDialog = false }) {
-                            Text("تغيير البيانات", fontFamily = CairoFont, color = Color.Gray)
-                        }
-                    }
-                )
-            }
-
             // Back Button (Minimalist)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                 IconButton(onClick = onNavigateToLogin) {
@@ -382,9 +342,9 @@ fun RegisterScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = if (isEmailTaken == true) Color.Red else primaryColor,
-                                unfocusedBorderColor = if (isEmailTaken == true) Color.Red.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
-                                focusedLabelColor = if (isEmailTaken == true) Color.Red else primaryColor,
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                                focusedLabelColor = primaryColor,
                                 unfocusedLabelColor = Color.Gray,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
@@ -392,15 +352,6 @@ fun RegisterScreen(
                             shape = CutCornerShape(8.dp),
                             singleLine = true
                         )
-                        if (isEmailTaken == true) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp)) {
-                                Text("⚠️ هذا البريد مسجل مسبقاً في قبس", color = Color.Red, fontSize = 9.sp, fontFamily = CairoFont)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("تسجيل الدخول؟", color = primaryColor, fontSize = 9.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onNavigateToLogin() })
-                            }
-                        } else if (isEmailTaken == false && email.contains("@")) {
-                            Text("✓ هذا البريد متاح للاستخدام", color = Color(0xFF10B981), fontSize = 9.sp, fontFamily = CairoFont, modifier = Modifier.padding(start = 8.dp))
-                        }
                     }
 
                     OutlinedTextField(
@@ -494,17 +445,10 @@ fun RegisterScreen(
                             isLoading = true
                             coroutineScope.launch {
                                 // 🔍 فحص جازم أخير قبل محاولة التسجيل الفعلي
-                                val finalCheck = if (SupabaseServices.isSupabaseAvailable) {
-                                    SupabaseServices.Database.checkAccountAvailability(trimmedEmail, requestedCustomId).getOrNull()
+                                val finalCheck = if (SupabaseServices.isSupabaseAvailable && requestedCustomId != null) {
+                                    SupabaseServices.Database.checkAccountAvailability(null, requestedCustomId).getOrNull()
                                 } else null
 
-                                if (finalCheck?.emailTaken == true) {
-                                    conflictMessage = "البريد الإلكتروني ($trimmedEmail) مسجل بالفعل في مجتمع قبس. هل ترغب في تسجيل الدخول إليه؟"
-                                    conflictTargetEmail = trimmedEmail
-                                    showConflictDialog = true
-                                    isLoading = false
-                                    return@launch
-                                }
                                 if (finalCheck?.customIdTaken == true) {
                                     Toast.makeText(context, "المعرف الخاص (@$requestedCustomId) محجوز لمستخدم آخر، يرجى اختيار غيره.", Toast.LENGTH_LONG).show()
                                     isLoading = false
