@@ -2619,7 +2619,8 @@ object SupabaseServices {
         @SerialName("duration_approx") val durationApprox: String = "",
         @SerialName("is_official") val isOfficial: Boolean = true,
         val notes: String = "",
-        @SerialName("added_at_millis") val addedAtMillis: Long = System.currentTimeMillis()
+        @SerialName("added_at_millis") val addedAtMillis: Long = System.currentTimeMillis(),
+        @SerialName("created_by_user_id") val createdByUserId: String? = null
     )
 
     @Serializable
