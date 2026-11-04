@@ -50,36 +50,7 @@ fun StudioProEditorScreen(
     onSave: () -> Unit
 ) {
     val context = LocalContext.current
-    var projectState by remember { 
-        mutableStateOf(EditorProjectState(
-            projectId = UUID.randomUUID().toString(), 
-            title = "مشروع دعوي احترافي #1",
-            tracks = listOf(
-                EditorTrack(type = TrackType.TEXT, name = "نصوص", clips = listOf(
-                    EditorClip(title = "﴿ رَبِّ زِدْنِي عِلْمًا ﴾", resourceUri = "", startOffsetMs = 2000, durationMs = 5000, trackIndex = 0, type = TrackType.TEXT, color = Color(0xFFFACC15),
-                        keyframes = listOf(
-                            EditorKeyframe(0, "scale", 0.5f), 
-                            EditorKeyframe(1000, "scale", 1.8f), 
-                            EditorKeyframe(2500, "scale", 1.4f),
-                            EditorKeyframe(0, "opacity", 0f),
-                            EditorKeyframe(500, "opacity", 1f),
-                            EditorKeyframe(4500, "opacity", 1f),
-                            EditorKeyframe(5000, "opacity", 0f)
-                        )
-                    )
-                )),
-                EditorTrack(type = TrackType.VIDEO, name = "فيديو", clips = listOf(
-                    EditorClip(title = "مقطع الطبيعة", resourceUri = "stock_nature.mp4", startOffsetMs = 0, durationMs = 10000, trackIndex = 1, type = TrackType.VIDEO, color = Color(0xFF3B82F6),
-                        keyframes = listOf(EditorKeyframe(0, "opacity", 0f), EditorKeyframe(1000, "opacity", 1f))
-                    ),
-                    EditorClip(title = "تراكم سحب", resourceUri = "clouds.mp4", startOffsetMs = 10000, durationMs = 8000, trackIndex = 1, type = TrackType.VIDEO, color = Color(0xFF3B82F6))
-                )),
-                EditorTrack(type = TrackType.AUDIO, name = "صوت", clips = listOf(
-                    EditorClip(title = "تلاوة خاشعة", resourceUri = "recitation.mp3", startOffsetMs = 0, durationMs = 15000, trackIndex = 2, type = TrackType.AUDIO, color = Color(0xFF10B981))
-                ))
-            )
-        )) 
-    }
+    var projectState by remember { mutableStateOf(createBlankEditorProjectState()) }
     
     val history = remember { mutableStateListOf<EditorProjectState>() }
     val redoHistory = remember { mutableStateListOf<EditorProjectState>() }
@@ -350,11 +321,11 @@ fun StudioProEditorScreen(
                             )
                         }
 
-                        if (projectState.isSmartCaptionsEnabled) {
-                            val activeCaptions = remember(projectState.currentTimeMs, activeTextClip?.id) {
+                        if (projectState.isSmartCaptionsEnabled && activeTextClip != null) {
+                            val activeCaptions = remember(projectState.currentTimeMs, activeTextClip.id) {
                                 SmartFeaturesEngine.generateKineticCaptions(
-                                    activeTextClip?.title ?: "﴿ رَبِّ زِدْنِي عِلْمًا ﴾", 
-                                    activeTextClip?.durationMs ?: 5000L
+                                    activeTextClip.title,
+                                    activeTextClip.durationMs
                                 )
                             }
                             // Simplified simulation of word highlight based on time
@@ -383,16 +354,22 @@ fun StudioProEditorScreen(
                                     )
                                 }
                             }
-                        } else {
-                            val currentScale = activeTextClip?.let { 
-                                SmartFeaturesEngine.interpolateProperty(it.keyframes, projectState.currentTimeMs - it.startOffsetMs, "scale", 1f)
-                            } ?: 1f
-                            val currentOpacity = activeTextClip?.let { 
-                                SmartFeaturesEngine.interpolateProperty(it.keyframes, projectState.currentTimeMs - it.startOffsetMs, "opacity", 1f)
-                            } ?: 1f
+                        } else if (activeTextClip != null) {
+                            val currentScale = SmartFeaturesEngine.interpolateProperty(
+                                activeTextClip.keyframes,
+                                projectState.currentTimeMs - activeTextClip.startOffsetMs,
+                                "scale",
+                                1f
+                            )
+                            val currentOpacity = SmartFeaturesEngine.interpolateProperty(
+                                activeTextClip.keyframes,
+                                projectState.currentTimeMs - activeTextClip.startOffsetMs,
+                                "opacity",
+                                1f
+                            )
 
                             Text(
-                                activeTextClip?.title ?: "﴿ رَبِّ زِدْنِي عِلْمًا ﴾",
+                                activeTextClip.title,
                                 color = Color.White.copy(alpha = currentOpacity),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -422,22 +399,6 @@ fun StudioProEditorScreen(
                     }
                 }
 
-                // AI Viral Scorer Overlay (High Attraction Feature)
-                if (projectState.workspaceMode == WorkspaceMode.EXPORT) {
-                    Surface(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-                        color = Color.Black.copy(alpha = 0.8f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Viral Potential", color = Color.Gray, fontSize = 10.sp, fontFamily = RobotoMonoFont)
-                            Text("94%", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 24.sp, fontFamily = RobotoMonoFont)
-                            Text("ذكاء قبس يتوقع انتشاراً واسعاً! ✨", color = Color.White, fontSize = 10.sp, fontFamily = CairoFont)
-                        }
-                    }
-                }
-                
                 // Playback Controls Overlay
                 Row(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp),
