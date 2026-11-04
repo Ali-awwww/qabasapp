@@ -1651,33 +1651,23 @@ fun AdjustPanel(
         
         when (selectedTab) {
             "الألوان" -> {
-                AdjustSlider("السطوع (Brightness)", filters.brightness, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(brightness = it)) }
-                AdjustSlider("التباين (Contrast)", filters.contrast, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(contrast = it)) }
-                AdjustSlider("التشبع (Saturation)", filters.saturation, 0f..2f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(saturation = it)) }
-                AdjustSlider("الحدة (Sharpness)", filters.sharpness, 0f..1f, ::beginEdit, ::finishEdit) { onFiltersChanged(filters.copy(sharpness = it)) }
+                AdjustSlider("السطوع (Brightness)", filters.brightness, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(brightness = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("التباين (Contrast)", filters.contrast, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(contrast = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("التشبع (Saturation)", filters.saturation, 0f..2f, onValueChange = { onFiltersChanged(filters.copy(saturation = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("الحدة (Sharpness)", filters.sharpness, 0f..1f, onValueChange = { onFiltersChanged(filters.copy(sharpness = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
             }
             "التحويل" -> {
                 Text("الأبعاد والموقع (Desktop Precision)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 Spacer(modifier = Modifier.height(12.dp))
-                AdjustSlider("الحجم الأفقي", transform.scaleX, 0.1f..3f, ::beginEdit, ::finishEdit) {
-                    onTransformChanged(transform.copy(scaleX = it))
-                }
-                AdjustSlider("الحجم العمودي", transform.scaleY, 0.1f..3f, ::beginEdit, ::finishEdit) {
-                    onTransformChanged(transform.copy(scaleY = it))
-                }
-                AdjustSlider("الدوران", transform.rotation, -180f..180f, ::beginEdit, ::finishEdit) {
-                    onTransformChanged(transform.copy(rotation = it))
-                }
-                AdjustSlider("الموضع الأفقي", transform.posX, -500f..500f, ::beginEdit, ::finishEdit) {
-                    onTransformChanged(transform.copy(posX = it))
-                }
-                AdjustSlider("الموضع العمودي", transform.posY, -500f..500f, ::beginEdit, ::finishEdit) {
-                    onTransformChanged(transform.copy(posY = it))
-                }
+                AdjustSlider("الحجم الأفقي", transform.scaleX, 0.1f..3f, onValueChange = { onTransformChanged(transform.copy(scaleX = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("الحجم العمودي", transform.scaleY, 0.1f..3f, onValueChange = { onTransformChanged(transform.copy(scaleY = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("الدوران", transform.rotation, -180f..180f, onValueChange = { onTransformChanged(transform.copy(rotation = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("الموضع الأفقي", transform.posX, -500f..500f, onValueChange = { onTransformChanged(transform.copy(posX = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
+                AdjustSlider("الموضع العمودي", transform.posY, -500f..500f, onValueChange = { onTransformChanged(transform.copy(posY = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text("السرعة (Speed)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
-                AdjustSlider("سرعة المقطع", speed, 0.1f..5f, ::beginEdit, ::finishEdit, onSpeedChanged)
+                AdjustSlider("سرعة المقطع", speed, 0.1f..5f, onValueChange = onSpeedChanged, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
             }
             "المزج" -> {
                 Text("أنماط المزج (Blend Modes)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
@@ -1762,9 +1752,9 @@ fun AdjustSlider(
     label: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
     onEditStarted: () -> Unit = {},
-    onEditFinished: () -> Unit = {},
-    onValueChange: (Float) -> Unit
+    onEditFinished: () -> Unit = {}
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
