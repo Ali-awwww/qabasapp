@@ -202,18 +202,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
     val sections = listOf(
         HasanatSectionItem(
-            id = "quran",
-            titleKey = "القرآن الكريم والتجويد",
-            subtitleKey = "المصحف المرتل وتدبر الآيات",
-            descKey = "تلاوات خاشعة لكبار القراء، أحكام التجويد، تفاسير معتمدة، وتزامن الآيات.",
-            badgeKey = "المصحف الشريف",
-            categoryKey = "الوحيين الشريفين",
-            icon = Icons.Default.MenuBook,
-            accentColor = Color(0xFF10B981),
-            secondaryAccent = Color(0xFF34D399),
-            route = AppState.QURAN_HUB
-        ),
-        HasanatSectionItem(
             id = "prayer",
             titleKey = "محراب الصلاة والمواقيت",
             subtitleKey = "حساب فلكي دقيق وبوصلة القبلة",
@@ -287,9 +275,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         )
     )
 
-    private val _quranStats = MutableStateFlow("114 سورة")
-    val quranStats = _quranStats.asStateFlow()
-
     private val _hadithStats = MutableStateFlow("أحاديث صحيحة")
     val hadithStats = _hadithStats.asStateFlow()
 
@@ -305,14 +290,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private fun updateDynamicStats() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val db = AppDatabase.getDatabase(context)
-            
-            val surahCount = QuranDataProvider.surahs.size
-            val ayahCount = QuranDataProvider.getTotalAyahCount()
-            _quranStats.value = if (ayahCount > 0) {
-                "$surahCount سورة • $ayahCount آية"
-            } else {
-                "$surahCount سورة • نص الآيات غير متاح"
-            }
             
             // Actual Hadith count from Sahihain
             val actualHadiths = SahihHadithsRepository.bukhariHadiths.size + SahihHadithsRepository.muslimHadiths.size
