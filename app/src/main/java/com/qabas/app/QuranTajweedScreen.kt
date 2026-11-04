@@ -1327,6 +1327,9 @@ fun GoldenMushafReaderView(
     val versesList = remember(surah.id, dataVersion) {
         getAuthenticVersesForSurah(surah.id, surah.name)
     }
+    val basmalaText = remember(dataVersion) {
+        QuranDataProvider.getVerseText(1, 1).orEmpty()
+    }
 
     val listState = rememberLazyListState()
 
@@ -1539,10 +1542,10 @@ fun GoldenMushafReaderView(
                     }
 
                     // Basmala header (except Surah At-Tawbah)
-                    if (surah.id != 9) {
+                    if (surah.id != 9 && basmalaText.isNotBlank()) {
                         item {
                             Text(
-                                "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+                                basmalaText,
                                 color = ManuscriptGold,
                                 fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Bold,
