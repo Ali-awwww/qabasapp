@@ -1753,43 +1753,22 @@ object SupabaseServices {
         // ==========================================
 
         /**
-         * تسجيل مشاهدة ريل في السجل السحابي وتحديث عداد المشاهدات الحقيقي في جدول reels.
+         * يسجل مشاهدة واحدة لكل مستخدم/مقطع عبر معاملة ذرّية في Supabase.
+         * القيمة المعادة هي العدد السحابي الحالي، بما في ذلك عند تكرار المشاهدة.
          */
-        suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Boolean = runCatching {
-            val client = client ?: return false
+        suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Int? = runCatching {
+            val client = client ?: return null
             val authUid = client.auth.currentUserOrNull()?.id
                 ?: client.auth.currentSessionOrNull()?.user?.id
-            if (!authUid.isNullOrBlank() && authUid == userId) {
-                client.postgrest.from("reel_history").insert(
-                    mapOf(
-                        "reel_id" to reelId,
-                        "user_id" to authUid,
-                        "watched_duration_sec" to watchedDurationSec.coerceIn(0, 3600)
-                    )
-                )
-            }
-            incrementReelViews(reelId)
-            true
-        }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrDefault(false)
+                ?: return null
+            if (authUid != userId || reelId.isBlank()) return null
 
-        /**
-         * زيادة عداد مشاهدات الريل الفعلي في قاعدة البيانات السحابية (views_count + 1).
-         */
-        suspend fun incrementReelViews(reelId: String): Int? = runCatching {
-            val client = client ?: return null
-            // 1. جلب العدد الحالي الحقيقي
-            val current = client.postgrest.from("reels").select {
-                filter { eq("id", reelId) }
-                limit(1)
-            }.decodeSingleOrNull<ReelRow>()?.viewsCount ?: 0
-
-            val newCount = current + 1
-            // 2. تحديث الحقل في جدول reels
-            client.postgrest.from("reels").update(mapOf("views_count" to newCount)) {
-                filter { eq("id", reelId) }
+            val params = buildJsonObject {
+                put("p_reel_id", reelId)
+                put("p_watched_duration_sec", watchedDurationSec.coerceIn(0, 3600))
             }
-            newCount
-        }.onFailure { Log.e(TAG, "incrementReelViews failed for $reelId: ${it.message}") }.getOrNull()
+            client.postgrest.rpc("record_reel_view", params).decodeAs<Int>()
+        }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrNull()
     }
 
     // ==========================================
