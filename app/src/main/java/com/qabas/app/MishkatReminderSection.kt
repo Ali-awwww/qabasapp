@@ -80,63 +80,64 @@ fun MishkatReminderCard() {
     var expanded by remember { mutableStateOf(false) }
     val published = content?.takeIf { it.isEnabled } ?: return
 
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF17251F)),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 58.dp)
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    if (expanded) Icons.Default.ChevronUp else Icons.Default.ChevronDown,
-                    contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
-                    tint = Color(0xFFE8D8B5)
-                )
-                Text(
-                    text = "تذكّر",
-                    color = Color(0xFFE8D8B5),
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = { expanded = !expanded },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Lightbulb,
-                        contentDescription = "عرض التذكير",
-                        tint = Color(0xFFD6BC83)
-                    )
-                }
-            }
+        // A deliberately compact, centered disclosure control keeps the Mishkat header uncluttered.
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .heightIn(min = 36.dp)
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
+                tint = Color(0xFFE8D8B5),
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "تذكّر",
+                color = Color(0xFFE8D8B5),
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+            Icon(
+                Icons.Default.Lightbulb,
+                contentDescription = "عرض التذكير",
+                tint = Color(0xFFD6BC83),
+                modifier = Modifier.size(17.dp)
+            )
+        }
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF17251F)),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                     Text(
-                        text = published.quoteText.replace("، ", "،\n").replace("محطَّ نحس ", "محطَّ نحس\n"),
+                        text = published.quoteText
+                            .replace("، ", "،\\n")
+                            .replace("محطَّ نحس ", "محطَّ نحس\\n"),
                         color = Color(0xFFF4EAD7),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
