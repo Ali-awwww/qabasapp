@@ -160,8 +160,10 @@ object QabasNotificationHelper {
         manager.notify(SUMMARY_NOTIF_ID, summary)
     }
 
-    /** آية عشوائية من مكتبة القرآن — المصدر الموحّد لإشعارات الورد */
-    fun dailyVerseLine(): String? = QuranDataProvider.surahs.flatMap { it.famousVerses }.randomOrNull()
+    /** آية عشوائية من النص القرآني الموثّق؛ null إذا لم تُحمّل البيانات بعد. */
+    fun dailyVerseLine(): String? = QuranDataProvider.getRandomVerse()?.let { verse ->
+        "${verse.verseText} ﴿${verse.surahName}: ${verse.verseNumber}﴾"
+    }
 
     /** فضل سورة عشوائي — المصدر الموحّد لإشعارات الفجر */
     fun dailyVirtueLine(): String? = QuranDataProvider.surahs.mapNotNull { it.virtue }.randomOrNull()
