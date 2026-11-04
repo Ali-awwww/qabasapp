@@ -1606,6 +1606,7 @@ fun GoldenMushafReaderView(
                                     Row {
                                         IconButton(onClick = {
                                             readerScope.launch {
+                                                onShowTafseer(verseItem.verseText, "جارٍ جلب التفسير الميسر من المصدر…")
                                                 val tafsir = verseItem.tafseer.ifBlank {
                                                     withContext(Dispatchers.IO) {
                                                         QuranDataProvider.fetchRemoteTafsir(surah.id, verseItem.verseNumber)
