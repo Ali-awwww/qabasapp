@@ -1561,13 +1561,39 @@ fun GoldenMushafReaderView(
                                     }
 
                                     Row {
-                                        IconButton(onClick = { onShowTafseer(verseItem.verseText, verseItem.tafseer) }) {
+                                        IconButton(onClick = {
+                                            readerScope.launch {
+                                                val tafsir = verseItem.tafseer.ifBlank {
+                                                    withContext(Dispatchers.IO) {
+                                                        QuranDataProvider.fetchRemoteTafsir(surah.id, verseItem.verseNumber)
+                                                    }.orEmpty()
+                                                }
+                                                onShowTafseer(verseItem.verseText, tafsir)
+                                            }
+                                        }) {
                                             Icon(Icons.Default.MenuBook, contentDescription = "التفسير", tint = ManuscriptGold, modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(onClick = {
-                                            Toast.makeText(context, "جاري الاستماع للآية ${verseItem.verseNumber} بصوت $selectedReciter 🎙️", Toast.LENGTH_SHORT).show()
+                                            if (playingAyah == verseItem.verseNumber) {
+                                                QuranAudioPlayer.stop()
+                                                playingAyah = -1
+                                            } else {
+                                                val reciterId = QuranAudioService.getReciterIdForArabicName(selectedReciter)
+                                                if (reciterId == null) {
+                                                    Toast.makeText(context, "هذا القارئ غير متاح صوتياً حالياً.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    val url = QuranAudioService.getAyahAudioUrl(surah.id, verseItem.verseNumber, reciterId)
+                                                    playingAyah = verseItem.verseNumber
+                                                    QuranAudioPlayer.playUrls(context, listOf(url)) { playingAyah = -1 }
+                                                }
+                                            }
                                         }) {
-                                            Icon(Icons.Default.VolumeUp, contentDescription = "استماع", tint = ManuscriptGold, modifier = Modifier.size(18.dp))
+                                            Icon(
+                                                if (playingAyah == verseItem.verseNumber) Icons.Default.StopCircle else Icons.Default.VolumeUp,
+                                                contentDescription = "استماع للآية",
+                                                tint = ManuscriptGold,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
                                     }
                                 }
