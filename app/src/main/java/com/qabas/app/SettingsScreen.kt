@@ -2790,7 +2790,8 @@ fun TransitionAnimationsSubScreen(
                             transitionSpec = {
                                 AppAnimationManager.createTransitionSpec(
                                     initialState = if (initialState == 0) AppState.HOME else AppState.QURAN_HUB,
-                                    targetState = if (targetState == 0) AppState.HOME else AppState.QURAN_HUB
+                                    targetState = if (targetState == 0) AppState.HOME else AppState.QURAN_HUB,
+                                    reducedMotion = reducedMotion
                                 )
                             },
                             label = "SimulatorTransition"
