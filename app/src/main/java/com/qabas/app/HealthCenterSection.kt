@@ -41,6 +41,12 @@ object HealthCenterState {
     var lastTab: Int = 0
 }
 
+internal fun selectHealthTab(tab: HealthTab, onSelected: (Int) -> Unit) {
+    val index = tab.ordinal
+    HealthCenterState.lastTab = index
+    onSelected(index)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthCenterSection(
@@ -106,9 +112,8 @@ fun HealthCenterSection(
             titles = HealthTab.values().map { it.title },
             icons = HealthTab.values().map { it.icon },
             selected = selectedTab,
-            onSelect = {
-                selectedTab = it
-                HealthCenterState.lastTab = it
+            onSelect = { index ->
+                selectHealthTab(HealthTab.values()[index]) { selectedTab = it }
             }
         )
 
@@ -118,7 +123,11 @@ fun HealthCenterSection(
         Box(modifier = Modifier.fillMaxSize()) {
             when (HealthTab.values()[selectedTab]) {
                 HealthTab.DOCTOR -> AppDoctorSection(context = context, onNavigateToKeys = onNavigateToKeys)
-                HealthTab.DIAGNOSTICS -> DiagnosticsDashboardSection()
+                HealthTab.DIAGNOSTICS -> DiagnosticsDashboardSection(
+                    onBack = {
+                        selectHealthTab(HealthTab.DOCTOR) { selectedTab = it }
+                    }
+                )
                 HealthTab.LOGS -> LogsSection(devLogs = devLogs)
                 HealthTab.CRASHES -> CrashLogsHubScreen(onBack = null)
                 HealthTab.KEYS -> LiveHealthCheckPanel()
