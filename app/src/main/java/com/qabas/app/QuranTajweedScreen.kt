@@ -2836,7 +2836,7 @@ fun GoldenTafsirSourcesView(
         }
         item {
             Text(
-                "مصادر تفسيرية معتمدة. التفسير الميسر مدمج ومتاح الآن في المصحف 📖، وبقية المصادر قيد التجهيز — لن يُعرض أي تفسير غير موثوق المصدر.",
+                "ملف التفسير الميسر غير مضمّن محلياً حالياً؛ يحاول التطبيق جلب تفسير الآية من خدمة خارجية عند طلبه. بقية التفاسير غير مدمجة بعد.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
@@ -2866,8 +2866,8 @@ fun GoldenTafsirSourcesView(
                 Text(author, color = OldInk.copy(alpha = 0.6f), fontFamily = NotoSansFont, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    if (isMuyassarAvailable) "مدمج ✓ متاح الآن في المصحف" else "النص الكامل قيد التجهيز ⏳",
-                    color = if (isMuyassarAvailable) Color(0xFF065F46) else ManuscriptGold,
+                    if (isMuyassarAvailable) "جلب عند الطلب عبر الإنترنت — ليس ملفاً محلياً مدمجاً" else "غير متاح حالياً — لم يُدمج نص هذا التفسير",
+                    color = ManuscriptGold,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp
                 )
