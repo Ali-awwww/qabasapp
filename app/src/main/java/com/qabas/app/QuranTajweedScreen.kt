@@ -634,6 +634,7 @@ fun QuranTajweedScreen(
                                 },
                                 isSakinaMode = isSakinaMode,
                                 listType = quranListType,
+                                dataVersion = quranDataVersion,
                                 onListTypeChange = { quranListType = it }
                             )
                         }
@@ -899,6 +900,7 @@ fun GoldenQuranSurahListView(
     onOpenVerse: (Int, Int) -> Unit,
     isSakinaMode: Boolean = false,
     listType: Int = 0,
+    dataVersion: Int = 0,
     onListTypeChange: (Int) -> Unit = {}
 ) {
     val categories = listOf("الكل", "مكية", "مدنية", "الأكثر تلاوة", "جزء عمّ")
@@ -906,11 +908,9 @@ fun GoldenQuranSurahListView(
     val textColor = if (isSakinaMode) Color(0xFF4A3728) else OldInk
     val goldColor = if (isSakinaMode) Color(0xFFB8860B) else ManuscriptGold
 
-    val context = LocalContext.current
     val trimmedSearch = searchQuery.trim()
-    val verseResults = remember(trimmedSearch) {
-        if (trimmedSearch.length >= 2) {
-            QuranDataProvider.loadFromAssets(context)
+    val verseResults = remember(trimmedSearch, dataVersion) {
+        if (trimmedSearch.length >= 2 && dataVersion == 6236) {
             QuranDataProvider.searchVerses(trimmedSearch)
         } else emptyList()
     }
