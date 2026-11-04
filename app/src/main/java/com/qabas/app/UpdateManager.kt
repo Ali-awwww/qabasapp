@@ -640,7 +640,7 @@ object UpdateManager {
             val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) ||
                          release.optString("name", "").contains("[FORCE]", ignoreCase = true)
             fun noteValue(label: String): String? =
-                Regex("(?im)^\\s*[-*]?\\s*\${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
+                Regex("(?im)^\\s*[-*]?\\s*${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
                     .find(releaseNotes)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
             val commitSha = Regex("(?i)commit[^0-9a-f]*([0-9a-f]{7,40})")
                 .find(releaseNotes)?.groupValues?.getOrNull(1)
