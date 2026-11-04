@@ -92,14 +92,24 @@ fun MushafReaderScreen(
     var fontScale by remember { mutableFloatStateOf(prefs.getFloat(KEY_FONT_SIZE, 1f)) }
 
     LaunchedEffect(Unit) {
+        val quranReady = withContext(Dispatchers.IO) {
+            QuranDataProvider.loadFromAssets(context) ||
+                QuranDataProvider.loadFromCache(context)
+        }.let { ready ->
+            if (ready) true else QuranDataProvider.downloadAndCacheFromNetwork(context)
+        }
         withContext(Dispatchers.IO) {
-            QuranDataProvider.loadFromAssets(context)
             QuranDataProvider.loadTafsirFromAssets(context)
             MushafPageData.loadPageMap(context)
         }
-        dataReady = MushafPageData.isLoaded()
+        dataReady = quranReady && MushafPageData.isLoaded()
         if (!dataReady) {
-            Toast.makeText(context, "تعذر تحميل خريطة الصفحات — تحقق من ملف madani_pages.json", Toast.LENGTH_LONG).show()
+            val message = if (!quranReady) {
+                "تعذر جلب نص القرآن الموثق. تحقق من اتصال الإنترنت ثم أعد المحاولة."
+            } else {
+                "تعذر تحميل خريطة الصفحات — تحقق من ملف madani_pages.json"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 
