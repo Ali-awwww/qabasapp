@@ -1709,6 +1709,18 @@ private fun getAuthenticVersesForSurah(surahId: Int, surahName: String): List<Qu
     return QuranDataProvider.getVersesForSurah(surahId, surahName)
 }
 
+private fun verifiedMuawwidhatText(): String {
+    val basmala = QuranDataProvider.getVerseText(1, 1).orEmpty()
+    val surahTexts = listOf(112, 113, 114).mapNotNull { id ->
+        QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(" ") { it.verseText }
+    }
+    return surahTexts.joinToString("\n\n") { surahText ->
+        listOf(basmala, surahText).filter { it.isNotBlank() }.joinToString("\n")
+    }.ifBlank { "تعذر تحميل نص السور من المصدر القرآني." }
+}
+
 @Composable
 fun TajweedRuleCard(rule: TajweedRuleItem) {
     val context = LocalContext.current
@@ -2980,9 +2992,7 @@ fun GoldenAdhkarView(onOpenFullAzkar: (() -> Unit)? = null) {
         AdhkarItem("آية الكرسي", QuranDataProvider.getVerseText(2, 255) ?: "تعذر تحميل نص الآية من المصدر القرآني.", 1, "الصباح"),
         AdhkarItem(
             "سورة الإخلاص والمعوذتان",
-            listOf(112, 113, 114).flatMap { id ->
-                QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
-            }.joinToString(" ") { it.verseText }.ifBlank { "تعذر تحميل نص السور من المصدر القرآني." },
+            verifiedMuawwidhatText(),
             3,
             "الصباح"
         ),
@@ -2993,9 +3003,7 @@ fun GoldenAdhkarView(onOpenFullAzkar: (() -> Unit)? = null) {
         AdhkarItem("آية الكرسي", QuranDataProvider.getVerseText(2, 255) ?: "تعذر تحميل نص الآية من المصدر القرآني.", 1, "المساء"),
         AdhkarItem(
             "سورة الإخلاص والمعوذتان",
-            listOf(112, 113, 114).flatMap { id ->
-                QuranDataProvider.getVersesForSurah(id, QuranDataProvider.surahNameOf(id))
-            }.joinToString(" ") { it.verseText }.ifBlank { "تعذر تحميل نص السور من المصدر القرآني." },
+            verifiedMuawwidhatText(),
             3,
             "المساء"
         ),
