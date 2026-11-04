@@ -469,6 +469,22 @@ object UpdateManager {
      * - لا يعتمد أبداً على «أول/آخر» دلتا في القائمة.
      * - يدعم الصيغة القديمة فقط عندما يكون هناك دلتا واحدة والبناء السابق مباشرة.
      */
+    internal fun isDeltaCompatibleWithInstalledBuild(
+        deltaName: String,
+        currentVersionName: String,
+        currentVersionCode: Int,
+        targetVersionCode: Int
+    ): Boolean {
+        if (deltaName.contains("-from-")) {
+            val sourceTag = "$currentVersionName+$currentVersionCode"
+            return deltaName.contains("from-$sourceTag")
+        }
+
+        // Legacy patches do not identify their base. Accept them only for the
+        // immediately previous build, never merely because the version name matches.
+        return currentVersionCode > 0 && currentVersionCode == targetVersionCode - 1
+    }
+
     private fun selectDeltaForInstalled(
         deltas: List<DeltaAsset>,
         currentVersionName: String,
@@ -476,16 +492,20 @@ object UpdateManager {
         targetVersionCode: Int
     ): DeltaAsset? {
         if (deltas.isEmpty()) return null
-        val sourceTag = "$currentVersionName+$currentVersionCode"
-        val exact = deltas.filter { delta ->
-            delta.name.contains("from-$sourceTag") ||
-                delta.name.contains("from-$currentVersionCode.") ||
-                delta.name.contains("from-$currentVersionCode-")
+
+        val explicitBase = deltas.filter { delta ->
+            delta.name.contains("-from-") &&
+                isDeltaCompatibleWithInstalledBuild(
+                    delta.name, currentVersionName, currentVersionCode, targetVersionCode
+                )
         }
-        if (exact.isNotEmpty()) return exact.maxByOrNull { it.size }
+        if (explicitBase.isNotEmpty()) return explicitBase.maxByOrNull { it.size }
 
         val legacy = deltas.filter { !it.name.contains("-from-") }
-        if (legacy.size == 1 && currentVersionCode == targetVersionCode - 1) {
+        if (legacy.size == 1 && isDeltaCompatibleWithInstalledBuild(
+                legacy.first().name, currentVersionName, currentVersionCode, targetVersionCode
+            )
+        ) {
             return legacy.first()
         }
         return null
@@ -1071,8 +1091,24 @@ object UpdateManager {
         onProgress: (DownloadProgress) -> Unit
     ): File? {
         return try {
-            // فحص توفر محرك الترقيع: إما JNI C++ المدمج أو الثنائي الخارجي
+            // Android 10+ blocks executing writable app-data binaries for modern targets.
+            // On those devices only the JNI library packaged inside the APK is a valid engine.
             val hasNativeEngine = XdeltaPatchEngine.isNativeEngineAvailable()
+            val modernAndroidTarget =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    context.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.Q
+            if (!hasNativeEngine && modernAndroidTarget) {
+                val reason = "مكتبة xdelta JNI غير موجودة داخل APK؛ سيتم استخدام تنزيل APK الكامل بدلاً من تشغيل ملف تنفيذي من مجلد التطبيق"
+                Log.e(TAG, reason)
+                UpdateTelemetryManager.recordFailure(
+                    context = context,
+                    update = update,
+                    phase = "JNI_ENGINE_MISSING",
+                    throwable = null,
+                    customMessage = reason
+                )
+                return null
+            }
             if (!hasNativeEngine) {
                 val binary = ensureXdeltaBinary(context, update, authToken, handle)
                 if (binary == null) {
@@ -1178,6 +1214,13 @@ object UpdateManager {
         authToken: String?,
         handle: DownloadHandle
     ): File? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.Q
+        ) {
+            Log.w(TAG, "Skipping xdelta executable in app data on modern Android; packaged JNI is required")
+            return null
+        }
+
         val dest = File(context.filesDir, "bin/libxdelta3.so")
         if (dest.exists() && dest.canExecute() && dest.length() > 10_000) {
             return dest

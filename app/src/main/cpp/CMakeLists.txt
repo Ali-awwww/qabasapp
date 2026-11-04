@@ -35,11 +35,26 @@ endif()
 target_link_libraries(llama_jni ${log-lib})
 
 # xdelta3 JNI native library for differential binary updates
+# Android NDK does not run xdelta3's autotools configure script.
+# Supply the ABI-dependent sizes that configure would normally write to config.h.
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(XD3_SIZEOF_SIZE_T 8)
+    set(XD3_SIZEOF_UNSIGNED_LONG 8)
+else()
+    set(XD3_SIZEOF_SIZE_T 4)
+    set(XD3_SIZEOF_UNSIGNED_LONG 4)
+endif()
+
 add_library(qabas_xdelta SHARED
     xdelta3_jni.cpp
     xdelta3.c
 )
 target_compile_definitions(qabas_xdelta PRIVATE
+    HAVE_CONFIG_H=0
+    SIZEOF_SIZE_T=${XD3_SIZEOF_SIZE_T}
+    SIZEOF_UNSIGNED_LONG=${XD3_SIZEOF_UNSIGNED_LONG}
+    SIZEOF_UNSIGNED_LONG_LONG=8
+    SIZEOF_UNSIGNED_INT=4
     XD3_MAIN=1
     XD3_INCLUDE_MAIN=1
     SECONDARY_FGK=0

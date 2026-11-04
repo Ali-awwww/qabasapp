@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,7 +82,10 @@ object PatchManager {
         val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
         val outputApk = File(updatesDir, "qabas-${update.versionName}-${update.versionCode}-patched.tmp")
         val finalApk = File(updatesDir, "qabas-${update.versionName}-${update.versionCode}-patched.apk")
-        
+        // A previous partial/failed run must never be mistaken for this attempt.
+        runCatching { outputApk.delete() }
+        runCatching { finalApk.delete() }
+
         // المسار الأساسي هو الـ APK الحالي المثبت
         val sourceApk = File(context.packageCodePath)
         
@@ -109,43 +113,61 @@ object PatchManager {
         }
 
         if (patchApplied && outputApk.exists() && outputApk.length() > 1_000_000) {
-            // 4. التحقق من الـ APK الناتج
-            if (UpdateManager.isApkValid(context, outputApk, update.versionCode)) {
-                if (outputApk.renameTo(finalApk)) {
-                    _patchState.value = PatchState.Success(finalApk)
-                    deltaFile.delete()
-                    Log.d(TAG, "✅ Patch applied and verified: ${finalApk.name}")
-                    return@withContext true
-                }
-            } else {
-                UpdateTelemetryManager.recordFailure(
-                    context = context,
-                    update = update,
-                    phase = "VALIDATE_PATCHED_APK",
-                    throwable = null,
-                    customMessage = "حزمة APK الناتجة بعد الرقعة غير صالحة برمجياً أو لا تطابق versionCode=${update.versionCode} (الحجم: ${outputApk.length()} بايت)"
-                )
+            // Verify the reconstructed package, version code and exact target size.
+            val outputSize = outputApk.length()
+            val sizeMatches = update.apkSize <= 0L || outputSize == update.apkSize
+            val packageAndVersionMatch =
+                UpdateManager.isApkValid(context, outputApk, update.versionCode)
+
+            if (sizeMatches && packageAndVersionMatch && outputApk.renameTo(finalApk)) {
+                _patchState.value = PatchState.Success(finalApk)
+                deltaFile.delete()
+                Log.d(TAG, "✅ Patch applied and verified: ${finalApk.name} ($outputSize bytes)")
+                return@withContext true
             }
-        } else {
-            val failureReason = "فشل تطبيق الرقعة عبر محرك JNI Native والثنائي الاحتياطي"
+
+            val failureReason = when {
+                !sizeMatches ->
+                    "حجم APK الناتج لا يطابق حجم الإصدار الهدف (actual=$outputSize, expected=${update.apkSize})"
+                !packageAndVersionMatch ->
+                    "APK الناتج لا يطابق اسم الحزمة أو رقم البناء الهدف (${update.versionCode})"
+                else -> "تعذر اعتماد ملف APK الناتج بعد تطبيق الرقعة"
+            }
             outputApk.delete()
+            finalApk.delete()
+            deltaFile.delete()
             _patchState.value = PatchState.Error(failureReason)
             UpdateTelemetryManager.recordFailure(
                 context = context,
                 update = update,
-                phase = "PATCH_APPLY",
+                phase = "VALIDATE_PATCHED_APK",
                 throwable = null,
                 customMessage = failureReason
             )
             return@withContext false
         }
 
+        val failureReason = "فشل تطبيق الرقعة عبر محرك JNI Native والثنائي الاحتياطي"
         outputApk.delete()
-        _patchState.value = PatchState.Error("فشلت معالجة الرقعة")
+        finalApk.delete()
+        deltaFile.delete()
+        _patchState.value = PatchState.Error(failureReason)
+        UpdateTelemetryManager.recordFailure(
+            context = context,
+            update = update,
+            phase = "PATCH_APPLY",
+            throwable = null,
+            customMessage = failureReason
+        )
         false
     }
 
     private fun ensureBinary(context: Context, update: UpdateManager.UpdateInfo): File? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.Q
+        ) {
+            return null
+        }
         // نستخدم المحرك الموجود مسبقاً في التطبيق لضمان التوافق
         // نستخدم مقبض تنزيل وهمي لعملية التأمين فقط
         val dummyHandle = UpdateManager.DownloadHandle()

@@ -216,7 +216,7 @@ jobs:
             echo "Source (Base): $PREV_APK ($(stat -c%s "$PREV_APK") bytes)"
             echo "Target (New):  $TARGET_APK ($(stat -c%s "$TARGET_APK") bytes)"
 
-            xdelta3 -9 -e -s "$PREV_APK" "$TARGET_APK" "$DELTA_PATH"
+            xdelta3 -9 -S none -e -s "$PREV_APK" "$TARGET_APK" "$DELTA_PATH"
 
             VERIFY_APK="dist/verify-reconstructed.apk"
             xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"

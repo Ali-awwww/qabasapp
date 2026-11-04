@@ -76,13 +76,39 @@ class UpdateReleaseIdentityTest {
 class UpdateDeltaBaseSelectionTest {
 
     @Test
-    fun `exact source tag wins over a legacy patch`() {
-        // The actual selector is private; this test pins the filename contract used by it.
-        val currentSourceTag = "1.3.6+226"
-        val exactPatchName = "qabas-1.3.6+227-from-1.3.6+226.delta"
-        val otherBasePatchName = "qabas-1.3.6+227-from-1.3.6+225.delta"
+    fun `explicit patch is accepted only for exact installed source`() {
+        assertTrue(
+            UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                "qabas-1.3.6+227-from-1.3.6+226.delta", "1.3.6", 226, 227
+            )
+        )
+        assertFalse(
+            UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                "qabas-1.3.6+227-from-1.3.6+225.delta", "1.3.6", 226, 227
+            )
+        )
+    }
 
-        assertTrue(exactPatchName.contains("from-$currentSourceTag"))
-        assertFalse(otherBasePatchName.contains("from-$currentSourceTag"))
+    @Test
+    fun `legacy patch is accepted only for immediately previous build`() {
+        assertTrue(
+            UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                "qabas-1.3.6+227.delta", "1.3.6", 226, 227
+            )
+        )
+        assertFalse(
+            UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                "qabas-1.3.6+227.delta", "1.3.6", 225, 227
+            )
+        )
+    }
+
+    @Test
+    fun `explicit base rejects same code with a different version name`() {
+        assertFalse(
+            UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                "qabas-1.3.6+227-from-1.3.5+226.delta", "1.3.6", 226, 227
+            )
+        )
     }
 }
