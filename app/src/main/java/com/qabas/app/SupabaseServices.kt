@@ -62,6 +62,38 @@ object SupabaseServices {
             true
         }.getOrDefault(false)
 
+        /** Read the single cloud-managed Mishkat reminder record. */
+        suspend fun getMishkatReminderContent(): MishkatReminderContent? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("mishkat_reminder_content").select {
+                filter { eq("id", "global") }
+                limit(1)
+            }.decodeSingleOrNull<MishkatReminderContent>()
+        }.onFailure { Log.e(TAG, "getMishkatReminderContent failed: ${it.message}") }.getOrNull()
+
+        /** Save the reminder only through the authenticated developer RLS policy. */
+        suspend fun saveMishkatReminderContent(
+            quoteText: String,
+            attribution: String,
+            videoUrl: String?,
+            isEnabled: Boolean
+        ): Boolean = runCatching {
+            val client = client ?: return false
+            val userId = Auth.getCurrentUserId() ?: return false
+            val cleanVideoUrl = videoUrl?.trim()?.takeIf { it.isNotBlank() }
+            val row = MishkatReminderContent(
+                id = "global",
+                quoteText = quoteText.trim(),
+                attribution = attribution.trim(),
+                videoUrl = cleanVideoUrl,
+                isEnabled = isEnabled,
+                updatedBy = userId,
+                updatedAt = java.time.Instant.now().toString()
+            )
+            client.postgrest.from("mishkat_reminder_content").upsert(row)
+            true
+        }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
+
         suspend fun getLatestActiveUpdateOrThrow(): ActiveUpdate? {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             return client.postgrest.from("app_updates")
