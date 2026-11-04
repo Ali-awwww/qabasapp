@@ -330,4 +330,21 @@ class StyleBrainTest {
         assertEquals(malformed, prefs.getString("qabas_core_style_json", null))
     }
 
+    @Test
+    fun `repair leaves non-string trait values untouched`() {
+        val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)
+        val invalidCore = JSONObject().apply {
+            put("visualTraits", org.json.JSONArray().put(42))
+            put("motionTraits", org.json.JSONArray())
+            put("textTraits", org.json.JSONArray())
+            put("strengthScore", 140)
+        }.toString()
+        assertTrue(prefs.edit().putString("qabas_core_style_json", invalidCore).commit())
+
+        val result = StyleBrainLoadFix.repairPersistedEmptyCore(context)
+
+        assertEquals(StyleBrainLoadFix.CoreRepairStatus.INVALID_STORED_DATA, result.status)
+        assertEquals(invalidCore, prefs.getString("qabas_core_style_json", null))
+    }
+
 }
