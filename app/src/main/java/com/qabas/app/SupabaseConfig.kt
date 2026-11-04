@@ -11,6 +11,10 @@ import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.realtime.Realtime
+import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Single Supabase client configured once per process.
@@ -28,6 +32,9 @@ object SupabaseConfig {
     /** Production fixed credentials */
     const val DEFAULT_SUPABASE_URL = "https://egkgygbvoeevakwkbvfu.supabase.co"
     const val DEFAULT_SUPABASE_KEY = "sb_publishable_5iEyi_WtX-OvpXkygh0OUQ_Rf7mAZvQ"
+    const val PASSWORD_RESET_SCHEME = "qabas"
+    const val PASSWORD_RESET_HOST = "auth"
+    const val PASSWORD_RESET_REDIRECT_URL = "qabas://auth"
 
     @Volatile
     private var _client: SupabaseClient? = null
@@ -107,6 +114,9 @@ object SupabaseConfig {
             ) {
                 install(Postgrest)
                 install(Auth) {
+                    scheme = PASSWORD_RESET_SCHEME
+                    host = PASSWORD_RESET_HOST
+                    flowType = io.github.jan.supabase.auth.FlowType.PKCE
                     autoLoadFromStorage = false
                     enableLifecycleCallbacks = false
                     alwaysAutoRefresh = false
@@ -134,6 +144,9 @@ object SupabaseConfig {
                 defaultSchema = "public"
             }
             install(Auth) {
+                scheme = PASSWORD_RESET_SCHEME
+                host = PASSWORD_RESET_HOST
+                flowType = io.github.jan.supabase.auth.FlowType.PKCE
                 // Let supabase-kt restore the platform session and refresh tokens automatically.
                 // MemorySessionManager loses the refresh token when the process is recreated.
                 autoLoadFromStorage = true
@@ -152,4 +165,51 @@ object SupabaseConfig {
     fun currentSession(): UserSession? = runCatching {
         if (!isConfigured) null else client.auth.currentSessionOrNull()
     }.getOrNull()
+}
+}
+
+/**
+ * Tracks a password-recovery session only after Supabase has exchanged the
+ * callback code and imported a valid session. A pending callback suppresses
+ * the normal login-to-home navigation while the PKCE exchange is running.
+ */
+object PasswordRecoveryManager {
+    private const val PREFS_NAME = "qabas_prefs"
+    private const val PREF_VERIFIED = "supabase_password_recovery_verified"
+
+    private val _isRecoveryInProgress = MutableStateFlow(false)
+    val isRecoveryInProgress: StateFlow<Boolean> = _isRecoveryInProgress.asStateFlow()
+
+    private val _isRecoveryVerified = MutableStateFlow(false)
+    val isRecoveryVerified: StateFlow<Boolean> = _isRecoveryVerified.asStateFlow()
+
+    fun restore(context: Context) {
+        val verified = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(PREF_VERIFIED, false)
+        _isRecoveryInProgress.value = verified
+        _isRecoveryVerified.value = verified
+    }
+
+    fun begin() {
+        _isRecoveryInProgress.value = true
+        _isRecoveryVerified.value = false
+    }
+
+    fun markVerified(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(PREF_VERIFIED, true)
+            .apply()
+        _isRecoveryInProgress.value = true
+        _isRecoveryVerified.value = true
+    }
+
+    fun clear(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(PREF_VERIFIED)
+            .apply()
+        _isRecoveryInProgress.value = false
+        _isRecoveryVerified.value = false
+    }
 }
