@@ -6,7 +6,7 @@ package com.qabas.app
 object ScholarsData {
     val scholarsList: List<ScholarBiography> = listOf(
         ScholarBiography(
-            id = "1",
+            id = "scholar_1",
             name = "سعيد بن جبير",
             brief = "سعيد بن جبير الأسدي، من كبار التابعين، أخذ العلم عن عبد الله بن عباس واشتهر بالتفسير والفقه والعبادة. قتله الحجاج بن يوسف بواسط في أواخر القرن الأول الهجري.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -27,7 +27,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "2",
+            id = "scholar_2",
             name = "عمر بن عبد العزيز",
             brief = "عمر بن عبد العزيز بن مروان، الخليفة الأموي الذي اشتهر برد المظالم والاهتمام بالعدل وتجديد العمل بالسنة. تولى الخلافة سنة 99 هـ وتوفي سنة 101 هـ.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -48,7 +48,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "3",
+            id = "scholar_3",
             name = "أبو حنيفة",
             brief = "النعمان بن ثابت، فقيه الكوفة وإمام المذهب الحنفي. اشتهر بالفقه والنظر والاستنباط، وكان له أثر كبير في تطور الفقه الإسلامي.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -69,7 +69,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "4",
+            id = "scholar_4",
             name = "مالك بن أنس",
             brief = "مالك بن أنس الأصبحي، إمام دار الهجرة وصاحب الموطأ، وأحد الأئمة الأربعة. كان من كبار علماء المدينة في الحديث والفقه.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -90,7 +90,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "5",
+            id = "scholar_5",
             name = "الشافعي",
             brief = "محمد بن إدريس الشافعي، أحد الأئمة الأربعة ومؤسس المذهب الشافعي. وُلد بغزة، ونشأ بمكة، ورحل إلى العراق ثم استقر بمصر، ومن أشهر كتبه الرسالة والأم.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -111,7 +111,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "6",
+            id = "scholar_6",
             name = "أحمد بن حنبل",
             brief = "أحمد بن حنبل الشيباني، إمام أهل السنة وصاحب المسند، وأحد أئمة الحديث والفقه. اشتهر بثباته في محنة القول بخلق القرآن.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -132,7 +132,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "7",
+            id = "scholar_7",
             name = "سفيان الثوري",
             brief = "سفيان بن سعيد الثوري، من كبار أئمة الحديث والفقه والزهد في القرن الثاني الهجري، عُرف بسعة الرواية والورع والتحفظ من مناصب السلطان.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -153,7 +153,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "8",
+            id = "scholar_8",
             name = "البخاري",
             brief = "محمد بن إسماعيل البخاري، أحد أجلّ أئمة الحديث وصاحب الجامع الصحيح والتاريخ الكبير. وُلد ببخارى وتوفي بقرية خرتنك قرب سمرقند.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -174,7 +174,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "9",
+            id = "scholar_9",
             name = "العز بن عبد السلام",
             brief = "عبد العزيز بن عبد السلام السلمي، فقيه شافعي وأصولي لُقّب بسلطان العلماء، وله مواقف مشهورة في نصح الحكام والإنكار على مخالفة الشرع.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -195,7 +195,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "10",
+            id = "scholar_10",
             name = "صلاح الدين",
             brief = "يوسف بن أيوب، مؤسس الدولة الأيوبية في مصر والشام، انتصر على الصليبيين في حطين سنة 583 هـ واستعاد القدس في العام نفسه، وتوفي بدمشق سنة 589 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -216,7 +216,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "11",
+            id = "scholar_11",
             name = "ابن تيمية",
             brief = "أحمد بن عبد الحليم ابن تيمية، فقيه ومحدث ومفسر حنبلي، عاش في دمشق ومصر، وشارك في مقاومة التتار، وتوفي محبوساً بقلعة دمشق.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -237,7 +237,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "12",
+            id = "scholar_12",
             name = "ابن القيم",
             brief = "محمد بن أبي بكر ابن قيم الجوزية، فقيه ومحدث ومربٍّ دمشقي، من أبرز تلامذة ابن تيمية، ومن كتبه زاد المعاد ومدارج السالكين والداء والدواء.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -258,7 +258,7 @@ object ScholarsData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "13",
+            id = "scholar_13",
             name = "الذهبي",
             brief = "محمد بن أحمد الذهبي، حافظ ومؤرخ وناقد في علم الرجال، من أشهر كتبه سير أعلام النبلاء وتاريخ الإسلام وميزان الاعتدال.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
