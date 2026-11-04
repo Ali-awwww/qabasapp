@@ -1672,7 +1672,7 @@ fun AudioMixerWorkspace(
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "ملاحظة: هذه الإعدادات تُحفظ في المشروع؛ تشغيل ومزج الصوت الفعلي يحتاج إلى محرك صوت متصل.",
+            "تشغيل المسارات الصوتية المتزامنة ومستوياتها يعمل في المعاينة؛ إدراج المزيج داخل ملف MP4 النهائي لم يُربط بعد.",
             color = Color.Gray,
             fontSize = 10.sp,
             fontFamily = CairoFont
