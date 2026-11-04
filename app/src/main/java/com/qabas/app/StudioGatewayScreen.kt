@@ -180,7 +180,7 @@ fun StudioGatewayScreen(
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 4.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp),
                                 color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
