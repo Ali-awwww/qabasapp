@@ -159,7 +159,11 @@ fun StudioProEditorScreen(
             runCatching {
                 editorPlayer.setMediaItem(MediaItem.fromUri(clip.resourceUri))
                 editorPlayer.prepare()
-                editorPlayer.seekTo((projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L))
+                editorPlayer.setPlaybackSpeed(clip.speed.coerceIn(0.1f, 5f))
+                editorPlayer.seekTo(
+                    clip.sourceStartMs +
+                        ((projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L) * clip.speed.coerceIn(0.1f, 5f)).toLong()
+                )
                 if (projectState.isPlaying) editorPlayer.play()
             }.onFailure { error ->
                 previewPlaybackError = error.message ?: "تعذر فتح ملف الوسائط"
@@ -169,7 +173,9 @@ fun StudioProEditorScreen(
 
     LaunchedEffect(projectState.currentTimeMs, activeVideoClip?.id, projectState.isPlaying) {
         if (!projectState.isPlaying && activeVideoClip != null) {
-            val relativePosition = (projectState.currentTimeMs - activeVideoClip.startOffsetMs).coerceAtLeast(0L)
+            val relativePosition = activeVideoClip.sourceStartMs +
+                ((projectState.currentTimeMs - activeVideoClip.startOffsetMs).coerceAtLeast(0L) *
+                    activeVideoClip.speed.coerceIn(0.1f, 5f)).toLong()
             if (kotlin.math.abs(editorPlayer.currentPosition - relativePosition) > 80L) {
                 editorPlayer.seekTo(relativePosition)
             }
@@ -187,9 +193,12 @@ fun StudioProEditorScreen(
             val clip = activeVideoClip
             val nextTimeMs = if (clip != null) {
                 val clipEndMs = clip.startOffsetMs + clip.durationMs
-                val playerEnded = editorPlayer.playbackState == Player.STATE_ENDED
+                val speed = clip.speed.coerceIn(0.1f, 5f)
+                val sourceElapsedMs = (editorPlayer.currentPosition - clip.sourceStartMs).coerceAtLeast(0L)
+                val playerEnded = editorPlayer.playbackState == Player.STATE_ENDED ||
+                    sourceElapsedMs >= (clip.durationMs * speed).toLong()
                 if (playerEnded) clipEndMs
-                else (clip.startOffsetMs + editorPlayer.currentPosition.coerceAtLeast(0L)).coerceAtMost(clipEndMs)
+                else (clip.startOffsetMs + (sourceElapsedMs / speed).toLong()).coerceAtMost(clipEndMs)
             } else {
                 (projectState.currentTimeMs + 33L).coerceAtMost(projectState.totalDurationMs)
             }
