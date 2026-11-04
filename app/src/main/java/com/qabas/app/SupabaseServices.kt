@@ -1699,12 +1699,17 @@ object SupabaseServices {
             true
         }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.getOrDefault(false)
 
-        suspend fun addReelComment(reelId: String, userId: String, commentText: String): ReelCommentRow? = runCatching {
+        suspend fun addReelComment(
+            reelId: String,
+            userId: String,
+            userName: String,
+            commentText: String
+        ): ReelCommentRow? = runCatching {
             val client = client ?: return null
             val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
                 ?: return null
-            if (authUid != userId) {
-                Log.w(TAG, "addReelComment rejected non-canonical caller identity")
+            if (authUid != userId || reelId.isBlank()) {
+                Log.w(TAG, "addReelComment rejected an invalid caller identity or reel id")
                 return null
             }
 
@@ -1713,10 +1718,12 @@ object SupabaseServices {
                 return null
             }
 
+            val safeName = userName.trim().take(60).ifBlank { "مستخدم قبس" }
             val comment = ReelCommentRow(
                 id = java.util.UUID.randomUUID().toString(),
                 reelId = reelId,
                 userId = authUid,
+                userName = safeName,
                 commentText = commentText,
                 likesCount = 0,
                 createdAt = java.time.Instant.now().toString()
@@ -1725,6 +1732,46 @@ object SupabaseServices {
                 select()
             }.decodeSingleOrNull<ReelCommentRow>()
         }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrNull()
+
+        /** Update a comment only when the current authenticated user owns the row. */
+        suspend fun updateReelComment(
+            commentId: String,
+            userId: String,
+            commentText: String
+        ): ReelCommentRow? = runCatching {
+            val client = client ?: return null
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return null
+            val safeText = commentText.trim()
+            if (authUid != userId || commentId.isBlank() || safeText.isBlank()) return null
+
+            client.postgrest.from("reel_comments").update({
+                set("comment_text", safeText)
+                set("updated_at", java.time.Instant.now().toString())
+            }) {
+                filter {
+                    eq("id", commentId)
+                    eq("user_id", authUid)
+                }
+                select()
+            }.decodeSingleOrNull<ReelCommentRow>()
+        }.onFailure { Log.e(TAG, "updateReelComment failed: ${it.message}") }.getOrNull()
+
+        /** Delete a comment only when the current authenticated user owns the row. */
+        suspend fun deleteReelComment(commentId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+                ?: return false
+            if (authUid != userId || commentId.isBlank()) return false
+
+            client.postgrest.from("reel_comments").delete {
+                filter {
+                    eq("id", commentId)
+                    eq("user_id", authUid)
+                }
+                select()
+            }.decodeList<ReelCommentRow>().isNotEmpty()
+        }.onFailure { Log.e(TAG, "deleteReelComment failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
@@ -2444,9 +2491,11 @@ object SupabaseServices {
         val id: String = "",
         @SerialName("reel_id") val reelId: String = "",
         @SerialName("user_id") val userId: String = "",
+        @SerialName("user_name") val userName: String = "مستخدم قبس",
         @SerialName("comment_text") val commentText: String = "",
         @SerialName("likes_count") val likesCount: Int = 0,
-        @SerialName("created_at") val createdAt: String? = null
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("updated_at") val updatedAt: String? = null
     )
 
     @Serializable
