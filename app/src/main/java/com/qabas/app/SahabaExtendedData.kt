@@ -6,7 +6,7 @@ package com.qabas.app
 object SahabaExtendedData {
     val extendedList: List<ScholarBiography> = listOf(
         ScholarBiography(
-            id = "20",
+            id = "sahabi_20",
             name = "الصحابي الجليل الحسن بن علي رضي الله عنهما",
             brief = "الحسن بن علي بن أبي طالب، سبط النبي ﷺ، وأحد سيدي شباب أهل الجنة. بويع بالخلافة بعد علي ثم صالح معاوية سنة 41 هـ، فسمي ذلك العام عام الجماعة.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -27,7 +27,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "21",
+            id = "sahabi_21",
             name = "الصحابي الجليل الحسين بن علي رضي الله عنهما",
             brief = "الحسين بن علي بن أبي طالب، سبط رسول الله ﷺ، وأحد سيدي شباب أهل الجنة. قُتل في كربلاء يوم عاشوراء سنة 61 هـ.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -48,7 +48,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "22",
+            id = "sahabi_22",
             name = "الصحابي الجليل معاذ بن جبل رضي الله عنه",
             brief = "معاذ بن جبل الأنصاري، من علماء الصحابة، بعثه النبي ﷺ إلى اليمن معلماً وقاضياً، واشتهر بالعلم بالحلال والحرام.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -69,7 +69,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "23",
+            id = "sahabi_23",
             name = "الصحابي الجليل أبو هريرة رضي الله عنه",
             brief = "عبد الرحمن بن صخر الدوسي، المعروف بأبي هريرة، من أكثر الصحابة رواية للحديث. أسلم وقدم المدينة في أواخر العهد النبوي ولازم النبي ﷺ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -90,7 +90,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "24",
+            id = "sahabi_24",
             name = "الصحابي الجليل عبد الله بن عباس رضي الله عنهما",
             brief = "عبد الله بن عباس الهاشمي، ابن عم النبي ﷺ، حبر الأمة وترجمان القرآن. اشتهر بالعلم بالتفسير والفقه، ودعا له النبي ﷺ بالفقه في الدين.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -111,7 +111,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "25",
+            id = "sahabi_25",
             name = "الصحابي الجليل عبد الله بن عمر رضي الله عنهما",
             brief = "عبد الله بن عمر بن الخطاب، من صغار الصحابة، اشتهر بشدة اتباعه للسنة وكثرة العبادة والرواية عن النبي ﷺ.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -132,7 +132,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "26",
+            id = "sahabi_26",
             name = "الصحابي الجليل عمار بن ياسر رضي الله عنه",
             brief = "عمار بن ياسر العنسي، من السابقين إلى الإسلام، عُذب هو وأبواه بمكة، واستشهد أبواه ياسر وسمية في سبيل الله. قُتل عمار في صفين سنة 37 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
@@ -153,7 +153,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "27",
+            id = "sahabi_27",
             name = "الصحابي الجليل أبو ذر الغفاري رضي الله عنه",
             brief = "جندب بن جنادة الغفاري، المعروف بأبي ذر، من السابقين إلى الإسلام، واشتهر بالزهد والصدق والإنكار على التوسع في الدنيا.",
             imageRes = R.drawable.scholar_library_bg_1790092389658,
@@ -174,7 +174,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "28",
+            id = "sahabi_28",
             name = "الصحابي الجليل أُبَيّ بن كعب رضي الله عنه",
             brief = "أُبيّ بن كعب الأنصاري، من كبار قراء الصحابة وكتّاب الوحي، شهد العقبة وبدراً، وكان من أهل العلم بالقرآن.",
             imageRes = R.drawable.scholar_manuscript_bg_1790092377371,
@@ -195,7 +195,7 @@ object SahabaExtendedData {
             funeralImpact = null,
         ),
         ScholarBiography(
-            id = "29",
+            id = "sahabi_29",
             name = "الصحابي الجليل سعد بن معاذ رضي الله عنه",
             brief = "سعد بن معاذ الأنصاري الأوسي، سيد من سادات الأنصار، أسلم قبل الهجرة وكان لإسلامه أثر في قومه. شهد بدراً والخندق، وحكم في بني قريظة بعد أن حكّموه، وتوفي متأثراً بجرحه سنة 5 هـ.",
             imageRes = R.drawable.scholar_madrasa_bg_1790092403447,
