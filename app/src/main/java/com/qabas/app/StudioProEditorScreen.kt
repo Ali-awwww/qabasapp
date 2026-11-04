@@ -54,6 +54,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import java.util.UUID
 import kotlin.math.roundToLong
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -65,6 +66,7 @@ fun StudioProEditorScreen(
     onSave: () -> Unit
 ) {
     val context = LocalContext.current
+    val transitionSlideDistancePx = with(LocalDensity.current) { 120.dp.toPx() }
     var projectState by remember { mutableStateOf(createBlankEditorProjectState()) }
     val editorPlayer = remember(context) {
         ExoPlayerFactory.createPlayer(context, useCache = false, useAudioFocus = false)
@@ -497,7 +499,7 @@ fun StudioProEditorScreen(
                                         val transitionProgress = (relativeTime / 600f).coerceIn(0f, 1f)
                                         val transitionAlpha = if (clip.transitionIn == "Fade In") transitionProgress else 1f
                                         val transitionScale = if (clip.transitionIn == "Zoom In") 0.85f + 0.15f * transitionProgress else 1f
-                                        val slideOffset = if (clip.transitionIn == "Slide In") -120.dp.toPx() * (1f - transitionProgress) else 0f
+                                        val slideOffset = if (clip.transitionIn == "Slide In") -transitionSlideDistancePx * (1f - transitionProgress) else 0f
                                         alpha = SmartFeaturesEngine.interpolateProperty(
                                             clip.keyframes, relativeTime, "opacity", 1f
                                         ) * transitionAlpha
