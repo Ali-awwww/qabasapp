@@ -2667,6 +2667,7 @@ fun TransitionAnimationsSubScreen(
 
     val currentAnim by AppAnimationManager.currentAnimation.collectAsState()
     val currentSpeed by AppAnimationManager.currentSpeed.collectAsState()
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
 
     // حالة محاكي الحركة التفاعلي المباشر (Live Motion Simulator)
     var simulatorStateIndex by remember { mutableIntStateOf(0) }
