@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.qabas.app
 
 import android.net.Uri
@@ -77,8 +79,8 @@ fun MishkatReminderCard() {
         }
     }
 
-    val published = content?.takeIf { it.isEnabled } ?: return
     var expanded by remember { mutableStateOf(false) }
+    val published = content?.takeIf { it.isEnabled } ?: return
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -183,11 +185,13 @@ private fun MishkatReminderVideoPlayer(
 
     DisposableEffect(player) {
         onDispose {
-            player?.runCatching {
-                playWhenReady = false
-                stop()
-                clearMediaItems()
-                release()
+            player?.let { activePlayer ->
+                runCatching {
+                    activePlayer.playWhenReady = false
+                    activePlayer.stop()
+                    activePlayer.clearMediaItems()
+                    activePlayer.release()
+                }
             }
         }
     }
@@ -464,7 +468,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         Switch(
                             checked = isEnabled,
                             onCheckedChange = { isEnabled = it },
-                            enabled = !isSaving && !isUploading && videoUrl.startsWith("https://", ignoreCase = true)
+                            enabled = !isSaving && !isUploading
                         )
                     }
                     if (!videoUrl.isNullOrBlank() && videoUrl.startsWith("https://", ignoreCase = true)) {
