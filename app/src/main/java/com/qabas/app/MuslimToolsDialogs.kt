@@ -289,7 +289,10 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
-    var selectedDays by remember { mutableIntStateOf(30) }
+    val context = LocalContext.current
+    val existingPlan = remember(engine) { engine.getSavedKhatmaPlan() }
+    var selectedDays by remember { mutableIntStateOf(existingPlan?.days ?: 30) }
+    var savedDays by remember { mutableIntStateOf(existingPlan?.days ?: 0) }
     val plan = remember(selectedDays) { engine.generateKhatmaPlan(selectedDays) }
 
     MuslimToolsGlassDialog(
@@ -339,12 +342,44 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 }
             }
 
+            if (savedDays > 0) {
+                Text(
+                    Translator.tr(
+                        if (savedDays == selectedDays) "هذه خطتك المحفوظة على هذا الجهاز" else "تغيّرت الخطة؛ اعتمدها لحفظ التعديل"
+                    ),
+                    color = if (savedDays == selectedDays) Color(0xFF86EFAC) else qabasTextSecondary(),
+                    fontSize = 11.sp,
+                    fontFamily = CairoFont
+                )
+            }
+
             Button(
-                onClick = { /* Save or Start Khatma */ AppSoundManager.playActivate() },
+                onClick = {
+                    if (engine.saveKhatmaPlan(selectedDays)) {
+                        savedDays = selectedDays
+                        AppSoundManager.playSuccess()
+                        android.widget.Toast.makeText(
+                            context,
+                            Translator.tr("تم حفظ خطة الختمة على هذا الجهاز"),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            Translator.tr("تعذر حفظ خطة الختمة؛ حاول مرة أخرى"),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
             ) {
-                Text(Translator.tr("اعتماد خطة الختمة 📖"), color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text(
+                    Translator.tr(if (savedDays == selectedDays) "تحديث خطة الختمة 📖" else "اعتماد خطة الختمة 📖"),
+                    color = DeepSlate,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
