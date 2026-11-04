@@ -169,14 +169,18 @@ fun StudioGatewayScreen(
                     val isSelected = selectedCategoryIndex == index
                     Surface(
                         onClick = { selectedCategoryIndex = index },
-                        modifier = Modifier.weight(1f).height(42.dp),
+                        modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) primaryColor else Color(0xFF1E293B).copy(alpha = 0.4f),
                         border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = label.split(" ")[0], // Show only the emoji + main label for space
+                                text = label.substringBefore(" ("),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 4.dp)
                                 color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
