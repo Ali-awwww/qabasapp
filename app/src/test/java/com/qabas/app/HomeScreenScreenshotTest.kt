@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class HomeScreenScreenshotTest {
 
