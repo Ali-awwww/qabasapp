@@ -98,4 +98,18 @@ class EditorModelsTest {
         assertFalse(isEditorTrackIncludedInMix(state, second))
         assertFalse(isEditorTrackIncludedInMix(state, third))
     }
+
+    @Test
+    fun draftFingerprintIgnoresPlaybackTicksButIncludesTrackSettings() {
+        val state = createBlankEditorProjectState()
+        val playbackUpdate = state.copy(currentTimeMs = 1200L, isPlaying = true)
+        val mixerUpdate = state.copy(
+            tracks = state.tracks.mapIndexed { index, track ->
+                if (index == 0) track.copy(volume = 0.4f, isMuted = true) else track
+            }
+        )
+
+        assertEquals(editorDraftContentHash(state), editorDraftContentHash(playbackUpdate))
+        assertFalse(editorDraftContentHash(state) == editorDraftContentHash(mixerUpdate))
+    }
 }
