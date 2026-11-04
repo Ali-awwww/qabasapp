@@ -2834,7 +2834,7 @@ fun GoldenQuranRecitersView(
         }
         item {
             Text(
-                "هذه قائمة القراء المرتبطين فعلياً بمشغل التلاوة. النص الصوتي المتاح حالياً برواية حفص عن عاصم.",
+                "القراء الستة مرتبطون بمشغل الصوت الحالي. التلاوة المتاحة برواية حفص عن عاصم وتُبث من EveryAyah.com.",
                 color = OldInk.copy(alpha = 0.6f),
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
