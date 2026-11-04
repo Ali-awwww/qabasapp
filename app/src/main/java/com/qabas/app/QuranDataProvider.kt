@@ -1,5 +1,49 @@
 package com.qabas.app
 
+data class QuranSurahItem(
+    val id: Int,
+    val name: String,
+    val englishName: String,
+    val type: String, // مكية / مدنية
+    val versesCount: Int,
+    val juz: Int,
+    val isLocked: Boolean = false,
+    val isMastered: Boolean = false,
+    val score: Int = 0,
+    val tajweedFocus: String,
+    val famousVerses: List<String> = emptyList(),
+    val virtue: String? = null // فضل السورة
+)
+
+data class QuranChallenge(
+    val id: String,
+    val title: String,
+    val goal: String,
+    val progress: Float,
+    val rewardHasanat: Int,
+    val icon: String,
+    val type: ChallengeType
+)
+
+enum class ChallengeType {
+    READING, MEMORIZATION, TAJWEED
+}
+
+data class TajweedRuleItem(
+    val title: String,
+    val category: String,
+    val description: String,
+)
+
+data class QuranVerseDetail(
+    val surahNumber: Int,
+    val surahName: String,
+    val verseNumber: Int,
+    val verseText: String,
+    val tafseer: String,
+    val tajweedNotes: String
+)
+
 import android.content.Context
 import android.util.Log
 import org.json.JSONArray
