@@ -91,7 +91,9 @@ fun QabasApp() {
         ) { destination, currentState -> destination to currentState.appState }
             .collect { (destination, currentAppState) ->
                 if (destination == null) return@collect
-                if (currentAppState in authFunnelStates) return@collect // تُحفظ حتى الجاهزية
+                if (currentAppState in authFunnelStates && destination != AppState.FORGOT_PASSWORD) {
+                    return@collect // تُحفظ حتى الجاهزية، مع السماح بوجهة استعادة كلمة المرور
+                }
                 viewModel.updateState { copy(appState = destination) }
                 AppNavigator.consumeNotificationDestination()
             }
