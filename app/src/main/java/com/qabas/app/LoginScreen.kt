@@ -35,8 +35,6 @@ import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import com.qabas.app.ui.TestTags
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 
 /**
@@ -60,10 +58,6 @@ fun LoginScreen(
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
     /** هل سبب الخطأ اتصال بالشبكة؟ (يحدّد أزرار بطاقة الخطأ التفاعلية) */
     var authErrorIsNetwork by remember { mutableStateOf(false) }
-    var showUnregisteredDialog by remember { mutableStateOf(false) }
-    var unregisteredTargetEmail by remember { mutableStateOf("") }
-    var unregisteredTargetPassword by remember { mutableStateOf("") }
-    var isQuickRegistering by remember { mutableStateOf(false) }
 
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
@@ -437,10 +431,12 @@ fun LoginScreen(
                                     rawError.contains("Invalid_credentials", ignoreCase = true)
 
                                 if (emailMode && invalidCredentials) {
-                                    unregisteredTargetEmail = trimmedInput
-                                    unregisteredTargetPassword = password
-                                    showUnregisteredDialog = true
-                                    authErrorMessage = null
+                                    // Supabase intentionally uses the same response for an unknown
+                                    // email and an incorrect password. Never treat this as proof that
+                                    // the account is unregistered or offer duplicate registration.
+                                    authErrorMessage = "تعذّر تسجيل الدخول: البريد الإلكتروني أو كلمة المرور غير صحيحين. إذا كان هذا البريد مسجّلاً بالفعل، فلا تنشئ حساباً جديداً؛ تحقّق من كلمة المرور أو استخدم «نسيان الرمز؟» لاستعادتها."
+                                    authErrorIsNetwork = false
+                                    Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
                                 } else {
                                     authErrorMessage = diagnostic?.userFriendlyErrorMessage
                                         ?: "بيانات الدخول غير صحيحة أو تعذر الوصول إلى خدمة المصادقة."
@@ -941,265 +937,6 @@ fun LoginScreen(
         }
 
 
-        // Unregistered Account Prompt HUD Dialog
-        if (showUnregisteredDialog) {
-            UnregisteredAccountDialog(
-                email = unregisteredTargetEmail,
-                password = unregisteredTargetPassword,
-                isCreating = isQuickRegistering,
-                onDismiss = { showUnregisteredDialog = false },
-                onNavigateToRegister = {
-                    showUnregisteredDialog = false
-                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    prefs.edit()
-                        .putString("draft_register_email", unregisteredTargetEmail)
-                        .remove("draft_register_password")
-                        .apply()
-                    onNavigateToRegister()
-                },
-                onQuickRegister = {
-                    // Quick registration must use the same cloud-authoritative flow
-                    // as the full registration screen. Never persist passwords locally.
-                    showUnregisteredDialog = false
-                    val draftPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    draftPrefs.edit()
-                        .putString("draft_register_email", unregisteredTargetEmail)
-                        .remove("draft_register_password")
-                        .apply()
-                    onNavigateToRegister()
-                }
-            )
-        }
-    }
-}
 
-/**
- * نافذة حوار مخصصة عند إدخال بريد غير مسجل مسبقاً،
- * تتيح للمستخدم إما إنشاء الحساب فوراً والدخول برقم حساب رسمي،
- * أو الانتقال لشاشة إنشاء الحساب مع نقل البريد والرمز المدخل تلقائياً.
- */
-@Composable
-fun UnregisteredAccountDialog(
-    email: String,
-    password: String,
-    isCreating: Boolean,
-    onDismiss: () -> Unit,
-    onNavigateToRegister: () -> Unit,
-    onQuickRegister: () -> Unit
-) {
-    val context = LocalContext.current
-    val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
-    val nextAccNum = remember { UserIdentifierManager.peekNextAccountNumber(context) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 480.dp),
-                shape = CutCornerShape(14.dp),
-                color = DeepSlate,
-                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.45f)),
-                shadowElevation = 16.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // HUD Badge & Header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            color = primaryColor.copy(alpha = 0.12f),
-                            shape = CutCornerShape(6.dp),
-                            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = "IDENTITY NOT FOUND // 0x404",
-                                color = primaryColor,
-                                fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                letterSpacing = 1.sp
-                            )
-                        }
-
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Icon and Title
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .background(primaryColor.copy(alpha = 0.12f), CutCornerShape(12.dp))
-                            .border(1.dp, primaryColor.copy(alpha = 0.35f), CutCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = null,
-                            tint = primaryColor,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = "البريد الإلكتروني غير مسجل",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "لم نجد حساباً مسجلاً في السحابة بهذا البريد، ولكن يمكنك تفعيله فوراً:",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Email info pill
-                    Surface(
-                        color = Color.White.copy(alpha = 0.04f),
-                        shape = CutCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("البريد المدخل:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
-                                Text(email, color = Color.White, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("رقم الحساب المتاح لك:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
-                                Surface(
-                                    color = accentColor.copy(alpha = 0.15f),
-                                    shape = CutCornerShape(4.dp),
-                                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
-                                ) {
-                                    Text(
-                                        text = "$nextAccNum ✦",
-                                        color = accentColor,
-                                        fontFamily = RobotoMonoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Action 1: Quick Create & Login
-                    Button(
-                        onClick = onQuickRegister,
-                        enabled = !isCreating,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = primaryColor,
-                            contentColor = DeepSlate
-                        ),
-                        shape = CutCornerShape(8.dp)
-                    ) {
-                        if (isCreating) {
-                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "إنشاء الحساب عبر المسار السحابي",
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Action 2: Go to full register screen
-                    OutlinedButton(
-                        onClick = onNavigateToRegister,
-                        enabled = !isCreating,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.4f)),
-                        shape = CutCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AppRegistration, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "الانتقال لشاشة إنشاء الحساب",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Action 3: Cancel / Edit
-                    TextButton(
-                        onClick = onDismiss,
-                        enabled = !isCreating
-                    ) {
-                        Text(
-                            text = "تعديل البريد المدخل // CANCEL",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontFamily = RobotoMonoFont,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-        }
     }
 }
