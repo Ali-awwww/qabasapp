@@ -1190,21 +1190,12 @@ fun TimelineTrackRow(
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         if (track.type == TrackType.AUDIO) {
-                            // Simulated Waveform
-                            val waveformPoints = remember(clip.resourceUri, clip.durationMs) {
-                                SmartFeaturesEngine.generateWaveformData(clip.resourceUri, (clip.durationMs / 200).toInt().coerceAtLeast(10))
-                            }
-                            Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp)) {
-                                val barWidth = size.width / waveformPoints.size
-                                waveformPoints.forEachIndexed { i, peak ->
-                                    val h = peak * size.height * 0.8f
-                                    drawRect(
-                                        color = Color.White.copy(alpha = 0.4f),
-                                        topLeft = Offset(i * barWidth, (size.height - h) / 2),
-                                        size = androidx.compose.ui.geometry.Size(barWidth - 1.dp.toPx(), h)
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Default.Audiotrack,
+                                contentDescription = "مسار صوتي",
+                                tint = Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
+                            )
                         }
                         
                         Text(clip.title, fontSize = 8.sp, color = Color.White, modifier = Modifier.padding(4.dp), maxLines = 1)
