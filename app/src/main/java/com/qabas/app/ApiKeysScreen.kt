@@ -99,7 +99,6 @@ private val KEY_PATTERNS: Map<String, Regex> = mapOf(
     "azure" to Regex("""(?i)[a-f0-9]{32}"""),
     "pexels" to Regex("""(?<![A-Za-z0-9_-])[A-Za-z0-9]{56}(?![A-Za-z0-9_-])"""),
     "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}"""),
-    "higgsfield" to Regex("""(?:hfld_[A-Za-z0-9_\-]{16,}|[A-Za-z0-9_\-]{32,})""")
 )
 
 fun detectKeysForAutoFill(text: String): Map<String, String> {
@@ -122,7 +121,6 @@ private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
     "openai" to Regex("""sk-[A-Za-z0-9_\-]{20,}"""),
     "huggingface" to Regex("""hf_[A-Za-z0-9]{10,}"""),
     "elevenlabs" to Regex("""xi-[A-Za-z0-9_\-]{10,}"""),
-    "higgsfield" to Regex("""hfld_[A-Za-z0-9_\-]{16,}"""),
     "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}"""),
     "pexels" to Regex("""[A-Za-z0-9]{56}"""),
     "azure" to Regex("""(?i)[a-f0-9]{32}""")
@@ -166,7 +164,6 @@ object ApiKeysBackupManager {
             "azure_speech_key",
             "azure_speech_region",
             "elevenlabs_key",
-            "higgsfield_api_key"
         )
 
         for (k in allKeysToExport) {
@@ -215,9 +212,6 @@ object ApiKeysBackupManager {
                     "openai_key" to "openai_key",
                     "openrouter" to "openrouter_key",
                     "openrouter_key" to "openrouter_key",
-                    "higgsfield" to "higgsfield_api_key",
-                    "higgsfield_key" to "higgsfield_api_key",
-                    "higgsfield_api_key" to "higgsfield_api_key"
                 )
 
                 val keysIterator = targetObj.keys()
@@ -416,19 +410,6 @@ private val ALL_SERVICES = listOf(
         icon = Icons.Default.CameraRoll
     ),
     ServiceUiConfig(
-        id = "higgsfield",
-        name = "Higgsfield AI",
-        trackerName = "Higgsfield",
-        provider = "Higgsfield AI Studio",
-        prefsKey = "higgsfield_api_key",
-        serviceType = "higgsfield",
-        dashboardUrl = "https://higgsfield.ai",
-        description = "المحرك السينمائي العالمي الفائق لتوليد الفيديوهات التوليدية (Text-to-Video) وتحريك الصور والمشاهد الدعوية (Image-to-Video).",
-        placeholder = "hfld_... أو مفتاح منصة Higgsfield",
-        freeFallback = "قوالب الفيديو المدمجة ومكتبة مقاطع الـ B-Roll المحلية تعمل مجاناً.",
-        icon = Icons.Default.MovieFilter
-    ),
-    ServiceUiConfig(
         id = "leonardo",
         name = "Leonardo.ai",
         trackerName = "Leonardo",
@@ -524,7 +505,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 "elevenlabs" -> "elevenlabs_key"
                 "pexels" -> "pexels_key"
                 "pixabay" -> "pixabay_key"
-                "higgsfield" -> "higgsfield_api_key"
                 else -> null
             }
             if (prefKey != null) {
