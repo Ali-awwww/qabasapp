@@ -987,7 +987,7 @@ fun StudioProEditorScreen(
             onDismissRequest = { projectState = projectState.copy(workspaceMode = WorkspaceMode.EDIT) },
             containerColor = Color(0xFF0F0F0F)
         ) {
-            ExportWorkspace()
+            ExportWorkspace(state = projectState)
         }
     }
 
@@ -1567,21 +1567,111 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
 }
 
 @Composable
-fun ExportWorkspace() {
-    Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+fun ExportWorkspace(state: EditorProjectState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var selectedResolution by remember { mutableStateOf("1080p") }
+    var selectedFps by remember { mutableIntStateOf(30) }
+    var isExporting by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var outputPath by remember { mutableStateOf<String?>(null) }
+
+    val (width, height) = when (selectedResolution) {
+        "720p" -> 720 to 1280
+        "4K" -> 2160 to 3840
+        else -> 1080 to 1920
+    }
+    val validation = createEditorExportPlan(state, width, height, selectedFps)
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Text("التصدير النهائي", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "محرك الرندر متعدد الطبقات لم يُربط بعد. المعاينة الحية وتحرير الخط الزمني يعملان، لكن هذه الشاشة لا تنشئ ملف MP4 نهائياً حالياً.",
-            color = Color(0xFFFBBF24),
-            fontSize = 13.sp,
+        Text("رندر MP4 فعلي عبر FFmpegKit", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+
+        Text("الدقة", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("720p", "1080p", "4K").forEach { option ->
+                FilterChip(
+                    selected = selectedResolution == option,
+                    onClick = { selectedResolution = option; statusMessage = null },
+                    label = { Text(option) },
+                    enabled = !isExporting
+                )
+            }
+        }
+
+        Text("معدل الإطارات", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(24, 30, 60).forEach { option ->
+                FilterChip(
+                    selected = selectedFps == option,
+                    onClick = { selectedFps = option; statusMessage = null },
+                    label = { Text("$option FPS") },
+                    enabled = !isExporting
+                )
+            }
+        }
+
+        validation.error?.let { message ->
+            Text(message, color = Color(0xFFFBBF24), fontSize = 12.sp, fontFamily = CairoFont)
+        } ?: Text(
+            "المقطع المحدد جاهز للرندر بدقة $selectedResolution وبمعدل $selectedFps إطار/ث.",
+            color = Color.Gray,
+            fontSize = 12.sp,
             fontFamily = CairoFont
         )
-        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = {
+                if (!isExporting && validation.plan != null) {
+                    isExporting = true
+                    statusMessage = "جارٍ تجهيز الوسيط وتشغيل محرك الرندر…"
+                    outputPath = null
+                    scope.launch {
+                        try {
+                            val file = EditorExportRenderer.render(context, state, width, height, selectedFps)
+                            outputPath = file.absolutePath
+                            statusMessage = "اكتمل الرندر والتحقق من ملف MP4."
+                        } catch (error: Exception) {
+                            statusMessage = error.message ?: "فشل التصدير"
+                        } finally {
+                            isExporting = false
+                        }
+                    }
+                }
+            },
+            enabled = !isExporting && validation.plan != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+        ) {
+            if (isExporting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = DeepSlate,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("جارٍ التصدير…", color = DeepSlate, fontFamily = CairoFont)
+            } else {
+                Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("إنشاء ملف MP4", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+            }
+        }
+
+        statusMessage?.let { message ->
+            Text(message, color = if (outputPath != null) Color(0xFF86EFAC) else Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+        }
+        outputPath?.let { path ->
+            Text("مكان الحفظ: $path", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
+        }
+
         Text(
-            "لن أظهر خيارات دقة أو معدل إطارات على أنها مطبقة قبل ربطها بمحرك التصدير والتحقق من الملف الناتج.",
+            "حدود الإصدار الحالي: مقطع فيديو مرئي واحد وصوته الأصلي. الطبقات المتعددة، النصوص، الانتقالات ومسارات الصوت المنفصلة تُرفض صراحةً حتى يكتمل محرك التركيب والميكس.",
             color = Color.Gray,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontFamily = CairoFont
         )
     }
