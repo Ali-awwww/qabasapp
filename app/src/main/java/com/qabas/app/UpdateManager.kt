@@ -419,8 +419,9 @@ object UpdateManager {
             .filterNot { line ->
                 val trimmed = line.trim()
                 hiddenLabels.any { label -> trimmed.startsWith(label, ignoreCase = true) } ||
-                    Regex("(?i)https?://github\\.com/[^/\\s]+/[^/\\s]+/(actions/runs|commit)/")
-                        .containsMatchIn(line)
+                    line.contains("github.com/", ignoreCase = true) ||
+                        Regex("(?i)https?://github\\.com/[^/\\s]+/[^/\\s]+/(actions/runs|commit)/")
+                            .containsMatchIn(line)
             }
             .joinToString("\n")
             .trim()
