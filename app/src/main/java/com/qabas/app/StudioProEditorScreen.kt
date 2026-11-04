@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.widget.Toast
+import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +44,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import java.util.UUID
 import kotlin.math.roundToLong
 import kotlinx.coroutines.isActive
@@ -54,6 +62,10 @@ fun StudioProEditorScreen(
 ) {
     val context = LocalContext.current
     var projectState by remember { mutableStateOf(createBlankEditorProjectState()) }
+    val editorPlayer = remember(context) {
+        ExoPlayerFactory.createPlayer(context, useCache = false, useAudioFocus = false)
+    }
+    var previewPlaybackError by remember { mutableStateOf<String?>(null) }
     
     val history = remember { mutableStateListOf<EditorProjectState>() }
     val redoHistory = remember { mutableStateListOf<EditorProjectState>() }
@@ -76,6 +88,11 @@ fun StudioProEditorScreen(
     var selectedTransitionClipId by remember { mutableStateOf<String?>(null) }
     val selectedClipTrack = projectState.tracks.firstOrNull { track -> track.clips.any { it.id == projectState.selectedClipId } }
     val selectedEditorClip = selectedClipTrack?.clips?.firstOrNull { it.id == projectState.selectedClipId }
+    val activeVideoTrack = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible && !it.isLocked }
+    val activeVideoClip = activeVideoTrack?.clips?.firstOrNull {
+        projectState.currentTimeMs >= it.startOffsetMs &&
+            projectState.currentTimeMs < it.startOffsetMs + it.durationMs
+    }
     
     val scope = rememberCoroutineScope()
     val autoSaveStatus by WorkspaceAutoSaveManager.status.collectAsState()
@@ -106,17 +123,86 @@ fun StudioProEditorScreen(
         WorkspaceAutoSaveManager.scheduleProEditorSave(projectState, debounceMs = 1500L)
     }
     
-    // Playback Logic
-    LaunchedEffect(projectState.isPlaying) {
-        if (projectState.isPlaying) {
-            while (projectState.isPlaying && projectState.currentTimeMs < projectState.totalDurationMs) {
-                kotlinx.coroutines.delay(16) // ~60fps
-                projectState = projectState.copy(currentTimeMs = projectState.currentTimeMs + 16)
+    DisposableEffect(editorPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) previewPlaybackError = null
             }
-            if (projectState.currentTimeMs >= projectState.totalDurationMs) {
-                projectState = projectState.copy(isPlaying = false, currentTimeMs = 0)
+
+            override fun onPlayerError(error: PlaybackException) {
+                previewPlaybackError = error.message ?: "تعذر تشغيل الوسيط"
+                editorPlayer.pause()
             }
         }
+        editorPlayer.addListener(listener)
+        onDispose {
+            editorPlayer.removeListener(listener)
+            editorPlayer.release()
+        }
+    }
+
+    LaunchedEffect(activeVideoClip?.id, activeVideoClip?.resourceUri) {
+        editorPlayer.pause()
+        previewPlaybackError = null
+        val clip = activeVideoClip
+        if (clip == null || clip.resourceUri.isBlank()) {
+            editorPlayer.clearMediaItems()
+        } else {
+            runCatching {
+                editorPlayer.setMediaItem(MediaItem.fromUri(clip.resourceUri))
+                editorPlayer.prepare()
+                editorPlayer.seekTo((projectState.currentTimeMs - clip.startOffsetMs).coerceAtLeast(0L))
+                if (projectState.isPlaying) editorPlayer.play()
+            }.onFailure { error ->
+                previewPlaybackError = error.message ?: "تعذر فتح ملف الوسائط"
+            }
+        }
+    }
+
+    LaunchedEffect(projectState.currentTimeMs, activeVideoClip?.id, projectState.isPlaying) {
+        if (!projectState.isPlaying && activeVideoClip != null) {
+            val relativePosition = (projectState.currentTimeMs - activeVideoClip.startOffsetMs).coerceAtLeast(0L)
+            if (kotlin.math.abs(editorPlayer.currentPosition - relativePosition) > 80L) {
+                editorPlayer.seekTo(relativePosition)
+            }
+        }
+    }
+
+    LaunchedEffect(projectState.isPlaying, activeVideoClip?.id) {
+        if (!projectState.isPlaying) {
+            editorPlayer.pause()
+            return@LaunchedEffect
+        }
+        editorPlayer.play()
+        while (isActive && projectState.isPlaying) {
+            kotlinx.coroutines.delay(33L)
+            val clip = activeVideoClip
+            val nextTimeMs = if (clip != null) {
+                val clipEndMs = clip.startOffsetMs + clip.durationMs
+                val playerEnded = editorPlayer.playbackState == Player.STATE_ENDED
+                if (playerEnded) clipEndMs
+                else (clip.startOffsetMs + editorPlayer.currentPosition.coerceAtLeast(0L)).coerceAtMost(clipEndMs)
+            } else {
+                (projectState.currentTimeMs + 33L).coerceAtMost(projectState.totalDurationMs)
+            }
+            projectState = projectState.copy(currentTimeMs = nextTimeMs)
+            if (nextTimeMs >= projectState.totalDurationMs) {
+                editorPlayer.pause()
+                projectState = projectState.copy(isPlaying = false)
+                break
+            }
+            if (clip != null && nextTimeMs >= clip.startOffsetMs + clip.durationMs) {
+                editorPlayer.pause()
+            }
+        }
+    }
+
+    LaunchedEffect(activeVideoClip?.id, activeVideoClip?.volume, activeVideoTrack?.volume, activeVideoTrack?.isMuted, projectState.tracks.any { it.isSolo }) {
+        val track = activeVideoTrack
+        val included = track != null && isEditorTrackIncludedInMix(projectState, track)
+        editorPlayer.volume = if (included && activeVideoClip != null) {
+            (activeVideoClip.volume * track!!.volume).coerceIn(0f, 1f)
+        } else 0f
     }
 
     Scaffold(
@@ -261,18 +347,42 @@ fun StudioProEditorScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        // Placeholder for video content
-                        Icon(Icons.Default.Movie, null, tint = Color.White.copy(alpha = 0.05f), modifier = Modifier.size(120.dp))
+                        if (activeVideoClip != null && activeVideoClip.resourceUri.isNotBlank()) {
+                            AndroidView(
+                                factory = { viewContext ->
+                                    PlayerView(viewContext).apply {
+                                        player = editorPlayer
+                                        useController = false
+                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                        layoutParams = ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    }
+                                },
+                                update = { playerView ->
+                                    if (playerView.player !== editorPlayer) playerView.player = editorPlayer
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(Icons.Default.Movie, null, tint = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(72.dp))
+                        }
+                        if (previewPlaybackError != null) {
+                            Text(
+                                "تعذر تشغيل المقطع: $previewPlaybackError",
+                                color = Color(0xFFFCA5A5),
+                                fontSize = 10.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.TopCenter).padding(8.dp)
+                            )
+                        }
                         
                         // Active Text Layer or Kinetic Captions
                         val activeTextClip = projectState.tracks.firstOrNull { it.type == TrackType.TEXT && it.isVisible }?.clips?.firstOrNull { 
                             projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
                         }
                         
-                        val activeVideoClip = projectState.tracks.firstOrNull { it.type == TrackType.VIDEO && it.isVisible }?.clips?.firstOrNull { 
-                            projectState.currentTimeMs >= it.startOffsetMs && projectState.currentTimeMs <= it.startOffsetMs + it.durationMs
-                        }
-
                         if (activeVideoClip == null && activeTextClip == null) {
                             Column(
                                 modifier = Modifier.align(Alignment.Center).padding(16.dp),
