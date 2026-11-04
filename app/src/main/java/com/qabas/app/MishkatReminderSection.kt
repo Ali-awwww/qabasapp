@@ -154,9 +154,9 @@ fun MishkatReminderCard() {
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     )
-                    if (!published.videoUrl.isNullOrBlank()) {
+                    published.videoUrl?.takeIf { it.isNotBlank() }?.let { videoUrl ->
                         MishkatReminderVideoPlayer(
-                            videoUrl = published.videoUrl,
+                            videoUrl = videoUrl,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
