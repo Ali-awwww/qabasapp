@@ -105,7 +105,8 @@ class ScholarPreferences(private val context: Context) {
                     durationApprox = updated.durationApprox,
                     isOfficial = updated.isOfficialDeveloperCurated,
                     notes = updated.notes,
-                    addedAtMillis = updated.addedAtMillis
+                    addedAtMillis = updated.addedAtMillis,
+                    createdByUserId = SupabaseServices.Auth.getCurrentUserId()
                 )
                 SupabaseServices.Database.saveScholarLecture(row)
             }
