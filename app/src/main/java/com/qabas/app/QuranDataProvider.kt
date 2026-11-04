@@ -128,21 +128,52 @@ object QuranDataProvider {
 
     /** ملاذ شبكي صادق: تفسير الميسر عربي من spa5k/tafsir_api عبر CDN (بلا مفتاح). null عند الفشل */
     suspend fun fetchRemoteTafsir(surahId: Int, ayah: Int): String? {
+        if (surahId !in 1..114 || ayah !in 1..286) return null
         val key = "$surahId:$ayah"
-        tafsirMap?.get(key)?.let { return it }
+        tafsirMap?.get(key)?.takeIf { it.isNotBlank() }?.let { return it }
         remoteTafsirCache[key]?.let { return it }
+
         return try {
-            val url = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/ar-muyassar/$surahId/$ayah.json"
-            val req = okhttp3.Request.Builder().url(url).build()
+            // المصدر الرسمي لواجهة التفسير الميسر: QuranEnc، مفتاح arabic_moyassar.
+            val url = "https://quranenc.com/api/v1/tafsir/aya/arabic_moyassar/$surahId/$ayah"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
             val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
             val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                client.newCall(req).execute().use { it.body?.string() ?: "" }
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
             }
             if (body.isBlank()) return null
-            val root = JSONObject(body)
-            val text = root.optString("text", root.optString("tafsir", ""))
+
+            val blocks = try {
+                val root = JSONObject(body)
+                root.optJSONArray("result")
+                    ?: root.optJSONArray("data")
+                    ?: if (root.has("text")) JSONArray().put(root) else JSONArray()
+            } catch (_: Exception) {
+                try { JSONArray(body) } catch (_: Exception) { JSONArray() }
+            }
+
+            val passages = LinkedHashSet<String>()
+            for (index in 0 until blocks.length()) {
+                val block = blocks.optJSONObject(index) ?: continue
+                val blockSurah = block.optInt("sura", surahId)
+                val fromAyah = block.optInt("from_aya", ayah)
+                val toAyah = block.optInt("to_aya", ayah)
+                if (blockSurah != surahId || ayah !in fromAyah..toAyah) continue
+                val passage = block.optString("text").trim()
+                if (passage.isNotBlank()) passages.add(passage)
+            }
+
+            val text = passages.joinToString("\n\n")
             if (text.isBlank()) null else {
                 remoteTafsirCache[key] = text
                 val mutable = (tafsirMap ?: emptyMap()).toMutableMap()
@@ -150,7 +181,10 @@ object QuranDataProvider {
                 tafsirMap = mutable
                 text
             }
-        } catch (_: Exception) { null }
+        } catch (error: Exception) {
+            Log.w(TAG, "Unable to load Tafsir Muyassar for $key", error)
+            null
+        }
     }
 
     /** لا نعتمد نسخة نصية إلا إذا حملت إشعار Tanzil المطلوب كاملاً. */
