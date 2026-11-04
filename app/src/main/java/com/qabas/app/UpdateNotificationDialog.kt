@@ -46,6 +46,13 @@ fun UpdateNotificationDialog(
 ) {
     val patchState by PatchManager.patchState.collectAsState()
     val context = LocalContext.current
+    // لا تُعرض روابط المصدر والتشخيص إلا بعد التحقق من رتبة المطور السحابية.
+    val showDeveloperDetails = remember(update.versionCode) { UpdateChannelFacade.isVerifiedDeveloper() }
+    val publicReleaseNotes = remember(update.releaseNotes, showDeveloperDetails) {
+        if (showDeveloperDetails) update.releaseNotes else update.releaseNotes
+            .replace(Regex("https?://github\\.com/\\S+/(?:actions/runs|commit)/\\S+"), "")
+            .trim()
+    }
     var buildDetailsExpanded by remember(update.versionCode) { mutableStateOf(true) }
 
     fun openBuildLink(url: String?) {
@@ -168,7 +175,7 @@ fun UpdateNotificationDialog(
                 )
 
                 // Release Notes Section
-                if (update.releaseNotes.isNotBlank()) {
+                if (publicReleaseNotes.isNotBlank()) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -186,7 +193,7 @@ fun UpdateNotificationDialog(
                             fontFamily = CairoFont
                         )
                         Text(
-                            update.releaseNotes,
+                            publicReleaseNotes,
                             color = TextPrimary,
                             fontSize = 11.sp,
                             lineHeight = 16.sp,
@@ -198,7 +205,7 @@ fun UpdateNotificationDialog(
                 }
 
 
-                // Build provenance: معلومات مأخوذة من بيانات GitHub Release الفعلية.
+                // تفاصيل الإصدار العامة منفصلة عن بيانات المصدر التشخيصية للمطور.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -216,14 +223,14 @@ fun UpdateNotificationDialog(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                "مصدر هذا البناء",
+                                "تفاصيل الإصدار",
                                 color = GoldSecondary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
                             Text(
-                                "تفاصيل الإصدار وسجل البناء من GitHub",
+                                "رقم البناء وتاريخ إصدار النسخة",
                                 color = TextSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 9.sp
@@ -241,47 +248,51 @@ fun UpdateNotificationDialog(
                     if (buildDetailsExpanded) {
                         HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                         BuildMetadataRow("رقم البناء", update.buildNumber ?: update.versionCode.toString())
-                        BuildMetadataRow("الفرع", update.sourceBranch ?: "غير مذكور في بيانات الإصدار")
-                        BuildMetadataRow("وقت البناء", update.builtAt ?: "غير متوفر في سجل هذا الإصدار")
-                        BuildMetadataRow(
-                            "Commit",
-                            update.commitSha?.let { if (it.length > 12) it.take(12) + "…" else it }
-                                ?: "غير مرفق في ملاحظات الإصدار",
-                            mono = true
-                        )
+                        BuildMetadataRow("تاريخ البناء", update.builtAt ?: "غير متوفر لهذا الإصدار")
 
-                        if (update.commitSha != null) {
-                            TextButton(
-                                onClick = {
-                                    openBuildLink("https://github.com/${UpdateManager.getEffectiveRepo(context)}/commit/${update.commitSha}")
-                                },
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                            ) {
-                                Text("فتح تفاصيل الـ Commit ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (update.workflowRunUrl != null) {
-                                OutlinedButton(
-                                    onClick = { openBuildLink(update.workflowRunUrl) },
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                        if (showDeveloperDetails) {
+                            BuildMetadataRow("المستودع", UpdateChannelFacade.effectiveRepo(context), mono = true)
+                            BuildMetadataRow("الفرع", update.sourceBranch ?: "غير مذكور")
+                            BuildMetadataRow(
+                                "Commit",
+                                update.commitSha?.let { if (it.length > 12) it.take(12) + "…" else it }
+                                    ?: "غير مرفق",
+                                mono = true
+                            )
+
+                            if (update.commitSha != null) {
+                                TextButton(
+                                    onClick = {
+                                        openBuildLink("https://github.com/${UpdateChannelFacade.effectiveRepo(context)}/commit/${update.commitSha}")
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                 ) {
-                                    Text("سجل البناء ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                    Text("فتح تفاصيل الـ Commit ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                                 }
                             }
-                            if (update.releaseUrl != null) {
-                                OutlinedButton(
-                                    onClick = { openBuildLink(update.releaseUrl) },
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
-                                ) {
-                                    Text("صفحة الإصدار ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (update.workflowRunUrl != null) {
+                                    OutlinedButton(
+                                        onClick = { openBuildLink(update.workflowRunUrl) },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                    ) {
+                                        Text("سجل البناء ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                    }
+                                }
+                                if (update.releaseUrl != null) {
+                                    OutlinedButton(
+                                        onClick = { openBuildLink(update.releaseUrl) },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                    ) {
+                                        Text("صفحة الإصدار ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                    }
                                 }
                             }
                         }
