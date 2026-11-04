@@ -82,10 +82,10 @@ object ScholarCardImageGenerator {
         }
 
         if (!scholar.deathScene.isNullOrBlank() || !scholar.lastWords.isNullOrBlank()) {
-            sb.append("\n🌅 ٤. مشهد الوفاة واللحظات الأخيرة:\n")
+            sb.append("\n🌅 ٤. الوفاة في المصادر التاريخية:\n")
             scholar.deathScene?.let { sb.append(it).append("\n") }
             scholar.lastWords?.let {
-                sb.append("🕊️ آخر كلماته قبل خروج الروح: « $it »\n")
+                sb.append("🕊️ قول منقول في بعض المصادر (لا يُجزم بثبوته): « $it »\n")
             }
         }
 
@@ -102,8 +102,8 @@ object ScholarCardImageGenerator {
         }
 
         scholar.messageToGrandson?.let { msg ->
-            sb.append("\n💌 وصية الإمام لك يا حفيده:\n")
-            sb.append("« $msg »\n")
+            sb.append("\n💌 عبرة مستفادة من سيرته:\n")
+            sb.append("$msg\n")
         }
 
         scholar.modernChallenge?.let { ch ->
