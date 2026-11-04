@@ -411,6 +411,19 @@ object UpdateManager {
 
     private class DownloadCancelledException : Exception("أُلغي التحديث بواسطة المستخدم")
 
+    internal fun sanitizePublicReleaseNotes(raw: String): String {
+        val hiddenLabels = listOf("Build Number:", "Built at:", "Branch:", "Workflow Run:", "Commit:")
+        return raw.lineSequence()
+            .filterNot { line ->
+                val trimmed = line.trim()
+                hiddenLabels.any { label -> trimmed.startsWith(label, ignoreCase = true) } ||
+                    Regex("(?i)https?://github\\.com/[^/\\s]+/[^/\\s]+/(actions/runs|commit)/")
+                        .containsMatchIn(line)
+            }
+            .joinToString("\n")
+            .trim()
+    }
+
     suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? =
         withContext(Dispatchers.IO) {
             val lastCheck = getLastCheckTime(context)
@@ -450,7 +463,7 @@ object UpdateManager {
                     versionCode = active.versionCode,
                     deltaUrl = null,
                     apkUrl = active.downloadUrl,
-                    releaseNotes = active.releaseNotes.ifBlank {
+                    releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
                         "إصدار جديد متاح للتحميل والتثبيت 🚀"
                     },
                     deltaSize = 0L,
@@ -744,13 +757,13 @@ object UpdateManager {
                         versionCode = update.versionCode,
                         deltaUrl = null,
                         apkUrl = update.downloadUrl,
-                        releaseNotes = update.releaseNotes,
+                        releaseNotes = sanitizePublicReleaseNotes(update.releaseNotes),
                         deltaSize = 0L,
                         apkSize = update.fileSizeBytes,
                         xdeltaUrls = emptyMap(),
                         isForce = update.isMandatory,
                         checksum = update.sha256Hash?.takeIf { it.isNotBlank() },
-                        releaseUrl = update.githubReleaseUrl
+                        releaseUrl = update.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() }
                     )
                 }
             }.onFailure { Log.e(TAG, "getUpdateHistory from Supabase failed: ${it.message}") }
