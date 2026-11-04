@@ -683,7 +683,10 @@ fun HealthDiagnosticsHubScreen(
         onNavigateSection = onNavigateSection
     ) {
         when (selectedTab) {
-            0 -> HealthCenterSection(devLogs = devLogs)
+            0 -> HealthCenterSection(
+                devLogs = devLogs,
+                onNavigateToKeys = { onNavigateSection(DashboardSection.CLOUD_API_HUB) }
+            )
             1 -> SpatialServiceDiagnosticsHub(
                 onNavigateToKeys = { onNavigateSection(DashboardSection.CLOUD_API_HUB) }
             )
