@@ -270,6 +270,12 @@ fun UpdateManagementSection() {
                             maxLines = 7
                         )
                         Text("سيتم اعتماد APK: ${selectedRelease.assetName} (${formatUpdateBytes(selectedRelease.apkSize)})", color = Color.LightGray, fontSize = 11.sp)
+                        Text(
+                            if (selectedRelease.deltaUrl != null) "Delta: ${formatUpdateBytes(selectedRelease.deltaSize)} • أساس Build ${selectedRelease.baseVersionCode} • بصمات SHA-256 متوفرة"
+                            else "Delta: غير متاح أو بلا بصمات أساس موثوقة — سيُستخدم APK الكامل",
+                            color = Color.LightGray,
+                            fontSize = 10.sp
+                        )
                         Button(
                             onClick = {
                                 scope.launch {
@@ -287,7 +293,12 @@ fun UpdateManagementSection() {
                                             isMandatory = isMandatory,
                                             githubReleaseUrl = selectedRelease.releaseUrl,
                                             releaseTag = selectedRelease.tagName,
-                                            assetName = selectedRelease.assetName
+                                            assetName = selectedRelease.assetName,
+                                            deltaUrl = selectedRelease.deltaUrl,
+                                            deltaSizeBytes = selectedRelease.deltaSize,
+                                            deltaSha256Hash = selectedRelease.deltaSha256Hash,
+                                            baseVersionCode = selectedRelease.baseVersionCode,
+                                            baseSha256Hash = selectedRelease.baseSha256Hash
                                         )
                                         message = "تم اعتماد الإصدار بنجاح. سيحصل المستخدمون عليه عند فحص التحديثات."
                                         selectedTag = null
