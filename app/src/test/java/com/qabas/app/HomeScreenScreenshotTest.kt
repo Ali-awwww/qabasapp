@@ -8,7 +8,9 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.Description
 import org.junit.runner.RunWith
+import org.junit.rules.TestWatcher
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -24,7 +26,14 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class HomeScreenScreenshotTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val failureTrace = object : TestWatcher() {
+        override fun failed(e: Throwable, description: Description) {
+            e.printStackTrace(System.out)
+        }
+    }
+
+    @get:Rule(order = 1)
     val composeRule = createComposeRule()
 
     @Test
