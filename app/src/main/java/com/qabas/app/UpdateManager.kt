@@ -480,7 +480,7 @@ object UpdateManager {
                     releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
                         "إصدار جديد متاح للتحميل والتثبيت 🚀"
                     },
-                    deltaSize = 0L,
+                    deltaSize = active.deltaSizeBytes,
                     apkSize = active.fileSizeBytes,
                     xdeltaUrls = emptyMap(),
                     isForce = active.isMandatory,
