@@ -426,11 +426,19 @@ fun HomeScreen(
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "قَبَس",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 18.sp
+                                        text = "قَبَسْ سْتُودْيُو",
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            brush = Brush.linearGradient(
+                                                colors = listOf(GoldPrimary, Color.White, AiCyan)
+                                            ),
+                                            fontSize = 14.sp,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 0.1.sp
+                                        ),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
@@ -452,7 +460,18 @@ fun HomeScreen(
                                     text = "استوديو الإنتاج الفضائي الكوانتي",
                                     color = Color(0xFF64748B),
                                     fontFamily = NotoSansFont,
-                                    fontSize = 9.5.sp
+                                    fontSize = 9.5.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                                    color = Color(0xFFCBD5E1),
+                                    fontFamily = CairoFont,
+                                    fontSize = 8.sp,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
