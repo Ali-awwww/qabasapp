@@ -472,10 +472,16 @@ object UpdateManager {
                     .putInt("update_last_version_code", active.versionCode)
                     .apply()
 
+                val installedApk = File(context.applicationInfo.sourceDir)
+                val baseMatches = active.baseVersionCode == currentVersionCode &&
+                    isSha256Valid(installedApk, active.baseSha256Hash)
+                val deltaHash = active.deltaSha256Hash?.takeIf {
+                    it.matches(Regex("(?i)[0-9a-f]{64}"))
+                }
                 UpdateInfo(
                     versionName = active.versionName,
                     versionCode = active.versionCode,
-                    deltaUrl = active.deltaUrl,
+                    deltaUrl = active.deltaUrl?.takeIf { baseMatches && !deltaHash.isNullOrBlank() },
                     apkUrl = active.downloadUrl,
                     releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
                         "إصدار جديد متاح للتحميل والتثبيت 🚀"
@@ -484,7 +490,8 @@ object UpdateManager {
                     apkSize = active.fileSizeBytes,
                     xdeltaUrls = emptyMap(),
                     isForce = active.isMandatory,
-                    checksum = null,
+                    checksum = deltaHash?.takeIf { baseMatches },
+                    baseApkSha256 = active.baseSha256Hash?.takeIf { baseMatches },
                     releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
                     apkSha256 = active.sha256Hash?.takeIf { it.isNotBlank() }
                 )
