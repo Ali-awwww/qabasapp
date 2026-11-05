@@ -141,7 +141,12 @@ object SupabaseServices {
             isMandatory: Boolean,
             githubReleaseUrl: String,
             releaseTag: String,
-            assetName: String
+            assetName: String,
+            deltaUrl: String? = null,
+            deltaSizeBytes: Long = 0L,
+            deltaSha256Hash: String? = null,
+            baseVersionCode: Int? = null,
+            baseSha256Hash: String? = null
         ): ActiveUpdate {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             val params = buildJsonObject {
@@ -155,6 +160,11 @@ object SupabaseServices {
                 put("p_github_release_url", githubReleaseUrl)
                 put("p_release_tag", releaseTag)
                 put("p_asset_name", assetName)
+                put("p_delta_url", deltaUrl ?: "")
+                put("p_delta_size_bytes", deltaSizeBytes)
+                put("p_delta_sha256_hash", deltaSha256Hash ?: "")
+                put("p_base_version_code", baseVersionCode ?: 0)
+                put("p_base_sha256_hash", baseSha256Hash ?: "")
             }
             return client.postgrest.rpc("publish_qabas_app_update", params)
                 .decodeAs<ActiveUpdate>()
@@ -2970,7 +2980,12 @@ data class ActiveUpdate(
     @SerialName("github_release_url") val github_release_url: String? = null,
     @SerialName("release_tag") val release_tag: String? = null,
     @SerialName("asset_name") val asset_name: String? = null,
-    @SerialName("released_at") val released_at: String? = null
+    @SerialName("released_at") val released_at: String? = null,
+    @SerialName("delta_url") val delta_url: String? = null,
+    @SerialName("delta_size_bytes") val delta_size_bytes: Long = 0L,
+    @SerialName("delta_sha256_hash") val delta_sha256_hash: String? = null,
+    @SerialName("base_version_code") val base_version_code: Int? = null,
+    @SerialName("base_sha256_hash") val base_sha256_hash: String? = null
 ) {
     val versionName: String get() = version_name
     val versionCode: Int get() = version_code
@@ -2982,6 +2997,11 @@ data class ActiveUpdate(
     val isMandatory: Boolean get() = is_mandatory
     val sha256Hash: String? get() = sha256_hash
     val githubReleaseUrl: String? get() = github_release_url
+    val deltaUrl: String? get() = delta_url
+    val deltaSizeBytes: Long get() = delta_size_bytes
+    val deltaSha256Hash: String? get() = delta_sha256_hash
+    val baseVersionCode: Int? get() = base_version_code
+    val baseSha256Hash: String? get() = base_sha256_hash
 }
 @Serializable
 data class AppUpdateAudit(
