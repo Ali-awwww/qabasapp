@@ -184,19 +184,47 @@ class FullSahihHadithRepositoryTest {
     fun `search reaches hadith near the END of bukhari (not just first page)`() {
         val book = loadBook("sahih_bukhari.json.gz")
 
-        // 🔑 نأخذ نص الحديث الأخير (idInBook=7277) ونبحث بأول 15 حرفًا منه
         val last = book.hadiths.last()
         assertTrue("يجب أن يكون هناك حديث أخير", last.idInBook > 7000)
-        val lastText = HadithSearchNormalizer.normalize(last.arabic)
-        val firstWords = lastText.split(" ").filter { it.length >= 3 }.take(3).joinToString(" ")
-        assertTrue("يجب أن يكون لدينا كلمات للبحث (حصل: '$firstWords')", firstWords.isNotBlank())
 
-        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
-            .let { index ->
-                HadithSearchNormalizer.searchWithIndex(index, firstWords, limit = book.hadiths.size)
-            }
-        assertTrue("البحث بكلمات من الحديث الأخير يجب أن يجد حديثًا واحدًا على الأقل (حصل ${results.size})", results.isNotEmpty())
-        assertTrue("يجب أن يجد الحديث الأخير نفسه (id=${last.id})", results.contains(last.id))
+        val index = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+        val lastText = index[last.id]
+            ?: throw AssertionError("يجب أن يكون الحديث الأخير موجودًا في فهرس البحث (id=${last.id})")
+        val candidateWords = lastText.split(" ").filter { it.length >= 3 }.distinct()
+        assertTrue("يجب أن يحتوي الحديث الأخير على كلمة صالحة للبحث", candidateWords.isNotEmpty())
+
+        // اختر كلمة متصلة من الحديث الأخير ذات أعلى تكرار؛ لا نحذف الكلمات القصيرة
+        // من وسط العبارة، لأن ذلك يصنع استعلامًا غير موجود حرفيًا في النص.
+        val queryFrequencies = candidateWords.associateWith { term ->
+            index.values.count { it.contains(term) }
+        }
+        val query = queryFrequencies.maxByOrNull { it.value }?.key
+            ?: throw AssertionError("تعذر اختيار كلمة بحث من الحديث الأخير")
+        val expectedMatchCount = queryFrequencies.getValue(query)
+
+        assertTrue(
+            "يجب أن تطابق كلمة البحث الحديث الأخير نفسه (query='$query', id=${last.id})",
+            lastText.contains(query)
+        )
+        assertTrue(
+            "يجب أن تطابق الكلمة أكثر من 50 حديثًا لاختبار تجاوز الصفحة الأولى (matches=$expectedMatchCount)",
+            expectedMatchCount > 50
+        )
+
+        val firstPage = HadithSearchNormalizer.searchWithIndex(index, query, limit = 50)
+        assertEquals("يجب أن تكون الصفحة الأولى محدودة إلى 50 نتيجة", 50, firstPage.size)
+        assertFalse(
+            "يجب ألا يظهر الحديث الأخير في أول 50 نتيجة (id=${last.id}, query='$query')",
+            firstPage.contains(last.id)
+        )
+
+        val results = HadithSearchNormalizer.searchWithIndex(index, query, limit = book.hadiths.size)
+        assertEquals(
+            "البحث في الفهرس الكامل يجب أن يعيد كل النتائج المطابقة (expected=$expectedMatchCount, actual=${results.size})",
+            expectedMatchCount,
+            results.size
+        )
+        assertTrue("يجب أن يجد البحث الحديث الأخير نفسه (id=${last.id}, query='$query')", results.contains(last.id))
     }
 
     @Test
