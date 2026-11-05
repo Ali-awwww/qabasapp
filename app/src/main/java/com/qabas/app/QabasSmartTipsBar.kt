@@ -43,6 +43,7 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 /**
  * 🌟 التصنيفات المتنوعة لشريط النصائح والحِكم الذكية (Diverse Tip Categories)
@@ -113,7 +114,8 @@ data class QabasTipItem(
     val category: TipCategory,
     val text: String,
     val sourceOrBadge: String,
-    val actionableHint: String? = null
+    val actionableHint: String? = null,
+    val bukhariHadith: BukhariHadith? = null
 )
 
 /**
@@ -121,77 +123,7 @@ data class QabasTipItem(
  */
 object QabasTipsRepository {
     val allTips: List<QabasTipItem> = listOf(
-        // ── 2. قسم السنة النبوية (Sunnah & Hadith Wisdom 🕌) ──
-        QabasTipItem(
-            id = "s1",
-            category = TipCategory.SUNNAH,
-            text = "«خَيْرُ النَّاسِ أَنْفَعُهُمْ لِلنَّاسِ»",
-            sourceOrBadge = "صحيح الجامع",
-            actionableHint = "احرص على أن تكون أعمالك اليومية ومحتواك الرقمي نافعاً يترك أثراً مباركاً."
-        ),
-        QabasTipItem(
-            id = "s2",
-            category = TipCategory.SUNNAH,
-            text = "«إِنَّ اللَّهَ يُحِبُّ إِذَا عَمِلَ أَحَدُكُمْ عَمَلًا أَنْ يُتْقِنَهُ»",
-            sourceOrBadge = "شعب الإيمان",
-            actionableHint = "الإتقان في التصميم، الإنتاج، والبرمجة عبادة وسلوك يُحبه الله ورسوله."
-        ),
-        QabasTipItem(
-            id = "s3",
-            category = TipCategory.SUNNAH,
-            text = "«تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ لَكَ صَدَقَةٌ»",
-            sourceOrBadge = "جامع الترمذي",
-            actionableHint = "اللطف وبشاشة الوجه صدقة سهلة تجلب البركة وتزرع الألفة بين الناس."
-        ),
-        QabasTipItem(
-            id = "s4",
-            category = TipCategory.SUNNAH,
-            text = "«مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ»",
-            sourceOrBadge = "متفق عليه",
-            actionableHint = "انتقِ ألفاظك ومنشوراتك بعناية، فكل كلمة مسجلة في صحيفتك."
-        ),
-        QabasTipItem(
-            id = "s5",
-            category = TipCategory.SUNNAH,
-            text = "«أَحَبُّ الأَعْمَالِ إِلَى اللَّهِ أَدْوَمُهَا وَإِنْ قَلَّ»",
-            sourceOrBadge = "صحيح البخاري",
-            actionableHint = "الاستمرار في وردك اليومي وإنتاجك ولو بجهد يسير خير من الانقطاع."
-        ),
-        QabasTipItem(
-            id = "s6",
-            category = TipCategory.SUNNAH,
-            text = "«الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ»",
-            sourceOrBadge = "صحيح مسلم",
-            actionableHint = "كف الأذى وحفظ اللسان واليد عنوان كمال الإيمان واستقامة السيرة."
-        ),
-        QabasTipItem(
-            id = "s7",
-            category = TipCategory.SUNNAH,
-            text = "«مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ طَرِيقًا إِلَى الْجَنَّةِ»",
-            sourceOrBadge = "صحيح مسلم",
-            actionableHint = "طلب العلم وتطوير المهارات النافعة مسلك ميسر إلى رضوان الله وجنته."
-        ),
-        QabasTipItem(
-            id = "s8",
-            category = TipCategory.SUNNAH,
-            text = "«عَجَبًا لأَمْرِ الْمُؤْمِنِ إِنَّ أَمْرَهُ كُلَّهُ خَيْرٌ»",
-            sourceOrBadge = "صحيح مسلم",
-            actionableHint = "شكر الله عند السراء وصبر جميل عند الضراء يضمن لك الخير في كل حال."
-        ),
-        QabasTipItem(
-            id = "s9",
-            category = TipCategory.SUNNAH,
-            text = "«اتَّقِ اللَّهَ حَيْثُمَا كُنْتَ، وَأَتْبِعِ السَّيِّئَةَ الْحَسَنَةَ تَمْحُهَا»",
-            sourceOrBadge = "جامع الترمذي",
-            actionableHint = "مراقبة الله في السر والعلن وحسن الخلق مع الناس أصل الفلاح."
-        ),
-        QabasTipItem(
-            id = "s10",
-            category = TipCategory.SUNNAH,
-            text = "«الدَّالُّ عَلَى الْخَيْرِ كَفَاعِلِهِ»",
-            sourceOrBadge = "صحيح مسلم",
-            actionableHint = "كل مقطع دعوي أو فائدة تنشرها يُكتب لك أجر كل من اهتدى بها."
-        ),
+        // صحيح البخاري يُحمّل من ملف JSON المستورد محلياً.
 
         // ── 3. قسم صناعة المحتوى والمونتاج (Content Creation & Video 🎬✨) ──
         QabasTipItem(
@@ -408,9 +340,13 @@ object QabasTipsRepository {
     fun getTipsForUser(
         isDeveloper: Boolean,
         selectedCategory: TipCategory?,
-        quranTips: List<QabasTipItem>
+        quranTips: List<QabasTipItem>,
+        bukhariHadiths: List<BukhariHadith> = emptyList()
     ): List<QabasTipItem> {
-        val combinedTips = allTips + quranTips
+        val hadithTips = bukhariHadiths.map { hadith ->
+            QabasTipItem(id = hadith.id, category = TipCategory.SUNNAH, text = hadith.arabicText, sourceOrBadge = hadith.referenceLabel, bukhariHadith = hadith)
+        }
+        val combinedTips = allTips + quranTips + hadithTips
         val allowedTips = if (isDeveloper) {
             combinedTips
         } else {
@@ -438,8 +374,13 @@ fun QabasSmartTipsBar(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val primaryColor = qabasPrimary()
+    var currentTipIndex by remember { mutableIntStateOf(0) }
     val quranTips by produceState(initialValue = emptyList<QabasTipItem>(), context) {
         value = withContext(Dispatchers.IO) { QabasQuranData.load(context) }
+    }
+    var bukhariHadiths by remember { mutableStateOf(emptyList<BukhariHadith>()) }
+    LaunchedEffect(context) {
+        bukhariHadiths = withContext(Dispatchers.IO) { QabasBukhariRepository.load(context) }
     }
 
     // الأقسام المتاحة بحسب رتبة المستخدم
@@ -454,13 +395,13 @@ fun QabasSmartTipsBar(
     var selectedCategoryFilter by remember { mutableStateOf<TipCategory?>(null) }
     var isCategoryMenuExpanded by remember { mutableStateOf(false) }
     
-    val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips) {
-        QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter, quranTips)
+    val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths) {
+        QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths)
     }
 
-    var currentTipIndex by remember { mutableIntStateOf(0) }
     var isAutoRotating by remember { mutableStateOf(true) }
     var selectedTipForDialog by remember { mutableStateOf<QabasTipItem?>(null) }
+    var selectedBukhariHadith by remember { mutableStateOf<BukhariHadith?>(null) }
 
     LaunchedEffect(filteredTips) {
         if (currentTipIndex >= filteredTips.size) {
@@ -505,7 +446,7 @@ fun QabasSmartTipsBar(
                 val selectedCategoryTitle = selectedCategory?.title ?: "كل التصنيفات"
                 val selectedCategoryColor = selectedCategory?.accentColor ?: primaryColor
                 val selectedCategoryCount = QabasTipsRepository
-                    .getTipsForUser(isDeveloper, selectedCategory, quranTips)
+                    .getTipsForUser(isDeveloper, selectedCategory, quranTips, bukhariHadiths)
                     .size
 
                 Surface(
@@ -592,7 +533,7 @@ fun QabasSmartTipsBar(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    QabasTipsRepository.getTipsForUser(isDeveloper, null, quranTips).size.toString(),
+                                    QabasTipsRepository.getTipsForUser(isDeveloper, null, quranTips, bukhariHadiths).size.toString(),
                                     color = TextSecondary,
                                     fontSize = 9.sp
                                 )
@@ -609,7 +550,7 @@ fun QabasSmartTipsBar(
 
                     availableCategories.forEach { cat ->
                         val isSelected = selectedCategoryFilter == cat
-                        val catTipsCount = QabasTipsRepository.getTipsForUser(isDeveloper, cat, quranTips).size
+                        val catTipsCount = QabasTipsRepository.getTipsForUser(isDeveloper, cat, quranTips, bukhariHadiths).size
 
                         DropdownMenuItem(
                             text = {
@@ -736,7 +677,8 @@ fun QabasSmartTipsBar(
                         IconButton(
                             onClick = {
                                 AppSoundManager.playClick()
-                                selectedTipForDialog = currentTip
+                                if (currentTip.bukhariHadith != null) selectedBukhariHadith = currentTip.bukhariHadith
+                                else selectedTipForDialog = currentTip
                             },
                             modifier = Modifier
                                 .size(25.dp)
@@ -798,6 +740,39 @@ fun QabasSmartTipsBar(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    selectedBukhariHadith?.let { hadith ->
+        Dialog(onDismissRequest = { selectedBukhariHadith = null }) {
+            GlassmorphicSurface(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                shape = RoundedCornerShape(24.dp),
+                backgroundColor = Color(0xFF071326).copy(alpha = 0.99f),
+                borderColor = TipCategory.SUNNAH.accentColor.copy(alpha = 0.6f)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("صحيح البخاري", color = TipCategory.SUNNAH.accentColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { selectedBukhariHadith = null }) { Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextSecondary) }
+                    }
+                    Text(hadith.arabicText, color = Color.White, fontFamily = AmiriFont, fontSize = 21.sp, lineHeight = 34.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    hadith.book.takeIf { it.isNotBlank() }?.let { Text("الكتاب: $it", color = Color.White, fontFamily = CairoFont) }
+                    hadith.chapterNumber.takeIf { it.isNotBlank() }?.let { Text("رقم الباب: $it", color = Color.White, fontFamily = CairoFont) }
+                    hadith.chapterTitleArabic.takeIf { it.isNotBlank() }?.let { Text("عنوان الباب: $it", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+                    hadith.englishText.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFFDCE5F1), fontSize = 13.sp, lineHeight = 21.sp) }
+                    hadith.grade.takeIf { it.isNotBlank() }?.let { Text("الدرجة: $it", color = GoldPrimary, fontFamily = CairoFont) }
+                    hadith.inBookReference.takeIf { it.isNotBlank() }?.let { Text("المرجع داخل الكتاب: $it", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp) }
+                    hadith.reference.takeIf { it.isNotBlank() }?.let { Text("المرجع: $it", color = TextSecondary, fontSize = 11.sp) }
+                    OutlinedButton(onClick = {
+                        clipboardManager.setText(AnnotatedString(hadith.arabicText))
+                        Toast.makeText(context, "تم نسخ نص الحديث", Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) { Text("نسخ نص الحديث", fontFamily = CairoFont) }
                 }
             }
         }
