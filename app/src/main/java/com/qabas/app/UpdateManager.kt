@@ -841,6 +841,52 @@ object UpdateManager {
                             selectedDigest = digest.takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }?.lowercase()
                         }
                     }
+                    var deltaUrl: String? = null
+                    var deltaSize = 0L
+                    var deltaDigest: String? = null
+                    var baseVersionCode: Int? = null
+                    var baseDigest: String? = null
+                    var deltaSourceTag: String? = null
+                    for (assetIndex in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(assetIndex) ?: continue
+                        val name = asset.optString("name", "")
+                        val url = asset.optString("browser_download_url", "")
+                        if (!name.endsWith(".delta", ignoreCase = true) ||
+                            !url.startsWith("https://github.com/$targetRepo/releases/download/")
+                        ) continue
+                        val sourceTag = Regex("-from-(.+)\\.delta$", RegexOption.IGNORE_CASE)
+                            .find(name)?.groupValues?.getOrNull(1) ?: continue
+                        val sourceRelease = (0 until releases.length()).asSequence()
+                            .mapNotNull { releases.optJSONObject(it) }
+                            .firstOrNull { it.optString("tag_name", "").removePrefix("v") == sourceTag }
+                            ?: continue
+                        val sourceAssets = sourceRelease.optJSONArray("assets") ?: continue
+                        var sourceApkDigest: String? = null
+                        for (sourceIndex in 0 until sourceAssets.length()) {
+                            val sourceAsset = sourceAssets.optJSONObject(sourceIndex) ?: continue
+                            if (sourceAsset.optString("name", "").endsWith(".apk", ignoreCase = true)) {
+                                val digest = sourceAsset.optString("digest", "").removePrefix("sha256:")
+                                if (digest.matches(Regex("(?i)[0-9a-f]{64}"))) {
+                                    sourceApkDigest = digest.lowercase()
+                                    break
+                                }
+                            }
+                        }
+                        val patchDigest = asset.optString("digest", "").removePrefix("sha256:")
+                        val sourceCode = parseReleaseVersionCode(sourceRelease.optString("tag_name", ""))
+                        val patchSize = asset.optLong("size", 0L)
+                        if (!sourceCode.let { it > 0 } || sourceApkDigest.isNullOrBlank() ||
+                            !patchDigest.matches(Regex("(?i)[0-9a-f]{64}")) ||
+                            patchSize <= 0L || patchSize >= selectedSize
+                        ) continue
+                        deltaUrl = url
+                        deltaSize = patchSize
+                        deltaDigest = patchDigest.lowercase()
+                        baseVersionCode = sourceCode
+                        baseDigest = sourceApkDigest
+                        deltaSourceTag = sourceTag
+                        break
+                    }
                     val apkName = selectedName ?: continue
                     val apkUrl = selectedUrl ?: continue
                     val notes = release.optString("body", "")
@@ -859,7 +905,12 @@ object UpdateManager {
                             assetName = apkName,
                             apkUrl = apkUrl,
                             apkSize = selectedSize,
-                            sha256Hash = sha
+                            sha256Hash = sha,
+                            deltaUrl = deltaUrl,
+                            deltaSize = deltaSize,
+                            deltaSha256Hash = deltaDigest,
+                            baseVersionCode = baseVersionCode,
+                            baseSha256Hash = baseDigest
                         )
                     )
                 }
