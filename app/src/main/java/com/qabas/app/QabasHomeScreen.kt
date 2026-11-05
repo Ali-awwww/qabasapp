@@ -1721,8 +1721,6 @@ fun QabasNavigationDrawerContent(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-        }
-
             } else {
                 Row(
                     modifier = Modifier
