@@ -398,62 +398,146 @@ object QabasTipsRepository {
             actionableHint = "اختبر الأدوات بعينة واحدة ومعيار واضح للدقة والجودة والخصوصية والتكلفة، وتذكر أن قدراتها وأسعارها تتغير باستمرار."
         ),
 
-        // ── 6. قسم أسرار المطور (Developer Pro Tips 🛠️⚡) ──
+        // ── 6. مختبر المطور (Developer Lab 🛠️) ──
         QabasTipItem(
             id = "d1",
             category = TipCategory.DEVELOPER,
-            text = "كاش PCM الصوتي يضمن استجابة فورية دون الاعتماد على برامج فك التشفير الخارجية.",
-            sourceOrBadge = "محرك الصوت ⚡",
-            actionableHint = "يتم توليد العينات الصوتية بالمعادلات الإجرائية لحظياً لتفادي أي تأخير أو استهلاك غير ضروري."
+            text = "تبدأ واجهة قبس من الدالة QabasApp. تهيّئ هذه الدالة مديري الحركة والمظهر والصوت، ثم تراقب حالة التطبيق وتعرض الوجهة الحالية عبر AppNavigation.",
+            sourceOrBadge = "دورة حياة التطبيق · QabasApp.kt",
+            actionableHint = "عند تتبع مشكلة تظهر بعد تشغيل التطبيق، ابدأ من QabasApp ثم اتبع التهيئة والمراقبين المرتبطين بالحالة. لا تفترض أن كل شاشة تُنشأ من نقطة دخول مستقلة."
         ),
         QabasTipItem(
             id = "d2",
             category = TipCategory.DEVELOPER,
-            text = "تحقق من رصيد مفاتيح Gemini و Groq عبر لوحة مفاتيح المطور لتفادي توقف الـ API.",
-            sourceOrBadge = "إدارة المفاتيح 🔑",
-            actionableHint = "يمكنك إدخال مفتاح مخصص من لوحة Developer Keys لزيادة الكوتا وسرعة الاستجابة."
+            text = "يعرّف AppState الوجهات والحالات التي يمكن أن ينتقل بينها التطبيق، ومنها HOME وPROJECTS وLOGIN وDEVELOPER_DASHBOARD.",
+            sourceOrBadge = "إدارة حالة التطبيق · MainActivity.kt — AppState",
+            actionableHint = "قبل إضافة وجهة جديدة، افحص enum AppState وكل المواضع التي تتعامل معها، ثم أضف الانتقال والعرض والرجوع بما يتوافق مع البنية الحالية."
         ),
         QabasTipItem(
             id = "d3",
             category = TipCategory.DEVELOPER,
-            text = "قاعدة بيانات Room تحفظ المشاريع والتلاوات محلياً لضمان عمل التطبيق بدون إنترنت 100%.",
-            sourceOrBadge = "الاستقرار والكاش 💾",
-            actionableHint = "يتم مزامنة البيانات السحابية مع Supabase في الخلفية بسلاسة عند توفر الشبكة."
+            text = "تتولى AppNavigation اختيار واجهة العرض المناسبة للحالة الحالية، وتستقبل الحالة وViewModel والسياق وشريط التنقل السفلي.",
+            sourceOrBadge = "توجيه الشاشات · AppNavigation.kt",
+            actionableHint = "عند إضافة شاشة، تحقق من موضع ربطها في AppNavigation ومن طريقة تمرير البيانات إليها، بدل إنشاء مسار تنقل موازٍ."
         ),
         QabasTipItem(
             id = "d4",
             category = TipCategory.DEVELOPER,
-            text = "استخدم لوحة التشخيصات Spatial Diagnostics لمراقبة استهلاك الذاكرة وزمن استجابة الخوادم.",
-            sourceOrBadge = "التشخيص الذكي 🛰️",
-            actionableHint = "تتوفر أدوات ping وفحص استقرار الـ RPC والخوادم اللحظية داخل مركز المطور."
+            text = "تُقرأ حالة التطبيق من ViewModel عبر StateFlow وcollectAsState، وتُحدّث باستخدام updateState؛ وهذا يربط تغييرات الحالة بإعادة تركيب الواجهة.",
+            sourceOrBadge = "إدارة الحالة التفاعلية · MainActivity.kt — ProjectViewModel",
+            actionableHint = "عند تعديل حالة مشتركة، استخدم مسار التحديث المعتمد في ViewModel وتجنب إنشاء نسخة محلية متعارضة من الحالة نفسها."
         ),
         QabasTipItem(
             id = "d5",
             category = TipCategory.DEVELOPER,
-            text = "محرك StyleBrain يحلل مقاطع الفيديو لإنتاج أنماط بصرية متوافقة مع الهوية الرقمية.",
-            sourceOrBadge = "ذكاء الاستوديو 🧠",
-            actionableHint = "يدعم استخراج مقاطع B-Roll الذكية وتطبيق المؤثرات الصوتية الميكانيكية بدقة عالية."
+            text = "يستخدم قبس Room، ويعرّف AppDatabase قاعدة البيانات المحلية. إصدار قاعدة البيانات الظاهر في الكود هو 9.",
+            sourceOrBadge = "بنية قاعدة البيانات · Database.kt — AppDatabase",
+            actionableHint = "عند تغيير Entity أو جدول، راجع تعريف @Database وإستراتيجية ترحيل الإصدارات قبل رفع رقم version؛ تغيير المخطط دون Migration مناسبة قد يسبب فشل فتح قاعدة البيانات."
         ),
         QabasTipItem(
             id = "d6",
             category = TipCategory.DEVELOPER,
-            text = "استخدم وضع Pure OLED في استوديو الألوان لتقليل استهلاك البطارية على الشاشات الحديثة.",
-            sourceOrBadge = "توفير الطاقة 🔋",
-            actionableHint = "يتم تحويل الخلفيات إلى سواد مطلق RGB #000000 مما يطفئ بكسلات شاشات OLED تماماً."
+            text = "تفصل طبقة DAO عمليات الوصول إلى الجداول، بينما تجمع كائنات Repository عمليات البيانات لتستخدمها بقية أجزاء التطبيق.",
+            sourceOrBadge = "طبقة DAO والمستودعات · Database.kt — DAO وRepository",
+            actionableHint = "عند إضافة عملية بيانات، ضع استعلام SQL أو DAO في طبقة البيانات، ثم وفّر واجهة مناسبة عبر Repository بدل تكرار الاستعلام داخل Composable."
         ),
         QabasTipItem(
             id = "d7",
             category = TipCategory.DEVELOPER,
-            text = "ميزة Auto-Save تحفظ مسودات الذكاء تلقائياً حتى في حال خروج التطبيق المفاجئ.",
-            sourceOrBadge = "سلامة المسودات 🛡️",
-            actionableHint = "يمكنك استرجاع مسودة العمل بنقرة واحدة من شريط استعادة المسودات بالشاشة الرئيسية."
+            text = "ينشئ SupabaseConfig عميلاً مشتركاً ويهيئ إضافات Auth وPostgrest وStorage وFunctions وRealtime وفق إعدادات المشروع.",
+            sourceOrBadge = "تهيئة Supabase · SupabaseConfig.kt",
+            actionableHint = "قبل استدعاء خدمة سحابية، افحص isSupabaseAvailable ومسار إعداد URL والمفتاح، وتعامل مع حالة عدم الإعداد دون افتراض نجاح الاتصال."
         ),
         QabasTipItem(
             id = "d8",
             category = TipCategory.DEVELOPER,
-            text = "محرك FFmpegKit مدمج لإنتاج مقاطع الريلز بالأبعاد القياسية 9:16 و 16:9 بجودة سينمائية.",
-            sourceOrBadge = "رندرة الفيديو 🎬",
-            actionableHint = "يدعم تركيب الكابشن المتحرك ودمج الانتقالات ثلاثية الأبعاد دون الحاجة لخوادم سحابية."
+            text = "تهيئة Supabase تتضمن PKCE ومدير جلسة مشفر مخصصاً عند توفر الإعدادات، مع مسار بديل عند غياب إعداد صالح.",
+            sourceOrBadge = "جلسات المصادقة · SupabaseConfig.kt — Auth",
+            actionableHint = "عند تعديل تسجيل الدخول أو استعادة كلمة المرور، راجع تدفق PKCE وتخزين الجلسة وتجديدها، ولا تسجل رموز الجلسات أو بيانات الاعتماد في السجلات."
+        ),
+        QabasTipItem(
+            id = "d9",
+            category = TipCategory.DEVELOPER,
+            text = "يوفر ApiKeyValidator دالة validateKey المعلّقة، وينفذ عمل التحقق ضمن Dispatchers.IO حتى لا يحجب خيط الواجهة.",
+            sourceOrBadge = "التحقق من مفاتيح API · ApiKeyValidator.kt",
+            actionableHint = "استدعِ التحقق من Coroutine مناسبة، واعرض نتيجة واضحة للفشل والنجاح. لا تعتبر وجود نص المفتاح دليلاً على أنه صالح قبل التحقق الفعلي."
+        ),
+        QabasTipItem(
+            id = "d10",
+            category = TipCategory.DEVELOPER,
+            text = "يجمع المركز حالة إعداد خدمات مثل Gemini وGroq وSupabase، ويميز بين وجود الإعداد وبين كون الخدمة متاحة أو حية.",
+            sourceOrBadge = "مركز حالة الخدمات · SpatialServiceDiagnosticsHub.kt",
+            actionableHint = "عند تشخيص خدمة، فرّق بين configured وlive؛ إعداد المفتاح لا يثبت وحده أن الطلب إلى مزود الخدمة نجح."
+        ),
+        QabasTipItem(
+            id = "d11",
+            category = TipCategory.DEVELOPER,
+            text = "تستخدم عمليات الشبكة والمعالجة الثقيلة Dispatchers.IO في مواضع من المشروع لتقليل حجب واجهة المستخدم.",
+            sourceOrBadge = "العمل خارج خيط الواجهة · ApiKeyValidator.kt وVideoEngineManager.kt",
+            actionableHint = "ضع عمليات الملفات والشبكة والمعالجة الطويلة في Coroutine مناسبة، وأعد النتائج إلى الحالة التي تراقبها الواجهة. لا تنفذ عملاً ثقيلاً داخل Composable مباشرة."
+        ),
+        QabasTipItem(
+            id = "d12",
+            category = TipCategory.DEVELOPER,
+            text = "يحوّل PipelineDoctor أحداث ProductionPipelineTracker إلى مشكلات مصنفة مع سبب محتمل وحل مقترح، وبعض القواعد مرتبطة بإجراء actionId.",
+            sourceOrBadge = "تشخيص أعطال الإنتاج · PipelineDoctor.kt",
+            actionableHint = "عند ظهور فشل في الإنتاج، راجع المرحلة والنتيجة ورسالة الحدث أولاً، ثم طابقها مع قواعد التشخيص. السبب المعروض احتمال تشخيصي وليس إثباتاً نهائياً."
+        ),
+        QabasTipItem(
+            id = "d13",
+            category = TipCategory.DEVELOPER,
+            text = "يسجل ProductionPipelineTracker مراحل ونتائج مسار إنتاج الفيديو، بما يساعد على معرفة موضع النجاح أو الفشل أو استخدام بديل.",
+            sourceOrBadge = "تتبع مراحل الإنتاج · ProductionPipelineTracker.kt",
+            actionableHint = "أضف أحداثاً دقيقة عند حدود المراحل المهمة، واحتفظ بمعرّف التشغيل runId حتى يمكن ربط الأحداث التي تخص عملية إنتاج واحدة."
+        ),
+        QabasTipItem(
+            id = "d14",
+            category = TipCategory.DEVELOPER,
+            text = "ينسق VideoEngineManager تجهيز المشاهد ومعالجتها والتحقق من الملفات ثم دمج المخرجات ومتابعة مراحل الإنتاج.",
+            sourceOrBadge = "تنظيم محرك الفيديو · VideoEngineManager.kt",
+            actionableHint = "عند تتبع مشكلة في فيديو نهائي، افحص المسار مرحلةً مرحلة، ولا تكتفِ بفحص أمر FFmpeg الأخير؛ قد يكون الخلل في تجهيز الوسائط أو معالجة مشهد سابق."
+        ),
+        QabasTipItem(
+            id = "d15",
+            category = TipCategory.DEVELOPER,
+            text = "لا يعتمد التحقق على وجود الملف وحجمه فقط؛ يستخدم MediaMetadataRetriever لفحص المدة ووجود مسارات الوسائط، مع معالجة استثنائية عند تعذر القراءة.",
+            sourceOrBadge = "التحقق من ملفات الفيديو · VideoProcessor.kt — isValidVideoFile",
+            actionableHint = "عند إضافة خطوة إنتاج، تحقق من الملف الناتج بعد المعالجة باستخدام isValidVideoFile، واختر الحد الأدنى للحجم وفق نوع المخرج."
+        ),
+        QabasTipItem(
+            id = "d16",
+            category = TipCategory.DEVELOPER,
+            text = "تحدد smartTimeoutMs مهلة مختلفة بحسب نوع العملية، مثل الدمج والانتقالات والقص وتركيب النص والصوت، ثم تنفذ الأوامر مع تسجيل النتيجة.",
+            sourceOrBadge = "مهلات أوامر FFmpeg · VideoProcessor.kt — smartTimeoutMs",
+            actionableHint = "إذا أضفت عملية FFmpeg جديدة، مرر وصفاً واضحاً لها أو راجع منطق المهلات حتى لا تُنهى العمليات الطويلة مبكراً أو تظل معلقة بلا حد مناسب."
+        ),
+        QabasTipItem(
+            id = "d17",
+            category = TipCategory.DEVELOPER,
+            text = "يوفر VideoProcessor.cancelAll إلغاء جلسات FFmpeg الجارية، وتتعامل دالة التنفيذ مع انتهاء المهلة ورمز الخروج وسجل الخطأ.",
+            sourceOrBadge = "إلغاء معالجة FFmpeg · VideoProcessor.kt — cancelAll",
+            actionableHint = "اربط زر الإلغاء بدورة حياة العملية الفعلية، ثم تحقق من حالة الملف الناتج؛ إلغاء الأمر لا يعني أن المخرج الجزئي صالح للاستخدام."
+        ),
+        QabasTipItem(
+            id = "d18",
+            category = TipCategory.DEVELOPER,
+            text = "يدير WorkspaceAutoSaveManager حفظ مساحات العمل في Room، ويستخدم تأخيراً قصيراً لتجميع التعديلات قبل الحفظ، مع حفظ دوري في مسارات أخرى.",
+            sourceOrBadge = "الحفظ التلقائي لمساحة العمل · WorkspaceAutoSaveManager.kt",
+            actionableHint = "عند تغيير نموذج مساحة العمل، راجع serializeAiState وبيانات الحالة المحفوظة حتى لا تُهمل حقول جديدة عند الاستعادة."
+        ),
+        QabasTipItem(
+            id = "d19",
+            category = TipCategory.DEVELOPER,
+            text = "يفحص المدير وجود مسودات قابلة للاستعادة ويحدّث حالة العرض بمعلومات مثل العنوان ومقتطف المحتوى ووقت آخر حفظ.",
+            sourceOrBadge = "استعادة المسودات · WorkspaceAutoSaveManager.kt — checkExistingDrafts",
+            actionableHint = "اختبر سيناريو إغلاق التطبيق ثم إعادة فتحه، وتأكد من أن المسودة المستعادة تخص مساحة العمل الصحيحة وأن البيانات المعروضة تطابق آخر حفظ."
+        ),
+        QabasTipItem(
+            id = "d20",
+            category = TipCategory.DEVELOPER,
+            text = "يحتوي StyleBrain على منطق إدارة الأنماط، بينما تعرض StyleBrainSection الأنماط والحالة ومقترحات التحسين، وتتحقق من توفر مفتاح API قبل بعض العمليات.",
+            sourceOrBadge = "تحليل الأنماط البصرية · StyleBrain.kt وStyleBrainSection.kt",
+            actionableHint = "قبل تعديل التعلم أو امتصاص نمط جديد، تتبع الدالة المستدعاة من الواجهة إلى منطق StyleBrain والتخزين المحلي أو المزامنة؛ لا تنسب للمحرك قدرة غير موجودة في مسار التنفيذ."
         )
     )
 
