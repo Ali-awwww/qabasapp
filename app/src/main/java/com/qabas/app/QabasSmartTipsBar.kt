@@ -505,7 +505,7 @@ fun QabasSmartTipsBar(
                 val selectedCategoryTitle = selectedCategory?.title ?: "كل التصنيفات"
                 val selectedCategoryColor = selectedCategory?.accentColor ?: primaryColor
                 val selectedCategoryCount = QabasTipsRepository
-                    .getTipsForUser(isDeveloper, selectedCategory)
+                    .getTipsForUser(isDeveloper, selectedCategory, quranTips)
                     .size
 
                 Surface(
@@ -592,7 +592,7 @@ fun QabasSmartTipsBar(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    QabasTipsRepository.getTipsForUser(isDeveloper, null).size.toString(),
+                                    QabasTipsRepository.getTipsForUser(isDeveloper, null, quranTips).size.toString(),
                                     color = TextSecondary,
                                     fontSize = 9.sp
                                 )
@@ -609,7 +609,7 @@ fun QabasSmartTipsBar(
 
                     availableCategories.forEach { cat ->
                         val isSelected = selectedCategoryFilter == cat
-                        val catTipsCount = QabasTipsRepository.getTipsForUser(isDeveloper, cat).size
+                        val catTipsCount = QabasTipsRepository.getTipsForUser(isDeveloper, cat, quranTips).size
 
                         DropdownMenuItem(
                             text = {
