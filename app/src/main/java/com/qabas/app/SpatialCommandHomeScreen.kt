@@ -3,6 +3,14 @@ package com.qabas.app
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.os.Looper
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -127,9 +135,83 @@ fun SpatialCommandHomeScreen(
     // القطاع المختار (0: الاستوديو والإنتاج, 1: مِشكاة الهُدى والعلوم الشرعية, 2: الأدوات والذكاء, 3: مشاريعي)
     var selectedSector by remember { mutableIntStateOf(0) }
 
-    // إدارة المدينة المختارة لمواقيت الصلاة
+    // إدارة المدينة المختارة لمواقيت الصلاة وتحديثها تلقائيًا أثناء استخدام التطبيق
     var selectedCity by remember { mutableStateOf(PrayerCalculationHelper.getSavedCity(context)) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        hasLocationPermission =
+            grants[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                grants[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasLocationPermission) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    DisposableEffect(hasLocationPermission) {
+        if (!hasLocationPermission) {
+            onDispose { }
+        } else {
+            val client = LocationServices.getFusedLocationProviderClient(context)
+            val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 120_000L)
+                .setMinUpdateIntervalMillis(60_000L)
+                .setMinUpdateDistanceMeters(500f)
+                .build()
+            var isResolvingLocation = false
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    if (isResolvingLocation || result.lastLocation == null) return
+                    isResolvingLocation = true
+                    scope.launch {
+                        try {
+                            val detectedCity = PrayerLocationProvider.detectCurrentCity(
+                                context,
+                                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                            )
+                            if (detectedCity != null) {
+                                selectedCity = detectedCity
+                                PrayerCalculationHelper.saveCity(context, detectedCity)
+                            }
+                        } finally {
+                            isResolvingLocation = false
+                        }
+                    }
+                }
+            }
+            try {
+                client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                // تحديد الموقع فور بدء التتبع بدل انتظار أول تحديث دوري
+                scope.launch {
+                    val detectedCity = PrayerLocationProvider.detectCurrentCity(
+                        context,
+                        ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    )
+                    if (detectedCity != null) {
+                        selectedCity = detectedCity
+                        PrayerCalculationHelper.saveCity(context, detectedCity)
+                    }
+                }
+            } catch (_: SecurityException) {
+                hasLocationPermission = false
+            }
+            onDispose { client.removeLocationUpdates(callback) }
+        }
+    }
 
     // حساب مواقيت الصلاة الحقيقية والوقت المتبقي
     var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
