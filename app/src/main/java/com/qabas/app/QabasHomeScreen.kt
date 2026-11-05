@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1513,6 +1514,13 @@ fun QabasNavigationDrawerContent(
     onAiStudioAgent: () -> Unit = {},
     onViewDownloads: () -> Unit = {}
 ) {
+    var selectedCategory by remember { mutableStateOf<Int?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepSlate)
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1630,14 +1638,119 @@ fun QabasNavigationDrawerContent(
         }
 
         HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
-
-        // Scrollable Drawer Items
+        // Category-first navigation: show only the five categories when the drawer opens.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
+            if (selectedCategory == null) {
+                Text(
+                    text = "تَصْنِيفَاتُ التَّطْبِيق",
+                    color = qabasPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 10.sp,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+                QabasDrawerCategoryItem(
+                    title = "استوديوهات الإنتاج",
+                    subtitle = "الإنتاج والتحرير المرئي",
+                    icon = Icons.Outlined.VideoLibrary,
+                    iconTint = Color(0xFF60A5FA),
+                    onClick = { selectedCategory = 0 }
+                )
+                QabasDrawerCategoryItem(
+                    title = "العالم الإسلامي",
+                    subtitle = "المكتبة والعلوم الشرعية",
+                    icon = Icons.Outlined.MenuBook,
+                    iconTint = Color(0xFFD6B46A),
+                    onClick = { selectedCategory = 1 }
+                )
+                QabasDrawerCategoryItem(
+                    title = "الذكاء الاصطناعي",
+                    subtitle = "الأدوات والمساعدات الذكية",
+                    icon = Icons.Outlined.AutoAwesome,
+                    iconTint = Color(0xFFA78BFA),
+                    onClick = { selectedCategory = 2 }
+                )
+                QabasDrawerCategoryItem(
+                    title = "حسابي",
+                    subtitle = "الملف الشخصي والاشتراك والإعدادات",
+                    icon = Icons.Outlined.PersonOutline,
+                    iconTint = Color(0xFF5EEAD4),
+                    onClick = { selectedCategory = 3 }
+                )
+                QabasDrawerCategoryItem(
+                    title = "المطورون والسياسات",
+                    subtitle = "التوثيق والقواعد وإدارة النظام",
+                    icon = Icons.Outlined.Code,
+                    iconTint = Color(0xFFF0A66B),
+                    onClick = { selectedCategory = 4 }
+                )
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Footer Section
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "﴿ ادْعُ إِلَىٰ سَبِيلِ رَبِّكَ بِالْحِكْمَةِ وَالْمَوْعِظَةِ الْحَسَنَةِ ﴾",
+                        color = GoldPrimary.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "قَبَس v2.5 • إصدار الإنتاج المبارك",
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        fontFamily = NotoSansFont
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { selectedCategory = null }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "العودة إلى التصنيفات",
+                            tint = GoldPrimary
+                        )
+                    }
+                    Text(
+                        text = when (selectedCategory) {
+                            0 -> "استوديوهات الإنتاج"
+                            1 -> "العالم الإسلامي"
+                            2 -> "الذكاء الاصطناعي"
+                            3 -> "حسابي"
+                            else -> "المطورون والسياسات"
+                        },
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
+                when (selectedCategory) {
+                    0 -> {
             // Group 1: الاستوديو والإنتاج المرئي
             QabasDrawerSectionHeader(
                 title = "الاستوديو والإنتاج المرئي",
@@ -1744,6 +1857,9 @@ fun QabasNavigationDrawerContent(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+
+                    }
+                    1 -> {
             // Group 2: واحة مِشكاة الهُدى والعلوم الشرعية
             QabasDrawerSectionHeader(
                 title = "مِشكاة الهُدى والعلوم الشرعية",
@@ -1794,6 +1910,9 @@ fun QabasNavigationDrawerContent(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+
+                    }
+                    2 -> {
             // Group 3: الأدوات الذكية والمجتمع
             QabasDrawerSectionHeader(
                 title = "الأدوات الذكية والانتشار",
@@ -1832,89 +1951,129 @@ fun QabasNavigationDrawerContent(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Group 4: الحساب والإدارة
-            QabasDrawerSectionHeader(
-                title = "الحساب والإدارة",
-                icon = Icons.Default.Settings
-            )
-            QabasDrawerItem(
-                title = "ترقية الحساب المميز (VIP)",
-                subtitle = "تصدير فائق الدقة 4K، خوادم سريعة، وميزات حصرية",
-                icon = Icons.Default.WorkspacePremium,
-                iconTint = GoldPrimary,
-                badgeText = "VIP",
-                badgeColor = GoldPrimary,
-                onClick = { onNavigateTo(onPremiumUpgrade) }
-            )
-            QabasDrawerItem(
-                title = "الملف الشخصي",
-                subtitle = "إدارة الحساب، الإحصائيات، وسجل الإنجازات",
-                icon = Icons.Default.AccountCircle,
-                iconTint = Color(0xFF94A3B8),
-                onClick = { onNavigateTo(onViewProfile) }
-            )
-            QabasDrawerItem(
-                title = "الإعدادات العامة",
-                subtitle = "المظهر، التنبيهات، مفاتيح الـ API، واللغة",
-                icon = Icons.Default.Settings,
-                iconTint = Color(0xFFCBD5E1),
-                onClick = { onNavigateTo(onViewSettings) }
-            )
-            QabasDrawerItem(
-                title = "توثيق الواجهات البرمجية (API)",
-                subtitle = "دليل الربط البرمجي للمطورين والمنصات الخارجية",
-                icon = Icons.Default.Code,
-                iconTint = Color(0xFF38BDF8),
-                onClick = { onNavigateTo(onViewApiDocs) }
-            )
-            QabasDrawerItem(
-                title = "القواعد والسياسات الموحدة",
-                subtitle = "شروط الاستخدام، سياسة الخصوصية، وقواعد المجتمع",
-                icon = Icons.Default.Gavel,
-                iconTint = Color(0xFFF59E0B),
-                onClick = { onNavigateTo(onNavigateToRules) }
-            )
 
-            if (isAdmin) {
-                QabasDrawerItem(
-                    title = "لوحة تحكم المطورين",
-                    subtitle = "تشخيص الخوادم، مفاتيح الذكاء، ومراقبة النظام",
-                    icon = Icons.Default.AdminPanelSettings,
-                    iconTint = Color(0xFFEF4444),
-                    badgeText = "ROOT",
-                    badgeColor = Color(0xFFEF4444),
-                    onClick = { onNavigateTo(onDeveloperDashboard) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Footer Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "﴿ ادْعُ إِلَىٰ سَبِيلِ رَبِّكَ بِالْحِكْمَةِ وَالْمَوْعِظَةِ الْحَسَنَةِ ﴾",
-                        color = GoldPrimary.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "قَبَس v2.5 • إصدار الإنتاج المبارك",
-                        color = Color(0xFF64748B),
-                        fontSize = 10.sp,
-                        fontFamily = NotoSansFont
-                    )
+                    }
+                    3 -> {
+                        QabasDrawerItem(
+                            title = "ترقية الحساب المميز (VIP)",
+                            subtitle = "تصدير فائق الدقة 4K، خوادم سريعة، وميزات حصرية",
+                            icon = Icons.Default.WorkspacePremium,
+                            iconTint = GoldPrimary,
+                            badgeText = "VIP",
+                            badgeColor = GoldPrimary,
+                            onClick = { onNavigateTo(onPremiumUpgrade) }
+                        )
+                        QabasDrawerItem(
+                            title = "الملف الشخصي",
+                            subtitle = "إدارة الحساب، الإحصائيات، وسجل الإنجازات",
+                            icon = Icons.Default.AccountCircle,
+                            iconTint = Color(0xFF94A3B8),
+                            onClick = { onNavigateTo(onViewProfile) }
+                        )
+                        QabasDrawerItem(
+                            title = "الإعدادات العامة",
+                            subtitle = "المظهر، التنبيهات، مفاتيح الـ API، واللغة",
+                            icon = Icons.Default.Settings,
+                            iconTint = Color(0xFFCBD5E1),
+                            onClick = { onNavigateTo(onViewSettings) }
+                        )
+                    }
+                    4 -> {
+                        QabasDrawerItem(
+                            title = "توثيق الواجهات البرمجية (API)",
+                            subtitle = "دليل الربط البرمجي للمطورين والمنصات الخارجية",
+                            icon = Icons.Default.Code,
+                            iconTint = Color(0xFF38BDF8),
+                            onClick = { onNavigateTo(onViewApiDocs) }
+                        )
+                        QabasDrawerItem(
+                            title = "القواعد والسياسات الموحدة",
+                            subtitle = "شروط الاستخدام، سياسة الخصوصية، وقواعد المجتمع",
+                            icon = Icons.Default.Gavel,
+                            iconTint = Color(0xFFF59E0B),
+                            onClick = { onNavigateTo(onNavigateToRules) }
+                        )
+                        if (isAdmin) {
+                            QabasDrawerItem(
+                                title = "لوحة تحكم المطورين",
+                                subtitle = "تشخيص الخوادم، مفاتيح الذكاء، ومراقبة النظام",
+                                icon = Icons.Default.AdminPanelSettings,
+                                iconTint = Color(0xFFEF4444),
+                                badgeText = "ROOT",
+                                badgeColor = Color(0xFFEF4444),
+                                onClick = { onNavigateTo(onDeveloperDashboard) }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(24.dp))
+@Composable
+private fun QabasDrawerCategoryItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
+    GlassmorphicSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .clickable(onClick = onClick),
+        backgroundColor = Color(0xFF1E293B).copy(alpha = 0.28f),
+        borderColor = Color(0xFF334155).copy(alpha = 0.55f),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    color = Color(0xFF94A3B8),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ChevronLeft,
+                contentDescription = null,
+                tint = Color(0xFF94A3B8),
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
