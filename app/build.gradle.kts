@@ -267,3 +267,41 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+// Quran data is downloaded from Quranpedia at build time, checksum-verified,
+// and packaged locally so the installed app works fully offline.
+val quranAssetsDir = layout.buildDirectory.dir("generated/quran-assets")
+val downloadQuranData by tasks.registering {
+    outputs.dir(quranAssetsDir)
+    doLast {
+        val targetDir = quranAssetsDir.get().asFile.resolve("quran").apply { mkdirs() }
+        fun downloadVerified(url: String, fileName: String, expectedSha256: String) {
+            val target = targetDir.resolve(fileName)
+            if (!target.exists()) {
+                java.net.URL(url).openStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            val actualSha256 = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(target.readBytes())
+                .joinToString("") { "%02x".format(it) }
+            check(actualSha256 == expectedSha256) {
+                "Quran data checksum mismatch for $fileName. Expected $expectedSha256 but got $actualSha256"
+            }
+        }
+        downloadVerified(
+            "https://api.quranpedia.net/dumps/mushafs-1.json.gz",
+            "mushafs-1.json.gz",
+            "e349fedb3ff7caf10d41ca530c089790e7644d44b43b1e321964d468d13edddc"
+        )
+        downloadVerified(
+            "https://api.quranpedia.net/dumps/tafsir-book-32.json.gz",
+            "tafsir-book-32.json.gz",
+            "9fe263cbba61c307a1bd080c686e64f69dae6a80b8f05ce603d027f02f076eac"
+        )
+    }
+}
+
+android.sourceSets.getByName("main").assets.srcDir(quranAssetsDir)
+tasks.named("preBuild").configure { dependsOn(downloadQuranData) }
+
