@@ -363,6 +363,7 @@ fun SpatialCommandHomeScreen(
             ) {
                 QabasNavigationDrawerContent(
                     isAdmin = isAdmin,
+                    isDrawerOpen = drawerState.isOpen,
                     onCloseDrawer = { scope.launch { drawerState.close() } },
                     onNavigateTo = { action ->
                         scope.launch {
