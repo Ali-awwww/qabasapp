@@ -292,17 +292,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                                // Discreet Version Label in the corner
-                                Text(
-                                    text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
-                                    color = Color.White.copy(alpha = 0.3f),
-                                    fontSize = 9.sp,
-                                    fontFamily = CairoFont,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(start = 12.dp, bottom = 80.dp) // Elevated to stay above potential navigation bars
-                                        .zIndex(20f)
-                                )
                             }
                         }
                     }
