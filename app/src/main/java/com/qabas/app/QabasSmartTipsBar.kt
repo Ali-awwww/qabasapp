@@ -727,42 +727,56 @@ fun QabasSmartTipsBar(
                     )
                 )
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            AppSoundManager.playClick()
-                            currentTipIndex = (currentTipIndex + 1) % filteredTips.size
-                        }
-                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Surface(
-                        color = tipColor.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, tipColor.copy(alpha = 0.58f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(currentTip.category.iconEmoji, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(currentTip.category.iconEmoji, fontSize = 10.sp)
                             Text(
                                 text = currentTip.category.title,
-                                color = tipColor,
+                                color = tipColor.copy(alpha = 0.82f),
                                 fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                maxLines = 1
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 8.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        IconButton(
+                            onClick = {
+                                AppSoundManager.playClick()
+                                selectedTipForDialog = currentTip
+                            },
+                            modifier = Modifier
+                                .size(25.dp)
+                                .clip(CircleShape)
+                                .background(tipColor.copy(alpha = 0.12f))
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "فتح تفاصيل النصيحة",
+                                tint = tipColor,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
 
                     AnimatedContent(
                         targetState = currentTip,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         transitionSpec = {
                             (slideInVertically { height -> height / 3 } + fadeIn(tween(220))).togetherWith(
                                 slideOutVertically { height -> -height / 3 } + fadeOut(tween(180))
@@ -804,59 +818,6 @@ fun QabasSmartTipsBar(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                        }
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                currentTipIndex = if (currentTipIndex - 1 < 0) filteredTips.size - 1 else currentTipIndex - 1
-                            },
-                            modifier = Modifier.size(30.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "النصيحة السابقة",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                currentTipIndex = (currentTipIndex + 1) % filteredTips.size
-                            },
-                            modifier = Modifier.size(30.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "النصيحة التالية",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                selectedTipForDialog = currentTip
-                            },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(tipColor.copy(alpha = 0.14f))
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = "فتح تفاصيل النصيحة",
-                                tint = tipColor,
-                                modifier = Modifier.size(17.dp)
-                            )
                         }
                     }
                 }
