@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * 🌟 التصنيفات المتنوعة لشريط النصائح والحِكم الذكية (Diverse Tip Categories)
@@ -119,78 +121,6 @@ data class QabasTipItem(
  */
 object QabasTipsRepository {
     val allTips: List<QabasTipItem> = listOf(
-        // ── 1. قسم القرآن الكريم (Quran Insights 📖) ──
-        QabasTipItem(
-            id = "q1",
-            category = TipCategory.QURAN,
-            text = "«إِنَّ هَذَا الْقُرْآنَ يَهْدِي لِلَّتِي هِيَ أَقْوَمُ»",
-            sourceOrBadge = "سورة الإسراء : 9",
-            actionableHint = "القرآن الكريم هو البوصلة الهادية لأقوم السبل في حياتك وفكرك وإنتاجك."
-        ),
-        QabasTipItem(
-            id = "q2",
-            category = TipCategory.QURAN,
-            text = "«وَقُولُوا لِلنَّاسِ حُسْنًا»",
-            sourceOrBadge = "سورة البقرة : 83",
-            actionableHint = "اجعل كل كلمة وفيديو وتصميم تنشره شاهداً لك بالحسنى والجمال والخير."
-        ),
-        QabasTipItem(
-            id = "q3",
-            category = TipCategory.QURAN,
-            text = "«فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ»",
-            sourceOrBadge = "سورة البقرة : 152",
-            actionableHint = "ذكر الله طمأنينة للقلب، سعة في الصدر، وبركة مضاعفة في الوقت والعمل."
-        ),
-        QabasTipItem(
-            id = "q4",
-            category = TipCategory.QURAN,
-            text = "«وَتَوَكَّلْ عَلَى الْحَيِّ الَّذِي لَا يَمُوتُ وَسَبِّحْ بِحَمْدِهِ»",
-            sourceOrBadge = "سورة الفرقان : 58",
-            actionableHint = "التوكل الصادق يقترن ببذل الجهد والتسبيح الدائم طلباً للتوفيق."
-        ),
-        QabasTipItem(
-            id = "q5",
-            category = TipCategory.QURAN,
-            text = "«وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ»",
-            sourceOrBadge = "سورة الطلاق : 2-3",
-            actionableHint = "تقوى الله مفتاح الفرج وسبب تيسير الأرزاق والأعمال من حيث لا تحتسب."
-        ),
-        QabasTipItem(
-            id = "q6",
-            category = TipCategory.QURAN,
-            text = "«أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ»",
-            sourceOrBadge = "سورة الرعد : 28",
-            actionableHint = "سكينة النفس وراحة البال لا تُنال إلا بدوام صلة القلب بخالقه سبحانه."
-        ),
-        QabasTipItem(
-            id = "q7",
-            category = TipCategory.QURAN,
-            text = "«ادْعُ إِلَىٰ سَبِيلِ رَبِّكَ بِالْحِكْمَةِ وَالْمَوْعِظَةِ الْحَسَنَةِ»",
-            sourceOrBadge = "سورة النحل : 125",
-            actionableHint = "الحكمة والرفق والأسلوب الحسن أعظم ركائز التأثير وبناء المحتوى الهادف."
-        ),
-        QabasTipItem(
-            id = "q8",
-            category = TipCategory.QURAN,
-            text = "«وَقُل رَّبِّ زِدْنِي عِلْمًا»",
-            sourceOrBadge = "سورة طه : 114",
-            actionableHint = "طلب الزيادة في العلم وتطوير المهارات النافعة ديدن الأنبياء والمصلحين."
-        ),
-        QabasTipItem(
-            id = "q9",
-            category = TipCategory.QURAN,
-            text = "«إِنَّ مَعَ الْعُسْرِ يُسْرًا»",
-            sourceOrBadge = "سورة الشرح : 6",
-            actionableHint = "مع كل ضيق ومشقة يسر مضاعف، فاستبشر خيراً وواصل السعي."
-        ),
-        QabasTipItem(
-            id = "q10",
-            category = TipCategory.QURAN,
-            text = "«وَأَحْسِنُوا ۛ إِنَّ اللَّهَ يُحِبُّ الْمُحْسِنِينَ»",
-            sourceOrBadge = "سورة البقرة : 195",
-            actionableHint = "الإحسان في أدق تفاصيل العمل يفتح لك محبة الله وتوفيقه."
-        ),
-
         // ── 2. قسم السنة النبوية (Sunnah & Hadith Wisdom 🕌) ──
         QabasTipItem(
             id = "s1",
@@ -475,11 +405,16 @@ object QabasTipsRepository {
         )
     )
 
-    fun getTipsForUser(isDeveloper: Boolean, selectedCategory: TipCategory?): List<QabasTipItem> {
+    fun getTipsForUser(
+        isDeveloper: Boolean,
+        selectedCategory: TipCategory?,
+        quranTips: List<QabasTipItem>
+    ): List<QabasTipItem> {
+        val combinedTips = allTips + quranTips
         val allowedTips = if (isDeveloper) {
-            allTips
+            combinedTips
         } else {
-            allTips.filter { !it.category.isDeveloperOnly }
+            combinedTips.filter { !it.category.isDeveloperOnly }
         }
 
         return if (selectedCategory == null) {
@@ -503,6 +438,9 @@ fun QabasSmartTipsBar(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val primaryColor = qabasPrimary()
+    val quranTips by produceState(initialValue = emptyList<QabasTipItem>(), context) {
+        value = withContext(Dispatchers.IO) { QabasQuranData.load(context) }
+    }
 
     // الأقسام المتاحة بحسب رتبة المستخدم
     val availableCategories = remember(isDeveloper) {
@@ -516,8 +454,8 @@ fun QabasSmartTipsBar(
     var selectedCategoryFilter by remember { mutableStateOf<TipCategory?>(null) }
     var isCategoryMenuExpanded by remember { mutableStateOf(false) }
     
-    val filteredTips = remember(isDeveloper, selectedCategoryFilter) {
-        QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter)
+    val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips) {
+        QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter, quranTips)
     }
 
     var currentTipIndex by remember { mutableIntStateOf(0) }
