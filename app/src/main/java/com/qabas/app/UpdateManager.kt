@@ -475,7 +475,7 @@ object UpdateManager {
                 UpdateInfo(
                     versionName = active.versionName,
                     versionCode = active.versionCode,
-                    deltaUrl = null,
+                    deltaUrl = active.deltaUrl,
                     apkUrl = active.downloadUrl,
                     releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
                         "إصدار جديد متاح للتحميل والتثبيت 🚀"
