@@ -357,11 +357,13 @@ object UpdateManager {
         val sourceBranch: String? = null,
         val workflowRunUrl: String? = null,
         val releaseUrl: String? = null,
-        val apkSha256: String? = null
+        val apkSha256: String? = null,
+        val baseApkSha256: String? = null
     ) {
         /** الدلتا تُستخدم فقط عندما تكون موجودة وأصغر من الحزمة الكاملة. */
         val deltaUsable: Boolean
             get() = !deltaUrl.isNullOrBlank() && deltaSize > 0L &&
+                !checksum.isNullOrBlank() && !baseApkSha256.isNullOrBlank() &&
                 (apkSize <= 0L || deltaSize < apkSize)
     }
 
@@ -392,7 +394,12 @@ object UpdateManager {
         val assetName: String,
         val apkUrl: String,
         val apkSize: Long,
-        val sha256Hash: String?
+        val sha256Hash: String?,
+        val deltaUrl: String? = null,
+        val deltaSize: Long = 0L,
+        val deltaSha256Hash: String? = null,
+        val baseVersionCode: Int? = null,
+        val baseSha256Hash: String? = null
     )
 
     enum class Phase { DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
