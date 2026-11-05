@@ -55,7 +55,7 @@ enum class TipCategory(
 ) {
     QURAN(
         id = "quran",
-        title = "هدايات قرآنية",
+        title = "آية وتفسير",
         iconEmoji = "📖",
         icon = Icons.Default.MenuBook,
         accentColor = Color(0xFF10B981), // زمردي قرآني
