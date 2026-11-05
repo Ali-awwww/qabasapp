@@ -1,8 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -381,18 +379,6 @@ fun QabasSmartTipsBar(
         value = withContext(Dispatchers.IO) { QabasQuranData.load(context) }
     }
     var bukhariHadiths by remember { mutableStateOf(emptyList<BukhariHadith>()) }
-    val importScope = rememberCoroutineScope()
-    val bukhariFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) importScope.launch {
-            runCatching { withContext(Dispatchers.IO) { QabasBukhariRepository.importAndLoad(context, uri) } }
-                .onSuccess { imported ->
-                    bukhariHadiths = imported
-                    currentTipIndex = 0
-                    Toast.makeText(context, "تم استيراد ${imported.size} حديثاً من الملف", Toast.LENGTH_LONG).show()
-                }
-                .onFailure { error -> Toast.makeText(context, "تعذر قراءة الملف: ${error.localizedMessage}", Toast.LENGTH_LONG).show() }
-        }
-    }
     LaunchedEffect(context) {
         bukhariHadiths = withContext(Dispatchers.IO) { QabasBukhariRepository.load(context) }
     }
@@ -595,23 +581,6 @@ fun QabasSmartTipsBar(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
                         )
                     }
-                }
-            }
-
-            Surface(
-                onClick = {
-                    AppSoundManager.playClick()
-                    bukhariFilePicker.launch(arrayOf("application/json", "text/json", "application/*"))
-                },
-                shape = RoundedCornerShape(18.dp),
-                color = TipCategory.SUNNAH.accentColor.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, TipCategory.SUNNAH.accentColor.copy(alpha = 0.55f)),
-                modifier = Modifier.height(36.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Icon(Icons.Default.FileOpen, contentDescription = "استيراد ملف صحيح البخاري", tint = TipCategory.SUNNAH.accentColor, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (bukhariHadiths.isEmpty()) "ملف البخاري" else "البخاري ${bukhariHadiths.size}", color = TipCategory.SUNNAH.accentColor, fontFamily = CairoFont, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
