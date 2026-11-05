@@ -936,7 +936,7 @@ fun QabasSmartTipsBar(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "المصدر والتصنيف: " + tip.sourceOrBadge,
+                                    text = (if (tip.category == TipCategory.QURAN) "موضع الآية: " else "المصدر والتصنيف: ") + tip.sourceOrBadge,
                                     color = GoldPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -974,7 +974,7 @@ fun QabasSmartTipsBar(
                                         )
                                     }
                                     Text(
-                                        text = "التوجيه والفائدة العملية",
+                                        text = if (tip.category == TipCategory.QURAN) "التفسير الميسر" else "التوجيه والفائدة العملية",
                                         color = Color(0xFF23D7E8),
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
