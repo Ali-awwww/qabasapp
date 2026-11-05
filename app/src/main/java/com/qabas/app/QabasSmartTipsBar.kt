@@ -398,7 +398,7 @@ object QabasTipsRepository {
             actionableHint = "اختبر الأدوات بعينة واحدة ومعيار واضح للدقة والجودة والخصوصية والتكلفة، وتذكر أن قدراتها وأسعارها تتغير باستمرار."
         ),
 
-        // ── 6. مختبر المطور (Developer Lab 🛠️) ──
+        // ── 6. قسم أسرار المطور (Developer Pro Tips 🛠️) ──
         QabasTipItem(
             id = "d1",
             category = TipCategory.DEVELOPER,
