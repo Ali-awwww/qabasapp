@@ -514,6 +514,7 @@ fun QabasSmartTipsBar(
     }
 
     var selectedCategoryFilter by remember { mutableStateOf<TipCategory?>(null) }
+    var isCategoryMenuExpanded by remember { mutableStateOf(false) }
     
     val filteredTips = remember(isDeveloper, selectedCategoryFilter) {
         QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter)
@@ -561,106 +562,145 @@ fun QabasSmartTipsBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            LazyRow(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 2.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                item {
-                    val isAllSelected = selectedCategoryFilter == null
-                    Surface(
+            Box(modifier = Modifier.weight(1f)) {
+                val selectedCategory = selectedCategoryFilter
+                val selectedCategoryTitle = selectedCategory?.title ?: "كل التصنيفات"
+                val selectedCategoryColor = selectedCategory?.accentColor ?: primaryColor
+                val selectedCategoryCount = QabasTipsRepository
+                    .getTipsForUser(isDeveloper, selectedCategory)
+                    .size
+
+                Surface(
+                    onClick = {
+                        AppSoundManager.playClick()
+                        isCategoryMenuExpanded = true
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    color = selectedCategoryColor.copy(alpha = 0.13f),
+                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.58f)),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Category,
+                            contentDescription = null,
+                            tint = selectedCategoryColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = selectedCategoryTitle,
+                            color = selectedCategoryColor,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = selectedCategoryColor.copy(alpha = 0.18f)
+                        ) {
+                            Text(
+                                text = selectedCategoryCount.toString(),
+                                color = selectedCategoryColor,
+                                fontFamily = CairoFont,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isCategoryMenuExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isCategoryMenuExpanded) "إخفاء التصنيفات" else "عرض التصنيفات",
+                            tint = selectedCategoryColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = isCategoryMenuExpanded,
+                    onDismissRequest = { isCategoryMenuExpanded = false },
+                    modifier = Modifier
+                        .widthIn(min = 210.dp)
+                        .background(
+                            Color(0xF218263A),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .border(
+                            1.dp,
+                            Color.White.copy(alpha = 0.16f),
+                            RoundedCornerShape(16.dp)
+                        )
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("✦", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(9.dp))
+                                Text(
+                                    "كل التصنيفات",
+                                    color = if (selectedCategoryFilter == null) primaryColor else Color.White,
+                                    fontFamily = CairoFont,
+                                    fontWeight = if (selectedCategoryFilter == null) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    QabasTipsRepository.getTipsForUser(isDeveloper, null).size.toString(),
+                                    color = TextSecondary,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        },
                         onClick = {
                             AppSoundManager.playClick()
                             selectedCategoryFilter = null
                             currentTipIndex = 0
+                            isCategoryMenuExpanded = false
                         },
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isAllSelected) primaryColor.copy(alpha = 0.18f) else Color(0xFF0F172A).copy(alpha = 0.78f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isAllSelected) primaryColor.copy(alpha = 0.9f) else Color(0xFF334155).copy(alpha = 0.65f)
-                        ),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 11.dp)
-                        ) {
-                            Text(
-                                text = "✦ الكل",
-                                color = if (isAllSelected) primaryColor else TextSecondary,
-                                fontFamily = CairoFont,
-                                fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 10.5.sp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isAllSelected) primaryColor else Color(0xFF1E293B)
-                            ) {
-                                Text(
-                                    text = QabasTipsRepository.getTipsForUser(isDeveloper, null).size.toString(),
-                                    color = if (isAllSelected) DeepSlate else TextSecondary,
-                                    fontFamily = CairoFont,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
+                    )
 
-                items(availableCategories) { cat ->
-                    val isSelected = selectedCategoryFilter == cat
-                    val catTipsCount = remember(cat, isDeveloper) {
-                        QabasTipsRepository.getTipsForUser(isDeveloper, cat).size
-                    }
+                    availableCategories.forEach { cat ->
+                        val isSelected = selectedCategoryFilter == cat
+                        val catTipsCount = QabasTipsRepository.getTipsForUser(isDeveloper, cat).size
 
-                    Surface(
-                        onClick = {
-                            AppSoundManager.playClick()
-                            selectedCategoryFilter = cat
-                            currentTipIndex = 0
-                        },
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isSelected) cat.accentColor.copy(alpha = 0.16f) else Color(0xFF0F172A).copy(alpha = 0.78f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) cat.accentColor.copy(alpha = 0.9f) else Color(0xFF334155).copy(alpha = 0.65f)
-                        ),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        ) {
-                            Text(cat.iconEmoji, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = cat.title,
-                                color = if (isSelected) cat.accentColor else TextSecondary,
-                                fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isSelected) cat.accentColor else Color(0xFF1E293B)
-                            ) {
-                                Text(
-                                    text = catTipsCount.toString(),
-                                    color = if (isSelected) DeepSlate else TextSecondary,
-                                    fontFamily = CairoFont,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(cat.iconEmoji, fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.width(9.dp))
+                                    Text(
+                                        cat.title,
+                                        color = if (isSelected) cat.accentColor else Color.White,
+                                        fontFamily = CairoFont,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        catTipsCount.toString(),
+                                        color = if (isSelected) cat.accentColor else TextSecondary,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            },
+                            onClick = {
+                                AppSoundManager.playClick()
+                                selectedCategoryFilter = cat
+                                currentTipIndex = 0
+                                isCategoryMenuExpanded = false
+                            },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
+                        )
                     }
                 }
             }
