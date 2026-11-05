@@ -65,7 +65,7 @@ enum class TipCategory(
     ),
     SUNNAH(
         id = "sunnah",
-        title = "حِكم نبوية",
+        title = "أحاديث",
         iconEmoji = "🕌",
         icon = Icons.Default.Mosque,
         accentColor = Color(0xFFF59E0B), // ذهبي عنبري
