@@ -55,7 +55,7 @@ object QabasQuranData {
                 category = TipCategory.QURAN,
                 text = verse.text,
                 sourceOrBadge = "سورة ${verse.surahName} • الآية ${ayahNumber}",
-                actionableHint = "التفسير الميسر\n\n${tafsirText}"
+                actionableHint = "التفسير الميسر\n\n${tafsirText}\n\nالمصدر: مجمع الملك فهد لطباعة المصحف الشريف — عبر الموسوعة القرآنية (quranpedia.net)."
             )
         }
 
