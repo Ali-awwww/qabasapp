@@ -8,9 +8,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.Description
 import org.junit.runner.RunWith
-import org.junit.rules.TestWatcher
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -26,14 +24,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class HomeScreenScreenshotTest {
 
-    @get:Rule(order = 0)
-    val failureTrace = object : TestWatcher() {
-        override fun failed(e: Throwable, description: Description) {
-            e.printStackTrace(System.out)
-        }
-    }
-
-    @get:Rule(order = 1)
+    @get:Rule
     val composeRule = createComposeRule()
 
     @Test
@@ -42,32 +33,37 @@ class HomeScreenScreenshotTest {
         AppServices.appContext = context
         HomeScreenStyleManager.setStyle(context, HomeScreenStyle.CLASSIC_STUDIO)
 
-        composeRule.setContent {
-            MyApplicationTheme {
-                HomeScreen(
-                    recentProjects = emptyList(),
-                    onNewProject = { initialText ->
-                        AppNavigator.navigateToInputWithText(initialText.orEmpty())
-                    },
-                    onViewProjects = { AppNavigator.navigateTo(AppState.PROJECTS) },
-                    onViewSettings = { AppNavigator.navigateTo(AppState.SETTINGS) },
-                    onOpenProject = { project ->
-                        val destination = runCatching {
-                            AppState.valueOf(project.lastScreen)
-                        }.getOrDefault(AppState.INPUT)
-                        AppNavigator.navigateTo(destination)
-                    },
-                    bottomBar = {
-                        QabasBottomNavigation(
-                            currentRoute = AppState.HOME,
-                            onNavigate = AppNavigator::navigateTo
-                        )
-                    }
-                )
+        try {
+            composeRule.setContent {
+                MyApplicationTheme {
+                    HomeScreen(
+                        recentProjects = emptyList(),
+                        onNewProject = { initialText ->
+                            AppNavigator.navigateToInputWithText(initialText.orEmpty())
+                        },
+                        onViewProjects = { AppNavigator.navigateTo(AppState.PROJECTS) },
+                        onViewSettings = { AppNavigator.navigateTo(AppState.SETTINGS) },
+                        onOpenProject = { project ->
+                            val destination = runCatching {
+                                AppState.valueOf(project.lastScreen)
+                            }.getOrDefault(AppState.INPUT)
+                            AppNavigator.navigateTo(destination)
+                        },
+                        bottomBar = {
+                            QabasBottomNavigation(
+                                currentRoute = AppState.HOME,
+                                onNavigate = AppNavigator::navigateTo
+                            )
+                        }
+                    )
+                }
             }
+            composeRule.waitForIdle()
+            composeRule.onNodeWithText("قَبَس").assertIsDisplayed()
+            composeRule.onRoot().captureRoboImage()
+        } catch (e: Throwable) {
+            e.printStackTrace(System.out)
+            throw e
         }
-
-        composeRule.onNodeWithText("قَبَس").assertIsDisplayed()
-        composeRule.onRoot().captureRoboImage()
     }
 }
