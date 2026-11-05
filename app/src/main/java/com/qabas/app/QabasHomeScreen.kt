@@ -1154,7 +1154,7 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -1679,7 +1679,7 @@ fun QabasNavigationDrawerContent(
                 QabasDrawerCategoryItem(
                     title = "حسابي",
                     subtitle = "الملف الشخصي والاشتراك والإعدادات",
-                    icon = Icons.Outlined.PersonOutline,
+                    icon = Icons.Outlined.Person,
                     iconTint = Color(0xFF5EEAD4),
                     onClick = { selectedCategory = 3 }
                 )
@@ -1729,7 +1729,7 @@ fun QabasNavigationDrawerContent(
                 ) {
                     IconButton(onClick = { selectedCategory = null }) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            imageVector = Icons.Default.ArrowBack,
                             contentDescription = "العودة إلى التصنيفات",
                             tint = GoldPrimary
                         )
@@ -2069,7 +2069,7 @@ private fun QabasDrawerCategoryItem(
                 )
             }
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ChevronLeft,
+                imageVector = Icons.Default.ChevronLeft,
                 contentDescription = null,
                 tint = Color(0xFF94A3B8),
                 modifier = Modifier.size(18.dp)
