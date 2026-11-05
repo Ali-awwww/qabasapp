@@ -29,7 +29,7 @@ class HomeScreenScreenshotTest {
 
     @Test
     fun captureHomeScreenEmptyRecentProjects() {
-        val context = RuntimeEnvironment.getApplication<android.app.Application>()
+        val context = RuntimeEnvironment.getApplication()
         AppServices.appContext = context
         HomeScreenStyleManager.setStyle(context, HomeScreenStyle.CLASSIC_STUDIO)
 
