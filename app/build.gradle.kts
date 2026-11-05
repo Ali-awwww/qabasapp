@@ -305,6 +305,6 @@ val downloadQuranData by tasks.registering {
     }
 }
 
-android.sourceSets.getByName("main").assets.srcDir(quranAssetsDir)
+android.sourceSets.getByName("main").assets.srcDir(quranAssetsDir.get().asFile)
 tasks.named("preBuild").configure { dependsOn(downloadQuranData) }
 
