@@ -8,12 +8,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.ConscryptMode
 
 /**
  * الفحص التلقائي لا ينزل أبداً تحت ساعتين، وأي قيمة محفوظة تُقصّ عند الحد الأدنى.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
+@ConscryptMode(ConscryptMode.Mode.OFF)
 class UpdateManagerIntervalTest {
 
     private lateinit var context: Context
