@@ -21,7 +21,9 @@ class UpdateInfoDeltaTest {
         apkUrl = "https://example.com/qabas.apk",
         releaseNotes = "",
         deltaSize = deltaSize,
-        apkSize = apkSize
+        apkSize = apkSize,
+        checksum = "a".repeat(64),
+        baseApkSha256 = "b".repeat(64)
     )
 
     @Test
@@ -33,6 +35,13 @@ class UpdateInfoDeltaTest {
     fun `delta larger or equal to the full apk is skipped`() {
         assertFalse(info(deltaSize = 150_000_000L).deltaUsable)
         assertFalse(info(deltaSize = 140_000_000L).deltaUsable)
+    }
+
+    @Test
+    fun `delta without integrity metadata is skipped`() {
+        assertFalse(info().copy(checksum = null).deltaUsable)
+        assertFalse(info().copy(baseApkSha256 = null).deltaUsable)
+        assertFalse(info().copy(checksum = "").deltaUsable)
     }
 
     @Test
