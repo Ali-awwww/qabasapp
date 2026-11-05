@@ -304,6 +304,7 @@ fun HomeScreen(
             ) {
                 QabasNavigationDrawerContent(
                     isAdmin = isAdmin,
+                    isDrawerOpen = drawerState.isOpen,
                     onCloseDrawer = { scope.launch { drawerState.close() } },
                     onNavigateTo = { action ->
                         scope.launch {
@@ -1483,6 +1484,7 @@ fun SpatialEmptyProjects(onNewProject: () -> Unit) {
 @Composable
 fun QabasNavigationDrawerContent(
     isAdmin: Boolean,
+    isDrawerOpen: Boolean = false,
     onCloseDrawer: () -> Unit,
     onNavigateTo: (() -> Unit) -> Unit,
     onStudioGateway: () -> Unit,
@@ -1515,6 +1517,12 @@ fun QabasNavigationDrawerContent(
     onViewDownloads: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(isDrawerOpen) {
+        if (isDrawerOpen) selectedCategory = null
+    }
+    BackHandler(enabled = selectedCategory != null) {
+        selectedCategory = null
+    }
 
     Column(
         modifier = Modifier
