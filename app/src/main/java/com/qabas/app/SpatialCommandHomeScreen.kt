@@ -2142,13 +2142,7 @@ private fun SpatialHudStatsHeader(
     }
 
     val calendar = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
-    val hour = calendar.get(Calendar.HOUR_OF_DAY)
-    val greeting = when (hour) {
-        in 5..11 -> "السلام عليكم ورحمة الله وبركاته، أسعد الله صباحك بطاعته وذكره 🌅"
-        in 12..16 -> "السلام عليكم ورحمة الله وبركاته، جعل الله يومك عامرًا بالخير والبركة ☀️"
-        in 17..20 -> "السلام عليكم ورحمة الله وبركاته، طابت أوقاتك بذكر الله 🌙"
-        else -> "السلام عليكم ورحمة الله وبركاته، جعل الله ليلتك سكينة وطمأنينة ✨"
-    }
+    val greeting = "أهلاً بك يا $savedDisplayName"
 
     // Time & Date Formats
     val hourFormat = remember { java.text.SimpleDateFormat("HH", Locale.getDefault()) }
