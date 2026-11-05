@@ -376,6 +376,7 @@ fun QabasSmartTipsBar(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val primaryColor = qabasPrimary()
+    var currentTipIndex by remember { mutableIntStateOf(0) }
     val quranTips by produceState(initialValue = emptyList<QabasTipItem>(), context) {
         value = withContext(Dispatchers.IO) { QabasQuranData.load(context) }
     }
@@ -408,11 +409,10 @@ fun QabasSmartTipsBar(
     var selectedCategoryFilter by remember { mutableStateOf<TipCategory?>(null) }
     var isCategoryMenuExpanded by remember { mutableStateOf(false) }
     
-    val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips) {
+    val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths) {
         QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths)
     }
 
-    var currentTipIndex by remember { mutableIntStateOf(0) }
     var isAutoRotating by remember { mutableStateOf(true) }
     var selectedTipForDialog by remember { mutableStateOf<QabasTipItem?>(null) }
     var selectedBukhariHadith by remember { mutableStateOf<BukhariHadith?>(null) }
