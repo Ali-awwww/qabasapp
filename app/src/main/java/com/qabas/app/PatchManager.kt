@@ -76,6 +76,21 @@ object PatchManager {
             return@withContext false
         }
 
+        // Delta metadata is accepted only for the exact installed base APK.
+        val sourceApk = File(context.packageCodePath)
+        if (!UpdateManager.isSha256Valid(sourceApk, update.baseApkSha256)) {
+            val errMsg = "نسخة الأساس المثبتة لا تطابق بصمة SHA-256 المعتمدة للدلتا"
+            _patchState.value = PatchState.Error(errMsg)
+            UpdateTelemetryManager.recordFailure(
+                context = context,
+                update = update,
+                phase = "BASE_APK_VERIFY",
+                throwable = null,
+                customMessage = errMsg
+            )
+            return@withContext false
+        }
+
         _patchState.value = PatchState.Patching
 
         // 2. تحديد الملفات المطلوبة
@@ -86,9 +101,6 @@ object PatchManager {
         runCatching { outputApk.delete() }
         runCatching { finalApk.delete() }
 
-        // المسار الأساسي هو الـ APK الحالي المثبت
-        val sourceApk = File(context.packageCodePath)
-        
         // 3. تنفيذ عملية الرقعة عبر JNI Native C++ أولاً (الأسرع والأكثر أماناً)
         var patchApplied = false
         if (XdeltaPatchEngine.isNativeEngineAvailable()) {
@@ -118,8 +130,9 @@ object PatchManager {
             val sizeMatches = update.apkSize <= 0L || outputSize == update.apkSize
             val packageAndVersionMatch =
                 UpdateManager.isApkValid(context, outputApk, update.versionCode)
+            val targetDigestMatches = UpdateManager.isSha256Valid(outputApk, update.apkSha256)
 
-            if (sizeMatches && packageAndVersionMatch && outputApk.renameTo(finalApk)) {
+            if (sizeMatches && packageAndVersionMatch && targetDigestMatches && outputApk.renameTo(finalApk)) {
                 _patchState.value = PatchState.Success(finalApk)
                 deltaFile.delete()
                 Log.d(TAG, "✅ Patch applied and verified: ${finalApk.name} ($outputSize bytes)")
@@ -131,6 +144,8 @@ object PatchManager {
                     "حجم APK الناتج لا يطابق حجم الإصدار الهدف (actual=$outputSize, expected=${update.apkSize})"
                 !packageAndVersionMatch ->
                     "APK الناتج لا يطابق اسم الحزمة أو رقم البناء الهدف (${update.versionCode})"
+                !targetDigestMatches ->
+                    "بصمة SHA-256 للحزمة الناتجة لا تطابق الإصدار الهدف"
                 else -> "تعذر اعتماد ملف APK الناتج بعد تطبيق الرقعة"
             }
             outputApk.delete()
