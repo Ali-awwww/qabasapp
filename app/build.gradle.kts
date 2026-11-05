@@ -1,3 +1,6 @@
+import java.net.URL
+import java.security.MessageDigest
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -278,11 +281,11 @@ val downloadQuranData by tasks.registering {
         fun downloadVerified(url: String, fileName: String, expectedSha256: String) {
             val target = targetDir.resolve(fileName)
             if (!target.exists()) {
-                java.net.URL(url).openStream().use { input ->
+                URL(url).openStream().use { input ->
                     target.outputStream().use { output -> input.copyTo(output) }
                 }
             }
-            val actualSha256 = java.security.MessageDigest.getInstance("SHA-256")
+            val actualSha256 = MessageDigest.getInstance("SHA-256")
                 .digest(target.readBytes())
                 .joinToString("") { "%02x".format(it) }
             check(actualSha256 == expectedSha256) {
