@@ -25,9 +25,18 @@ object QabasBukhariRepository {
     private const val FILE_NAME = "sahih_al_bukhari.json"
 
     fun load(context: Context): List<BukhariHadith> {
-        val file = File(context.filesDir, FILE_NAME)
-        if (!file.exists()) return emptyList()
-        return parse(file.readText(Charsets.UTF_8))
+        // Optional user-imported copy takes precedence over the bundled asset.
+        val importedFile = File(context.filesDir, FILE_NAME)
+        if (importedFile.exists()) {
+            return parse(importedFile.readText(Charsets.UTF_8))
+        }
+
+        // Bundle the dataset at: app/src/main/assets/sahih_al_bukhari.json
+        return runCatching {
+            context.assets.open(FILE_NAME).bufferedReader(Charsets.UTF_8).use { reader ->
+                parse(reader.readText())
+            }
+        }.getOrElse { emptyList() }
     }
 
     fun importAndLoad(context: Context, uri: Uri): List<BukhariHadith> {
