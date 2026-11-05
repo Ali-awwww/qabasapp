@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
  * الفحص التلقائي لا ينزل أبداً تحت ساعتين، وأي قيمة محفوظة تُقصّ عند الحد الأدنى.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class UpdateManagerIntervalTest {
 
     private lateinit var context: Context
