@@ -52,6 +52,10 @@ fun AppNavigation(
             if (appState != AppState.DATA_LOADING && appState != AppState.ONBOARDING && appState != AppState.LOGIN && appState != AppState.REGISTER && appState != AppState.FORGOT_PASSWORD) {
                 viewModel.updateState { copy(appState = AppState.LOGIN) }
             }
+        },
+        onGuest = {
+            // Guest mode is an intentional read-only browsing state, not a failed auth session.
+            // Preserve the current route instead of redirecting guests back to Login.
         }
     )
 

@@ -806,21 +806,36 @@ class SupabaseRepository(
  * and triggers navigation callbacks to switch automatically between Auth (Login/Register) screens
  * and the Main Dashboard.
  */
+internal fun dispatchAuthNavigationState(
+    state: AuthState,
+    onAuthenticated: (isAdmin: Boolean) -> Unit,
+    onUnauthenticated: () -> Unit,
+    onGuest: () -> Unit
+) {
+    when (state) {
+        is AuthState.Authenticated -> onAuthenticated(state.isAdmin)
+        is AuthState.Loading -> Unit
+        is AuthState.Error,
+        is AuthState.Unauthenticated -> onUnauthenticated()
+        is AuthState.Guest -> onGuest()
+    }
+}
+
 @Composable
 fun ReactiveAuthNavigationObserver(
     repository: SupabaseRepository = SupabaseRepository.getInstance(),
     onAuthenticated: (isAdmin: Boolean) -> Unit,
-    onUnauthenticated: () -> Unit
+    onUnauthenticated: () -> Unit,
+    onGuest: () -> Unit = {}
 ) {
     val authState by repository.authState.collectAsState()
 
     LaunchedEffect(authState) {
-        when (val state = authState) {
-            is AuthState.Authenticated -> onAuthenticated(state.isAdmin)
-            is AuthState.Loading -> Unit
-            is AuthState.Error,
-            is AuthState.Unauthenticated,
-            is AuthState.Guest -> onUnauthenticated()
-        }
+        dispatchAuthNavigationState(
+            state = authState,
+            onAuthenticated = onAuthenticated,
+            onUnauthenticated = onUnauthenticated,
+            onGuest = onGuest
+        )
     }
 }
