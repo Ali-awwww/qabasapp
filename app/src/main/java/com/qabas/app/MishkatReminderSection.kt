@@ -382,7 +382,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                             }
                             val userId = SupabaseServices.Auth.getCurrentUserId()
                                 ?: throw IOException("انتهت جلسة المطوّر. سجّل الدخول ثم أعد المحاولة.")
-                            val path = "mishkat-reminder/$userId/${UUID.randomUUID()}.$extension"
+                            val path = "$userId/mishkat-reminder/${UUID.randomUUID()}.$extension"
                             SupabaseServices.Storage.uploadFileWithProgress(
                                 bucketName = "media-assets",
                                 path = path,
