@@ -119,10 +119,11 @@ object SahihQuizEngine {
         val cut = (words.size * 0.55).toInt().coerceIn(4, words.size - COMPLETION_TAKE_WORDS)
         val head = words.take(cut).joinToString(" ")
         val correct = words.drop(cut).take(COMPLETION_TAKE_WORDS).joinToString(" ")
+        // اجمع التكملات أولاً ثم اختر ثلاثاً مميزة؛ اختيار 3 أحاديث قبل إزالة
+        // التكرار كان يجعل السؤال يفشل عشوائياً عند تكرار مقاطع المتون.
         val distractors = pool
             .filter { it.id != h.id && it.arabic.wordCount() >= MIN_WORDS_FOR_COMPLETION }
             .shuffled(random)
-            .take(3)
             .mapNotNull { d ->
                 val w = d.arabic.split(Regex("\\s+")).filter { it.isNotBlank() }
                 if (w.size < cut + COMPLETION_TAKE_WORDS) null
