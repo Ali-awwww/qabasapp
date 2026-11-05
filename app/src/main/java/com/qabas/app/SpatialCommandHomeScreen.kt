@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -2149,8 +2151,22 @@ private fun SpatialHudStatsHeader(
     }
 
     // Time & Date Formats
-    val timeFormat = remember { java.text.SimpleDateFormat("hh:mm:ss a", Locale.getDefault()) }
-    val formattedTime = remember(currentTimeMillis) { timeFormat.format(calendar.time) }
+    val hourFormat = remember { java.text.SimpleDateFormat("HH", Locale.getDefault()) }
+    val minuteFormat = remember { java.text.SimpleDateFormat("mm", Locale.getDefault()) }
+    val secondFormat = remember { java.text.SimpleDateFormat("ss", Locale.getDefault()) }
+    val clockHour = remember(currentTimeMillis) { hourFormat.format(calendar.time) }
+    val clockMinute = remember(currentTimeMillis) { minuteFormat.format(calendar.time) }
+    val clockSecond = remember(currentTimeMillis) { secondFormat.format(calendar.time) }
+    val clockTransition = rememberInfiniteTransition(label = "clock_separator")
+    val separatorAlpha by clockTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.28f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 550, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "clock_separator_alpha"
+    )
     val dateFormat = remember { java.text.SimpleDateFormat("EEEE، d MMMM yyyy", Locale("ar")) }
     val formattedDate = remember(currentTimeMillis) { dateFormat.format(calendar.time) }
 
@@ -2254,21 +2270,62 @@ private fun SpatialHudStatsHeader(
                         fontSize = 11.sp
                     )
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(EmeraldGreen)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = formattedTime,
-                            color = primaryColor,
-                            fontFamily = RobotoMonoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = primaryColor.copy(alpha = 0.10f),
+                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.32f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldGreen)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = clockHour,
+                                        color = Color.White,
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = ":",
+                                        color = primaryColor.copy(alpha = separatorAlpha),
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = clockMinute,
+                                        color = Color.White,
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = ":",
+                                        color = primaryColor.copy(alpha = separatorAlpha),
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = clockSecond,
+                                        color = primaryColor,
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
