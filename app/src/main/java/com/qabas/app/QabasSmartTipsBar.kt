@@ -409,17 +409,21 @@ fun QabasSmartTipsBar(
         }
     }
 
-    // مؤقت التدوير التلقائي السلس
-    LaunchedEffect(isAutoRotating, filteredTips.size, selectedCategoryFilter) {
+    val currentTip = filteredTips.getOrNull(currentTipIndex) ?: filteredTips.firstOrNull()
+    val rotationDelay = when (currentTip?.category) {
+        TipCategory.QURAN, TipCategory.SUNNAH -> 12_000L
+        else -> 8_000L
+    }
+
+    // مؤقت التدوير التلقائي: النصوص الشرعية 12 ثانية، وبقية النصائح 8 ثوانٍ.
+    LaunchedEffect(isAutoRotating, filteredTips.size, selectedCategoryFilter, rotationDelay) {
         if (isAutoRotating && filteredTips.isNotEmpty()) {
             while (true) {
-                delay(6500L)
+                delay(rotationDelay)
                 currentTipIndex = (currentTipIndex + 1) % filteredTips.size
             }
         }
     }
-
-    val currentTip = filteredTips.getOrNull(currentTipIndex) ?: filteredTips.firstOrNull()
 
     val pulseTransition = rememberInfiniteTransition(label = "tipsPulse")
     val glowAnim by pulseTransition.animateFloat(
