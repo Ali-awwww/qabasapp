@@ -1521,11 +1521,6 @@ fun QabasNavigationDrawerContent(
             .fillMaxSize()
             .background(DeepSlate)
     ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DeepSlate)
-    ) {
         // Drawer Header with Branding & Identity
         Box(
             modifier = Modifier
