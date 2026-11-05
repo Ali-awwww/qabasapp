@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -778,15 +779,22 @@ fun QabasSmartTipsBar(
     }
 
     selectedBukhariHadith?.let { hadith ->
+        val screenConfiguration = LocalConfiguration.current
         Dialog(onDismissRequest = { selectedBukhariHadith = null }) {
             GlassmorphicSurface(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                modifier = Modifier
+                    .width((screenConfiguration.screenWidthDp * 0.92f).dp)
+                    .padding(vertical = 10.dp),
                 shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xFF071326).copy(alpha = 0.99f),
+                backgroundColor = Color(0xFF071326).copy(alpha = 0.94f),
                 borderColor = TipCategory.SUNNAH.accentColor.copy(alpha = 0.6f)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(18.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = (screenConfiguration.screenHeightDp * 0.85f).dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -815,21 +823,22 @@ fun QabasSmartTipsBar(
         val tip = selectedTipForDialog!!
         val tipColor = tip.category.accentColor
         val isScripture = tip.category == TipCategory.QURAN || tip.category == TipCategory.SUNNAH
+        val screenConfiguration = LocalConfiguration.current
 
         Dialog(onDismissRequest = { selectedTipForDialog = null }) {
             GlassmorphicSurface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp)
+                    .width((screenConfiguration.screenWidthDp * 0.92f).dp)
+                    .padding(vertical = 10.dp)
                     .shadow(24.dp, RoundedCornerShape(24.dp), spotColor = tipColor.copy(alpha = 0.24f)),
                 shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xFF071326).copy(alpha = 0.98f),
+                backgroundColor = Color(0xFF071326).copy(alpha = 0.94f),
                 borderColor = tipColor.copy(alpha = 0.52f)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 620.dp)
+                        .heightIn(max = (screenConfiguration.screenHeightDp * 0.85f).dp)
                         .verticalScroll(rememberScrollState())
                         .padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
