@@ -185,7 +185,7 @@ fun SpatialCommandHomeScreen(
                             )
                             if (detectedCity != null) {
                                 selectedCity = detectedCity
-                                PrayerCalculationHelper.saveCity(context, detectedCity)
+                                PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
                             }
                         } finally {
                             isResolvingLocation = false
@@ -203,7 +203,7 @@ fun SpatialCommandHomeScreen(
                     )
                     if (detectedCity != null) {
                         selectedCity = detectedCity
-                        PrayerCalculationHelper.saveCity(context, detectedCity)
+                        PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
                     }
                 }
             } catch (_: SecurityException) {

@@ -1,5 +1,8 @@
 package com.qabas.app
 
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
@@ -86,15 +89,162 @@ object PrayerCalculationHelper {
         CityLocation("سيدني", "Sydney", "أستراليا", -33.8688, 151.2093, 10.0, CalculationMethod.MUSLIM_WORLD_LEAGUE)
     )
 
-    fun getSavedCity(context: android.content.Context): CityLocation {
-        val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-        val savedName = prefs.getString("selected_prayer_city_name", "مكة المكرمة") ?: "مكة المكرمة"
-        return popularCities.find { it.nameAr == savedName || it.nameEn.equals(savedName, ignoreCase = true) } ?: popularCities[0]
+    private const val TAG = "PrayerCalculationHelper"
+    private const val CITY_PREFS_NAME = "qabas_prefs"
+    private const val PRAYER_PREFS_NAME = "qabas_prayer_prefs"
+    // Precise GPS coordinates stay in a device-local store and are never cloud-synced.
+    private const val PRIVATE_LOCATION_PREFS_NAME = "qabas_prayer_location_private"
+    private const val KEY_SELECTED_CITY_NAME = "selected_prayer_city_name"
+    private const val KEY_SYNCED_CITY_INDEX = "selected_city_index"
+    private const val KEY_LOCAL_CITY_INDEX = "selected_city_index"
+    private const val KEY_CUSTOM_CITY_ENABLED = "custom_city_enabled"
+    private const val CUSTOM_CITY_PREFIX = "custom_city"
+    private const val LAST_SCHEDULED_CITY_PREFIX = "last_scheduled_city"
+    private const val RESCHEDULE_DISTANCE_KM = 5.0
+    private const val RESCHEDULE_TIMEZONE_DELTA_HOURS = 0.25
+
+    fun getSavedCity(context: Context): CityLocation {
+        val cityPrefs = context.getSharedPreferences(CITY_PREFS_NAME, Context.MODE_PRIVATE)
+        val savedName = cityPrefs.getString(KEY_SELECTED_CITY_NAME, "مكة المكرمة") ?: "مكة المكرمة"
+        val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)
+
+        if (privatePrefs.getBoolean(KEY_CUSTOM_CITY_ENABLED, false)) {
+            val localCustomName = privatePrefs.getString("$CUSTOM_CITY_PREFIX.name_ar", null)
+            if (localCustomName == savedName) {
+                readStoredCity(privatePrefs, CUSTOM_CITY_PREFIX)?.let { return it }
+            }
+            // A cloud-synced city name changed, or local coordinates are incomplete; discard stale data.
+            val editor = privatePrefs.edit().putBoolean(KEY_CUSTOM_CITY_ENABLED, false)
+            clearStoredCity(editor, CUSTOM_CITY_PREFIX)
+            editor.apply()
+        }
+
+        popularCities.find { it.nameAr == savedName || it.nameEn.equals(savedName, ignoreCase = true) }?.let {
+            return it
+        }
+
+        // On another device, precise coordinates are intentionally absent; use the synced nearest-city index.
+        val fallbackIndex = cityPrefs.getInt(KEY_SYNCED_CITY_INDEX, 0).coerceIn(0, popularCities.lastIndex)
+        return popularCities[fallbackIndex]
     }
 
-    fun saveCity(context: android.content.Context, city: CityLocation) {
-        val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-        prefs.edit().putString("selected_prayer_city_name", city.nameAr).apply()
+    /**
+     * Saves the selected city in the shared app/prayer preferences.
+     * For a GPS-derived city, detailed coordinates remain device-local. The returned flag tells
+     * callers whether prayer alarms need a refresh relative to the last scheduled location.
+     */
+    fun saveCity(context: Context, city: CityLocation): Boolean {
+        val cityPrefs = context.getSharedPreferences(CITY_PREFS_NAME, Context.MODE_PRIVATE)
+        val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
+        val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)
+
+        val lastScheduledCity = readStoredCity(privatePrefs, LAST_SCHEDULED_CITY_PREFIX)
+        val shouldReschedule = lastScheduledCity == null || isMateriallyDifferent(lastScheduledCity, city)
+        val knownCityIndex = popularCities.indexOf(city)
+        val syncedCityIndex = if (knownCityIndex >= 0) knownCityIndex else nearestPopularCityIndex(city)
+
+        if (cityPrefs.getString(KEY_SELECTED_CITY_NAME, null) != city.nameAr ||
+            cityPrefs.getInt(KEY_SYNCED_CITY_INDEX, -1) != syncedCityIndex
+        ) {
+            cityPrefs.edit()
+                .putString(KEY_SELECTED_CITY_NAME, city.nameAr)
+                .putInt(KEY_SYNCED_CITY_INDEX, syncedCityIndex)
+                .apply()
+        }
+        if (prayerPrefs.getInt(KEY_LOCAL_CITY_INDEX, -1) != syncedCityIndex) {
+            prayerPrefs.edit().putInt(KEY_LOCAL_CITY_INDEX, syncedCityIndex).apply()
+        }
+
+        val privateEditor = privatePrefs.edit()
+        if (knownCityIndex >= 0) {
+            privateEditor.putBoolean(KEY_CUSTOM_CITY_ENABLED, false)
+            clearStoredCity(privateEditor, CUSTOM_CITY_PREFIX)
+        } else {
+            privateEditor.putBoolean(KEY_CUSTOM_CITY_ENABLED, true)
+            writeStoredCity(privateEditor, CUSTOM_CITY_PREFIX, city)
+        }
+        privateEditor.apply()
+        return shouldReschedule
+    }
+
+    /**
+     * Persist the city and refresh alarm times only when it materially differs from the last
+     * scheduled location. This prevents GPS updates from re-creating alarms every few minutes.
+     */
+    fun updateSelectedCity(context: Context, city: CityLocation): Boolean {
+        if (!saveCity(context, city)) return false
+
+        return runCatching {
+            PrayerAlarmManager.scheduleAllPrayers(context)
+            val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)
+            val editor = privatePrefs.edit()
+            writeStoredCity(editor, LAST_SCHEDULED_CITY_PREFIX, city)
+            editor.apply()
+            true
+        }.onFailure {
+            Log.w(TAG, "Could not refresh prayer alarms after a city change", it)
+        }.getOrDefault(false)
+    }
+
+    private fun readStoredCity(prefs: SharedPreferences, prefix: String): CityLocation? {
+        val nameAr = prefs.getString("$prefix.name_ar", null)?.takeIf { it.isNotBlank() } ?: return null
+        val nameEn = prefs.getString("$prefix.name_en", null)?.takeIf { it.isNotBlank() } ?: return null
+        val countryAr = prefs.getString("$prefix.country_ar", null)?.takeIf { it.isNotBlank() } ?: return null
+        val latitude = prefs.getString("$prefix.latitude", null)?.toDoubleOrNull() ?: return null
+        val longitude = prefs.getString("$prefix.longitude", null)?.toDoubleOrNull() ?: return null
+        val timezoneOffset = prefs.getString("$prefix.timezone_offset", null)?.toDoubleOrNull() ?: return null
+        val methodName = prefs.getString("$prefix.method", null) ?: return null
+        val method = runCatching { CalculationMethod.valueOf(methodName) }.getOrNull() ?: return null
+
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0 || timezoneOffset !in -14.0..14.0) {
+            return null
+        }
+
+        return CityLocation(nameAr, nameEn, countryAr, latitude, longitude, timezoneOffset, method)
+    }
+
+    private fun writeStoredCity(editor: SharedPreferences.Editor, prefix: String, city: CityLocation) {
+        editor.putString("$prefix.name_ar", city.nameAr)
+            .putString("$prefix.name_en", city.nameEn)
+            .putString("$prefix.country_ar", city.countryAr)
+            .putString("$prefix.latitude", city.latitude.toString())
+            .putString("$prefix.longitude", city.longitude.toString())
+            .putString("$prefix.timezone_offset", city.timeZoneOffsetHours.toString())
+            .putString("$prefix.method", city.defaultMethod.name)
+    }
+
+    private fun clearStoredCity(editor: SharedPreferences.Editor, prefix: String) {
+        listOf("name_ar", "name_en", "country_ar", "latitude", "longitude", "timezone_offset", "method")
+            .forEach { editor.remove("$prefix.$it") }
+    }
+
+    private fun nearestPopularCityIndex(city: CityLocation): Int =
+        popularCities.indices.minByOrNull { distanceKm(city, popularCities[it]) } ?: 0
+
+    private fun isMateriallyDifferent(reference: CityLocation, candidate: CityLocation): Boolean {
+        if (reference.nameAr != candidate.nameAr ||
+            reference.countryAr != candidate.countryAr ||
+            reference.defaultMethod != candidate.defaultMethod
+        ) return true
+
+        if (abs(reference.timeZoneOffsetHours - candidate.timeZoneOffsetHours) >= RESCHEDULE_TIMEZONE_DELTA_HOURS) {
+            return true
+        }
+        return distanceKm(reference, candidate) >= RESCHEDULE_DISTANCE_KM
+    }
+
+    private fun distanceKm(first: CityLocation, second: CityLocation): Double {
+        val firstLatitude = Math.toRadians(first.latitude)
+        val secondLatitude = Math.toRadians(second.latitude)
+        val deltaLatitude = Math.toRadians(second.latitude - first.latitude)
+        val deltaLongitude = Math.toRadians(second.longitude - first.longitude)
+        val haversine = sin(deltaLatitude / 2).pow(2) +
+            cos(firstLatitude) * cos(secondLatitude) * sin(deltaLongitude / 2).pow(2)
+        val centralAngle = 2 * atan2(
+            sqrt(haversine.coerceIn(0.0, 1.0)),
+            sqrt((1.0 - haversine).coerceIn(0.0, 1.0))
+        )
+        return 6_371.0 * centralAngle
     }
 
     private const val KAABA_LAT = 21.422487

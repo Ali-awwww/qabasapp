@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,8 +41,10 @@ fun PrayerCitySelectionDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCountryFilter by remember { mutableStateOf("الكل") }
 
-    val allCountries = remember {
-        listOf("الكل") + PrayerCalculationHelper.popularCities.map { it.countryAr }.distinct().sorted()
+    val allCountries = remember(currentSelectedCity.countryAr) {
+        listOf("الكل") + (PrayerCalculationHelper.popularCities.map { it.countryAr } + currentSelectedCity.countryAr)
+            .distinct()
+            .sorted()
     }
 
     val filteredCities = remember(searchQuery, selectedCountryFilter) {
@@ -58,6 +59,14 @@ fun PrayerCitySelectionDialog(
             matchesSearch && matchesCountry
         }
     }
+    val isCurrentCityCustom = PrayerCalculationHelper.popularCities.none { it == currentSelectedCity }
+    val currentCityMatchesSearch = searchQuery.isBlank() ||
+        currentSelectedCity.nameAr.contains(searchQuery.trim(), ignoreCase = true) ||
+        currentSelectedCity.nameEn.contains(searchQuery.trim(), ignoreCase = true) ||
+        currentSelectedCity.countryAr.contains(searchQuery.trim(), ignoreCase = true)
+    val currentCityMatchesCountry = selectedCountryFilter == "الكل" ||
+        currentSelectedCity.countryAr == selectedCountryFilter
+    val showCurrentLocation = isCurrentCityCustom && currentCityMatchesSearch && currentCityMatchesCountry
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -179,7 +188,7 @@ fun PrayerCitySelectionDialog(
                 HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
 
                 // Cities List
-                if (filteredCities.isEmpty()) {
+                if (filteredCities.isEmpty() && !showCurrentLocation) {
                     Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.LocationOff, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(44.dp))
@@ -193,18 +202,78 @@ fun PrayerCitySelectionDialog(
                         contentPadding = PaddingValues(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        if (showCurrentLocation) {
+                            item(key = "current-location") {
+                                Surface(
+                                    onClick = {
+                                        PrayerCalculationHelper.updateSelectedCity(context, currentSelectedCity)
+                                        onCitySelected(currentSelectedCity)
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = GoldPrimary.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, GoldPrimary),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.size(36.dp).clip(CircleShape).background(GoldPrimary),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.LocationOn,
+                                                    contentDescription = null,
+                                                    tint = DeepSlate,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    "الموقع الحالي",
+                                                    color = GoldPrimary,
+                                                    fontFamily = CairoFont,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp
+                                                )
+                                                Text(
+                                                    "${currentSelectedCity.nameAr} • ${currentSelectedCity.countryAr}",
+                                                    color = Color(0xFF94A3B8),
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
+                                        Surface(color = GoldPrimary, shape = RoundedCornerShape(6.dp)) {
+                                            Text(
+                                                "مختارة ✓",
+                                                color = DeepSlate,
+                                                fontSize = 9.sp,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         items(filteredCities, key = { it.nameAr + it.countryAr }) { city ->
-                            val isCurrent = city.nameAr == currentSelectedCity.nameAr && city.countryAr == currentSelectedCity.countryAr
+                            val isCurrent = city == currentSelectedCity
                             val (qiblaAngle, distanceKm) = remember(city) {
                                 PrayerCalculationHelper.calculateQibla(city.latitude, city.longitude)
                             }
 
                             Surface(
                                 onClick = {
-                                    PrayerCalculationHelper.saveCity(context, city)
-                                    val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
-                                    val cityIdx = PrayerCalculationHelper.popularCities.indexOfFirst { it.nameAr == city.nameAr }.coerceAtLeast(0)
-                                    prayerPrefs.edit().putInt("selected_city_index", cityIdx).apply()
+                                    PrayerCalculationHelper.updateSelectedCity(context, city)
                                     onCitySelected(city)
                                 },
                                 shape = RoundedCornerShape(12.dp),
