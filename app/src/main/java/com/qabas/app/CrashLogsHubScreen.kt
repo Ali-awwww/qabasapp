@@ -128,6 +128,7 @@ fun CrashLogsHubScreen(
     onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -148,7 +149,7 @@ fun CrashLogsHubScreen(
     var liveTelemetry by remember { mutableStateOf<SystemLiveTelemetry?>(null) }
 
     // Defence in depth: this screen is also reachable through health/navigation routes.
-    val crashTelemetryAccessAllowed = remember { AdminGuard.isCrashTelemetryAccessAllowed() }
+    val crashTelemetryAccessAllowed = remember(supabaseAuthUser) { AdminGuard.isCrashTelemetryAccessAllowed() }
     if (!crashTelemetryAccessAllowed) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
