@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -79,6 +80,7 @@ fun AudioLibraryScreen(
     // Real Download Progress State
     var activeDownloadTrackTitle by remember { mutableStateOf<String?>(null) }
     var activeDownloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
+    var activeDownloadJob by remember { mutableStateOf<Job?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -213,15 +215,20 @@ fun AudioLibraryScreen(
             HudCornerDecor(modifier = Modifier.fillMaxSize().padding(12.dp), color = primaryColor.copy(alpha = 0.15f))
 
             fun triggerDownload(url: String, title: String) {
+                activeDownloadJob?.cancel()
                 activeDownloadTrackTitle = title
                 activeDownloadProgress = DownloadProgress(percent = 0.05f)
-                coroutineScope.launch {
-                    AudioDownloadHelper.downloadAudioWithProgress(
-                        context = context,
-                        audioUrl = url,
-                        title = title
-                    ) { p ->
-                        activeDownloadProgress = p
+                activeDownloadJob = coroutineScope.launch {
+                    try {
+                        AudioDownloadHelper.downloadAudioWithProgress(
+                            context = context,
+                            audioUrl = url,
+                            title = title
+                        ) { p ->
+                            activeDownloadProgress = p
+                        }
+                    } finally {
+                        activeDownloadJob = null
                     }
                 }
             }
@@ -301,6 +308,8 @@ fun AudioLibraryScreen(
             trackTitle = activeDownloadTrackTitle!!,
             progress = activeDownloadProgress!!,
             onCancelOrDismiss = {
+                if (activeDownloadJob?.isActive == true) activeDownloadJob?.cancel()
+                activeDownloadJob = null
                 activeDownloadTrackTitle = null
                 activeDownloadProgress = null
             }
