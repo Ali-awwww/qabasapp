@@ -70,16 +70,23 @@ object PrayerLocationProvider {
                 "AE" -> CalculationMethod.DUBAI
                 else -> CalculationMethod.MUSLIM_WORLD_LEAGUE
             }
-            val offset = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 3_600_000.0
+            val geocodedCityNameEn = address?.locality ?: address?.subAdminArea ?: "Current location"
+            val matchingPopularCity = PrayerCalculationHelper.popularCities.firstOrNull {
+                it.nameEn.equals(geocodedCityNameEn, ignoreCase = true) || it.nameAr == cityName
+            }
+            val cityTimeZone = matchingPopularCity?.let { PrayerCalculationHelper.timeZoneFor(it) }
+                ?: TimeZone.getDefault()
+            val offset = cityTimeZone.getOffset(System.currentTimeMillis()) / 3_600_000.0
 
             CityLocation(
                 nameAr = cityName,
-                nameEn = address?.locality ?: address?.subAdminArea ?: "Current location",
+                nameEn = geocodedCityNameEn,
                 countryAr = countryName,
                 latitude = location.latitude,
                 longitude = location.longitude,
                 timeZoneOffsetHours = offset,
-                defaultMethod = method
+                defaultMethod = method,
+                timeZoneId = cityTimeZone.id
             )
         }
 }
