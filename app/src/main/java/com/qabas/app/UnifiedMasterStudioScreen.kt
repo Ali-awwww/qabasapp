@@ -79,6 +79,7 @@ fun UnifiedMasterStudioScreen(
     var isGeneratingMasterpiece by rememberSaveable { mutableStateOf(false) }
     var generationStage by rememberSaveable { mutableStateOf("") }
     var generationProgress by rememberSaveable { mutableFloatStateOf(0f) }
+    var showProductionApproval by rememberSaveable { mutableStateOf(false) }
 
     // 3. المخرجات الموحدة للعمل المتقن
     var generatedScenes by remember { mutableStateOf<List<Scene>>(emptyList()) }
@@ -327,7 +328,7 @@ fun UnifiedMasterStudioScreen(
                 },
                 actions = {
                     if (generatedScenes.isNotEmpty()) {
-                        IconButton(onClick = { launchMasterpieceGeneration() }) {
+                        IconButton(onClick = { showProductionApproval = true }) {
                             Icon(Icons.Default.Refresh, contentDescription = "إعادة التوليد", tint = primaryColor, modifier = Modifier.size(20.dp))
                         }
                     }
@@ -591,8 +592,8 @@ fun UnifiedMasterStudioScreen(
 
                     // Master Action Launch Button
                     Button(
-                        onClick = { launchMasterpieceGeneration() },
-                        enabled = !isGeneratingMasterpiece,
+                        onClick = { showProductionApproval = true },
+                        enabled = !isGeneratingMasterpiece && topicText.isNotBlank(),
                         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("masterpiece_launch_button"),
                         shape = CutCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor, disabledContainerColor = Color(0xFF1E293B))
@@ -741,6 +742,46 @@ fun UnifiedMasterStudioScreen(
                 }
             }
         }
+    }
+
+    if (showProductionApproval) {
+        AlertDialog(
+            onDismissRequest = { showProductionApproval = false },
+            containerColor = Color(0xFF0B132B),
+            title = {
+                Text("مراجعة واعتماد إعدادات الإنتاج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("الموضوع: $topicText", color = Color(0xFFE2E8F0), fontFamily = CairoFont)
+                    Text("الأبعاد: $selectedRatio", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                    Text("النبرة: $selectedTone", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                    Text("الصوت: ${voiceOptions.firstOrNull { it.first == selectedVoice }?.second ?: selectedVoice}", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                    Text("المحرك البصري: ${if (selectedVisualEngine == \"higgsfield\") \"Higgsfield AI\" else \"FLUX.1\"}", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                    if (selectedVisualEngine == "higgsfield") {
+                        Text("حركة الكاميرا: $selectedCameraMotion", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                    }
+                    Divider(color = Color(0xFF334155))
+                    Text(
+                        "لن يبدأ التوليد قبل اعتمادك. قد يترتب على استخدام مزود خارجي رسوم أو استهلاك رصيد وفق حسابك وإعدادات المزود؛ تحقق منها قبل المتابعة.",
+                        color = Color(0xFFFBBF24), fontFamily = CairoFont, fontSize = 12.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showProductionApproval = false
+                    launchMasterpieceGeneration()
+                }) {
+                    Text("اعتماد وبدء الإنتاج", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProductionApproval = false }) {
+                    Text("عودة للتعديل", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                }
+            }
+        )
     }
 }
 
