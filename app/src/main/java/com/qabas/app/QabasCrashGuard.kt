@@ -252,12 +252,12 @@ object QabasCrashGuard {
             )
             lastRecorded = maxOf(lastRecorded, info.timestamp)
         }
-        if (lastRecorded > 0L) {
-            prefs.edit()
-                .putLong("crash_guard_last_exit_recorded_ts", lastRecorded)
-                .putLong(PREF_LAST_EXIT_SCAN_TS, now)
-                .apply()
-        }
+        // Record the scan time even when Android has no new supported exit
+        // reasons; otherwise every launch repeats the same empty history scan.
+        prefs.edit()
+            .putLong("crash_guard_last_exit_recorded_ts", lastRecorded)
+            .putLong(PREF_LAST_EXIT_SCAN_TS, now)
+            .apply()
     }
 
     /**
