@@ -67,7 +67,8 @@ object PrayerAlarmManager {
         }
 
         val city = PrayerCalculationHelper.getSavedCity(context)
-        val now = Calendar.getInstance()
+        val cityTimeZone = PrayerCalculationHelper.timeZoneFor(city)
+        val now = Calendar.getInstance(cityTimeZone)
         val todayTimes = PrayerCalculationHelper.calculatePrayerTimes(now, city, city.defaultMethod)
 
         val tomorrowCal = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
@@ -75,13 +76,21 @@ object PrayerAlarmManager {
 
         // جدول كل الصلوات — التحقق من تمكين كل صلاة يتم داخل scheduleSinglePrayer
         // (مصدر الحقيقة الوحيد: qabas_prayer_prefs / notify_<key>) مع إلغاء المنبه المعطّل.
-        scheduleSinglePrayer(context, PRAYER_FAJR, todayTimes.fajr, tomorrowTimes.fajr, "صلاة الفجر")
-        scheduleSinglePrayer(context, PRAYER_SUNRISE, todayTimes.sunrise, tomorrowTimes.sunrise, "شروق الشمس")
-        scheduleSinglePrayer(context, PRAYER_DHUHR, todayTimes.dhuhr, tomorrowTimes.dhuhr, "صلاة الظهر")
-        scheduleSinglePrayer(context, PRAYER_ASR, todayTimes.asr, tomorrowTimes.asr, "صلاة العصر")
-        scheduleSinglePrayer(context, PRAYER_MAGHRIB, todayTimes.maghrib, tomorrowTimes.maghrib, "صلاة المغرب")
-        scheduleSinglePrayer(context, PRAYER_ISHA, todayTimes.isha, tomorrowTimes.isha, "صلاة العشاء")
-        scheduleSinglePrayer(context, PRAYER_SUHUR, todayTimes.qiyamStart, tomorrowTimes.qiyamStart, "قيام الليل والسحر")
+        scheduleSinglePrayer(context, PRAYER_FAJR, todayTimes.fajr, tomorrowTimes.fajr, "صلاة الفجر", city)
+        scheduleSinglePrayer(context, PRAYER_SUNRISE, todayTimes.sunrise, tomorrowTimes.sunrise, "شروق الشمس", city)
+        scheduleSinglePrayer(context, PRAYER_DHUHR, todayTimes.dhuhr, tomorrowTimes.dhuhr, "صلاة الظهر", city)
+        scheduleSinglePrayer(context, PRAYER_ASR, todayTimes.asr, tomorrowTimes.asr, "صلاة العصر", city)
+        scheduleSinglePrayer(context, PRAYER_MAGHRIB, todayTimes.maghrib, tomorrowTimes.maghrib, "صلاة المغرب", city)
+        scheduleSinglePrayer(context, PRAYER_ISHA, todayTimes.isha, tomorrowTimes.isha, "صلاة العشاء", city)
+        scheduleSinglePrayer(
+            context,
+            PRAYER_SUHUR,
+            todayTimes.qiyamStart,
+            tomorrowTimes.qiyamStart,
+            "قيام الليل والسحر",
+            city,
+            isOvernight = true
+        )
 
         // شغّل عدّاد الأذان الثابت بعد كل جدولة ناجحة
         try { AzanCountdownService.start(context) } catch (_: Exception) {}
@@ -102,7 +111,9 @@ object PrayerAlarmManager {
         prayerKey: String,
         todayTimeStr: String,
         tomorrowTimeStr: String,
-        prayerArabicName: String
+        prayerArabicName: String,
+        city: CityLocation,
+        isOvernight: Boolean = false
     ) {
         val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
         val isPrayerEnabled = prayerPrefs.getBoolean("notify_$prayerKey", true)
@@ -114,17 +125,28 @@ object PrayerAlarmManager {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val nowMillis = System.currentTimeMillis()
 
-        val targetCal = parseTimeToCalendar(todayTimeStr)
-        val isToday = targetCal.timeInMillis > nowMillis
-
-        val triggerMillis = if (isToday) {
-            targetCal.timeInMillis
-        } else {
-            val tomorrowCal = parseTimeToCalendar(tomorrowTimeStr).apply {
-                add(Calendar.DAY_OF_YEAR, 1)
+        val triggerMillis = runCatching {
+            if (isOvernight) {
+                PrayerCalculationHelper.calendarForPrayerTime(todayTimeStr, nowMillis, city, dayOffset = 1)
+                    .timeInMillis
+            } else {
+                val targetCal = PrayerCalculationHelper.calendarForPrayerTime(todayTimeStr, nowMillis, city)
+                if (targetCal.timeInMillis > nowMillis) {
+                    targetCal.timeInMillis
+                } else {
+                    PrayerCalculationHelper.calendarForPrayerTime(
+                        tomorrowTimeStr,
+                        nowMillis,
+                        city,
+                        dayOffset = 1
+                    ).timeInMillis
+                }
             }
-            tomorrowCal.timeInMillis
-        }
+        }.onFailure {
+            Log.e(TAG, "Could not resolve $prayerKey prayer time in ${city.nameAr}", it)
+            cancelPrayerAlarm(context, prayerKey)
+        }.getOrNull() ?: return
+
 
         val soundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
         val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
@@ -204,21 +226,4 @@ object PrayerAlarmManager {
         }
     }
 
-    private fun parseTimeToCalendar(timeStr: String): Calendar {
-        val cal = Calendar.getInstance()
-        try {
-            val parts = timeStr.trim().split(":")
-            if (parts.size >= 2) {
-                val hour = parts[0].toInt()
-                val min = parts[1].toInt()
-                cal.set(Calendar.HOUR_OF_DAY, hour)
-                cal.set(Calendar.MINUTE, min)
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing prayer time '$timeStr': ${e.message}")
-        }
-        return cal
-    }
 }
