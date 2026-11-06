@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.content.Context
 import android.text.Html
-import java.util.zip.GZIPInputStream
 import org.json.JSONObject
 
 /**
@@ -12,7 +11,7 @@ import org.json.JSONObject
 object QabasQuranData {
     fun load(context: Context): List<QabasTipItem> {
         val versesByKey = HashMap<Pair<Int, Int>, QuranVerse>(6500)
-        val mushafRoot = JSONObject(readGzipAsset(context, "quran/mushafs-1.json.gz"))
+        val mushafRoot = JSONObject(readAsset(context, "quran/mushafs-1.json"))
         val surahs = mushafRoot.getJSONObject("data").getJSONArray("surahs")
 
         for (surahIndex in 0 until surahs.length()) {
@@ -31,7 +30,7 @@ object QabasQuranData {
             }
         }
 
-        val tafsirRoot = JSONObject(readGzipAsset(context, "quran/tafsir-book-32.json.gz"))
+        val tafsirRoot = JSONObject(readAsset(context, "quran/tafsir-book-32.json"))
         val tafsirRows = tafsirRoot.getJSONArray("ayahs")
         val result = ArrayList<QabasTipItem>(tafsirRows.length())
 
@@ -63,8 +62,8 @@ object QabasQuranData {
         return result.shuffled()
     }
 
-    private fun readGzipAsset(context: Context, assetPath: String): String =
-        GZIPInputStream(context.assets.open(assetPath)).bufferedReader(Charsets.UTF_8).use {
+    private fun readAsset(context: Context, assetPath: String): String =
+        context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).use {
             it.readText()
         }
 
