@@ -39,10 +39,7 @@ fun QabasApp() {
     }
 
     DisposableEffect(Unit) {
-        val server = LocalApiServer(context)
-        server.start(8080)
         onDispose {
-            server.stop()
             AudioPlayerManager.stopAudio()
         }
     }

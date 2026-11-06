@@ -11,7 +11,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ApiServerSettingsSection() {
@@ -22,8 +24,13 @@ fun ApiServerSettingsSection() {
     var serverPort by remember { mutableIntStateOf(AgentPrefs.getInt(context, "api_server_port", 8080)) }
     var apiKey by remember { mutableStateOf(AgentPrefs.getString(context, "api_server_key", generateApiKey()).takeIf{it.isNotBlank()} ?: generateApiKey()) }
     var showInstructions by remember { mutableStateOf(false) }
+    var serverError by remember { mutableStateOf<String?>(null) }
     
     val server = remember { LocalApiServer(context) { AgentPrefs.getString(context, "api_server_key") } }
+
+    DisposableEffect(server) {
+        onDispose { server.stop() }
+    }
     
     Card(
         colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -80,13 +87,23 @@ fun ApiServerSettingsSection() {
             Button(
                 onClick = {
                     scope.launch {
+                        serverError = null
                         if (isServerRunning) {
-                            server.stop()
+                            withContext(Dispatchers.IO) { server.stop() }
                             isServerRunning = false
                         } else {
-                            server.start(serverPort)
-                            isServerRunning = true
-                            showInstructions = true
+                            try {
+                                withContext(Dispatchers.IO) { server.start(serverPort) }
+                                isServerRunning = true
+                                showInstructions = true
+                            } catch (e: Exception) {
+                                isServerRunning = false
+                                serverError = if (e is java.net.BindException) {
+                                    "المنفذ $serverPort مستخدم بالفعل. أوقف الخدمة الأخرى أو اختر منفذًا مختلفًا."
+                                } else {
+                                    "تعذر تشغيل الخادم: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                                }
+                            }
                         }
                     }
                 },
@@ -100,6 +117,16 @@ fun ApiServerSettingsSection() {
                     if (isServerRunning) "⏹ إيقاف الخادم" else "▶ تشغيل الخادم",
                     color = if (isServerRunning) androidx.compose.ui.graphics.Color.White else DeepSlate,
                     fontWeight = FontWeight.Bold
+                )
+            }
+            
+            serverError?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    message,
+                    color = androidx.compose.ui.graphics.Color.Red,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp
                 )
             }
             
