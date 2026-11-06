@@ -441,17 +441,20 @@ fun AudioLibrarySection(
 
     val categories = remember {
         listOf(
-            "الكل 🌐",
-            "الشيخ سمير مصطفى 🎙️",
-            "تلاوات قرآنية 📖",
-            "دروس ومحاضرات 🎓",
-            "طبيعة وهدوء 🌿",
-            "مؤثرات (SFX) ⚡",
-            "آهات وقورة 👤",
-            "أناشيد 🎵",
-            "المطور 🛠️"
+            "الكل",
+            "القرآن الكريم",
+            "الخطب المنبرية",
+            "المحاضرات الإسلامية",
+            "الدروس العلمية",
+            "الأذكار والأدعية",
+            "الأناشيد الإسلامية",
+            "القصص الإسلامية",
+            "صوتيات الأطفال",
+            "السيرة النبوية",
+            "الكتب الصوتية"
         )
     }
+    var showCategoryMenu by remember { mutableStateOf(false) }
 
     fun loadRealTracks() {
         isLoading = true
@@ -604,33 +607,40 @@ fun AudioLibrarySection(
             }
         }
 
-        // Categories Chips
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 14.dp)
+        // Category selector: compact Glass-style dropdown instead of permanently visible chips
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 14.dp),
+            contentAlignment = Alignment.CenterEnd
         ) {
-            items(categories) { cat ->
-                FilterChip(
-                    selected = selectedCategory == cat,
-                    onClick = { selectedCategory = cat },
-                    label = {
-                        Text(
-                            text = cat,
-                            fontFamily = CairoFont,
-                            fontWeight = if (selectedCategory == cat) FontWeight.ExtraBold else FontWeight.Medium,
-                            fontSize = 11.5.sp
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color(0xFF1E293B).copy(alpha = 0.4f),
-                        labelColor = Color.White.copy(alpha = 0.7f),
-                        selectedContainerColor = primaryColor.copy(alpha = 0.2f),
-                        selectedLabelColor = primaryColor
-                    ),
-                    border = BorderStroke(1.dp, if (selectedCategory == cat) primaryColor else Color(0xFF1E293B)),
-                    shape = RoundedCornerShape(12.dp)
+            OutlinedButton(
+                onClick = { showCategoryMenu = true },
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color(0xFF0B172A).copy(alpha = 0.72f),
+                    contentColor = primaryColor
                 )
+            ) {
+                Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("التصنيفات: $selectedCategory", fontFamily = CairoFont, fontSize = 12.sp)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.ExpandMore, contentDescription = null)
+            }
+            DropdownMenu(
+                expanded = showCategoryMenu,
+                onDismissRequest = { showCategoryMenu = false },
+                modifier = Modifier.background(Color(0xFF0B172A))
+            ) {
+                categories.forEach { category ->
+                    DropdownMenuItem(
+                        text = { Text(category, fontFamily = CairoFont, color = Color.White) },
+                        onClick = {
+                            selectedCategory = category
+                            showCategoryMenu = false
+                        }
+                    )
+                }
             }
         }
 
