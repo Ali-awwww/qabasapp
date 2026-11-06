@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import java.util.Calendar
 import java.util.Locale
+import java.util.SimpleTimeZone
 import java.util.TimeZone
 import kotlin.math.*
 
@@ -27,7 +28,8 @@ data class CityLocation(
     val latitude: Double,
     val longitude: Double,
     val timeZoneOffsetHours: Double,
-    val defaultMethod: CalculationMethod = CalculationMethod.UMM_AL_QURA
+    val defaultMethod: CalculationMethod = CalculationMethod.UMM_AL_QURA,
+    val timeZoneId: String? = null
 )
 
 data class CalculatedPrayerTimes(
@@ -50,43 +52,43 @@ data class CalculatedPrayerTimes(
 object PrayerCalculationHelper {
 
     val popularCities = listOf(
-        CityLocation("مكة المكرمة", "Makkah", "السعودية", 21.4225, 39.8262, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("المدينة المنورة", "Madinah", "السعودية", 24.4672, 39.6111, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("الرياض", "Riyadh", "السعودية", 24.7136, 46.6753, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("جدة", "Jeddah", "السعودية", 21.5433, 39.1728, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("القاهرة", "Cairo", "مصر", 30.0444, 31.2357, 2.0, CalculationMethod.EGYPTIAN),
-        CityLocation("الإسكندرية", "Alexandria", "مصر", 31.2001, 29.9187, 2.0, CalculationMethod.EGYPTIAN),
-        CityLocation("القدس الشريف", "Jerusalem", "فلسطين", 31.7683, 35.2137, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("غزة", "Gaza", "فلسطين", 31.5017, 34.4668, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("دمشق", "Damascus", "سوريا", 33.5138, 36.2765, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("بغداد", "Baghdad", "العراق", 33.3152, 44.3661, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("أبوظبي", "Abu Dhabi", "الإمارات", 24.4539, 54.3773, 4.0, CalculationMethod.DUBAI),
-        CityLocation("دبي", "Dubai", "الإمارات", 25.2048, 55.2708, 4.0, CalculationMethod.DUBAI),
-        CityLocation("الكويت", "Kuwait", "الكويت", 29.3759, 47.9774, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("الدوحة", "Doha", "قطر", 25.2854, 51.5310, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("المنامة", "Manama", "البحرين", 26.2285, 50.5860, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("مسقط", "Muscat", "عُمان", 23.5880, 58.3829, 4.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("صنعاء", "Sanaa", "اليمن", 15.3694, 44.1910, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("عدن", "Aden", "اليمن", 12.7855, 45.0187, 3.0, CalculationMethod.UMM_AL_QURA),
-        CityLocation("عمّان", "Amman", "الأردن", 31.9454, 35.9284, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("بيروت", "Beirut", "لبنان", 33.8938, 35.5018, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("الرباط", "Rabat", "المغرب", 34.0209, -6.8416, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("الدار البيضاء", "Casablanca", "المغرب", 33.5731, -7.5898, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("الجزائر", "Algiers", "الجزائر", 36.7538, 3.0588, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("تونس", "Tunis", "تونس", 36.8065, 10.1815, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("طرابلس", "Tripoli", "ليبيا", 32.8872, 13.1913, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("الخرطوم", "Khartoum", "السودان", 15.5007, 32.5599, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("نواكشوط", "Nouakchott", "موريتانيا", 18.0735, -15.9582, 0.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("مقديشو", "Mogadishu", "الصومال", 2.0469, 45.3182, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("إسطنبول", "Istanbul", "تركيا", 41.0082, 28.9784, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("جاكرتا", "Jakarta", "إندونيسيا", -6.2088, 106.8456, 7.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("كوالالمبور", "Kuala Lumpur", "ماليزيا", 3.1390, 101.6869, 8.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("لندن", "London", "المملكة المتحدة", 51.5074, -0.1278, 0.0, CalculationMethod.ISNA),
-        CityLocation("باريس", "Paris", "فرنسا", 48.8566, 2.3522, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("برلين", "Berlin", "ألمانيا", 52.5200, 13.4050, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE),
-        CityLocation("نيويورك", "New York", "الولايات المتحدة", 40.7128, -74.0060, -5.0, CalculationMethod.ISNA),
-        CityLocation("تورونتو", "Toronto", "كندا", 43.6532, -79.3832, -5.0, CalculationMethod.ISNA),
-        CityLocation("سيدني", "Sydney", "أستراليا", -33.8688, 151.2093, 10.0, CalculationMethod.MUSLIM_WORLD_LEAGUE)
+        CityLocation("مكة المكرمة", "Makkah", "السعودية", 21.4225, 39.8262, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Riyadh"),
+        CityLocation("المدينة المنورة", "Madinah", "السعودية", 24.4672, 39.6111, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Riyadh"),
+        CityLocation("الرياض", "Riyadh", "السعودية", 24.7136, 46.6753, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Riyadh"),
+        CityLocation("جدة", "Jeddah", "السعودية", 21.5433, 39.1728, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Riyadh"),
+        CityLocation("القاهرة", "Cairo", "مصر", 30.0444, 31.2357, 2.0, CalculationMethod.EGYPTIAN, "Africa/Cairo"),
+        CityLocation("الإسكندرية", "Alexandria", "مصر", 31.2001, 29.9187, 2.0, CalculationMethod.EGYPTIAN, "Africa/Cairo"),
+        CityLocation("القدس الشريف", "Jerusalem", "فلسطين", 31.7683, 35.2137, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Jerusalem"),
+        CityLocation("غزة", "Gaza", "فلسطين", 31.5017, 34.4668, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Gaza"),
+        CityLocation("دمشق", "Damascus", "سوريا", 33.5138, 36.2765, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Damascus"),
+        CityLocation("بغداد", "Baghdad", "العراق", 33.3152, 44.3661, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Baghdad"),
+        CityLocation("أبوظبي", "Abu Dhabi", "الإمارات", 24.4539, 54.3773, 4.0, CalculationMethod.DUBAI, "Asia/Dubai"),
+        CityLocation("دبي", "Dubai", "الإمارات", 25.2048, 55.2708, 4.0, CalculationMethod.DUBAI, "Asia/Dubai"),
+        CityLocation("الكويت", "Kuwait", "الكويت", 29.3759, 47.9774, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Kuwait"),
+        CityLocation("الدوحة", "Doha", "قطر", 25.2854, 51.5310, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Qatar"),
+        CityLocation("المنامة", "Manama", "البحرين", 26.2285, 50.5860, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Bahrain"),
+        CityLocation("مسقط", "Muscat", "عُمان", 23.5880, 58.3829, 4.0, CalculationMethod.UMM_AL_QURA, "Asia/Muscat"),
+        CityLocation("صنعاء", "Sanaa", "اليمن", 15.3694, 44.1910, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Aden"),
+        CityLocation("عدن", "Aden", "اليمن", 12.7855, 45.0187, 3.0, CalculationMethod.UMM_AL_QURA, "Asia/Aden"),
+        CityLocation("عمّان", "Amman", "الأردن", 31.9454, 35.9284, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Amman"),
+        CityLocation("بيروت", "Beirut", "لبنان", 33.8938, 35.5018, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Beirut"),
+        CityLocation("الرباط", "Rabat", "المغرب", 34.0209, -6.8416, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Casablanca"),
+        CityLocation("الدار البيضاء", "Casablanca", "المغرب", 33.5731, -7.5898, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Casablanca"),
+        CityLocation("الجزائر", "Algiers", "الجزائر", 36.7538, 3.0588, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Algiers"),
+        CityLocation("تونس", "Tunis", "تونس", 36.8065, 10.1815, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Tunis"),
+        CityLocation("طرابلس", "Tripoli", "ليبيا", 32.8872, 13.1913, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Tripoli"),
+        CityLocation("الخرطوم", "Khartoum", "السودان", 15.5007, 32.5599, 2.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Khartoum"),
+        CityLocation("نواكشوط", "Nouakchott", "موريتانيا", 18.0735, -15.9582, 0.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Nouakchott"),
+        CityLocation("مقديشو", "Mogadishu", "الصومال", 2.0469, 45.3182, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Africa/Mogadishu"),
+        CityLocation("إسطنبول", "Istanbul", "تركيا", 41.0082, 28.9784, 3.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Europe/Istanbul"),
+        CityLocation("جاكرتا", "Jakarta", "إندونيسيا", -6.2088, 106.8456, 7.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Jakarta"),
+        CityLocation("كوالالمبور", "Kuala Lumpur", "ماليزيا", 3.1390, 101.6869, 8.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Asia/Kuala_Lumpur"),
+        CityLocation("لندن", "London", "المملكة المتحدة", 51.5074, -0.1278, 0.0, CalculationMethod.ISNA, "Europe/London"),
+        CityLocation("باريس", "Paris", "فرنسا", 48.8566, 2.3522, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Europe/Paris"),
+        CityLocation("برلين", "Berlin", "ألمانيا", 52.5200, 13.4050, 1.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Europe/Berlin"),
+        CityLocation("نيويورك", "New York", "الولايات المتحدة", 40.7128, -74.0060, -5.0, CalculationMethod.ISNA, "America/New_York"),
+        CityLocation("تورونتو", "Toronto", "كندا", 43.6532, -79.3832, -5.0, CalculationMethod.ISNA, "America/Toronto"),
+        CityLocation("سيدني", "Sydney", "أستراليا", -33.8688, 151.2093, 10.0, CalculationMethod.MUSLIM_WORLD_LEAGUE, "Australia/Sydney")
     )
 
     private const val TAG = "PrayerCalculationHelper"
@@ -102,6 +104,59 @@ object PrayerCalculationHelper {
     private const val LAST_SCHEDULED_CITY_PREFIX = "last_scheduled_city"
     private const val RESCHEDULE_DISTANCE_KM = 5.0
     private const val RESCHEDULE_TIMEZONE_DELTA_HOURS = 0.25
+    private val timeZoneCache = mutableMapOf<String, TimeZone>()
+    private val utcTimeZone = TimeZone.getTimeZone("UTC")
+    private val tomorrowFajrCache = mutableMapOf<TomorrowFajrCacheKey, String>()
+
+    /** Resolve the selected city's civil time zone, falling back to its saved fixed offset. */
+    fun timeZoneFor(location: CityLocation): TimeZone {
+        val zoneId = location.timeZoneId?.trim()?.takeIf { it.isNotEmpty() }
+        val offsetMillis = (location.timeZoneOffsetHours * 3_600_000.0).roundToInt()
+        val cacheKey = "${zoneId.orEmpty()}|$offsetMillis"
+
+        return synchronized(timeZoneCache) {
+            timeZoneCache.getOrPut(cacheKey) {
+                if (zoneId != null) {
+                    val resolved = TimeZone.getTimeZone(zoneId)
+                    if (resolved.id != "GMT" || zoneId == "GMT" || zoneId.startsWith("GMT")) {
+                        resolved
+                    } else {
+                        SimpleTimeZone(offsetMillis, "Qabas-${location.nameEn}")
+                    }
+                } else {
+                    SimpleTimeZone(offsetMillis, "Qabas-${location.nameEn}")
+                }
+            }
+        }
+    }
+
+    /** Build an alarm instant for a wall-clock prayer time on the selected city's date. */
+    fun calendarForPrayerTime(
+        timeString: String,
+        referenceMillis: Long,
+        location: CityLocation,
+        dayOffset: Int = 0
+    ): Calendar {
+        val parts = timeString.trim().split(":")
+        require(parts.size == 2) { "Invalid prayer time: $timeString" }
+        val hour = parts[0].toIntOrNull()?.takeIf { it in 0..23 }
+            ?: throw IllegalArgumentException("Invalid prayer hour: $timeString")
+        val minute = parts[1].toIntOrNull()?.takeIf { it in 0..59 }
+            ?: throw IllegalArgumentException("Invalid prayer minute: $timeString")
+
+        return Calendar.getInstance(timeZoneFor(location)).apply {
+            timeInMillis = referenceMillis
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_YEAR, dayOffset)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+    }
 
     fun getSavedCity(context: Context): CityLocation {
         val cityPrefs = context.getSharedPreferences(CITY_PREFS_NAME, Context.MODE_PRIVATE)
@@ -111,7 +166,22 @@ object PrayerCalculationHelper {
         if (privatePrefs.getBoolean(KEY_CUSTOM_CITY_ENABLED, false)) {
             val localCustomName = privatePrefs.getString("$CUSTOM_CITY_PREFIX.name_ar", null)
             if (localCustomName == savedName) {
-                readStoredCity(privatePrefs, CUSTOM_CITY_PREFIX)?.let { return it }
+                readStoredCity(privatePrefs, CUSTOM_CITY_PREFIX)?.let { stored ->
+                    if (stored.timeZoneId != null) return stored
+
+                    // Migrate legacy GPS locations to a named zone when possible; otherwise use the device zone.
+                    val matchingCity = popularCities.firstOrNull {
+                        it.nameEn.equals(stored.nameEn, ignoreCase = true) || it.nameAr == stored.nameAr
+                    }
+                    val migrated = stored.copy(
+                        timeZoneOffsetHours = matchingCity?.timeZoneOffsetHours ?: stored.timeZoneOffsetHours,
+                        timeZoneId = matchingCity?.timeZoneId ?: TimeZone.getDefault().id
+                    )
+                    privatePrefs.edit().also {
+                        writeStoredCity(it, CUSTOM_CITY_PREFIX, migrated)
+                    }.apply()
+                    return migrated
+                }
             }
             // A cloud-synced city name changed, or local coordinates are incomplete; discard stale data.
             val editor = privatePrefs.edit().putBoolean(KEY_CUSTOM_CITY_ENABLED, false)
@@ -177,8 +247,11 @@ object PrayerCalculationHelper {
         return runCatching {
             PrayerAlarmManager.scheduleAllPrayers(context)
             val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)
+            val scheduledCity = city.copy(
+                timeZoneOffsetHours = timeZoneFor(city).getOffset(System.currentTimeMillis()) / 3_600_000.0
+            )
             val editor = privatePrefs.edit()
-            writeStoredCity(editor, LAST_SCHEDULED_CITY_PREFIX, city)
+            writeStoredCity(editor, LAST_SCHEDULED_CITY_PREFIX, scheduledCity)
             editor.apply()
             true
         }.onFailure {
@@ -195,12 +268,13 @@ object PrayerCalculationHelper {
         val timezoneOffset = prefs.getString("$prefix.timezone_offset", null)?.toDoubleOrNull() ?: return null
         val methodName = prefs.getString("$prefix.method", null) ?: return null
         val method = runCatching { CalculationMethod.valueOf(methodName) }.getOrNull() ?: return null
+        val timeZoneId = prefs.getString("$prefix.timezone_id", null)?.takeIf { it.isNotBlank() }
 
         if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0 || timezoneOffset !in -14.0..14.0) {
             return null
         }
 
-        return CityLocation(nameAr, nameEn, countryAr, latitude, longitude, timezoneOffset, method)
+        return CityLocation(nameAr, nameEn, countryAr, latitude, longitude, timezoneOffset, method, timeZoneId)
     }
 
     private fun writeStoredCity(editor: SharedPreferences.Editor, prefix: String, city: CityLocation) {
@@ -210,11 +284,12 @@ object PrayerCalculationHelper {
             .putString("$prefix.latitude", city.latitude.toString())
             .putString("$prefix.longitude", city.longitude.toString())
             .putString("$prefix.timezone_offset", city.timeZoneOffsetHours.toString())
+            .putString("$prefix.timezone_id", city.timeZoneId)
             .putString("$prefix.method", city.defaultMethod.name)
     }
 
     private fun clearStoredCity(editor: SharedPreferences.Editor, prefix: String) {
-        listOf("name_ar", "name_en", "country_ar", "latitude", "longitude", "timezone_offset", "method")
+        listOf("name_ar", "name_en", "country_ar", "latitude", "longitude", "timezone_offset", "timezone_id", "method")
             .forEach { editor.remove("$prefix.$it") }
     }
 
@@ -224,10 +299,12 @@ object PrayerCalculationHelper {
     private fun isMateriallyDifferent(reference: CityLocation, candidate: CityLocation): Boolean {
         if (reference.nameAr != candidate.nameAr ||
             reference.countryAr != candidate.countryAr ||
-            reference.defaultMethod != candidate.defaultMethod
+            reference.defaultMethod != candidate.defaultMethod ||
+            reference.timeZoneId != candidate.timeZoneId
         ) return true
 
-        if (abs(reference.timeZoneOffsetHours - candidate.timeZoneOffsetHours) >= RESCHEDULE_TIMEZONE_DELTA_HOURS) {
+        val candidateOffsetHours = timeZoneFor(candidate).getOffset(System.currentTimeMillis()) / 3_600_000.0
+        if (abs(reference.timeZoneOffsetHours - candidateOffsetHours) >= RESCHEDULE_TIMEZONE_DELTA_HOURS) {
             return true
         }
         return distanceKm(reference, candidate) >= RESCHEDULE_DISTANCE_KM
@@ -275,17 +352,103 @@ object PrayerCalculationHelper {
         return Pair(qiblaAngle.toFloat(), distance)
     }
 
+    private data class TomorrowFajrCacheKey(
+        val year: Int,
+        val month: Int,
+        val day: Int,
+        val latitude: Double,
+        val longitude: Double,
+        val timeZoneId: String?,
+        val timeZoneOffsetHours: Double,
+        val method: CalculationMethod
+    )
+
+    private data class PrayerEvent(
+        val name: String,
+        val formattedTime: String,
+        val millis: Long
+    )
+
+    private fun localEventMillis(dayStart: Calendar, decimalHour: Double, extraDayOffset: Int = 0): Long {
+        val totalMinutes = (decimalHour * 60.0).roundToInt()
+        val dayOffset = Math.floorDiv(totalMinutes, 1440) + extraDayOffset
+        val minuteOfDay = Math.floorMod(totalMinutes, 1440)
+
+        return (dayStart.clone() as Calendar).apply {
+            add(Calendar.DAY_OF_YEAR, dayOffset)
+            set(Calendar.HOUR_OF_DAY, minuteOfDay / 60)
+            set(Calendar.MINUTE, minuteOfDay % 60)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    private fun tomorrowFajrFor(
+        cityCalendar: Calendar,
+        location: CityLocation,
+        method: CalculationMethod
+    ): String {
+        val key = TomorrowFajrCacheKey(
+            year = cityCalendar.get(Calendar.YEAR),
+            month = cityCalendar.get(Calendar.MONTH) + 1,
+            day = cityCalendar.get(Calendar.DAY_OF_MONTH),
+            latitude = location.latitude,
+            longitude = location.longitude,
+            timeZoneId = location.timeZoneId,
+            timeZoneOffsetHours = location.timeZoneOffsetHours,
+            method = method
+        )
+        synchronized(tomorrowFajrCache) {
+            tomorrowFajrCache[key]?.let { return it }
+        }
+
+        val tomorrowCalendar = (cityCalendar.clone() as Calendar).apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+        }
+        val fajr = calculatePrayerTimes(
+            tomorrowCalendar,
+            location,
+            method,
+            includeNextDayFajr = false
+        ).fajr
+
+        synchronized(tomorrowFajrCache) {
+            if (tomorrowFajrCache.size >= 64) tomorrowFajrCache.clear()
+            tomorrowFajrCache[key] = fajr
+        }
+        return fajr
+    }
+
     /**
      * Main calculation function using standard Solar Ephemeris math
      */
     fun calculatePrayerTimes(
         calendar: Calendar = Calendar.getInstance(),
         location: CityLocation,
-        method: CalculationMethod = location.defaultMethod
+        method: CalculationMethod = location.defaultMethod,
+        includeNextDayFajr: Boolean = true
     ): CalculatedPrayerTimes {
-        val year = calendar.get(Calendar.YEAR)
-        val month = calendar.get(Calendar.MONTH) + 1
-        val day = calendar.get(Calendar.DAY_OF_MONTH)
+        val cityTimeZone = timeZoneFor(location)
+        val cityCalendar = Calendar.getInstance(cityTimeZone).apply {
+            timeInMillis = calendar.timeInMillis
+        }
+        val year = cityCalendar.get(Calendar.YEAR)
+        val month = cityCalendar.get(Calendar.MONTH) + 1
+        val day = cityCalendar.get(Calendar.DAY_OF_MONTH)
+        val utcDayStartMillis = Calendar.getInstance(utcTimeZone).apply {
+            set(year, month - 1, day, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        fun localHourForUtcMillis(utcMillis: Long): Double {
+            val localWallClockMillis = utcMillis + cityTimeZone.getOffset(utcMillis).toLong()
+            return (localWallClockMillis - utcDayStartMillis).toDouble() / 3_600_000.0
+        }
+
+        fun localHourForUtcHour(utcHour: Double): Double {
+            val utcMillis = utcDayStartMillis + (utcHour * 3_600_000.0).roundToLong()
+            return localHourForUtcMillis(utcMillis)
+        }
 
         // Julian Day
         val jd = julianDay(year, month, day) - location.longitude / (15.0 * 24.0)
@@ -304,45 +467,53 @@ object PrayerCalculationHelper {
         // Equation of Time
         val eqT = q / 15.0 - rightAscension
 
-        // Solar Noon (Dhuhr)
-        val dhuhrBase = 12.0 + location.timeZoneOffsetHours - location.longitude / 15.0 - eqT
+        // Solar noon in UTC; each event is converted with the city's offset at its actual instant.
+        val utcNoonBase = 12.0 - location.longitude / 15.0 - eqT
+        val dhuhrBase = localHourForUtcHour(utcNoonBase)
 
         // Sun altitude helpers
-        fun sunAngleTime(angle: Double, isMorning: Boolean): Double {
+        fun sunAngleUtcTime(angle: Double, isMorning: Boolean): Double {
             val sinVal = (-sin(Math.toRadians(angle)) - sin(Math.toRadians(location.latitude)) * sin(Math.toRadians(declination))) /
                     (cos(Math.toRadians(location.latitude)) * cos(Math.toRadians(declination)))
-            if (sinVal < -1.0 || sinVal > 1.0) return dhuhrBase // Polar fallback
+            if (sinVal < -1.0 || sinVal > 1.0) return utcNoonBase // Polar fallback
             val diff = Math.toDegrees(acos(sinVal)) / 15.0
-            return if (isMorning) dhuhrBase - diff else dhuhrBase + diff
+            return if (isMorning) utcNoonBase - diff else utcNoonBase + diff
         }
 
         // Asr calculation (Shafi'i: shadow = 1)
-        fun asrTime(shadowFactor: Double = 1.0): Double {
+        fun asrUtcTime(shadowFactor: Double = 1.0): Double {
             val angle = -Math.toDegrees(atan(1.0 / (shadowFactor + tan(Math.toRadians(abs(location.latitude - declination))))))
             val sinVal = (-sin(Math.toRadians(angle)) - sin(Math.toRadians(location.latitude)) * sin(Math.toRadians(declination))) /
                     (cos(Math.toRadians(location.latitude)) * cos(Math.toRadians(declination)))
             val clamped = sinVal.coerceIn(-1.0, 1.0)
             val diff = Math.toDegrees(acos(clamped)) / 15.0
-            return dhuhrBase + diff
+            return utcNoonBase + diff
         }
 
-        val sunriseHour = sunAngleTime(0.833, true)
-        val sunsetHour = sunAngleTime(0.833, false)
-        val fajrHour = sunAngleTime(method.fajrAngle, true)
-        val asrHour = asrTime(1.0)
-        val maghribHour = sunsetHour + (2.0 / 60.0) // 2 min buffer
-
-        val ishaHour = if (method.ishaIntervalMinutes > 0) {
-            maghribHour + (method.ishaIntervalMinutes / 60.0)
+        val sunriseUtcHour = sunAngleUtcTime(0.833, true)
+        val sunsetUtcHour = sunAngleUtcTime(0.833, false)
+        val fajrUtcHour = sunAngleUtcTime(method.fajrAngle, true)
+        val asrUtcHour = asrUtcTime(1.0)
+        val maghribUtcHour = sunsetUtcHour + (2.0 / 60.0) // 2 min buffer
+        val ishaUtcHour = if (method.ishaIntervalMinutes > 0) {
+            maghribUtcHour + (method.ishaIntervalMinutes / 60.0)
         } else {
-            sunAngleTime(method.ishaAngle, false)
+            sunAngleUtcTime(method.ishaAngle, false)
         }
 
-        // Night calculations (Midnight & Last Third)
-        val nextFajrHour = fajrHour + 24.0
-        val nightDuration = nextFajrHour - sunsetHour
-        val midnightHour = sunsetHour + (nightDuration / 2.0)
-        val qiyamHour = sunsetHour + (nightDuration * (2.0 / 3.0))
+        val sunriseHour = localHourForUtcHour(sunriseUtcHour)
+        val sunsetHour = localHourForUtcHour(sunsetUtcHour)
+        val fajrHour = localHourForUtcHour(fajrUtcHour)
+        val asrHour = localHourForUtcHour(asrUtcHour)
+        val maghribHour = localHourForUtcHour(maghribUtcHour)
+        val ishaHour = localHourForUtcHour(ishaUtcHour)
+
+        // Night calculations use elapsed UTC duration, then convert the midpoint and last-third instant to local clock time.
+        val sunsetUtcMillis = utcDayStartMillis + (sunsetUtcHour * 3_600_000.0).roundToLong()
+        val nextFajrUtcMillis = utcDayStartMillis + ((fajrUtcHour + 24.0) * 3_600_000.0).roundToLong()
+        val nightDurationMillis = (nextFajrUtcMillis - sunsetUtcMillis).coerceAtLeast(30 * 60 * 1000L)
+        val midnightHour = localHourForUtcMillis(sunsetUtcMillis + nightDurationMillis / 2)
+        val qiyamHour = localHourForUtcMillis(sunsetUtcMillis + (nightDurationMillis * 2 / 3))
 
         val fajrStr = formatHourMinutes(fajrHour)
         val sunriseStr = formatHourMinutes(sunriseHour)
@@ -350,12 +521,17 @@ object PrayerCalculationHelper {
         val asrStr = formatHourMinutes(asrHour)
         val maghribStr = formatHourMinutes(maghribHour)
         val ishaStr = formatHourMinutes(ishaHour)
-        val midnightStr = formatHourMinutes(midnightHour % 24.0)
-        val qiyamStr = formatHourMinutes(qiyamHour % 24.0)
+        val midnightStr = formatHourMinutes(midnightHour)
+        val qiyamStr = formatHourMinutes(qiyamHour)
 
-        // Calculate Next Prayer & Countdown
-        val nowHours = calendar.get(Calendar.HOUR_OF_DAY) + (calendar.get(Calendar.MINUTE) / 60.0) + (calendar.get(Calendar.SECOND) / 3600.0)
-
+        // Calculate the next event using absolute instants in the selected city's time zone.
+        val nowMillis = cityCalendar.timeInMillis
+        val dayStart = (cityCalendar.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
         val prayerSchedule = listOf(
             Triple("الفجر", fajrHour, fajrStr),
             Triple("الشروق", sunriseHour, sunriseStr),
@@ -363,29 +539,36 @@ object PrayerCalculationHelper {
             Triple("العصر", asrHour, asrStr),
             Triple("المغرب", maghribHour, maghribStr),
             Triple("العشاء", ishaHour, ishaStr)
-        )
+        ).map { (name, hour, time) ->
+            PrayerEvent(name, time, localEventMillis(dayStart, hour))
+        }.sortedBy { it.millis }
 
-        var nextName = "الفجر"
-        var nextTimeStr = fajrStr
-        var nextTargetHours = fajrHour + 24.0
-        var prevTargetHours = ishaHour
-
-        for (i in prayerSchedule.indices) {
-            val (_, h, s) = prayerSchedule[i]
-            if (nowHours < h) {
-                nextName = prayerSchedule[i].first
-                nextTimeStr = s
-                nextTargetHours = h
-                prevTargetHours = if (i > 0) prayerSchedule[i - 1].second else ishaHour - 24.0
-                break
-            }
+        val nextIndex = prayerSchedule.indexOfFirst { it.millis > nowMillis }
+        val tomorrowFajrTime = if (nextIndex < 0 && includeNextDayFajr) {
+            tomorrowFajrFor(cityCalendar, location, method)
+        } else {
+            fajrStr
+        }
+        val nextEventMillis = if (nextIndex >= 0) {
+            prayerSchedule[nextIndex].millis
+        } else if (includeNextDayFajr) {
+            calendarForPrayerTime(tomorrowFajrTime, nowMillis, location, dayOffset = 1).timeInMillis
+        } else {
+            localEventMillis(dayStart, fajrHour, extraDayOffset = 1)
+        }
+        val nextName = if (nextIndex >= 0) prayerSchedule[nextIndex].name else "الفجر"
+        val nextTimeStr = if (nextIndex >= 0) prayerSchedule[nextIndex].formattedTime else tomorrowFajrTime
+        val previousEventMillis = when {
+            nextIndex > 0 -> prayerSchedule[nextIndex - 1].millis
+            nextIndex == 0 -> localEventMillis(dayStart, ishaHour, extraDayOffset = -1)
+            else -> prayerSchedule.last().millis
         }
 
-        val diffHours = if (nextTargetHours >= nowHours) nextTargetHours - nowHours else (nextTargetHours + 24.0) - nowHours
-        val millisUntilNext = (diffHours * 3600.0 * 1000.0).toLong()
-
-        val totalIntervalHours = max(0.5, nextTargetHours - prevTargetHours)
-        val progress = ((totalIntervalHours - diffHours) / totalIntervalHours).toFloat().coerceIn(0f, 1f)
+        val millisUntilNext = (nextEventMillis - nowMillis).coerceAtLeast(0L)
+        val totalIntervalMillis = (nextEventMillis - previousEventMillis).coerceAtLeast(30 * 60 * 1000L)
+        val progress = ((totalIntervalMillis - millisUntilNext).toDouble() / totalIntervalMillis.toDouble())
+            .toFloat()
+            .coerceIn(0f, 1f)
 
         val (qiblaDeg, distKm) = calculateQibla(location.latitude, location.longitude)
 
