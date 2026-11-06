@@ -595,12 +595,21 @@ object QabasCrashGuard {
         val rootCauseLine = if (root === throwable) exceptionLine
         else "${root.javaClass.name}: ${(root.message ?: "").take(200)}"
 
-        val appFrame = firstAppFrame(throwable)
-        val crashSite = appFrame ?: firstFrame(root) ?: "غير معروف"
+        val isSystemExit = throwable is SystemExitDiagnosticException
+        val appFrame = if (isSystemExit) null else firstAppFrame(throwable)
+        val crashSite = if (throwable is SystemExitDiagnosticException) {
+            "Android process exit: ${throwable.exitLabel}"
+        } else {
+            appFrame ?: firstFrame(root) ?: "غير معروف"
+        }
 
-        val crashSiteKey = appFrame
-            ?.let { Regex("""(at [\w.$]+\.\w+)\(""").find(it)?.groupValues?.get(1) }
-            ?: "unknown"
+        val crashSiteKey = if (throwable is SystemExitDiagnosticException) {
+            "android_exit_reason_${throwable.exitReason}"
+        } else {
+            appFrame
+                ?.let { Regex("""(at [\w.$]+\.\w+)\(""").find(it)?.groupValues?.get(1) }
+                ?: "unknown"
+        }
 
         val isAppCode = appFrame != null
         val blame = if (isAppCode) "أصل الخطأ من كود التطبيق نفسه (com.qabas.app)"
@@ -638,9 +647,8 @@ object QabasCrashGuard {
         root: Throwable,
         isAppCode: Boolean
     ): ConfidenceLevel = when {
-        throwable is ANRDiagnosticException ||
-            (throwable is SystemExitDiagnosticException &&
-                throwable.exitReason == ApplicationExitInfo.REASON_ANR) -> ConfidenceLevel.PROBABLE
+        throwable is ANRDiagnosticException -> ConfidenceLevel.PROBABLE
+        throwable is SystemExitDiagnosticException -> ConfidenceLevel.UNDETERMINED
         isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
         isAppCode -> ConfidenceLevel.PROBABLE
         else -> ConfidenceLevel.UNDETERMINED
