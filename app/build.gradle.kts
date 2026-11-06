@@ -274,8 +274,12 @@ dependencies {
 // Quran data is downloaded from Quranpedia at build time, checksum-verified,
 // and packaged locally so the installed app works fully offline.
 val quranAssetsDir = layout.buildDirectory.dir("generated/quran-assets")
+val quranMushafAsset = quranAssetsDir.map { it.file("quran/mushafs-1.json.gz").asFile }
+val quranTafsirAsset = quranAssetsDir.map { it.file("quran/tafsir-book-32.json.gz").asFile }
 val downloadQuranData by tasks.registering {
-    outputs.dir(quranAssetsDir)
+    // Track each required asset separately. A missing file must invalidate the task,
+    // even when the generated assets directory itself still exists.
+    outputs.files(quranMushafAsset, quranTafsirAsset)
     doLast {
         val targetDir = quranAssetsDir.get().asFile.resolve("quran").apply { mkdirs() }
         fun downloadVerified(url: String, fileName: String, expectedSha256: String) {
