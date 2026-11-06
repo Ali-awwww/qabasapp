@@ -79,6 +79,7 @@ internal object CrashTelemetry {
             appendLine("event_id=$eventId")
             appendLine("occurred_at=$occurredAt")
             appendLine("source=${sanitize(source, 120)}")
+            appendLine("report_category=CRASH_TELEMETRY")
             appendLine("thread=${sanitize(thread, 120)}")
             appendLine("startup_stage=${sanitize(startupStage, 120)}")
             appendLine("startup_stage_recorded_at_ms=$startupStageTimestamp")
@@ -117,6 +118,7 @@ internal object CrashTelemetry {
         val record = JSONObject()
             .put("id", eventId)
             .put("occurred_at_ms", occurredAtMs)
+            .put("occurred_at", occurredAt)
             .put("screen_name", sanitize(CrashBreadcrumbs.currentScreen, 120))
             .put("description", description)
             .put("app_version", "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
@@ -187,7 +189,9 @@ internal object CrashTelemetry {
         put("screen_name", record.optString("screen_name", "غير محددة").take(120))
         put("description", record.optString("description", "").take(MAX_DESCRIPTION_CHARS))
         put("image_url", "")
-        put("report_type", "CRASH_TELEMETRY")
+        // Keep the existing support console classification; the description carries the telemetry subtype.
+        put("report_type", "BUG")
+        record.optString("occurred_at").takeIf { it.isNotBlank() }?.let { put("created_at", it) }
         put("status", "open")
         put("app_version", record.optString("app_version", "").take(80))
         put("device_info", record.optString("device_info", "").take(240))
