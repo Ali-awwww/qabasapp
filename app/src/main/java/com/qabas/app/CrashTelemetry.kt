@@ -184,11 +184,18 @@ internal object CrashTelemetry {
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            UNIQUE_WORK,
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
-            request
-        )
+        try {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                UNIQUE_WORK,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                request
+            )
+        } catch (failure: IllegalStateException) {
+            // The report is already persisted. If WorkManager is not initialized
+            // yet (for example during very early startup), leave it queued and
+            // let the next startup retry scheduling instead of failing the app.
+            Log.w(TAG, "WorkManager is not ready; crash report remains queued", failure)
+        }
     }
 
     internal fun pendingFiles(context: Context): List<File> =
