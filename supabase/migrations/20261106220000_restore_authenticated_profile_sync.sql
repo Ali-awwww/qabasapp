@@ -4,8 +4,7 @@
 -- reads are intentionally limited to the signed-in account.
 DROP POLICY IF EXISTS profiles_community_read ON public.profiles;
 GRANT SELECT ON TABLE public.profiles TO authenticated;
-GRANT INSERT (id, email, full_name, avatar_url, role)
-    ON TABLE public.profiles TO authenticated;
+GRANT INSERT ON TABLE public.profiles TO authenticated;
 GRANT UPDATE (email, full_name, avatar_url)
     ON TABLE public.profiles TO authenticated;
 
