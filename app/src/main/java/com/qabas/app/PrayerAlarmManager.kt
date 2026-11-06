@@ -147,7 +147,6 @@ object PrayerAlarmManager {
             cancelPrayerAlarm(context, prayerKey)
         }.getOrNull() ?: return
 
-
         val soundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
         val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
         val voiceId = prayerPrefs.getString("voice_id_$prayerKey", defaultVoice) ?: defaultVoice
