@@ -147,6 +147,20 @@ fun CrashLogsHubScreen(
     var activeBreadcrumbs by remember { mutableStateOf("") }
     var liveTelemetry by remember { mutableStateOf<SystemLiveTelemetry?>(null) }
 
+    // Defence in depth: this screen is also reachable through health/navigation routes.
+    val crashTelemetryAccessAllowed = remember { AdminGuard.isCrashTelemetryAccessAllowed() }
+    if (!crashTelemetryAccessAllowed) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("هذا المركز مخصص للمطورين فقط", color = MaterialTheme.colorScheme.onSurface)
+                if (onBack != null) {
+                    TextButton(onClick = onBack) { Text("رجوع") }
+                }
+            }
+        }
+        return
+    }
+
     // Zip export launcher
     val exportZipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
