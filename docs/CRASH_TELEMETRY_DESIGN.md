@@ -30,7 +30,7 @@ QABAS already has `QabasCrashGuard`, local diagnostic reports, ANR monitoring, a
 Cloud reports contain the event timestamp, source/thread, exception type/message/stack, startup stage, current/previous screen, last action, app version, device model, and Android version. The uploader does not send account email, account number, Supabase UID, authentication tokens, screenshots, or preference contents. Credential-like strings and email addresses are redacted. Exception messages and stack traces can still contain application/runtime values; the privacy notice must disclose this diagnostic collection before release.
 
 ## Platform limits
-Android does not guarantee an in-process callback for `SIGKILL`, force-stop, power loss, or every native termination. `ApplicationExitInfo` is inspected on the next launch when the OS retains a record. A signal-based exit is classified as a system termination, not automatically asserted to be a code crash.
+Android does not guarantee an in-process callback for `SIGKILL`, force-stop, power loss, or every native termination. `ApplicationExitInfo` is inspected on the next launch when the OS retains a record. A signal-based exit is classified as a system termination, not automatically asserted to be a code crash. Native tombstone protobuf bytes are not uploaded: Base64 encoding would make their contents opaque to credential/email redaction. Native-exit reports retain the exit classification and system metadata instead.
 
 ## Scope boundaries
 No UI, login flow, Quran assets, AI features, or unrelated application behavior is changed. No Firebase Crashlytics configuration is introduced; the repository's observability note identifies Firebase project reconciliation as a separate prerequisite.
