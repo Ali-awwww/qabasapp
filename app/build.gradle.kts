@@ -349,7 +349,6 @@ tasks.named("preBuild").configure { dependsOn(verifyQuranData) }
 // Verify the asset names that Android actually places in the APK. The Android
 // asset packager expands these checked-in .json.gz inputs into .json APK entries.
 val verifyQuranApkAssets by tasks.registering {
-    dependsOn("assembleDebug")
     doLast {
         val apkDirectory = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
         val apks = apkDirectory.listFiles { file ->
@@ -386,6 +385,11 @@ val verifyQuranApkAssets by tasks.registering {
     }
 }
 
+// Run the APK-content assertion after every debug APK assembly, including CI builds.
+tasks.named("assembleDebug").configure {
+    finalizedBy(verifyQuranApkAssets)
+}
+
 tasks.named("check").configure {
-    dependsOn(verifyQuranApkAssets)
+    dependsOn("assembleDebug")
 }
