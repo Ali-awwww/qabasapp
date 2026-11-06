@@ -426,7 +426,6 @@ fun AudioLibrarySection(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("الكل 🌐") }
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
-    var showUploadDialog by remember { mutableStateOf(false) }
 
     val categories = remember {
         listOf(
@@ -577,22 +576,7 @@ fun AudioLibrarySection(
                     )
                 }
 
-                if (isDeveloper) {
-                    IconButton(
-                        onClick = { showUploadDialog = true },
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CutCornerShape(12.dp))
-                            .background(primaryColor)
-                    ) {
-                        Icon(
-                            Icons.Default.CloudUpload,
-                            contentDescription = "رفع صوتية من حساب المطور",
-                            tint = DeepSlate,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+
             }
         }
 
@@ -983,16 +967,7 @@ fun AudioLibrarySection(
         }
     }
 
-    if (showUploadDialog) {
-        AddAudioTrackDialog(
-            categories = categories.filter { it != "الكل" },
-            onDismiss = { showUploadDialog = false },
-            onTrackAdded = {
-                showUploadDialog = false
-                loadRealTracks()
-            }
-        )
-    }
+
 }
 
 @Composable
