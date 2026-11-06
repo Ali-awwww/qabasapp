@@ -16,32 +16,72 @@ class LocalApiServer(
             .getString("user_api_key", null) ?: ""
     }
 ) {
-    private var serverSocket: ServerSocket? = null
-    private var isRunning = false
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val lifecycleLock = Any()
+    @Volatile private var serverSocket: ServerSocket? = null
+    @Volatile private var isRunning = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var acceptJob: Job? = null
 
+    /**
+     * Binds before returning so callers can report bind failures accurately.
+     * The socket is opened only after the previous instance has been stopped.
+     */
     fun start(port: Int = 8080) {
-        if (isRunning) return
-        isRunning = true
-        scope.launch {
+        synchronized(lifecycleLock) {
+            if (isRunning) return
+
+            val socket = ServerSocket()
             try {
-                // Bind exclusively to 127.0.0.1 (Loopback) to prevent exposing API to local network/Wi-Fi
+                // Keep the API bound to loopback; do not expose it to the local Wi-Fi network.
                 val loopback = java.net.InetAddress.getByName("127.0.0.1")
-                serverSocket = ServerSocket(port, 50, loopback)
-                while (isRunning) {
-                    val socket = serverSocket?.accept()
-                    socket?.let { handleClient(it) }
+                socket.reuseAddress = false
+                socket.bind(java.net.InetSocketAddress(loopback, port), 50)
+
+                serverSocket = socket
+                isRunning = true
+                acceptJob = scope.launch {
+                    try {
+                        while (isActive && isRunning) {
+                            handleClient(socket.accept())
+                        }
+                    } catch (e: java.net.SocketException) {
+                        if (isRunning) e.printStackTrace()
+                    } catch (e: Exception) {
+                        if (isRunning) e.printStackTrace()
+                    } finally {
+                        synchronized(lifecycleLock) {
+                            if (serverSocket === socket) {
+                                isRunning = false
+                                serverSocket = null
+                                acceptJob = null
+                            }
+                        }
+                    }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                try {
+                    socket.close()
+                } catch (_: Exception) {
+                    // Preserve the original bind/start exception.
+                }
+                throw e
             }
         }
     }
 
     fun stop() {
-        isRunning = false
-        serverSocket?.close()
-        scope.cancel()
+        synchronized(lifecycleLock) {
+            isRunning = false
+            val socket = serverSocket
+            serverSocket = null
+            acceptJob?.cancel()
+            acceptJob = null
+            try {
+                socket?.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun handleClient(socket: Socket) {
