@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Base64
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -212,26 +211,26 @@ object QabasCrashGuard {
                 ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "توقف اعتماد أو عملية مرتبطة"
                 else -> continue
             }
-            val systemTrace = runCatching {
-                info.traceInputStream?.use { input ->
-                    val output = ByteArrayOutputStream()
-                    val buffer = ByteArray(4 * 1024)
-                    var remaining = 24 * 1024
-                    while (remaining > 0) {
-                        val count = input.read(buffer, 0, minOf(buffer.size, remaining))
-                        if (count <= 0) break
-                        output.write(buffer, 0, count)
-                        remaining -= count
+            val systemTrace = if (info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
+                // Native tombstones are binary protobuf data. Do not Base64-encode
+                // opaque contents: credential/email redaction cannot inspect them.
+                "native_tombstone_available=true; binary tombstone omitted from cloud report"
+            } else {
+                runCatching {
+                    info.traceInputStream?.use { input ->
+                        val output = ByteArrayOutputStream()
+                        val buffer = ByteArray(4 * 1024)
+                        var remaining = 24 * 1024
+                        while (remaining > 0) {
+                            val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+                            if (count <= 0) break
+                            output.write(buffer, 0, count)
+                            remaining -= count
+                        }
+                        String(output.toByteArray(), Charsets.UTF_8)
                     }
-                    val traceBytes = output.toByteArray()
-                    if (info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
-                        "native_tombstone_protobuf_base64=" +
-                            Base64.encodeToString(traceBytes, Base64.NO_WRAP)
-                    } else {
-                        String(traceBytes, Charsets.UTF_8)
-                    }
-                }
-            }.getOrNull().orEmpty()
+                }.getOrNull().orEmpty()
+            }
             val details = buildString {
                 append(label)
                 append(" | reason=${info.reason} | status=${info.status}")
