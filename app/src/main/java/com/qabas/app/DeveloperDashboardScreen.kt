@@ -1414,6 +1414,7 @@ fun DashboardMainGrid(
     onBugReports: () -> Unit = onHealthDiagnosticsHub,
     onDevChat: () -> Unit = onUsersCommunityHub,
     onMishkatReminder: () -> Unit = onSystemIdentityHub,
+    onAudioLibraryManagement: () -> Unit = onSystemIdentityHub,
     // توافقية كاملة مع الروابط السابقة
     onLiveKeyHub: () -> Unit = onCloudApiHub,
     onAiModelSwitcher: () -> Unit = onCloudApiHub,
@@ -1564,6 +1565,16 @@ fun DashboardMainGrid(
             icon = Icons.Default.Lightbulb,
             accent = Color(0xFFD6BC83),
             onClick = onMishkatReminder
+        ),
+        CommandHubCardData(
+            id = 8,
+            title = "إدارة مكتبة الصوتيات",
+            subtitle = "رفع وتحديث التسجيلات • تنظيم التصنيفات • حذف المحتوى غير المناسب",
+            badge = "إدارة المحتوى الصوتي",
+            techTag = "// AUDIO LIBRARY CMS",
+            icon = Icons.Default.LibraryMusic,
+            accent = Color(0xFF38BDF8),
+            onClick = onAudioLibraryManagement
         )
     )
 
@@ -1578,7 +1589,8 @@ fun DashboardMainGrid(
         "👥 المستخدمون",
         "💰 الأعمال والطلبات",
         "⚙️ نظام المطور",
-        "💡 تذكّر في المشكاة"
+        "💡 تذكّر في المشكاة",
+        "🎧 إدارة مكتبة الصوتيات"
     )
 
     Column(
