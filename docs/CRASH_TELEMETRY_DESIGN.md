@@ -27,4 +27,6 @@ Android does not guarantee an in-process callback for `SIGKILL`, force-stop, pow
 No UI, login flow, Quran assets, AI features, or unrelated application behavior is changed. No Firebase Crashlytics configuration is introduced; the repository's observability note identifies Firebase project reconciliation as a separate prerequisite.
 
 ## Validation
-CI must compile the Android app and run the existing unit-test suite. Real delivery still requires a device run and confirmation that a report arrives in the support console.
+- Unit tests cover anonymous payload constraints, credential/email redaction, and durable local queue persistence.
+- CI must compile the Android app, run the unit-test suite, assemble the debug APK, and verify its signature.
+- Real delivery still requires a device run and confirmation that a report arrives in the support console.
