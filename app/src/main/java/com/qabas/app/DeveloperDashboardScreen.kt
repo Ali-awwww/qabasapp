@@ -77,7 +77,7 @@ enum class DashboardSection {
     ACCOUNT_SETTINGS, MONEY_CENTER, DEV_STUDIO_SIGNATURE,
     STYLE_BRAIN,
     API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, HEALTH_CENTER, CONNECTORS,
-    CRASH_LOGS, DEV_CHAT, MISHKAT_REMINDER
+    CRASH_LOGS, DEV_CHAT, MISHKAT_REMINDER, AUDIO_LIBRARY_MANAGEMENT
 }
 
 data class DevUser(
@@ -338,6 +338,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onBugReports = { currentSection = DashboardSection.BUG_REPORTS },
                         onDevChat = { currentSection = DashboardSection.DEV_CHAT },
                         onMishkatReminder = { currentSection = DashboardSection.MISHKAT_REMINDER },
+                        onAudioLibraryManagement = { currentSection = DashboardSection.AUDIO_LIBRARY_MANAGEMENT },
                         userCount = devUsers.size
                     )
                 }
@@ -429,6 +430,12 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 
                 DashboardSection.MISHKAT_REMINDER -> {
                     MishkatReminderManagementScreen(
+                        onBack = { currentSection = DashboardSection.MAIN }
+                    )
+                }
+
+                DashboardSection.AUDIO_LIBRARY_MANAGEMENT -> {
+                    DeveloperAudioLibraryManagementScreen(
                         onBack = { currentSection = DashboardSection.MAIN }
                     )
                 }
