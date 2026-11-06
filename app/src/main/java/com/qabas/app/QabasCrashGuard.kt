@@ -529,7 +529,7 @@ object QabasCrashGuard {
             env.forEach { (k, v) -> pw.println("   • $k: $v") }
             pw.println()
             pw.println(CrashBreadcrumbs.dumpContextSnapshot(context))
-            pw.println("\\n── آخر الأحداث المسجلة قبل الحادثة (Crash Breadcrumbs) ──")
+            pw.println("\n── آخر الأحداث المسجلة قبل الحادثة (Crash Breadcrumbs) ──")
             pw.println(CrashTelemetry.sanitize(CrashBreadcrumbs.dump(), 8_000))
 
             if (throwable is ANRDiagnosticException) {
@@ -592,12 +592,7 @@ object QabasCrashGuard {
         val blame = if (isAppCode) "أصل الخطأ من كود التطبيق نفسه (com.qabas.app)"
         else "أصل الخطأ من مكتبة خارجية أو من نظام Android"
 
-        val confidence = when {
-            throwable is ANRDiagnosticException -> ConfidenceLevel.CONFIRMED
-            isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
-            isAppCode -> ConfidenceLevel.PROBABLE
-            else -> ConfidenceLevel.UNDETERMINED
-        }
+        val confidence = confidenceFor(throwable, root, isAppCode)
 
         val category = categorize(throwable)
         val fix = generateSuggestedFix(throwable, root, isAppCode, crashSite)
@@ -616,6 +611,23 @@ object QabasCrashGuard {
             suggestedFix = fix,
             nestedCauses = nested
         )
+    }
+
+
+    /**
+     * The in-process watchdog detects a delayed main looper response, not an
+     * OS-confirmed ANR event. Keep its confidence probable until corroborated
+     * by Android ApplicationExitInfo on a later launch.
+     */
+    internal fun confidenceFor(
+        throwable: Throwable,
+        root: Throwable,
+        isAppCode: Boolean
+    ): ConfidenceLevel = when {
+        throwable is ANRDiagnosticException -> ConfidenceLevel.PROBABLE
+        isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
+        isAppCode -> ConfidenceLevel.PROBABLE
+        else -> ConfidenceLevel.UNDETERMINED
     }
 
     private fun generateSuggestedFix(throwable: Throwable, root: Throwable, isAppCode: Boolean, crashSite: String): String {
