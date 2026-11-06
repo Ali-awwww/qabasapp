@@ -34,7 +34,7 @@ internal object CrashTelemetry {
     private const val TAG = "CrashTelemetry"
     private const val QUEUE_DIR = "crash_telemetry_queue"
     private const val UNIQUE_WORK = "qabas_crash_telemetry_upload"
-    private const val MAX_DESCRIPTION_CHARS = 18_000
+    private const val MAX_DESCRIPTION_CHARS = 32_000
     private const val MAX_BATCH_SIZE = 25
 
     private val credentialPattern = Regex(
