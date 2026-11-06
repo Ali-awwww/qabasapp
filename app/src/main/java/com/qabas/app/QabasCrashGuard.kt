@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -212,9 +214,22 @@ object QabasCrashGuard {
             }
             val systemTrace = runCatching {
                 info.traceInputStream?.use { input ->
-                    val buffer = ByteArray(16 * 1024)
-                    val count = input.read(buffer)
-                    if (count > 0) String(buffer, 0, count, Charsets.UTF_8) else ""
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(4 * 1024)
+                    var remaining = 24 * 1024
+                    while (remaining > 0) {
+                        val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+                        if (count <= 0) break
+                        output.write(buffer, 0, count)
+                        remaining -= count
+                    }
+                    val traceBytes = output.toByteArray()
+                    if (info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
+                        "native_tombstone_protobuf_base64=" +
+                            Base64.encodeToString(traceBytes, Base64.NO_WRAP)
+                    } else {
+                        String(traceBytes, Charsets.UTF_8)
+                    }
                 }
             }.getOrNull().orEmpty()
             val details = buildString {
