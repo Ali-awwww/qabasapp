@@ -551,7 +551,7 @@ fun AudioLibrarySection(
         onDownloadedTitlesFound(foundTitles)
     }
 
-    val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery) {
+    val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery, favoriteTrackIds) {
         derivedStateOf {
             allRealTracks.filter { track ->
                 val matchCategory = matchesAudioCategory(track, selectedCategory)
