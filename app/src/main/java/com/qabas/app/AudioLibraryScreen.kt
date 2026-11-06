@@ -721,34 +721,15 @@ fun AudioLibrarySection(
                             lineHeight = 22.sp
                         )
 
-                        if (isDeveloper) {
-                            Button(
-                                onClick = { showUploadDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                                shape = CutCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().height(50.dp)
-                            ) {
-                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    "إضافة أو رفع صوتية جديدة (حساب المطور)",
-                                    color = DeepSlate,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp
-                                )
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = { loadRealTracks() },
-                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
-                                shape = CutCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth().height(46.dp)
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = primaryColor)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("إعادة المزامنة مع السحابة", color = primaryColor, fontFamily = CairoFont, fontSize = 12.5.sp)
-                            }
+                        OutlinedButton(
+                            onClick = { loadRealTracks() },
+                            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
+                            shape = CutCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(46.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = primaryColor)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("إعادة المزامنة", color = primaryColor, fontFamily = CairoFont, fontSize = 12.5.sp)
                         }
                     }
                 }
