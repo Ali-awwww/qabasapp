@@ -151,7 +151,7 @@ object AudioDownloadHelper {
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                 if (!downloadsDir.exists()) downloadsDir.mkdirs()
                 targetFile = File(downloadsDir, fileName)
-                outputStream = FileOutputStream(targetFile)
+                outputStream = FileOutputStream(targetFile!!)
             }
 
             if (outputStream == null) return false
