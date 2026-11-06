@@ -821,9 +821,31 @@ fun UnifiedMasterStudioScreen(
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, Color(0xFF334155))
                         ) {
-                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("${index + 1}. ${scene.title} • ${scene.durationInSeconds} ث", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                                Text(scene.description, color = Color(0xFFE2E8F0), fontFamily = CairoFont, fontSize = 12.sp)
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("المشهد ${index + 1} • ${scene.durationInSeconds} ث", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                OutlinedTextField(
+                                    value = scene.title,
+                                    onValueChange = { editedTitle ->
+                                        pendingScenePlan = pendingScenePlan.orEmpty().mapIndexed { sceneIndex, current ->
+                                            if (sceneIndex == index) current.copy(title = editedTitle) else current
+                                        }
+                                    },
+                                    label = { Text("عنوان المشهد") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = scene.description,
+                                    onValueChange = { editedDescription ->
+                                        pendingScenePlan = pendingScenePlan.orEmpty().mapIndexed { sceneIndex, current ->
+                                            if (sceneIndex == index) current.copy(description = editedDescription) else current
+                                        }
+                                    },
+                                    label = { Text("الوصف البصري") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 2,
+                                    maxLines = 4
+                                )
                                 Text("الانتقال: ${scene.transitionType}", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
                             }
                         }
