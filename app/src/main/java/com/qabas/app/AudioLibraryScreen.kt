@@ -580,6 +580,39 @@ fun AudioLibrarySection(
                     singleLine = true
                 )
 
+                Box {
+                    OutlinedButton(
+                        onClick = { showCategoryMenu = true },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.55f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF0B172A).copy(alpha = 0.68f),
+                            contentColor = primaryColor
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Category, contentDescription = "التصنيفات", modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("التصنيفات", fontFamily = CairoFont, fontSize = 11.sp)
+                        Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(
+                        expanded = showCategoryMenu,
+                        onDismissRequest = { showCategoryMenu = false },
+                        modifier = Modifier.background(Color(0xFF0B172A))
+                    ) {
+                        (categories + "المفضلة ★").forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category, fontFamily = CairoFont, color = Color.White) },
+                                onClick = {
+                                    selectedCategory = category
+                                    showCategoryMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 IconButton(
                     onClick = { loadRealTracks() },
                     modifier = Modifier
@@ -600,42 +633,7 @@ fun AudioLibrarySection(
             }
         }
 
-        // Category selector: compact Glass-style dropdown instead of permanently visible chips
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 14.dp),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            OutlinedButton(
-                onClick = { showCategoryMenu = true },
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.55f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color(0xFF0B172A).copy(alpha = 0.72f),
-                    contentColor = primaryColor
-                )
-            ) {
-                Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("التصنيفات: $selectedCategory", fontFamily = CairoFont, fontSize = 12.sp)
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.Default.ExpandMore, contentDescription = null)
-            }
-            DropdownMenu(
-                expanded = showCategoryMenu,
-                onDismissRequest = { showCategoryMenu = false },
-                modifier = Modifier.background(Color(0xFF0B172A))
-            ) {
-                (categories + "المفضلة ★").forEach { category ->
-                    DropdownMenuItem(
-                        text = { Text(category, fontFamily = CairoFont, color = Color.White) },
-                        onClick = {
-                            selectedCategory = category
-                            showCategoryMenu = false
-                        }
-                    )
-                }
-            }
-        }
+
 
         if (isLoading) {
             Box(
