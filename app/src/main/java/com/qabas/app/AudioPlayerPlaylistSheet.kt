@@ -297,13 +297,16 @@ fun AudioPlaylistBottomSheet(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(GoldPrimary.copy(alpha = 0.15f))
                                     .clickable {
-                                        val nextSpeed = when (playbackSpeed) {
-                                            1.0f -> 1.25f
-                                            1.25f -> 1.5f
-                                            1.5f -> 2.0f
-                                            2.0f -> 0.75f
-                                            else -> 1.0f
-                                        }
+                                            val nextSpeed = when (playbackSpeed) {
+                                                0.5f -> 0.75f
+                                                0.75f -> 1.0f
+                                                1.0f -> 1.25f
+                                                1.25f -> 1.5f
+                                                1.5f -> 1.75f
+                                                1.75f -> 2.0f
+                                                2.0f -> 0.5f
+                                                else -> 1.25f
+                                            }
                                         AudioPlaybackManager.setPlaybackSpeed(nextSpeed)
                                     }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
