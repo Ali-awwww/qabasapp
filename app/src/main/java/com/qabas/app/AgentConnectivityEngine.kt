@@ -41,10 +41,26 @@ data class LiveHealthStatus(
 object AgentConnectivityEngine {
 
     /**
+     * Reject build-time placeholders as credentials. CI deliberately injects
+     * "ci-placeholder" for pull-request builds; it must never be treated as
+     * a configured provider key.
+     */
+    private fun usableApiKey(raw: String?): String {
+        val value = KeyPoolManager.sanitizeApiKey(raw.orEmpty())
+        val normalized = value.lowercase()
+        if (value.isBlank()) return ""
+        if (normalized.startsWith("your_")) return ""
+        if (normalized in setOf("ci-placeholder", "placeholder", "changeme", "your-key", "your_key")) {
+            return ""
+        }
+        return value
+    }
+
+    /**
      * تحديد مصدر المفتاح بشفافية تامة
      */
     fun resolveKeyWithSource(context: Context): Triple<DetectedProvider, String, KeySource> {
-        fun clean(v: String?) = KeyPoolManager.sanitizeApiKey(v ?: "")
+        fun clean(v: String?) = usableApiKey(v)
 
         // 1. فحص التخزين المحلي للمستخدم أولاً (بتنظيف صارم للمحارف الخفية) — من التشفير
         val geminiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY, ""))
@@ -85,17 +101,17 @@ object AgentConnectivityEngine {
         // 2. فحص BuildConfig إذا لم يقم المستخدم بإدخال مفتاح في الواجهة
         val geminiBuild = runCatching {
             BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String
-        }.getOrNull()?.trim() ?: ""
+        }.getOrNull()?.let(::usableApiKey).orEmpty()
         if (geminiBuild.isNotEmpty() && !geminiBuild.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GEMINI, geminiBuild, KeySource.BUILD_CONFIG)
         }
 
-        val groqBuild = runCatching { BuildConfig.GROQ_API_KEY }.getOrNull()?.trim() ?: ""
+        val groqBuild = runCatching { usableApiKey(BuildConfig.GROQ_API_KEY) }.getOrDefault("")
         if (groqBuild.isNotEmpty() && !groqBuild.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.GROQ, groqBuild, KeySource.BUILD_CONFIG)
         }
 
-        val openrouterBuild = runCatching { BuildConfig.OPENROUTER_API_KEY }.getOrNull()?.trim() ?: ""
+        val openrouterBuild = runCatching { usableApiKey(BuildConfig.OPENROUTER_API_KEY) }.getOrDefault("")
         if (openrouterBuild.isNotEmpty() && !openrouterBuild.lowercase().startsWith("your_")) {
             return Triple(DetectedProvider.OPENROUTER, openrouterBuild, KeySource.BUILD_CONFIG)
         }
