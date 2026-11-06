@@ -161,7 +161,7 @@ fun SettingsScreen(
     }
 
     val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
-    val canViewCrashTelemetry = remember { AdminGuard.isCrashTelemetryAccessAllowed() }
+    val canViewCrashTelemetry = remember(supabaseAuthUser) { AdminGuard.isCrashTelemetryAccessAllowed() }
     val isSyncing by UserPreferencesManager.isSyncing.collectAsState()
 
     // تعريف جميع العناصر القابلة للبحث
