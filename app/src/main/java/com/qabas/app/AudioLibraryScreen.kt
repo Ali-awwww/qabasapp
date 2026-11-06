@@ -506,12 +506,28 @@ fun AudioLibrarySection(
         list
     }
 
+    fun matchesAudioCategory(track: LiveAudioItem, requested: String): Boolean {
+        if (requested == "الكل") return true
+        val source = (track.category + " " + track.title + " " + track.author).lowercase(Locale.ROOT)
+        return when (requested) {
+            "القرآن الكريم" -> listOf("قرآن", "تلاوة", "تلاوات", "recitation", "quran").any { source.contains(it) }
+            "الخطب المنبرية" -> listOf("خطبة", "خطب", "منبر", "sermon", "khutbah").any { source.contains(it) }
+            "المحاضرات الإسلامية" -> listOf("محاضرة", "محاضرات", "lecture").any { source.contains(it) }
+            "الدروس العلمية" -> listOf("درس", "دروس", "علمي", "عقائد", "العقائد", "شرح", "lesson", "aqaid").any { source.contains(it) }
+            "الأذكار والأدعية" -> listOf("ذكر", "أذكار", "اذكار", "دعاء", "أدعية", "ادعية", "dhikr", "dua").any { source.contains(it) }
+            "الأناشيد الإسلامية" -> listOf("نشيد", "أناشيد", "اناشيد", "nasheed").any { source.contains(it) }
+            "القصص الإسلامية" -> listOf("قصة", "قصص", "حكاية", "قصصي", "story").any { source.contains(it) }
+            "صوتيات الأطفال" -> listOf("طفل", "أطفال", "اطفال", "children", "kids").any { source.contains(it) }
+            "السيرة النبوية" -> listOf("السيرة", "سيرة", "النبي", "نبوي", "seerah").any { source.contains(it) }
+            "الكتب الصوتية" -> listOf("كتاب صوتي", "كتب صوتية", "audiobook").any { source.contains(it) }
+            else -> false
+        }
+    }
+
     val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery) {
         derivedStateOf {
-            val selectedClean = selectedCategory.replace(Regex("[^\\u0600-\\u06FF\\s\\w]"), "").trim()
             allRealTracks.filter { track ->
-                val trackClean = track.category.replace(Regex("[^\\u0600-\\u06FF\\s\\w]"), "").trim()
-                val matchCategory = selectedClean == "الكل" || trackClean == selectedClean
+                val matchCategory = matchesAudioCategory(track, selectedCategory)
                 val matchQuery = searchQuery.isBlank() || track.title.contains(searchQuery, ignoreCase = true) ||
                          track.category.contains(searchQuery, ignoreCase = true) ||
                          track.author.contains(searchQuery, ignoreCase = true)
