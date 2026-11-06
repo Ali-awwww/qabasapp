@@ -108,6 +108,8 @@ object AudioDownloadHelper {
                         }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("AudioDownloadHelper", "Download failed: ${e.message}", e)
                 onProgress(DownloadProgress(isError = true, errorMessage = e.localizedMessage ?: "فشل التنزيل"))
@@ -132,6 +134,7 @@ object AudioDownloadHelper {
     ): Boolean {
         var outputStream: OutputStream? = null
         var uri: Uri? = null
+        var targetFile: File? = null
         val resolver = context.contentResolver
 
         return try {
@@ -147,7 +150,7 @@ object AudioDownloadHelper {
             } else {
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                 if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val targetFile = File(downloadsDir, fileName)
+                targetFile = File(downloadsDir, fileName)
                 outputStream = FileOutputStream(targetFile)
             }
 
@@ -204,8 +207,21 @@ object AudioDownloadHelper {
                 )
             )
             true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            runCatching { outputStream?.close() }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
+                runCatching { resolver.delete(uri!!, null, null) }
+            } else {
+                runCatching { targetFile?.delete() }
+            }
+            throw e
         } catch (e: Exception) {
-            outputStream?.close()
+            runCatching { outputStream?.close() }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
+                runCatching { resolver.delete(uri!!, null, null) }
+            } else {
+                runCatching { targetFile?.delete() }
+            }
             onProgress(DownloadProgress(isError = true, errorMessage = e.message))
             false
         }
