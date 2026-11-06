@@ -271,20 +271,40 @@ dependencies {
   "ksp"(libs.moshi.kotlin.codegen)
 }
 
-// Quran data is downloaded from Quranpedia at build time, checksum-verified,
-// and packaged locally so the installed app works fully offline.
+// Quran data is packaged from checked-in assets when present. The verified
+// download directory is used only for assets that are genuinely missing, avoiding
+// duplicate-resource failures when developers provide the files under src/main/assets.
 val quranAssetsDir = layout.buildDirectory.dir("generated/quran-assets")
-val quranMushafAsset = quranAssetsDir.map { it.file("quran/mushafs-1.json.gz").asFile }
-val quranTafsirAsset = quranAssetsDir.map { it.file("quran/tafsir-book-32.json.gz").asFile }
+val sourceQuranAssetsDir = layout.projectDirectory.dir("src/main/assets/quran")
+val quranAssetSpecs = listOf(
+    Triple(
+        "mushafs-1.json.gz",
+        "https://api.quranpedia.net/dumps/mushafs-1.json.gz",
+        "e349fedb3ff7caf10d41ca530c089790e7644d44b43b1e321964d468d13edddc"
+    ),
+    Triple(
+        "tafsir-book-32.json.gz",
+        "https://api.quranpedia.net/dumps/tafsir-book-32.json.gz",
+        "9fe263cbba61c307a1bd080c686e64f69dae6a80b8f05ce603d027f02f076eac"
+    )
+)
+val missingQuranAssets = quranAssetSpecs.filter { (fileName, _, _) ->
+    !sourceQuranAssetsDir.file(fileName).asFile.isFile
+}
+val generatedQuranAssetFiles = missingQuranAssets.map { (fileName, _, _) ->
+    quranAssetsDir.get().file("quran/$fileName").asFile
+}
+
 val downloadQuranData by tasks.registering {
-    // Track each required asset separately. A missing file must invalidate the task,
-    // even when the generated assets directory itself still exists.
-    outputs.files(quranMushafAsset, quranTafsirAsset)
+    onlyIf { missingQuranAssets.isNotEmpty() }
+    // Track only files that are absent from src/main/assets. Existing source assets
+    // remain the single packaged copy and are never shadowed by generated duplicates.
+    outputs.files(generatedQuranAssetFiles)
     doLast {
         val targetDir = quranAssetsDir.get().asFile.resolve("quran").apply { mkdirs() }
-        fun downloadVerified(url: String, fileName: String, expectedSha256: String) {
+        for ((fileName, url, expectedSha256) in missingQuranAssets) {
             val target = targetDir.resolve(fileName)
-            if (!target.exists()) {
+            if (!target.isFile) {
                 URL(url).openStream().use { input ->
                     target.outputStream().use { output -> input.copyTo(output) }
                 }
@@ -296,19 +316,32 @@ val downloadQuranData by tasks.registering {
                 "Quran data checksum mismatch for $fileName. Expected $expectedSha256 but got $actualSha256"
             }
         }
-        downloadVerified(
-            "https://api.quranpedia.net/dumps/mushafs-1.json.gz",
-            "mushafs-1.json.gz",
-            "e349fedb3ff7caf10d41ca530c089790e7644d44b43b1e321964d468d13edddc"
-        )
-        downloadVerified(
-            "https://api.quranpedia.net/dumps/tafsir-book-32.json.gz",
-            "tafsir-book-32.json.gz",
-            "9fe263cbba61c307a1bd080c686e64f69dae6a80b8f05ce603d027f02f076eac"
-        )
     }
 }
 
-android.sourceSets.getByName("main").assets.srcDir(quranAssetsDir.get().asFile)
-tasks.named("preBuild").configure { dependsOn(downloadQuranData) }
+if (missingQuranAssets.isNotEmpty()) {
+    android.sourceSets.getByName("main").assets.srcDir(quranAssetsDir.get().asFile)
+}
+
+val verifyQuranData by tasks.registering {
+    dependsOn(downloadQuranData)
+    doLast {
+        for ((fileName, _, expectedSha256) in quranAssetSpecs) {
+            val sourceFile = sourceQuranAssetsDir.file(fileName).asFile
+            val generatedFile = quranAssetsDir.get().asFile.resolve("quran/$fileName")
+            val assetFile = if (sourceFile.isFile) sourceFile else generatedFile
+            check(assetFile.isFile) {
+                "Missing Quran asset: $fileName (expected under app/src/main/assets/quran)"
+            }
+            val actualSha256 = MessageDigest.getInstance("SHA-256")
+                .digest(assetFile.readBytes())
+                .joinToString("") { "%02x".format(it) }
+            check(actualSha256 == expectedSha256) {
+                "Quran data checksum mismatch for $fileName. Expected $expectedSha256 but got $actualSha256"
+            }
+        }
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn(verifyQuranData) }
 
