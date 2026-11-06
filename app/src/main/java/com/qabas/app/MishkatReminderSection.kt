@@ -497,27 +497,24 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         )
                         Text("تقدم الرفع: $uploadProgress%", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("نشر التذكير للمستخدمين", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                            Text("عند الإيقاف يبقى المحتوى محفوظاً في السحابة ولا يظهر في المشكاة.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
-                        }
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { isEnabled = it },
-                            enabled = !isSaving && !isUploading
-                        )
-                    }
-                    if (!videoUrl.isNullOrBlank() && videoUrl.startsWith("https://", ignoreCase = true)) {
+                    Text(
+                        if (isEnabled) "الحالة الحالية: منشور للمستخدمين" else "الحالة الحالية: مسودة غير ظاهرة في المشكاة",
+                        color = if (isEnabled) Color(0xFF86D6A6) else TextSecondary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                    if (videoUrl.isNotBlank() && videoUrl.startsWith("https://", ignoreCase = true)) {
                         Text(
-                            "تم تعيين مصدر فيديو. سيظهر بعد حفظ التغييرات ونشر الميزة.",
-                            color = Color(0xFF86D6A6),
-                            fontFamily = NotoSansFont,
-                            fontSize = 11.sp
+                            "معاينة الفيديو قبل النشر",
+                            color = GoldPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        MishkatReminderVideoPlayer(
+                            videoUrl = videoUrl.trim(),
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                     errorMessage?.let {
@@ -531,15 +528,11 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                 val cleanAttribution = attribution.trim()
                                 val cleanVideoUrl = videoUrl.trim().takeIf { it.isNotBlank() }
                                 if (cleanQuote.isBlank() || cleanAttribution.isBlank()) {
-                                    errorMessage = "أدخل العبارة واسم صاحبها قبل الحفظ."
+                                    errorMessage = "أدخل العبارة واسم صاحبها قبل النشر."
                                     return@launch
                                 }
-                                if (cleanVideoUrl != null && !cleanVideoUrl.startsWith("https://", ignoreCase = true)) {
-                                    errorMessage = "يجب أن يبدأ رابط الفيديو بـ HTTPS."
-                                    return@launch
-                                }
-                                if (isEnabled && cleanVideoUrl == null) {
-                                    errorMessage = "أضف فيديو قبل تفعيل ظهور التذكير للمستخدمين."
+                                if (cleanVideoUrl == null || !cleanVideoUrl.startsWith("https://", ignoreCase = true)) {
+                                    errorMessage = "ارفع فيديو أو أدخل رابط فيديو مباشر صالحاً قبل النشر."
                                     return@launch
                                 }
                                 isSaving = true
@@ -548,7 +541,51 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
-                                        isEnabled = isEnabled
+                                        isEnabled = true
+                                    )
+                                }
+                                isSaving = false
+                                if (saved) {
+                                    quoteText = cleanQuote
+                                    attribution = cleanAttribution
+                                    videoUrl = cleanVideoUrl
+                                    isEnabled = true
+                                    Toast.makeText(context, "تم نشر التذكير في المشكاة بنجاح.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    errorMessage = "تعذّر تأكيد النشر من Supabase. لم نعرض المحتوى على أنه منشور."
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
+                        enabled = !isSaving && !isUploading && quoteText.isNotBlank() && attribution.isNotBlank() &&
+                            videoUrl.trim().startsWith("https://", ignoreCase = true)
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("جارٍ النشر...")
+                        } else {
+                            Text(if (isEnabled) "تحديث المنشور" else "نشر التذكير الآن")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                errorMessage = null
+                                val cleanQuote = quoteText.trim()
+                                val cleanAttribution = attribution.trim()
+                                val cleanVideoUrl = videoUrl.trim().takeIf { it.isNotBlank() }
+                                if (cleanQuote.isBlank() || cleanAttribution.isBlank()) {
+                                    errorMessage = "أدخل العبارة واسم صاحبها قبل حفظ المسودة."
+                                    return@launch
+                                }
+                                isSaving = true
+                                val saved = withContext(Dispatchers.IO) {
+                                    SupabaseServices.Database.saveMishkatReminderContent(
+                                        quoteText = cleanQuote,
+                                        attribution = cleanAttribution,
+                                        videoUrl = cleanVideoUrl,
+                                        isEnabled = false
                                     )
                                 }
                                 isSaving = false
@@ -556,22 +593,17 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                     quoteText = cleanQuote
                                     attribution = cleanAttribution
                                     videoUrl = cleanVideoUrl.orEmpty()
-                                    Toast.makeText(context, "حُفظت إعدادات تذكّر في السحابة.", Toast.LENGTH_LONG).show()
+                                    isEnabled = false
+                                    Toast.makeText(context, "تم حفظ التذكير كمسودة دون إظهاره للمستخدمين.", Toast.LENGTH_LONG).show()
                                 } else {
-                                    errorMessage = "لم يؤكد Supabase حفظ التغييرات. تحقق من صلاحية المطوّر والاتصال ثم أعد المحاولة."
+                                    errorMessage = "تعذّر حفظ المسودة في Supabase."
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         enabled = !isSaving && !isUploading && quoteText.isNotBlank() && attribution.isNotBlank()
                     ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("جارٍ الحفظ...")
-                        } else {
-                            Text("حفظ ونشر التغييرات")
-                        }
+                        Text("حفظ كمسودة دون نشر")
                     }
                     Text(
                         "التخزين السحابي: Supabase • bucket: media-assets • الحد الأقصى للملف: 100 MB",
