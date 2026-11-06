@@ -68,6 +68,16 @@ object AdminGuard {
     }
 
     /**
+     * صلاحية مركز سجلات الانهيارات: تعتمد فقط على المالك الموثق أو app_metadata.role
+     * الصادر من Supabase Auth، ولا تثق ببيانات الملف الشخصي أو التفضيلات المحلية.
+     */
+    fun isCrashTelemetryAccessAllowed(): Boolean {
+        if (!SupabaseServices.isSupabaseAvailable) return false
+        return isCloudUserOwner() ||
+            SupabaseServices.Auth.isDeveloperRole(SupabaseServices.Auth.getCurrentUserAppRole())
+    }
+
+    /**
      * فحص صلاحيات الإدارة للمهام السحابية الحساسة بناءً على السحابة حصرياً.
      */
     suspend fun isAuthAdmin(): Boolean {

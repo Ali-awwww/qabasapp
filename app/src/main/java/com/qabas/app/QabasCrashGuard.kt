@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -51,6 +52,10 @@ object QabasCrashGuard {
     private const val PREF_COUNT = "crash_guard_count"
     private const val PREF_LAST_RELAUNCH_TS = "crash_guard_last_relaunch_ts"
     private const val PREF_LAST_EXIT_SCAN_TS = "crash_guard_last_exit_scan_ts"
+    private const val PREF_LAST_STARTUP_STAGE = "crash_guard_last_startup_stage"
+    private const val PREF_LAST_STARTUP_STAGE_TS = "crash_guard_last_startup_stage_ts"
+    private const val PREF_PREVIOUS_STARTUP_STAGE = "crash_guard_previous_startup_stage"
+    private const val PREF_PREVIOUS_STARTUP_STAGE_TS = "crash_guard_previous_startup_stage_ts"
 
     @Volatile private var installed = false
     @Volatile private var anrWatchdog: Thread? = null
@@ -93,6 +98,15 @@ object QabasCrashGuard {
         installed = true
         val appContext = context.applicationContext
         appContextRef = appContext
+
+        // Preserve the last stage from the previous process before this launch overwrites it.
+        runCatching {
+            val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(PREF_PREVIOUS_STARTUP_STAGE, prefs.getString(PREF_LAST_STARTUP_STAGE, "unknown") ?: "unknown")
+                .putLong(PREF_PREVIOUS_STARTUP_STAGE_TS, prefs.getLong(PREF_LAST_STARTUP_STAGE_TS, 0L))
+                .commit()
+        }
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -148,6 +162,26 @@ object QabasCrashGuard {
         }, "QabasExitScan").apply { isDaemon = true }.start()
     }
 
+    /** يسجل آخر مرحلة من تهيئة التطبيق بصورة دائمة لتحديد موضع فشل الإقلاع. */
+    fun markStartupStage(context: Context, stage: String) {
+        val cleanStage = stage.trim().take(120).ifBlank { "unknown" }
+        runCatching {
+            context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_LAST_STARTUP_STAGE, cleanStage)
+                .putLong(PREF_LAST_STARTUP_STAGE_TS, System.currentTimeMillis())
+                .commit()
+            CrashBreadcrumbs.leave("startup", cleanStage)
+        }.onFailure {
+            android.util.Log.w(TAG, "تعذر حفظ مرحلة بدء التشغيل: ${it.message}")
+        }
+    }
+
+    /** يعيد جدولة رفع التقارير المحلية المتبقية عند بدء التطبيق. */
+    fun schedulePendingUploads(context: Context) {
+        CrashTelemetry.scheduleIfPending(context.applicationContext)
+    }
+
     /**
      * يفحص أسباب إغلاق العملية السابقة من النظام (API 30+)
      */
@@ -164,29 +198,70 @@ object QabasCrashGuard {
 
         val dayAgo = now - 24L * 60 * 60 * 1000
         var lastRecorded = prefs.getLong("crash_guard_last_exit_recorded_ts", 0L)
-        for (info in exits) {
+        for (info in exits.sortedBy { it.timestamp }) {
             if (info.timestamp < dayAgo || info.timestamp <= lastRecorded) continue
-            val severe = info.reason == ApplicationExitInfo.REASON_CRASH ||
-                    info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
-                    info.reason == ApplicationExitInfo.REASON_ANR ||
-                    info.reason == ApplicationExitInfo.REASON_LOW_MEMORY
-            if (!severe) continue
             val label = when (info.reason) {
-                ApplicationExitInfo.REASON_CRASH_NATIVE -> "💥 انهيار Native في العملية السابقة"
-                ApplicationExitInfo.REASON_ANR -> "🧊 ANR مكتشف من النظام في العملية السابقة"
-                ApplicationExitInfo.REASON_LOW_MEMORY -> "🧯 نفدت الذاكرة (OOM) في العملية السابقة"
-                else -> "💥 انهيار Java في العملية السابقة"
+                ApplicationExitInfo.REASON_CRASH -> "انهيار Java/Kotlin مسجل من Android"
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> "انهيار Native مسجل من Android"
+                ApplicationExitInfo.REASON_ANR -> "ANR مسجل من Android"
+                ApplicationExitInfo.REASON_LOW_MEMORY -> "إنهاء بسبب انخفاض الذاكرة"
+                ApplicationExitInfo.REASON_SIGNALED -> "إنهاء بإشارة نظام (لا يعني وحده وجود خطأ برمجي)"
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "إنهاء بسبب استهلاك مفرط لموارد النظام"
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "فشل تهيئة العملية"
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "توقف اعتماد أو عملية مرتبطة"
+                else -> continue
             }
-            val desc = info.description?.take(200)?.let { " — $it" } ?: ""
-            record(context, "system_process", RuntimeException("$label$desc"), "system_exit_scan")
-            lastRecorded = info.timestamp
+            val systemTrace = if (info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
+                // Native tombstones are binary protobuf data. Do not Base64-encode
+                // opaque contents: credential/email redaction cannot inspect them.
+                "native_tombstone_available=true; binary tombstone omitted from cloud report"
+            } else {
+                runCatching {
+                    info.traceInputStream?.use { input ->
+                        val output = ByteArrayOutputStream()
+                        val buffer = ByteArray(4 * 1024)
+                        var remaining = 24 * 1024
+                        while (remaining > 0) {
+                            val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+                            if (count <= 0) break
+                            output.write(buffer, 0, count)
+                            remaining -= count
+                        }
+                        String(output.toByteArray(), Charsets.UTF_8)
+                    }
+                }.getOrNull().orEmpty()
+            }
+            val details = buildString {
+                append(label)
+                append(" | reason=${info.reason} | status=${info.status}")
+                append(" | processTimestamp=${info.timestamp}")
+                append(" | pss=${info.pss}KB | rss=${info.rss}KB")
+                info.description?.take(500)?.let { append(" | description=$it") }
+                if (systemTrace.isNotBlank()) {
+                    append("\nAndroid exit trace:\n")
+                    append(systemTrace)
+                }
+            }
+            record(
+                context = context,
+                thread = "system_process",
+                throwable = SystemExitDiagnosticException(
+                    exitReason = info.reason,
+                    exitLabel = label,
+                    details = details
+                ),
+                source = "system_exit_scan",
+                occurredAtMs = info.timestamp,
+                notifyOwner = false
+            )
+            lastRecorded = maxOf(lastRecorded, info.timestamp)
         }
-        if (lastRecorded > 0L) {
-            prefs.edit()
-                .putLong("crash_guard_last_exit_recorded_ts", lastRecorded)
-                .putLong(PREF_LAST_EXIT_SCAN_TS, now)
-                .apply()
-        }
+        // Record the scan time even when Android has no new supported exit
+        // reasons; otherwise every launch repeats the same empty history scan.
+        prefs.edit()
+            .putLong("crash_guard_last_exit_recorded_ts", lastRecorded)
+            .putLong(PREF_LAST_EXIT_SCAN_TS, now)
+            .apply()
     }
 
     /**
@@ -308,6 +383,16 @@ object QabasCrashGuard {
     }
 
     /**
+     * Structured representation of an exit reason reported by Android.
+     * This preserves the OS classification instead of flattening it into a generic exception.
+     */
+    class SystemExitDiagnosticException(
+        val exitReason: Int,
+        val exitLabel: String,
+        details: String
+    ) : RuntimeException(details)
+
+    /**
      * استثناء مخصص لحمل تفاصيل تشخيص ANR دون اصطناع كراش
      */
     class ANRDiagnosticException(
@@ -328,8 +413,15 @@ object QabasCrashGuard {
     /**
      * التسجيل التشخيصي الشامل واستخراج التقرير المنظم من 8 أجزاء
      */
-    fun record(context: Context, thread: String, throwable: Throwable, source: String = "thread"): String {
-        val now = Date()
+    fun record(
+        context: Context,
+        thread: String,
+        throwable: Throwable,
+        source: String = "thread",
+        occurredAtMs: Long = System.currentTimeMillis(),
+        notifyOwner: Boolean = true
+    ): String {
+        val now = Date(occurredAtMs)
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(now)
         val display = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(now)
         val env = buildEnvHeader(context)
@@ -383,7 +475,19 @@ object QabasCrashGuard {
             android.util.Log.e(TAG, "فشل تسجيل الانهيار", t)
         }
 
-        notifyDeveloper(context, throwable, source, occurrences)
+        runCatching {
+            CrashTelemetry.enqueue(
+                context = context,
+                thread = thread,
+                throwable = throwable,
+                source = source,
+                occurredAtMs = occurredAtMs
+            )
+        }.onFailure {
+            android.util.Log.e(TAG, "تعذر حفظ تقرير الرفع السحابي محلياً", it)
+        }
+
+        if (notifyOwner) notifyDeveloper(context, throwable, source, occurrences)
         val rootMsg = throwable.message ?: throwable.javaClass.simpleName
         return rootMsg.take(120)
     }
@@ -410,7 +514,12 @@ object QabasCrashGuard {
             pw.println("════════════════════════════════════════════════════════════")
 
             pw.println("\n1. ماذا حدث؟ (What Happened)")
-            pw.println("   • نوع الحادثة: ${if (throwable is ANRDiagnosticException) "🧊 ANR تجمّد خيط الواجهة" else "💥 انهيار برجمي (${diag.category})"}")
+            val incidentType = when (throwable) {
+                is ANRDiagnosticException -> "🧊 ANR تجمّد خيط الواجهة"
+                is SystemExitDiagnosticException -> "📱 خروج عملية مسجل من Android (${diag.category})"
+                else -> "💥 انهيار برمجي (${diag.category})"
+            }
+            pw.println("   • نوع الحادثة: $incidentType")
             pw.println("   • المصدر: $source | الخيط: $thread")
             pw.println("   • بصمة الحادثة (Fingerprint): $fingerprint")
             pw.println("   • عدد التكرارات: $occurrences (أول مرة: $firstDisplay)")
@@ -439,6 +548,8 @@ object QabasCrashGuard {
             env.forEach { (k, v) -> pw.println("   • $k: $v") }
             pw.println()
             pw.println(CrashBreadcrumbs.dumpContextSnapshot(context))
+            pw.println("\n── آخر الأحداث المسجلة قبل الحادثة (Crash Breadcrumbs) ──")
+            pw.println(CrashTelemetry.sanitize(CrashBreadcrumbs.dump(), 8_000))
 
             if (throwable is ANRDiagnosticException) {
                 pw.println("\n── تفاصيل ANR وتحليل الخيوط ──")
@@ -489,23 +600,27 @@ object QabasCrashGuard {
         val rootCauseLine = if (root === throwable) exceptionLine
         else "${root.javaClass.name}: ${(root.message ?: "").take(200)}"
 
-        val appFrame = firstAppFrame(throwable)
-        val crashSite = appFrame ?: firstFrame(root) ?: "غير معروف"
+        val isSystemExit = throwable is SystemExitDiagnosticException
+        val appFrame = if (isSystemExit) null else firstAppFrame(throwable)
+        val crashSite = if (throwable is SystemExitDiagnosticException) {
+            "Android process exit: ${throwable.exitLabel}"
+        } else {
+            appFrame ?: firstFrame(root) ?: "غير معروف"
+        }
 
-        val crashSiteKey = appFrame
-            ?.let { Regex("""(at [\w.$]+\.\w+)\(""").find(it)?.groupValues?.get(1) }
-            ?: "unknown"
+        val crashSiteKey = if (throwable is SystemExitDiagnosticException) {
+            "android_exit_reason_${throwable.exitReason}"
+        } else {
+            appFrame
+                ?.let { Regex("""(at [\w.$]+\.\w+)\(""").find(it)?.groupValues?.get(1) }
+                ?: "unknown"
+        }
 
         val isAppCode = appFrame != null
         val blame = if (isAppCode) "أصل الخطأ من كود التطبيق نفسه (com.qabas.app)"
         else "أصل الخطأ من مكتبة خارجية أو من نظام Android"
 
-        val confidence = when {
-            throwable is ANRDiagnosticException -> ConfidenceLevel.CONFIRMED
-            isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
-            isAppCode -> ConfidenceLevel.PROBABLE
-            else -> ConfidenceLevel.UNDETERMINED
-        }
+        val confidence = confidenceFor(throwable, root, isAppCode)
 
         val category = categorize(throwable)
         val fix = generateSuggestedFix(throwable, root, isAppCode, crashSite)
@@ -526,10 +641,30 @@ object QabasCrashGuard {
         )
     }
 
+
+    /**
+     * The in-process watchdog detects a delayed main looper response, not an
+     * OS-confirmed ANR event. Keep its confidence probable until corroborated
+     * by Android ApplicationExitInfo on a later launch.
+     */
+    internal fun confidenceFor(
+        throwable: Throwable,
+        root: Throwable,
+        isAppCode: Boolean
+    ): ConfidenceLevel = when {
+        throwable is ANRDiagnosticException -> ConfidenceLevel.PROBABLE
+        throwable is SystemExitDiagnosticException -> ConfidenceLevel.UNDETERMINED
+        isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
+        isAppCode -> ConfidenceLevel.PROBABLE
+        else -> ConfidenceLevel.UNDETERMINED
+    }
+
     private fun generateSuggestedFix(throwable: Throwable, root: Throwable, isAppCode: Boolean, crashSite: String): String {
         val msg = (root.message ?: "").lowercase()
         return when {
-            throwable is ANRDiagnosticException ->
+            throwable is ANRDiagnosticException ||
+                (throwable is SystemExitDiagnosticException &&
+                    throwable.exitReason == ApplicationExitInfo.REASON_ANR) ->
                 "قم بنقل العمليات الثقيلة (I/O, Parsing, SQLite, Bitmap manipulation) خارج خيط الواجهة المباشر باستخدام withContext(Dispatchers.IO) أو viewModelScope.launch(Dispatchers.IO)."
 
             root is NullPointerException ->
@@ -604,10 +739,21 @@ object QabasCrashGuard {
     private fun firstFrame(throwable: Throwable): String? =
         throwable.stackTrace.firstOrNull()?.let { formatFrame(it) }
 
-    private fun categorize(throwable: Throwable): String {
+    internal fun categorize(throwable: Throwable): String {
         val name = throwable.javaClass.name
         val message = throwable.message.orEmpty()
         return when {
+            throwable is SystemExitDiagnosticException -> when (throwable.exitReason) {
+                ApplicationExitInfo.REASON_ANR -> "ANR / Android ExitInfo"
+                ApplicationExitInfo.REASON_CRASH -> "Java/Kotlin Crash / Android ExitInfo"
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> "Native Crash / Android ExitInfo"
+                ApplicationExitInfo.REASON_LOW_MEMORY -> "Low Memory Termination"
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Excessive Resource Usage"
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "Process Initialization Failure"
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "Dependency Process Died"
+                ApplicationExitInfo.REASON_SIGNALED -> "System Signal Termination"
+                else -> "Android Process Exit"
+            }
             throwable is ANRDiagnosticException -> "ANR / Frozen UI"
             throwable is OutOfMemoryError -> "OOM / Memory"
             throwable is StackOverflowError -> "StackOverflow"

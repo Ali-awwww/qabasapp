@@ -13,10 +13,12 @@ class QabasApplication : Application() {
         super.onCreate()
 
         PerfTracker.onAppCreate()
-        QabasCrashGuard.install(this)
 
-        // Make the application context available before Supabase Auth creates its client.
+        // Make the application context available before crash upload or Supabase clients initialize.
         AppServices.appContext = this
+        QabasCrashGuard.install(this)
+        QabasCrashGuard.markStartupStage(this, "QabasApplication.onCreate")
+        QabasCrashGuard.schedulePendingUploads(this)
 
         // عدّاد الإقلاعات لصحة الإصدار (انهيارات / إقلاعات)
         runCatching {
@@ -37,20 +39,67 @@ class QabasApplication : Application() {
 
         // Initialize core application services in background to avoid blocking the splash screen
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AgentPrefs.init")
             runCatching { AgentPrefs.init(this@QabasApplication) }
-            runCatching { AppServices.init(this@QabasApplication) }
-            runCatching { LocalAccountRegistry.init(this@QabasApplication) }
-            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
-            
-            runCatching { UpdateManager.reconcilePendingInstall(this@QabasApplication) }
+                .onFailure { recordStartupFailure("AgentPrefs.init", it) }
 
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AppServices.init")
+            runCatching { AppServices.init(this@QabasApplication) }
+                .onFailure { recordStartupFailure("AppServices.init", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "LocalAccountRegistry.init")
+            runCatching { LocalAccountRegistry.init(this@QabasApplication) }
+                .onFailure { recordStartupFailure("LocalAccountRegistry.init", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "SupabaseRepository.ensureAuthenticatedSession")
+            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
+                .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "UpdateManager.reconcilePendingInstall")
+            runCatching { UpdateManager.reconcilePendingInstall(this@QabasApplication) }
+                .onFailure { recordStartupFailure("UpdateManager.reconcilePendingInstall", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AppRemoteConfig.refreshFromCloud")
             runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }
+                .onFailure { recordStartupFailure("AppRemoteConfig.refreshFromCloud", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "RemoteNotificationsManager.startInbox")
             runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }
+                .onFailure { recordStartupFailure("RemoteNotificationsManager.startInbox", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "DoctorMonitor.maybeRun")
             runCatching { DoctorMonitor.maybeRun(this@QabasApplication) }
+                .onFailure { recordStartupFailure("DoctorMonitor.maybeRun", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "DownloadsHubManager.init+checkAndStartAutoUpdate")
             runCatching {
                 DownloadsHubManager.init(this@QabasApplication)
                 DownloadsHubManager.checkAndStartAutoUpdate(this@QabasApplication, force = false)
+            }.onFailure {
+                recordStartupFailure("DownloadsHubManager", it)
             }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "startup.completed")
+            QabasCrashGuard.schedulePendingUploads(this@QabasApplication)
+        }
+    }
+
+
+    /**
+     * A diagnostic failure must never escape the startup coroutine and become
+     * a second application failure while handling the original startup error.
+     */
+    private fun recordStartupFailure(stage: String, failure: Throwable) {
+        runCatching {
+            QabasCrashGuard.record(
+                context = this,
+                thread = Thread.currentThread().name,
+                throwable = failure,
+                source = "startup:$stage",
+                notifyOwner = false
+            )
+        }.onFailure { reportingFailure ->
+            Log.e("QabasApplication", "Unable to persist startup diagnostic for $stage", reportingFailure)
         }
     }
 

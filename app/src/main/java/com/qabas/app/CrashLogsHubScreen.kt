@@ -128,6 +128,7 @@ fun CrashLogsHubScreen(
     onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -146,6 +147,20 @@ fun CrashLogsHubScreen(
     var lastCrashTimestamp by remember { mutableLongStateOf(0L) }
     var activeBreadcrumbs by remember { mutableStateOf("") }
     var liveTelemetry by remember { mutableStateOf<SystemLiveTelemetry?>(null) }
+
+    // Defence in depth: this screen is also reachable through health/navigation routes.
+    val crashTelemetryAccessAllowed = remember(supabaseAuthUser) { AdminGuard.isCrashTelemetryAccessAllowed() }
+    if (!crashTelemetryAccessAllowed) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("هذا المركز مخصص للمطورين فقط", color = MaterialTheme.colorScheme.onSurface)
+                if (onBack != null) {
+                    TextButton(onClick = onBack) { Text("رجوع") }
+                }
+            }
+        }
+        return
+    }
 
     // Zip export launcher
     val exportZipLauncher = rememberLauncherForActivityResult(
