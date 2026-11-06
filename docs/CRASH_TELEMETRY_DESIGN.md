@@ -1,7 +1,16 @@
 # QABAS Crash Telemetry — Implementation Decision
 
 ## Status
-Approved for implementation in the crash-diagnostics scope.
+Draft — pending formal QABAS governance approval.
+
+This file records a proposed technical design only. It is not an approved
+QABAS decision, EXEC, or DEVSPEC, and must not be treated as authorization
+to merge or release the implementation.
+
+Before implementation is accepted, assign the feature's permanent Feature ID
+and prepare the linked decision, EXEC, and DEVSPEC documents required by
+QABAS-000. The implementation remains unapproved until those documents are
+reviewed and approved.
 
 ## Context
 QABAS already has `QabasCrashGuard`, local diagnostic reports, ANR monitoring, and Android `ApplicationExitInfo` scanning. The missing capabilities are durable cloud delivery, explicit startup-stage breadcrumbs, and broader classification of process exits.
