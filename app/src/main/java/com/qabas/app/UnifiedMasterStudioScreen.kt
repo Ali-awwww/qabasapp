@@ -825,7 +825,47 @@ fun UnifiedMasterStudioScreen(
                             border = BorderStroke(1.dp, Color(0xFF334155))
                         ) {
                             Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("المشهد ${index + 1} • ${scene.durationInSeconds} ث", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("المشهد ${index + 1}", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    OutlinedTextField(
+                                        value = scene.durationInSeconds.toString(),
+                                        onValueChange = { rawDuration ->
+                                            val duration = rawDuration.toIntOrNull()?.coerceIn(1, 600) ?: return@OutlinedTextField
+                                            pendingScenePlan = pendingScenePlan.orEmpty().mapIndexed { sceneIndex, current ->
+                                                if (sceneIndex == index) current.copy(durationInSeconds = duration) else current
+                                            }
+                                        },
+                                        label = { Text("ثوانٍ") },
+                                        modifier = Modifier.width(92.dp),
+                                        singleLine = true
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            if (index > 0) {
+                                                val moved = pendingScenePlan.orEmpty().toMutableList()
+                                                val item = moved.removeAt(index)
+                                                moved.add(index - 1, item)
+                                                pendingScenePlan = moved
+                                            }
+                                        },
+                                        enabled = index > 0
+                                    ) { Icon(Icons.Default.ArrowUpward, contentDescription = "تحريك المشهد للأعلى", tint = Color(0xFFCBD5E1)) }
+                                    IconButton(
+                                        onClick = {
+                                            val current = pendingScenePlan.orEmpty()
+                                            if (index < current.lastIndex) {
+                                                val moved = current.toMutableList()
+                                                val item = moved.removeAt(index)
+                                                moved.add(index + 1, item)
+                                                pendingScenePlan = moved
+                                            }
+                                        },
+                                        enabled = index < pendingScenePlan.orEmpty().lastIndex
+                                    ) { Icon(Icons.Default.ArrowDownward, contentDescription = "تحريك المشهد للأسفل", tint = Color(0xFFCBD5E1)) }
+                                    IconButton(onClick = {
+                                        pendingScenePlan = pendingScenePlan.orEmpty().filterIndexed { sceneIndex, _ -> sceneIndex != index }
+                                    }) { Icon(Icons.Default.Delete, contentDescription = "حذف المشهد", tint = Color(0xFFEF4444)) }
+                                }
                                 OutlinedTextField(
                                     value = scene.title,
                                     onValueChange = { editedTitle ->
@@ -853,12 +893,33 @@ fun UnifiedMasterStudioScreen(
                             }
                         }
                     }
+                    Button(
+                        onClick = {
+                            val current = pendingScenePlan.orEmpty()
+                            pendingScenePlan = current + Scene(
+                                title = "مشهد جديد ${current.size + 1}",
+                                description = "",
+                                durationInSeconds = 5,
+                                transitionType = "Fade"
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF101B30))
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = primaryColor)
+                        Spacer(Modifier.width(8.dp))
+                        Text("إضافة مشهد", color = primaryColor, fontFamily = CairoFont)
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    showScenePlanApproval = false
-                    launchMasterpieceGeneration()
+                    if (pendingScenePlan.isNullOrEmpty()) {
+                        Toast.makeText(context, "أضف مشهدًا واحدًا على الأقل قبل الاعتماد", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showScenePlanApproval = false
+                        launchMasterpieceGeneration()
+                    }
                 }) {
                     Text("اعتماد السيناريو وبدء الإنتاج", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
