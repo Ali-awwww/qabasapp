@@ -386,7 +386,7 @@ val verifyQuranApkAssets by tasks.registering {
 }
 
 // Run the APK-content assertion after every debug APK assembly, including CI builds.
-tasks.named("assembleDebug").configure {
+tasks.matching { it.name == "assembleDebug" }.configureEach {
     finalizedBy(verifyQuranApkAssets)
 }
 
