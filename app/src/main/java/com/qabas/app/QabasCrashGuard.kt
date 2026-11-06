@@ -51,6 +51,10 @@ object QabasCrashGuard {
     private const val PREF_COUNT = "crash_guard_count"
     private const val PREF_LAST_RELAUNCH_TS = "crash_guard_last_relaunch_ts"
     private const val PREF_LAST_EXIT_SCAN_TS = "crash_guard_last_exit_scan_ts"
+    private const val PREF_LAST_STARTUP_STAGE = "crash_guard_last_startup_stage"
+    private const val PREF_LAST_STARTUP_STAGE_TS = "crash_guard_last_startup_stage_ts"
+    private const val PREF_PREVIOUS_STARTUP_STAGE = "crash_guard_previous_startup_stage"
+    private const val PREF_PREVIOUS_STARTUP_STAGE_TS = "crash_guard_previous_startup_stage_ts"
 
     @Volatile private var installed = false
     @Volatile private var anrWatchdog: Thread? = null
@@ -93,6 +97,15 @@ object QabasCrashGuard {
         installed = true
         val appContext = context.applicationContext
         appContextRef = appContext
+
+        // Preserve the last stage from the previous process before this launch overwrites it.
+        runCatching {
+            val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(PREF_PREVIOUS_STARTUP_STAGE, prefs.getString(PREF_LAST_STARTUP_STAGE, "unknown") ?: "unknown")
+                .putLong(PREF_PREVIOUS_STARTUP_STAGE_TS, prefs.getLong(PREF_LAST_STARTUP_STAGE_TS, 0L))
+                .commit()
+        }
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -148,6 +161,26 @@ object QabasCrashGuard {
         }, "QabasExitScan").apply { isDaemon = true }.start()
     }
 
+    /** يسجل آخر مرحلة من تهيئة التطبيق بصورة دائمة لتحديد موضع فشل الإقلاع. */
+    fun markStartupStage(context: Context, stage: String) {
+        val cleanStage = stage.trim().take(120).ifBlank { "unknown" }
+        runCatching {
+            context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_LAST_STARTUP_STAGE, cleanStage)
+                .putLong(PREF_LAST_STARTUP_STAGE_TS, System.currentTimeMillis())
+                .commit()
+            CrashBreadcrumbs.leave("startup", cleanStage)
+        }.onFailure {
+            android.util.Log.w(TAG, "تعذر حفظ مرحلة بدء التشغيل: ${it.message}")
+        }
+    }
+
+    /** يعيد جدولة رفع التقارير المحلية المتبقية عند بدء التطبيق. */
+    fun schedulePendingUploads(context: Context) {
+        CrashTelemetry.scheduleIfPending(context.applicationContext)
+    }
+
     /**
      * يفحص أسباب إغلاق العملية السابقة من النظام (API 30+)
      */
@@ -164,22 +197,45 @@ object QabasCrashGuard {
 
         val dayAgo = now - 24L * 60 * 60 * 1000
         var lastRecorded = prefs.getLong("crash_guard_last_exit_recorded_ts", 0L)
-        for (info in exits) {
+        for (info in exits.sortedBy { it.timestamp }) {
             if (info.timestamp < dayAgo || info.timestamp <= lastRecorded) continue
-            val severe = info.reason == ApplicationExitInfo.REASON_CRASH ||
-                    info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
-                    info.reason == ApplicationExitInfo.REASON_ANR ||
-                    info.reason == ApplicationExitInfo.REASON_LOW_MEMORY
-            if (!severe) continue
             val label = when (info.reason) {
-                ApplicationExitInfo.REASON_CRASH_NATIVE -> "💥 انهيار Native في العملية السابقة"
-                ApplicationExitInfo.REASON_ANR -> "🧊 ANR مكتشف من النظام في العملية السابقة"
-                ApplicationExitInfo.REASON_LOW_MEMORY -> "🧯 نفدت الذاكرة (OOM) في العملية السابقة"
-                else -> "💥 انهيار Java في العملية السابقة"
+                ApplicationExitInfo.REASON_CRASH -> "انهيار Java/Kotlin مسجل من Android"
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> "انهيار Native مسجل من Android"
+                ApplicationExitInfo.REASON_ANR -> "ANR مسجل من Android"
+                ApplicationExitInfo.REASON_LOW_MEMORY -> "إنهاء بسبب انخفاض الذاكرة"
+                ApplicationExitInfo.REASON_SIGNALED -> "إنهاء بإشارة نظام (لا يعني وحده وجود خطأ برمجي)"
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "إنهاء بسبب استهلاك مفرط لموارد النظام"
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "فشل تهيئة العملية"
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "توقف اعتماد أو عملية مرتبطة"
+                else -> continue
             }
-            val desc = info.description?.take(200)?.let { " — $it" } ?: ""
-            record(context, "system_process", RuntimeException("$label$desc"), "system_exit_scan")
-            lastRecorded = info.timestamp
+            val systemTrace = runCatching {
+                info.traceInputStream?.use { input ->
+                    val buffer = ByteArray(16 * 1024)
+                    val count = input.read(buffer)
+                    if (count > 0) String(buffer, 0, count, Charsets.UTF_8) else ""
+                }
+            }.getOrNull().orEmpty()
+            val details = buildString {
+                append(label)
+                append(" | reason=${info.reason} | status=${info.status}")
+                append(" | processTimestamp=${info.timestamp}")
+                append(" | pss=${info.pss}KB | rss=${info.rss}KB")
+                info.description?.take(500)?.let { append(" | description=$it") }
+                if (systemTrace.isNotBlank()) {
+                    append("\nAndroid exit trace:\n")
+                    append(systemTrace)
+                }
+            }
+            record(
+                context = context,
+                thread = "system_process",
+                throwable = RuntimeException(details),
+                source = "system_exit_scan",
+                occurredAtMs = info.timestamp
+            )
+            lastRecorded = maxOf(lastRecorded, info.timestamp)
         }
         if (lastRecorded > 0L) {
             prefs.edit()
@@ -328,8 +384,14 @@ object QabasCrashGuard {
     /**
      * التسجيل التشخيصي الشامل واستخراج التقرير المنظم من 8 أجزاء
      */
-    fun record(context: Context, thread: String, throwable: Throwable, source: String = "thread"): String {
-        val now = Date()
+    fun record(
+        context: Context,
+        thread: String,
+        throwable: Throwable,
+        source: String = "thread",
+        occurredAtMs: Long = System.currentTimeMillis()
+    ): String {
+        val now = Date(occurredAtMs)
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(now)
         val display = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(now)
         val env = buildEnvHeader(context)
@@ -381,6 +443,18 @@ object QabasCrashGuard {
             }
         } catch (t: Throwable) {
             android.util.Log.e(TAG, "فشل تسجيل الانهيار", t)
+        }
+
+        runCatching {
+            CrashTelemetry.enqueue(
+                context = context,
+                thread = thread,
+                throwable = throwable,
+                source = source,
+                occurredAtMs = occurredAtMs
+            )
+        }.onFailure {
+            android.util.Log.e(TAG, "تعذر حفظ تقرير الرفع السحابي محلياً", it)
         }
 
         notifyDeveloper(context, throwable, source, occurrences)
