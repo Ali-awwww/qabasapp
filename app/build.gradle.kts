@@ -1,5 +1,6 @@
 import java.net.URL
 import java.security.MessageDigest
+import java.util.zip.ZipFile
 
 plugins {
   alias(libs.plugins.android.application)
@@ -345,3 +346,50 @@ val verifyQuranData by tasks.registering {
 
 tasks.named("preBuild").configure { dependsOn(verifyQuranData) }
 
+// Verify the asset names that Android actually places in the APK. The Android
+// asset packager expands these checked-in .json.gz inputs into .json APK entries.
+val verifyQuranApkAssets by tasks.registering {
+    doLast {
+        val apkDirectory = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        val apks = apkDirectory.listFiles { file ->
+            file.isFile && file.extension.equals("apk", ignoreCase = true)
+        }?.toList().orEmpty()
+        check(apks.isNotEmpty()) {
+            "No debug APK found under ${apkDirectory.absolutePath}"
+        }
+
+        val expectedAssets = listOf(
+            "assets/quran/mushafs-1.json",
+            "assets/quran/tafsir-book-32.json"
+        )
+        val obsoleteCompressedNames = listOf(
+            "assets/quran/mushafs-1.json.gz",
+            "assets/quran/tafsir-book-32.json.gz"
+        )
+
+        for (apk in apks) {
+            ZipFile(apk).use { archive ->
+                val packagedEntries = archive.entries().asSequence().map { it.name }.toSet()
+                for (assetPath in expectedAssets) {
+                    check(assetPath in packagedEntries) {
+                        "Missing packaged Quran asset '$assetPath' in ${apk.name}"
+                    }
+                }
+                for (assetPath in obsoleteCompressedNames) {
+                    check(assetPath !in packagedEntries) {
+                        "Unexpected compressed Quran asset '$assetPath' in ${apk.name}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Run the APK-content assertion after every debug APK assembly, including CI builds.
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    finalizedBy(verifyQuranApkAssets)
+}
+
+tasks.named("check").configure {
+    dependsOn("assembleDebug")
+}

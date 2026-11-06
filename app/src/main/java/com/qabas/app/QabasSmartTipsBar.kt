@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -580,7 +582,14 @@ fun QabasSmartTipsBar(
     val primaryColor = qabasPrimary()
     var currentTipIndex by remember { mutableIntStateOf(0) }
     val quranTips by produceState(initialValue = emptyList<QabasTipItem>(), context) {
-        value = withContext(Dispatchers.IO) { QabasQuranData.load(context) }
+        value = try {
+            withContext(Dispatchers.IO) { QabasQuranData.load(context) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.e("QabasSmartTipsBar", "Unable to load Quran tips; the rest of the app will remain available.", error)
+            emptyList()
+        }
     }
     var bukhariHadiths by remember { mutableStateOf(emptyList<BukhariHadith>()) }
     LaunchedEffect(context) {
