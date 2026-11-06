@@ -38,6 +38,24 @@ class QabasCrashGuardTest {
     }
 
     @Test
+    fun `Android recorded ANR preserves the operating system classification`() {
+        val diagnostic = QabasCrashGuard.SystemExitDiagnosticException(
+            exitReason = android.app.ApplicationExitInfo.REASON_ANR,
+            exitLabel = "ANR recorded by Android",
+            details = "system exit details"
+        )
+
+        assertEquals(
+            "ANR / Android ExitInfo",
+            QabasCrashGuard.categorize(diagnostic)
+        )
+        assertEquals(
+            QabasCrashGuard.ConfidenceLevel.PROBABLE,
+            QabasCrashGuard.confidenceFor(diagnostic, diagnostic, isAppCode = false)
+        )
+    }
+
+    @Test
     fun `external failure without app frame remains undetermined`() {
         val failure = IllegalArgumentException("external")
 
