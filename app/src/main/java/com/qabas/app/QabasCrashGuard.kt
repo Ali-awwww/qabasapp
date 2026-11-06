@@ -248,7 +248,8 @@ object QabasCrashGuard {
                 thread = "system_process",
                 throwable = RuntimeException(details),
                 source = "system_exit_scan",
-                occurredAtMs = info.timestamp
+                occurredAtMs = info.timestamp,
+                notifyOwner = false
             )
             lastRecorded = maxOf(lastRecorded, info.timestamp)
         }
