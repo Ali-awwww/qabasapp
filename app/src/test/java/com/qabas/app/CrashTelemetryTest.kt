@@ -58,6 +58,25 @@ class CrashTelemetryTest {
     }
 
     @Test
+    fun `pending report remains queued when upload scheduling cannot run`() {
+        val eventId = UUID.randomUUID().toString()
+        val record = JSONObject()
+            .put("id", eventId)
+            .put("description", "retry scheduling report")
+        val file = CrashTelemetry.persistRecord(context, record)
+
+        try {
+            // Scheduling must never discard the durable report or throw when
+            // WorkManager has not completed initialization yet.
+            CrashTelemetry.scheduleIfPending(context)
+            assertTrue(file.isFile)
+            assertTrue(CrashTelemetry.pendingFiles(context).contains(file))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun `persistRecord writes a durable json file visible in pending queue`() {
         val eventId = UUID.randomUUID().toString()
         val record = JSONObject()
