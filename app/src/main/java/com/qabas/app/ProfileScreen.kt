@@ -625,18 +625,21 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier
+                        .wrapContentHeight()
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // Avatar with Edit Button Overlay
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(88.dp)
                             .bouncingClickable { showAvatarPickerSheet = true },
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         Surface(
-                            modifier = Modifier.size(100.dp),
+                            modifier = Modifier.size(88.dp),
                             shape = CircleShape,
                             color = qabasBackground(),
                             border = androidx.compose.foundation.BorderStroke(3.dp, goldGradient),
@@ -683,7 +686,7 @@ fun ProfileScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Name & Custom Tag
                     Text(
@@ -694,7 +697,7 @@ fun ProfileScreen(
                         fontSize = 21.sp
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     // Row with Username and Account Number side-by-side
                     Row(
@@ -702,7 +705,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         // 1. User Tag Chip
                         Surface(

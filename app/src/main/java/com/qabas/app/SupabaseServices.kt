@@ -428,6 +428,11 @@ object SupabaseServices {
                 if (updated.id != authUid) {
                     throw SecurityException("رفضت السحابة تحديث سجل الحساب الحالي")
                 }
+                // Verify the returned cloud row confirms the requested display name too.
+                // A successful HTTP response alone is not enough if the row is stale.
+                if (updated.name?.trim() != cleanName) {
+                    throw IllegalStateException("لم تؤكد السحابة حفظ اسم الحساب المطلوب")
+                }
                 if (UserIdentifierManager.normalize(updated.customId.orEmpty()) != cleanCustomId) {
                     throw IllegalStateException("لم تؤكد السحابة حفظ اليوزر المطلوب")
                 }
