@@ -88,16 +88,7 @@ fun ApiServerSettingsSection() {
                 onClick = {
                     scope.launch {
                         serverError = null
-                        serverError?.let { message ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    message,
-                    color = androidx.compose.ui.graphics.Color.Red,
-                    fontFamily = NotoSansFont,
-                    fontSize = 12.sp
-                )
-            }
-            if (isServerRunning) {
+                        if (isServerRunning) {
                             withContext(Dispatchers.IO) { server.stop() }
                             isServerRunning = false
                         } else {
@@ -110,7 +101,7 @@ fun ApiServerSettingsSection() {
                                 serverError = if (e is java.net.BindException) {
                                     "المنفذ $serverPort مستخدم بالفعل. أوقف الخدمة الأخرى أو اختر منفذًا مختلفًا."
                                 } else {
-                                    "تعذر تشغيل الخادم: " + ${e.localizedMessage ?: e.javaClass.simpleName}
+                                    "تعذر تشغيل الخادم: " + (e.localizedMessage ?: e.javaClass.simpleName)
                                 }
                             }
                         }
@@ -126,6 +117,16 @@ fun ApiServerSettingsSection() {
                     if (isServerRunning) "⏹ إيقاف الخادم" else "▶ تشغيل الخادم",
                     color = if (isServerRunning) androidx.compose.ui.graphics.Color.White else DeepSlate,
                     fontWeight = FontWeight.Bold
+                )
+            }
+            
+            serverError?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    message,
+                    color = androidx.compose.ui.graphics.Color.Red,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp
                 )
             }
             
