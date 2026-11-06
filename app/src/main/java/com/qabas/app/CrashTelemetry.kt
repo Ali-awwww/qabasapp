@@ -24,6 +24,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -112,7 +113,7 @@ internal object CrashTelemetry {
             }
         }.let { sanitize(it, MAX_DESCRIPTION_CHARS) }
 
-        val deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL} | Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT)}"
+        val deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL} | Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
         val record = JSONObject()
             .put("id", eventId)
             .put("occurred_at_ms", occurredAtMs)
@@ -121,21 +122,36 @@ internal object CrashTelemetry {
             .put("app_version", "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             .put("device_info", sanitize(deviceInfo, 240))
 
-        val directory = File(appContext.filesDir, QUEUE_DIR)
+        persistRecord(appContext, record)
+        scheduleUpload(appContext)
+    }
+
+    /**
+     * Atomically persists a queued report. Kept separate so the durable-write
+     * guarantee can be verified without starting WorkManager in unit tests.
+     */
+    internal fun persistRecord(context: Context, record: JSONObject): File {
+        val eventId = record.getString("id")
+        require(eventId.matches(Regex("[A-Za-z0-9-]{1,80}"))) { "Invalid telemetry event id" }
+        val directory = File(context.applicationContext.filesDir, QUEUE_DIR)
         if (!directory.exists() && !directory.mkdirs()) {
             throw IllegalStateException("تعذر إنشاء مجلد طابور تقارير الانهيارات")
         }
         val target = File(directory, "$eventId.json")
         val temporary = File(directory, "$eventId.tmp")
-        FileOutputStream(temporary).use { output ->
-            output.write(record.toString().toByteArray(Charsets.UTF_8))
-            output.fd.sync()
-        }
-        if (!temporary.renameTo(target)) {
+        try {
+            FileOutputStream(temporary).use { output ->
+                output.write(record.toString().toByteArray(Charsets.UTF_8))
+                output.fd.sync()
+            }
+            if (!temporary.renameTo(target)) {
+                throw IllegalStateException("تعذر تثبيت تقرير الانهيار في التخزين المحلي")
+            }
+            return target
+        } catch (failure: Throwable) {
             temporary.delete()
-            throw IllegalStateException("تعذر تثبيت تقرير الانهيار في التخزين المحلي")
+            throw failure
         }
-        scheduleUpload(appContext)
     }
 
     fun scheduleIfPending(context: Context) {
@@ -165,30 +181,37 @@ internal object CrashTelemetry {
             ?.sortedBy { it.lastModified() }
             .orEmpty()
 
-    internal suspend fun upload(record: JSONObject): Boolean = runCatching {
+    internal fun buildPayload(record: JSONObject) = buildJsonObject {
+        put("id", record.getString("id"))
+        put("user_email", "anonymous")
+        put("screen_name", record.optString("screen_name", "غير محددة").take(120))
+        put("description", record.optString("description", "").take(MAX_DESCRIPTION_CHARS))
+        put("image_url", "")
+        put("report_type", "CRASH_TELEMETRY")
+        put("status", "open")
+        put("app_version", record.optString("app_version", "").take(80))
+        put("device_info", record.optString("device_info", "").take(240))
+        put("developer_reply", "")
+        // user_id is deliberately omitted; the anonymous INSERT policy requires NULL.
+    }
+
+    internal suspend fun upload(record: JSONObject): Boolean {
         if (!SupabaseConfig.isConfigured) return false
-        val client = getUploadClient()
-        val payload = buildJsonObject {
-            put("id", record.getString("id"))
-            put("user_email", "anonymous")
-            put("screen_name", record.optString("screen_name", "غير محددة").take(120))
-            put("description", record.optString("description", "").take(MAX_DESCRIPTION_CHARS))
-            put("image_url", "")
-            put("report_type", "CRASH_TELEMETRY")
-            put("status", "open")
-            put("app_version", record.optString("app_version", "").take(80))
-            put("device_info", record.optString("device_info", "").take(240))
-            put("developer_reply", "")
+        return try {
+            val client = getUploadClient()
+            val payload = buildPayload(record)
+            client.postgrest.from("dev_bug_reports").upsert(payload) {
+                onConflict = "id"
+                ignoreDuplicates = true
+            }
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w(TAG, "Crash telemetry upload failed: ${failure.message}")
+            false
         }
-        client.postgrest.from("dev_bug_reports").upsert(
-            payload,
-            onConflict = "id",
-            ignoreDuplicates = true
-        )
-        true
-    }.onFailure {
-        Log.w(TAG, "Crash telemetry upload failed: ${it.message}")
-    }.getOrDefault(false)
+    }
 
     private fun getUploadClient(): SupabaseClient {
         uploadClient?.let { return it }
@@ -204,7 +227,7 @@ internal object CrashTelemetry {
         }
     }
 
-    private fun sanitize(value: String, maxChars: Int): String {
+    internal fun sanitize(value: String, maxChars: Int): String {
         if (value.isBlank()) return value
         return value
             .replace(credentialPattern) { match ->
@@ -232,10 +255,12 @@ internal class CrashTelemetryUploadWorker(
 
         var failed = false
         for (file in pending.take(CrashTelemetry.batchSize)) {
-            val uploaded = runCatching {
+            val uploaded = try {
                 CrashTelemetry.upload(JSONObject(file.readText(Charsets.UTF_8)))
-            }.getOrElse {
-                Log.w("CrashTelemetry", "Unable to process queued report ${file.name}: ${it.message}")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w("CrashTelemetry", "Unable to process queued report ${file.name}: ${failure.message}")
                 false
             }
             if (uploaded) {
