@@ -118,6 +118,37 @@ object AudioDownloadHelper {
         }
     }
 
+    /** Returns titles whose MP3 files are already present in the app's existing Downloads location. */
+    fun getDownloadedAudioTitles(context: Context, titles: Collection<String>): Set<String> {
+        if (titles.isEmpty()) return emptySet()
+        val expectedNames = titles.associateBy { title ->
+            title.map { if (it in "\\/:*?\"<>|") '_' else it }.joinToString("").trim().ifBlank { "qabas_audio" } + ".mp3"
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            return expectedNames.filterKeys { File(downloadsDir, it).isFile }.values.toSet()
+        }
+
+        val foundNames = mutableSetOf<String>()
+        val projection = arrayOf(MediaStore.Downloads.DISPLAY_NAME)
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            "\${MediaStore.Downloads.MIME_TYPE} = ?",
+            arrayOf("audio/mpeg"),
+            null
+        )?.use { cursor ->
+            val nameColumn = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
+            if (nameColumn >= 0) {
+                while (cursor.moveToNext()) {
+                    val displayName = cursor.getString(nameColumn)
+                    if (displayName in expectedNames) foundNames.add(displayName)
+                }
+            }
+        }
+        return foundNames.mapNotNull(expectedNames::get).toSet()
+    }
+
     /**
      * Backward-compatible simple download method.
      */
