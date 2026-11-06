@@ -425,6 +425,10 @@ fun AudioLibrarySection(
     var isLoading by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("الكل") }
+    var favoriteTrackIds by remember {
+        mutableStateOf(context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)
+            .getStringSet("favorite_audio_ids", emptySet())?.toSet().orEmpty())
+    }
 
     val categories = remember {
         listOf(
@@ -508,6 +512,7 @@ fun AudioLibrarySection(
 
     fun matchesAudioCategory(track: LiveAudioItem, requested: String): Boolean {
         if (requested == "الكل") return true
+        if (requested == "المفضلة ★") return track.id in favoriteTrackIds
         val source = (track.category + " " + track.title + " " + track.author).lowercase(Locale.ROOT)
         return when (requested) {
             "القرآن الكريم" -> listOf("قرآن", "تلاوة", "تلاوات", "recitation", "quran").any { source.contains(it) }
@@ -620,7 +625,7 @@ fun AudioLibrarySection(
                 onDismissRequest = { showCategoryMenu = false },
                 modifier = Modifier.background(Color(0xFF0B172A))
             ) {
-                categories.forEach { category ->
+                (categories + "المفضلة ★").forEach { category ->
                     DropdownMenuItem(
                         text = { Text(category, fontFamily = CairoFont, color = Color.White) },
                         onClick = {
@@ -867,11 +872,28 @@ fun AudioLibrarySection(
                                     )
                                 }
 
-                                // Interactive Actions: YouTube, Share, Download, Apply
+                                // Interactive Actions: Favorite, YouTube, Share, Download, Apply
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    IconButton(
+                                        onClick = {
+                                            val nextFavorites = if (track.id in favoriteTrackIds) favoriteTrackIds - track.id else favoriteTrackIds + track.id
+                                            favoriteTrackIds = nextFavorites
+                                            context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)
+                                                .edit().putStringSet("favorite_audio_ids", nextFavorites.toMutableSet()).apply()
+                                        },
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Icon(
+                                            if (track.id in favoriteTrackIds) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = if (track.id in favoriteTrackIds) "إزالة من المفضلة" else "إضافة إلى المفضلة",
+                                            tint = if (track.id in favoriteTrackIds) GoldPrimary else Color.White.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(19.dp)
+                                        )
+                                    }
+
                                     // YouTube button
                                     OutlinedIconButton(
                                         onClick = {
