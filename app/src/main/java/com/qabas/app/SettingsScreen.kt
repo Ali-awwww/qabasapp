@@ -161,6 +161,7 @@ fun SettingsScreen(
     }
 
     val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
+    val canViewCrashTelemetry = remember { AdminGuard.isCrashTelemetryAccessAllowed() }
     val isSyncing by UserPreferencesManager.isSyncing.collectAsState()
 
     // تعريف جميع العناصر القابلة للبحث
@@ -875,7 +876,7 @@ fun SettingsScreen(
                                 onClick = { showUserReportsDialog = true }
                             )
                         }
-                        if (isAdmin || isDevMode) {
+                        if (canViewCrashTelemetry) {
                             SettingsActionCard(
                                 title = "سجل وملتقط الانهيارات والأعطال (Crash Guard)",
                                 subtitle = "تشخيص الأعطال الحية، استخراج السباك، وتصدير تقارير الأمان",
@@ -920,9 +921,13 @@ fun SettingsScreen(
             // 💥 مركز سجل وملتقط الانهيارات السيبراني (Crash Guard HUD)
             // ==========================================
             SettingsSubScreen.CRASH_LOGS -> {
-                CrashLogsHubScreen(
-                    onBack = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
-                )
+                if (canViewCrashTelemetry) {
+                    CrashLogsHubScreen(
+                        onBack = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
+                    )
+                } else {
+                    currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT
+                }
             }
 
             // ==========================================
