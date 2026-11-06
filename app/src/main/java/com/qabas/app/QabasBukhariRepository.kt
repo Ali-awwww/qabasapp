@@ -2,10 +2,15 @@ package com.qabas.app
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.util.zip.GZIPInputStream
 
-/** Exact source fields from the supplied JSON. No editorial classifications are generated. */
+/** Hadith source fields adapted for the Qabas tips carousel without rewriting hadith text. */
 data class BukhariHadith(
     val id: String,
     val book: String,
@@ -18,44 +23,96 @@ data class BukhariHadith(
     val inBookReference: String
 ) {
     val referenceLabel: String
-        get() = inBookReference.ifBlank { reference.ifBlank { "صحيح البخاري" } }
+        get() = inBookReference.ifBlank { reference.ifBlank { book } }
 }
 
 object QabasBukhariRepository {
-    private const val FILE_NAME = "sahih_al_bukhari.json"
+    private const val TAG = "QabasHadithTipsRepo"
+    private const val IMPORT_FILE_NAME = "sahih_al_bukhari.json"
+    private const val BUKHARI_ASSET = "sahih_bukhari.json.gz"
+    private const val MUSLIM_ASSET = "sahih_muslim.json.gz"
+    private val json = Json { ignoreUnknownKeys = true }
 
+    /**
+     * Load both bundled Sahih datasets. The old uncompressed JSON is only an optional
+     * user-imported override; its empty placeholder must not mask the bundled books.
+     */
     fun load(context: Context): List<BukhariHadith> {
-        // Optional user-imported copy takes precedence over the bundled asset.
-        val importedFile = File(context.filesDir, FILE_NAME)
-        if (importedFile.exists()) {
-            return parse(importedFile.readText(Charsets.UTF_8))
+        val importedFile = File(context.filesDir, IMPORT_FILE_NAME)
+        if (importedFile.isFile) {
+            val imported = runCatching { parse(importedFile.readText(Charsets.UTF_8)) }
+                .onFailure { Log.w(TAG, "Unable to parse imported hadith file; falling back to bundled Sahihain", it) }
+                .getOrDefault(emptyList())
+            if (imported.isNotEmpty()) return imported
         }
 
-        // Bundle the dataset at: app/src/main/assets/sahih_al_bukhari.json
-        return runCatching {
-            context.assets.open(FILE_NAME).bufferedReader(Charsets.UTF_8).use { reader ->
-                parse(reader.readText())
+        val bukhari = loadBundledBook(context, BUKHARI_ASSET, "صحيح البخاري", "bukhari")
+        val muslim = loadBundledBook(context, MUSLIM_ASSET, "صحيح مسلم", "muslim")
+        val combined = bukhari + muslim
+        Log.i(TAG, "Loaded ${bukhari.size} Bukhari and ${muslim.size} Muslim hadiths for tips")
+        return combined
+    }
+
+    private fun loadBundledBook(
+        context: Context,
+        fileName: String,
+        fallbackTitle: String,
+        idPrefix: String
+    ): List<BukhariHadith> = runCatching {
+        context.assets.open("hadith/$fileName").use { asset ->
+            GZIPInputStream(asset).use { gzip ->
+                BufferedReader(InputStreamReader(gzip, Charsets.UTF_8)).use { reader ->
+                    val book = json.decodeFromString<FullSahihBook>(reader.readText())
+                    mapFullBook(book, fallbackTitle, idPrefix)
+                }
             }
-        }.getOrElse { emptyList() }
+        }
+    }.onFailure {
+        Log.e(TAG, "Failed loading hadith asset hadith/$fileName", it)
+    }.getOrDefault(emptyList())
+
+    /** Maps the canonical FullSahih schema to the tips model while retaining source text. */
+    internal fun mapFullBook(
+        book: FullSahihBook,
+        fallbackTitle: String,
+        idPrefix: String
+    ): List<BukhariHadith> {
+        val chaptersById = book.chapters.associateBy { it.id }
+        val title = book.metadata.arabic_title.ifBlank { fallbackTitle }
+        return book.hadiths.map { hadith ->
+            val chapter = chaptersById[hadith.chapterId]
+            val hadithNumber = hadith.idInBook.toString()
+            BukhariHadith(
+                id = "$idPrefix-${hadith.id}",
+                book = title,
+                chapterNumber = hadith.chapterId.toString(),
+                chapterTitleArabic = chapter?.arabic.orEmpty(),
+                arabicText = hadith.arabic,
+                englishText = "",
+                grade = "",
+                reference = "$title — $hadithNumber",
+                inBookReference = "رقم الحديث $hadithNumber"
+            )
+        }
     }
 
     fun importAndLoad(context: Context, uri: Uri): List<BukhariHadith> {
         val input = context.contentResolver.openInputStream(uri) ?: error("تعذر فتح الملف المحدد")
         input.use { source ->
-            File(context.filesDir, FILE_NAME).outputStream().use { target -> source.copyTo(target) }
+            File(context.filesDir, IMPORT_FILE_NAME).outputStream().use { target -> source.copyTo(target) }
         }
         return load(context)
     }
 
-    internal fun parse(json: String): List<BukhariHadith> {
-        val rows = JSONArray(json)
+    internal fun parse(jsonText: String): List<BukhariHadith> {
+        val rows = JSONArray(jsonText)
         return buildList(rows.length()) {
             for (index in 0 until rows.length()) {
                 val row = rows.optJSONObject(index) ?: continue
                 val arabic = row.optString("Arabic_Text").takeUnless { it == "null" }.orEmpty()
                 if (arabic.isBlank()) continue
                 add(BukhariHadith(
-                    id = "bukhari-$index",
+                    id = "imported-$index",
                     book = row.optString("Book").takeUnless { it == "null" }.orEmpty(),
                     chapterNumber = row.optString("Chapter_Number").takeUnless { it == "null" }.orEmpty(),
                     chapterTitleArabic = row.optString("Chapter_Title_Arabic").takeUnless { it == "null" }.orEmpty(),
