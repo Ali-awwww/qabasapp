@@ -77,7 +77,7 @@ enum class DashboardSection {
     ACCOUNT_SETTINGS, MONEY_CENTER, DEV_STUDIO_SIGNATURE,
     STYLE_BRAIN,
     API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, HEALTH_CENTER, CONNECTORS,
-    CRASH_LOGS, DEV_CHAT, MISHKAT_REMINDER, AUDIO_LIBRARY_MANAGEMENT
+    CRASH_LOGS, CRASH_TELEMETRY, DEV_CHAT, MISHKAT_REMINDER, AUDIO_LIBRARY_MANAGEMENT
 }
 
 data class DevUser(
@@ -362,12 +362,13 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 }
 
                 // 3. مركز الصحة والتشخيص الشامل
-                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.BUG_REPORTS, DashboardSection.PRODUCTION_PIPELINE, DashboardSection.AUDIT_LOG -> {
+                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.CRASH_TELEMETRY, DashboardSection.BUG_REPORTS, DashboardSection.PRODUCTION_PIPELINE, DashboardSection.AUDIT_LOG -> {
                     val initialTab = when (currentSection) {
                         DashboardSection.CRASH_LOGS -> 2
                         DashboardSection.BUG_REPORTS -> 3
                         DashboardSection.PRODUCTION_PIPELINE -> 5
                         DashboardSection.AUDIT_LOG -> 6
+                        DashboardSection.CRASH_TELEMETRY -> 8
                         else -> 0
                     }
                     HealthDiagnosticsHubScreen(
@@ -682,7 +683,7 @@ fun HealthDiagnosticsHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات", "🐞 البلاغات", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق", "📦 إدارة التحديثات")
+    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات المحلية", "🐞 البلاغات اليدوية", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق", "📦 إدارة التحديثات", "☁️ الأعطال التلقائية")
 
     DevHubScaffold(
         title = "مركز الصحة والتشخيص الشامل",
@@ -710,6 +711,7 @@ fun HealthDiagnosticsHubScreen(
             5 -> ProductionPipelineSection()
             6 -> AuditLogSection(context = context)
             7 -> UpdateManagementSection()
+            8 -> CrashTelemetryCloudScreen()
         }
     }
 }

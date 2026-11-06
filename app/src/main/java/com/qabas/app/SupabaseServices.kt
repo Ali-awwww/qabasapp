@@ -948,6 +948,24 @@ object SupabaseServices {
             rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
+        /**
+         * Returns only automatically collected crash telemetry for the protected
+         * developer console. RLS remains the server-side authority for support admins.
+         */
+        suspend fun getCrashTelemetryReports(): List<BugReportRow> {
+            if (!AdminGuard.isCrashTelemetryAccessAllowed()) {
+                throw SecurityException("Crash telemetry is restricted to approved developers")
+            }
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            return client.postgrest.from("dev_bug_reports").select {
+                filter {
+                    ilike("description", "%report_category=CRASH_TELEMETRY%")
+                }
+                order("created_at", Order.DESCENDING)
+                limit(500)
+            }.decodeList<BugReportRow>()
+        }
+
         suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
             // Ownership is determined only by the authenticated Supabase UID.
             // Never use user_email as an authorization filter: report inserts do not
