@@ -245,7 +245,11 @@ object QabasCrashGuard {
             record(
                 context = context,
                 thread = "system_process",
-                throwable = RuntimeException(details),
+                throwable = SystemExitDiagnosticException(
+                    exitReason = info.reason,
+                    exitLabel = label,
+                    details = details
+                ),
                 source = "system_exit_scan",
                 occurredAtMs = info.timestamp,
                 notifyOwner = false
@@ -377,6 +381,16 @@ object QabasCrashGuard {
         }
         return sb.toString()
     }
+
+    /**
+     * Structured representation of an exit reason reported by Android.
+     * This preserves the OS classification instead of flattening it into a generic exception.
+     */
+    class SystemExitDiagnosticException(
+        val exitReason: Int,
+        val exitLabel: String,
+        details: String
+    ) : RuntimeException(details)
 
     /**
      * استثناء مخصص لحمل تفاصيل تشخيص ANR دون اصطناع كراش
@@ -624,7 +638,9 @@ object QabasCrashGuard {
         root: Throwable,
         isAppCode: Boolean
     ): ConfidenceLevel = when {
-        throwable is ANRDiagnosticException -> ConfidenceLevel.PROBABLE
+        throwable is ANRDiagnosticException ||
+            (throwable is SystemExitDiagnosticException &&
+                throwable.exitReason == ApplicationExitInfo.REASON_ANR) -> ConfidenceLevel.PROBABLE
         isAppCode && (root is NullPointerException || root is IndexOutOfBoundsException || root is ClassCastException || root is IllegalStateException) -> ConfidenceLevel.CONFIRMED
         isAppCode -> ConfidenceLevel.PROBABLE
         else -> ConfidenceLevel.UNDETERMINED
@@ -633,7 +649,9 @@ object QabasCrashGuard {
     private fun generateSuggestedFix(throwable: Throwable, root: Throwable, isAppCode: Boolean, crashSite: String): String {
         val msg = (root.message ?: "").lowercase()
         return when {
-            throwable is ANRDiagnosticException ->
+            throwable is ANRDiagnosticException ||
+                (throwable is SystemExitDiagnosticException &&
+                    throwable.exitReason == ApplicationExitInfo.REASON_ANR) ->
                 "قم بنقل العمليات الثقيلة (I/O, Parsing, SQLite, Bitmap manipulation) خارج خيط الواجهة المباشر باستخدام withContext(Dispatchers.IO) أو viewModelScope.launch(Dispatchers.IO)."
 
             root is NullPointerException ->
@@ -708,10 +726,21 @@ object QabasCrashGuard {
     private fun firstFrame(throwable: Throwable): String? =
         throwable.stackTrace.firstOrNull()?.let { formatFrame(it) }
 
-    private fun categorize(throwable: Throwable): String {
+    internal fun categorize(throwable: Throwable): String {
         val name = throwable.javaClass.name
         val message = throwable.message.orEmpty()
         return when {
+            throwable is SystemExitDiagnosticException -> when (throwable.exitReason) {
+                ApplicationExitInfo.REASON_ANR -> "ANR / Android ExitInfo"
+                ApplicationExitInfo.REASON_CRASH -> "Java/Kotlin Crash / Android ExitInfo"
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> "Native Crash / Android ExitInfo"
+                ApplicationExitInfo.REASON_LOW_MEMORY -> "Low Memory Termination"
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Excessive Resource Usage"
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "Process Initialization Failure"
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "Dependency Process Died"
+                ApplicationExitInfo.REASON_SIGNALED -> "System Signal Termination"
+                else -> "Android Process Exit"
+            }
             throwable is ANRDiagnosticException -> "ANR / Frozen UI"
             throwable is OutOfMemoryError -> "OOM / Memory"
             throwable is StackOverflowError -> "StackOverflow"
