@@ -134,7 +134,7 @@ object AudioDownloadHelper {
         context.contentResolver.query(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
             projection,
-            MediaStore.Downloads.MIME_TYPE + " = ?,"
+            MediaStore.Downloads.MIME_TYPE + " = ?",
             arrayOf("audio/mpeg"),
             null
         )?.use { cursor ->
