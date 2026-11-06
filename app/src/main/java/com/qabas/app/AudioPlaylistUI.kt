@@ -438,12 +438,16 @@ fun ProAudioPlayerBar(
                         shape = RoundedCornerShape(5.dp),
                         border = BorderStroke(1.dp, Color(0xFF334155)),
                         modifier = Modifier.clickable {
-                            val nextSpeed = when (playbackSpeed) {
-                                1.0f -> 1.25f
-                                1.25f -> 1.5f
-                                1.5f -> 2.0f
-                                else -> 1.0f
-                            }
+                                val nextSpeed = when (playbackSpeed) {
+                                    0.5f -> 0.75f
+                                    0.75f -> 1.0f
+                                    1.0f -> 1.25f
+                                    1.25f -> 1.5f
+                                    1.5f -> 1.75f
+                                    1.75f -> 2.0f
+                                    2.0f -> 0.5f
+                                    else -> 1.25f
+                                }
                             AudioPlaybackManager.setPlaybackSpeed(nextSpeed)
                         }
                     ) {
