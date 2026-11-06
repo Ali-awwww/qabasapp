@@ -801,7 +801,10 @@ fun UnifiedMasterStudioScreen(
 
     if (showScenePlanApproval) {
         AlertDialog(
-            onDismissRequest = { showScenePlanApproval = false },
+            onDismissRequest = {
+                showScenePlanApproval = false
+                pendingScenePlan = null
+            },
             containerColor = Color(0xFF0B132B),
             title = {
                 Text("مراجعة خطة المشاهد قبل التوليد", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
