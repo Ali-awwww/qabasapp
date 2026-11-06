@@ -425,7 +425,6 @@ fun AudioLibrarySection(
     var isLoading by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("الكل 🌐") }
-    val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
 
     val categories = remember {
         listOf(
