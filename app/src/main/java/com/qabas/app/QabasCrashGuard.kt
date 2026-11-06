@@ -514,7 +514,12 @@ object QabasCrashGuard {
             pw.println("════════════════════════════════════════════════════════════")
 
             pw.println("\n1. ماذا حدث؟ (What Happened)")
-            pw.println("   • نوع الحادثة: ${if (throwable is ANRDiagnosticException) "🧊 ANR تجمّد خيط الواجهة" else "💥 انهيار برجمي (${diag.category})"}")
+            val incidentType = when (throwable) {
+                is ANRDiagnosticException -> "🧊 ANR تجمّد خيط الواجهة"
+                is SystemExitDiagnosticException -> "📱 خروج عملية مسجل من Android (${diag.category})"
+                else -> "💥 انهيار برمجي (${diag.category})"
+            }
+            pw.println("   • نوع الحادثة: $incidentType")
             pw.println("   • المصدر: $source | الخيط: $thread")
             pw.println("   • بصمة الحادثة (Fingerprint): $fingerprint")
             pw.println("   • عدد التكرارات: $occurrences (أول مرة: $firstDisplay)")
