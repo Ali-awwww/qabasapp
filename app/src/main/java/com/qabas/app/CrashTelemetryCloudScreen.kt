@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -164,7 +166,7 @@ fun CrashTelemetryCloudScreen() {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            CrashTelemetryMetricCard("الإجمالي", reports.size.toString(), Modifier.weight(1f))
+            CrashTelemetryMetricCard("المعروض", reports.size.toString(), Modifier.weight(1f))
             CrashTelemetryMetricCard("آخر 24 ساعة", last24Hours.toString(), Modifier.weight(1f))
             CrashTelemetryMetricCard("آخر 7 أيام", last7Days.toString(), Modifier.weight(1f))
         }
@@ -288,7 +290,7 @@ fun CrashTelemetryCloudScreen() {
                     Text(
                         report.description,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.height(300.dp)
+                        modifier = Modifier.height(300.dp).verticalScroll(rememberScrollState())
                     )
                 }
             },
