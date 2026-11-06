@@ -7,6 +7,9 @@ import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.File
+import java.io.FilterInputStream
+import java.io.IOException
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.zip.GZIPInputStream
 
@@ -31,6 +34,8 @@ object QabasBukhariRepository {
     private const val IMPORT_FILE_NAME = "sahih_al_bukhari.json"
     private const val BUKHARI_ASSET = "sahih_bukhari.json.gz"
     private const val MUSLIM_ASSET = "sahih_muslim.json.gz"
+    private const val MAX_IMPORTED_BYTES = 8L * 1024 * 1024
+    private const val MAX_DECOMPRESSED_BYTES = 24L * 1024 * 1024
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -39,7 +44,7 @@ object QabasBukhariRepository {
      */
     fun load(context: Context): List<BukhariHadith> {
         val importedFile = File(context.filesDir, IMPORT_FILE_NAME)
-        if (importedFile.isFile) {
+        if (importedFile.isFile && importedFile.length() in 1..MAX_IMPORTED_BYTES) {
             val imported = runCatching { parse(importedFile.readText(Charsets.UTF_8)) }
                 .onFailure { Log.w(TAG, "Unable to parse imported hadith file; falling back to bundled Sahihain", it) }
                 .getOrDefault(emptyList())
@@ -61,9 +66,11 @@ object QabasBukhariRepository {
     ): List<BukhariHadith> = runCatching {
         context.assets.open("hadith/$fileName").use { asset ->
             GZIPInputStream(asset).use { gzip ->
-                BufferedReader(InputStreamReader(gzip, Charsets.UTF_8)).use { reader ->
-                    val book = json.decodeFromString<FullSahihBook>(reader.readText())
-                    mapFullBook(book, fallbackTitle, idPrefix)
+                LimitedInputStream(gzip, MAX_DECOMPRESSED_BYTES).use { limited ->
+                    BufferedReader(InputStreamReader(limited, Charsets.UTF_8)).use { reader ->
+                        val book = json.decodeFromString<FullSahihBook>(reader.readText())
+                        mapFullBook(book, fallbackTitle, idPrefix)
+                    }
                 }
             }
         }
@@ -99,9 +106,47 @@ object QabasBukhariRepository {
     fun importAndLoad(context: Context, uri: Uri): List<BukhariHadith> {
         val input = context.contentResolver.openInputStream(uri) ?: error("تعذر فتح الملف المحدد")
         input.use { source ->
-            File(context.filesDir, IMPORT_FILE_NAME).outputStream().use { target -> source.copyTo(target) }
+            val destination = File(context.filesDir, IMPORT_FILE_NAME)
+            destination.outputStream().use { target ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0L
+                while (true) {
+                    val count = source.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= MAX_IMPORTED_BYTES) { "ملف الأحاديث أكبر من الحد المسموح (8 MB)" }
+                    target.write(buffer, 0, count)
+                }
+            }
         }
         return load(context)
+    }
+
+    /** Rejects unexpectedly large decompressed data before it can exhaust process memory. */
+    private class LimitedInputStream(input: InputStream, private val maxBytes: Long) : FilterInputStream(input) {
+        private var bytesRead = 0L
+
+        @Throws(IOException::class)
+        override fun read(): Int {
+            val value = super.read()
+            if (value >= 0) account(1)
+            return value
+        }
+
+        @Throws(IOException::class)
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            if (length == 0) return 0
+            val allowed = (maxBytes - bytesRead + 1).coerceAtMost(length.toLong()).toInt()
+            if (allowed <= 0) throw IOException("Hadith asset exceeds decompressed size limit")
+            val count = super.read(buffer, offset, allowed)
+            if (count > 0) account(count.toLong())
+            return count
+        }
+
+        private fun account(count: Long) {
+            bytesRead += count
+            if (bytesRead > maxBytes) throw IOException("Hadith asset exceeds decompressed size limit")
+        }
     }
 
     internal fun parse(jsonText: String): List<BukhariHadith> {
