@@ -131,38 +131,43 @@ class AzanCountdownService : Service() {
             val prefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
             if (!prefs.getBoolean("prayer_notifications_enabled", true)) return null
             val city = PrayerCalculationHelper.getSavedCity(context)
-            val now = Calendar.getInstance()
+            val nowMillis = System.currentTimeMillis()
+            val now = Calendar.getInstance(PrayerCalculationHelper.timeZoneFor(city)).apply {
+                timeInMillis = nowMillis
+            }
             val today = PrayerCalculationHelper.calculatePrayerTimes(now, city, city.defaultMethod)
+            val tomorrowCalendar = (now.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+            val tomorrow = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCalendar, city, city.defaultMethod)
             val pairs = listOf(
-                PrayerAlarmManager.PRAYER_FAJR to ("صلاة الفجر" to today.fajr),
-                PrayerAlarmManager.PRAYER_SUNRISE to ("الشروق" to today.sunrise),
-                PrayerAlarmManager.PRAYER_DHUHR to ("صلاة الظهر" to today.dhuhr),
-                PrayerAlarmManager.PRAYER_ASR to ("صلاة العصر" to today.asr),
-                PrayerAlarmManager.PRAYER_MAGHRIB to ("صلاة المغرب" to today.maghrib),
-                PrayerAlarmManager.PRAYER_ISHA to ("صلاة العشاء" to today.isha)
+                Triple(PrayerAlarmManager.PRAYER_FAJR, "صلاة الفجر", today.fajr to tomorrow.fajr),
+                Triple(PrayerAlarmManager.PRAYER_SUNRISE, "الشروق", today.sunrise to tomorrow.sunrise),
+                Triple(PrayerAlarmManager.PRAYER_DHUHR, "صلاة الظهر", today.dhuhr to tomorrow.dhuhr),
+                Triple(PrayerAlarmManager.PRAYER_ASR, "صلاة العصر", today.asr to tomorrow.asr),
+                Triple(PrayerAlarmManager.PRAYER_MAGHRIB, "صلاة المغرب", today.maghrib to tomorrow.maghrib),
+                Triple(PrayerAlarmManager.PRAYER_ISHA, "صلاة العشاء", today.isha to tomorrow.isha)
             )
             val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
             var best: NextPrayer? = null
-            for ((key, named) in pairs) {
+            for ((key, prayerName, times) in pairs) {
                 if (!prefs.getBoolean("notify_$key", true)) continue
-                val cal = parseTime(named.second) ?: continue
-                if (cal.timeInMillis <= System.currentTimeMillis()) cal.add(Calendar.DAY_OF_YEAR, 1)
+                val todayCal = runCatching {
+                    PrayerCalculationHelper.calendarForPrayerTime(times.first, nowMillis, city)
+                }.getOrNull() ?: continue
+                val triggerMillis = if (todayCal.timeInMillis > nowMillis) {
+                    todayCal.timeInMillis
+                } else {
+                    runCatching {
+                        PrayerCalculationHelper.calendarForPrayerTime(times.second, nowMillis, city, dayOffset = 1)
+                            .timeInMillis
+                    }.getOrNull() ?: continue
+                }
                 val voice = prefs.getString("voice_id_$key", defaultVoice) ?: defaultVoice
-                val candidate = NextPrayer(named.first, cal.timeInMillis, voice)
+                val candidate = NextPrayer(prayerName, triggerMillis, voice)
                 if (best == null || candidate.triggerMillis < best.triggerMillis) best = candidate
             }
             best
-        } catch (_: Exception) { null }
-    }
-
-    private fun parseTime(t: String): Calendar? {
-        return try {
-            val p = t.trim().split(":")
-            Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, p[0].toInt())
-                set(Calendar.MINUTE, p[1].toInt())
-                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-            }
         } catch (_: Exception) { null }
     }
 
