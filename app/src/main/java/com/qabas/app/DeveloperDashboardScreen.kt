@@ -5615,3 +5615,105 @@ fun SupportConfigDevSection(context: Context) {
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeveloperAudioLibraryManagementScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var tracks by remember { mutableStateOf<List<SupabaseServices.AudioTrackRow>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var showUploadDialog by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<SupabaseServices.AudioTrackRow?>(null) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    val audioCategories = listOf(
+        "القرآن الكريم", "الخطب المنبرية", "المحاضرات الإسلامية", "الدروس العلمية",
+        "الأذكار والأدعية", "الأناشيد الإسلامية", "القصص الإسلامية", "صوتيات الأطفال",
+        "السيرة النبوية", "الكتب الصوتية"
+    )
+
+    fun refreshTracks() {
+        scope.launch {
+            isLoading = true
+            tracks = SupabaseServices.Database.getAudioTracks()
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { refreshTracks() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(DeepSlate).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("إدارة مكتبة الصوتيات", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                Text("${tracks.size} تسجيل نشط في قاعدة البيانات", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+            }
+            IconButton(onClick = { refreshTracks() }, enabled = !isLoading) { Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { showUploadDialog = true }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
+                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate)
+                Spacer(Modifier.width(6.dp))
+                Text("رفع تسجيل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(onClick = { refreshTracks() }, modifier = Modifier.weight(1f), enabled = !isLoading) {
+                Text("مزامنة القائمة", color = GoldPrimary, fontFamily = CairoFont)
+            }
+        }
+        statusMessage?.let { Text(it, color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp) }
+        if (isLoading) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GoldPrimary) }
+        } else if (tracks.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("لا توجد تسجيلات نشطة. استخدم «رفع تسجيل» لإضافة محتوى.", color = TextSecondary, fontFamily = CairoFont, textAlign = TextAlign.Center)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+                items(tracks, key = { it.id }) { track ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF111B2E)), border = BorderStroke(1.dp, Color(0xFF26364D)), shape = RoundedCornerShape(14.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.GraphicEq, tint = Color(0xFF38BDF8), modifier = Modifier.size(30.dp), contentDescription = null)
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(track.title, color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("${track.category} • ${track.artist.ifBlank { track.author }} • ${track.duration}", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                            }
+                            IconButton(onClick = { pendingDelete = track }) { Icon(Icons.Default.DeleteOutline, contentDescription = "حذف ${track.title}", tint = Color(0xFFF87171)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showUploadDialog) {
+        AddAudioTrackDialog(categories = audioCategories, onDismiss = { showUploadDialog = false }, onTrackAdded = {
+            showUploadDialog = false
+            statusMessage = "تمت إضافة التسجيل، جار تحديث القائمة"
+            refreshTracks()
+        })
+    }
+
+    pendingDelete?.let { track ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("حذف التسجيل؟", fontFamily = CairoFont, color = TextPrimary) },
+            text = { Text("سيتم حذف «${track.title}» من مكتبة Supabase.", fontFamily = CairoFont, color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    scope.launch {
+                        val deleted = SupabaseServices.Database.deleteAudioTrack(track.id)
+                        statusMessage = if (deleted) "تم حذف التسجيل" else "تعذر حذف التسجيل؛ تحقق من الاتصال والصلاحيات"
+                        if (deleted) refreshTracks()
+                    }
+                }) { Text("حذف", color = Color(0xFFF87171), fontFamily = CairoFont) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("إلغاء", color = TextSecondary, fontFamily = CairoFont) } }
+        )
+    }
+}
