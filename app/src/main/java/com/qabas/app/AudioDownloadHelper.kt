@@ -108,12 +108,45 @@ object AudioDownloadHelper {
                         }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("AudioDownloadHelper", "Download failed: ${e.message}", e)
                 onProgress(DownloadProgress(isError = true, errorMessage = e.localizedMessage ?: "فشل التنزيل"))
                 false
             }
         }
+    }
+
+    /** Returns titles whose MP3 files are already present in the app's existing Downloads location. */
+    fun getDownloadedAudioTitles(context: Context, titles: Collection<String>): Set<String> {
+        if (titles.isEmpty()) return emptySet()
+        val expectedNames = titles.associateBy { title ->
+            title.map { if (it in "\\/:*?\"<>|") '_' else it }.joinToString("").trim().ifBlank { "qabas_audio" } + ".mp3"
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            return expectedNames.filterKeys { File(downloadsDir, it).isFile }.values.toSet()
+        }
+
+        val foundNames = mutableSetOf<String>()
+        val projection = arrayOf(MediaStore.Downloads.DISPLAY_NAME)
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            MediaStore.Downloads.MIME_TYPE + " = ?",
+            arrayOf("audio/mpeg"),
+            null
+        )?.use { cursor ->
+            val nameColumn = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
+            if (nameColumn >= 0) {
+                while (cursor.moveToNext()) {
+                    val displayName = cursor.getString(nameColumn)
+                    if (displayName in expectedNames) foundNames.add(displayName)
+                }
+            }
+        }
+        return foundNames.mapNotNull(expectedNames::get).toSet()
     }
 
     /**
@@ -132,6 +165,7 @@ object AudioDownloadHelper {
     ): Boolean {
         var outputStream: OutputStream? = null
         var uri: Uri? = null
+        var targetFile: File? = null
         val resolver = context.contentResolver
 
         return try {
@@ -147,8 +181,8 @@ object AudioDownloadHelper {
             } else {
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                 if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val targetFile = File(downloadsDir, fileName)
-                outputStream = FileOutputStream(targetFile)
+                targetFile = File(downloadsDir, fileName)
+                outputStream = FileOutputStream(targetFile!!)
             }
 
             if (outputStream == null) return false
@@ -204,8 +238,21 @@ object AudioDownloadHelper {
                 )
             )
             true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            runCatching { outputStream?.close() }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
+                runCatching { resolver.delete(uri!!, null, null) }
+            } else {
+                runCatching { targetFile?.delete() }
+            }
+            throw e
         } catch (e: Exception) {
-            outputStream?.close()
+            runCatching { outputStream?.close() }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
+                runCatching { resolver.delete(uri!!, null, null) }
+            } else {
+                runCatching { targetFile?.delete() }
+            }
             onProgress(DownloadProgress(isError = true, errorMessage = e.message))
             false
         }

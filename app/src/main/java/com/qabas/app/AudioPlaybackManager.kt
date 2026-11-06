@@ -287,6 +287,9 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         try {
             requestAudioFocus()
             wakeLock?.acquire(10 * 60 * 1000L) // 10 minutes timeout per acquire
+            getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                .putString("last_track_id", track.id)
+                .apply()
 
             mediaPlayer?.release()
             mediaPlayer = MediaPlayer().apply {
@@ -332,12 +335,19 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
 
                 setOnPreparedListener { mp ->
                     val totalDuration = mp.duration.toLong().coerceAtLeast(1000L)
+                    val playbackPrefs = getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE)
+                    val resumePosition = if (playbackPrefs.getString("last_track_id", null) == track.id) {
+                        playbackPrefs.getLong("position_ms", 0L).coerceIn(0L, totalDuration - 1L)
+                    } else {
+                        0L
+                    }
                     AudioPlaybackManager.updateState(
                         isPlaying = true,
                         durationMs = totalDuration,
-                        positionMs = 0L
+                        positionMs = resumePosition
                     )
                     setPlaybackSpeed(AudioPlaybackManager.playbackSpeed.value)
+                    if (resumePosition > 0L) mp.seekTo(resumePosition.toInt())
                     mp.start()
                     startProgressTicker()
                     startForeground(NOTIFICATION_ID, buildNotification(track, isPlaying = true))
@@ -345,6 +355,10 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
 
                 setOnCompletionListener {
                     AudioPlaybackManager.updateState(isPlaying = false, positionMs = 0L)
+                    getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                        .putString("last_track_id", track.id)
+                        .putLong("position_ms", 0L)
+                        .apply()
                     when (AudioPlaybackManager.repeatMode.value) {
                         AudioRepeatMode.ONE -> {
                             seekTo(0L)
@@ -412,6 +426,12 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     fun pausePlayback() {
         mediaPlayer?.pause()
         AudioPlaybackManager.updateState(isPlaying = false)
+        AudioPlaybackManager.currentTrack.value?.id?.let { trackId ->
+            getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                .putString("last_track_id", trackId)
+                .putLong("position_ms", mediaPlayer?.currentPosition?.toLong() ?: AudioPlaybackManager.currentPositionMs.value)
+                .apply()
+        }
         progressTickerJob?.cancel()
         AudioPlaybackManager.currentTrack.value?.let { track ->
             updateNotification(track, isPlaying = false)
@@ -432,6 +452,12 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     fun seekTo(positionMs: Long) {
         mediaPlayer?.seekTo(positionMs.toInt())
         AudioPlaybackManager.updateState(positionMs = positionMs)
+        AudioPlaybackManager.currentTrack.value?.id?.let { trackId ->
+            getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                .putString("last_track_id", trackId)
+                .putLong("position_ms", positionMs)
+                .apply()
+        }
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -449,10 +475,22 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     private fun startProgressTicker() {
         progressTickerJob?.cancel()
         progressTickerJob = serviceScope.launch {
+            var lastPersistedAt = 0L
             while (isActive && mediaPlayer?.isPlaying == true) {
                 val pos = mediaPlayer?.currentPosition?.toLong() ?: 0L
                 AudioPlaybackManager.updateState(positionMs = pos)
-                delay(50)
+                val now = System.currentTimeMillis()
+                if (now - lastPersistedAt >= 1000L) {
+                    val trackId = AudioPlaybackManager.currentTrack.value?.id
+                    if (!trackId.isNullOrBlank()) {
+                        getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                            .putString("last_track_id", trackId)
+                            .putLong("position_ms", pos)
+                            .apply()
+                    }
+                    lastPersistedAt = now
+                }
+                delay(250)
             }
         }
     }

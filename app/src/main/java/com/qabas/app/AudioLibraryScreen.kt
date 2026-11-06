@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -79,6 +80,8 @@ fun AudioLibraryScreen(
     // Real Download Progress State
     var activeDownloadTrackTitle by remember { mutableStateOf<String?>(null) }
     var activeDownloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
+    var activeDownloadJob by remember { mutableStateOf<Job?>(null) }
+    var downloadedAudioTitles by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -128,10 +131,7 @@ fun AudioLibraryScreen(
 
                 ScrollableTabRow(
                     selectedTabIndex = when (selectedTab) {
-                        "library" -> 0
-                        "supabase" -> 1
-                        "ai_voice" -> 2
-                        "saved" -> 3
+                        "saved" -> 1
                         else -> 0
                     },
                     containerColor = Color.Transparent,
@@ -141,13 +141,7 @@ fun AudioLibraryScreen(
                     indicator = { tabPositions ->
                         Box(
                             modifier = Modifier
-                                .tabIndicatorOffset(tabPositions[when (selectedTab) {
-                                    "library" -> 0
-                                    "supabase" -> 1
-                                    "ai_voice" -> 2
-                                    "saved" -> 3
-                                    else -> 0
-                                }])
+                                .tabIndicatorOffset(tabPositions[if (selectedTab == "saved") 1 else 0])
                                 .padding(horizontal = 12.dp)
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
@@ -161,8 +155,6 @@ fun AudioLibraryScreen(
                 ) {
                     val tabs = listOf(
                         "library" to "المكتبة 🏠",
-                        "supabase" to "السحابة ☁️",
-                        "ai_voice" to "استوديو AI 🎙️",
                         "saved" to "المحفوظات 💾"
                     )
                     tabs.forEachIndexed { index, (id, label) ->
@@ -224,15 +216,21 @@ fun AudioLibraryScreen(
             HudCornerDecor(modifier = Modifier.fillMaxSize().padding(12.dp), color = primaryColor.copy(alpha = 0.15f))
 
             fun triggerDownload(url: String, title: String) {
+                activeDownloadJob?.cancel()
                 activeDownloadTrackTitle = title
                 activeDownloadProgress = DownloadProgress(percent = 0.05f)
-                coroutineScope.launch {
-                    AudioDownloadHelper.downloadAudioWithProgress(
-                        context = context,
-                        audioUrl = url,
-                        title = title
-                    ) { p ->
-                        activeDownloadProgress = p
+                activeDownloadJob = coroutineScope.launch {
+                    try {
+                        AudioDownloadHelper.downloadAudioWithProgress(
+                            context = context,
+                            audioUrl = url,
+                            title = title
+                        ) { p ->
+                            activeDownloadProgress = p
+                            if (p.isCompleted) downloadedAudioTitles = downloadedAudioTitles + title
+                        }
+                    } finally {
+                        activeDownloadJob = null
                     }
                 }
             }
@@ -245,6 +243,8 @@ fun AudioLibraryScreen(
                         onPlayTrack = { url, title, ytUrl, author -> playTrack(url, title, ytUrl, author) },
                         onApply = { url, title -> showApplyDialog = Pair(url, title) },
                         onDownloadTrack = { url, title -> triggerDownload(url, title) },
+                        downloadedAudioTitles = downloadedAudioTitles,
+                        onDownloadedTitlesFound = { found -> downloadedAudioTitles = downloadedAudioTitles + found },
                         heroBanner = {
                             SectionHeroBanner(
                                 title = "المكتبة الصوتية المركزية",
@@ -312,6 +312,8 @@ fun AudioLibraryScreen(
             trackTitle = activeDownloadTrackTitle!!,
             progress = activeDownloadProgress!!,
             onCancelOrDismiss = {
+                if (activeDownloadJob?.isActive == true) activeDownloadJob?.cancel()
+                activeDownloadJob = null
                 activeDownloadTrackTitle = null
                 activeDownloadProgress = null
             }
@@ -425,6 +427,8 @@ fun AudioLibrarySection(
     onPlayTrack: (url: String, title: String, youtubeUrl: String?, author: String) -> Unit,
     onApply: (url: String, title: String) -> Unit,
     onDownloadTrack: (url: String, title: String) -> Unit = { _, _ -> },
+    downloadedAudioTitles: Set<String> = emptySet(),
+    onDownloadedTitlesFound: (Set<String>) -> Unit = {},
     heroBanner: @Composable (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -435,23 +439,28 @@ fun AudioLibrarySection(
     var cloudTracks by remember { mutableStateOf<List<SupabaseServices.AudioTrackRow>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("الكل 🌐") }
-    val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
-    var showUploadDialog by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("الكل") }
+    var favoriteTrackIds by remember {
+        mutableStateOf(context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)
+            .getStringSet("favorite_audio_ids", emptySet())?.toSet().orEmpty())
+    }
 
     val categories = remember {
         listOf(
-            "الكل 🌐",
-            "الشيخ سمير مصطفى 🎙️",
-            "تلاوات قرآنية 📖",
-            "دروس ومحاضرات 🎓",
-            "طبيعة وهدوء 🌿",
-            "مؤثرات (SFX) ⚡",
-            "آهات وقورة 👤",
-            "أناشيد 🎵",
-            "المطور 🛠️"
+            "الكل",
+            "القرآن الكريم",
+            "الخطب المنبرية",
+            "المحاضرات الإسلامية",
+            "الدروس العلمية",
+            "الأذكار والأدعية",
+            "الأناشيد الإسلامية",
+            "القصص الإسلامية",
+            "صوتيات الأطفال",
+            "السيرة النبوية",
+            "الكتب الصوتية"
         )
     }
+    var showCategoryMenu by remember { mutableStateOf(false) }
 
     fun loadRealTracks() {
         isLoading = true
@@ -516,12 +525,36 @@ fun AudioLibrarySection(
         list
     }
 
-    val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery) {
+    fun matchesAudioCategory(track: LiveAudioItem, requested: String): Boolean {
+        if (requested == "الكل") return true
+        if (requested == "المفضلة ★") return track.id in favoriteTrackIds
+        val source = (track.category + " " + track.title + " " + track.author).lowercase(Locale.ROOT)
+        return when (requested) {
+            "القرآن الكريم" -> listOf("قرآن", "تلاوة", "تلاوات", "recitation", "quran").any { source.contains(it) }
+            "الخطب المنبرية" -> listOf("خطبة", "خطب", "منبر", "sermon", "khutbah").any { source.contains(it) }
+            "المحاضرات الإسلامية" -> listOf("محاضرة", "محاضرات", "lecture").any { source.contains(it) }
+            "الدروس العلمية" -> listOf("درس", "دروس", "علمي", "عقائد", "العقائد", "شرح", "lesson", "aqaid").any { source.contains(it) }
+            "الأذكار والأدعية" -> listOf("ذكر", "أذكار", "اذكار", "دعاء", "أدعية", "ادعية", "dhikr", "dua").any { source.contains(it) }
+            "الأناشيد الإسلامية" -> listOf("نشيد", "أناشيد", "اناشيد", "nasheed").any { source.contains(it) }
+            "القصص الإسلامية" -> listOf("قصة", "قصص", "حكاية", "قصصي", "story").any { source.contains(it) }
+            "صوتيات الأطفال" -> listOf("طفل", "أطفال", "اطفال", "children", "kids").any { source.contains(it) }
+            "السيرة النبوية" -> listOf("السيرة", "سيرة", "النبي", "نبوي", "seerah").any { source.contains(it) }
+            "الكتب الصوتية" -> listOf("كتاب صوتي", "كتب صوتية", "audiobook").any { source.contains(it) }
+            else -> false
+        }
+    }
+
+    LaunchedEffect(allRealTracks) {
+        val foundTitles = withContext(Dispatchers.IO) {
+            AudioDownloadHelper.getDownloadedAudioTitles(context, allRealTracks.map { it.title })
+        }
+        onDownloadedTitlesFound(foundTitles)
+    }
+
+    val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery, favoriteTrackIds) {
         derivedStateOf {
-            val selectedClean = selectedCategory.replace(Regex("[^\\u0600-\\u06FF\\s\\w]"), "").trim()
             allRealTracks.filter { track ->
-                val trackClean = track.category.replace(Regex("[^\\u0600-\\u06FF\\s\\w]"), "").trim()
-                val matchCategory = selectedClean == "الكل" || trackClean == selectedClean
+                val matchCategory = matchesAudioCategory(track, selectedCategory)
                 val matchQuery = searchQuery.isBlank() || track.title.contains(searchQuery, ignoreCase = true) ||
                          track.category.contains(searchQuery, ignoreCase = true) ||
                          track.author.contains(searchQuery, ignoreCase = true)
@@ -569,6 +602,39 @@ fun AudioLibrarySection(
                     singleLine = true
                 )
 
+                Box {
+                    OutlinedButton(
+                        onClick = { showCategoryMenu = true },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.55f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF0B172A).copy(alpha = 0.68f),
+                            contentColor = primaryColor
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Category, contentDescription = "التصنيفات", modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("التصنيفات", fontFamily = CairoFont, fontSize = 11.sp)
+                        Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(
+                        expanded = showCategoryMenu,
+                        onDismissRequest = { showCategoryMenu = false },
+                        modifier = Modifier.background(Color(0xFF0B172A))
+                    ) {
+                        (categories + "المفضلة ★").forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category, fontFamily = CairoFont, color = Color.White) },
+                                onClick = {
+                                    selectedCategory = category
+                                    showCategoryMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 IconButton(
                     onClick = { loadRealTracks() },
                     modifier = Modifier
@@ -585,54 +651,11 @@ fun AudioLibrarySection(
                     )
                 }
 
-                if (isDeveloper) {
-                    IconButton(
-                        onClick = { showUploadDialog = true },
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CutCornerShape(12.dp))
-                            .background(primaryColor)
-                    ) {
-                        Icon(
-                            Icons.Default.CloudUpload,
-                            contentDescription = "رفع صوتية من حساب المطور",
-                            tint = DeepSlate,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+
             }
         }
 
-        // Categories Chips
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 14.dp)
-        ) {
-            items(categories) { cat ->
-                FilterChip(
-                    selected = selectedCategory == cat,
-                    onClick = { selectedCategory = cat },
-                    label = {
-                        Text(
-                            text = cat,
-                            fontFamily = CairoFont,
-                            fontWeight = if (selectedCategory == cat) FontWeight.ExtraBold else FontWeight.Medium,
-                            fontSize = 11.5.sp
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color(0xFF1E293B).copy(alpha = 0.4f),
-                        labelColor = Color.White.copy(alpha = 0.7f),
-                        selectedContainerColor = primaryColor.copy(alpha = 0.2f),
-                        selectedLabelColor = primaryColor
-                    ),
-                    border = BorderStroke(1.dp, if (selectedCategory == cat) primaryColor else Color(0xFF1E293B)),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-        }
+
 
         if (isLoading) {
             Box(
@@ -723,34 +746,15 @@ fun AudioLibrarySection(
                             lineHeight = 22.sp
                         )
 
-                        if (isDeveloper) {
-                            Button(
-                                onClick = { showUploadDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                                shape = CutCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().height(50.dp)
-                            ) {
-                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    "إضافة أو رفع صوتية جديدة (حساب المطور)",
-                                    color = DeepSlate,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp
-                                )
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = { loadRealTracks() },
-                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
-                                shape = CutCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth().height(46.dp)
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = primaryColor)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("إعادة المزامنة مع السحابة", color = primaryColor, fontFamily = CairoFont, fontSize = 12.5.sp)
-                            }
+                        OutlinedButton(
+                            onClick = { loadRealTracks() },
+                            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.5f)),
+                            shape = CutCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(46.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = primaryColor)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("إعادة المزامنة", color = primaryColor, fontFamily = CairoFont, fontSize = 12.5.sp)
                         }
                     }
                 }
@@ -888,11 +892,28 @@ fun AudioLibrarySection(
                                     )
                                 }
 
-                                // Interactive Actions: YouTube, Share, Download, Apply
+                                // Interactive Actions: Favorite, YouTube, Share, Download, Apply
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    IconButton(
+                                        onClick = {
+                                            val nextFavorites = if (track.id in favoriteTrackIds) favoriteTrackIds - track.id else favoriteTrackIds + track.id
+                                            favoriteTrackIds = nextFavorites
+                                            context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)
+                                                .edit().putStringSet("favorite_audio_ids", nextFavorites.toMutableSet()).apply()
+                                        },
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Icon(
+                                            if (track.id in favoriteTrackIds) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = if (track.id in favoriteTrackIds) "إزالة من المفضلة" else "إضافة إلى المفضلة",
+                                            tint = if (track.id in favoriteTrackIds) GoldPrimary else Color.White.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(19.dp)
+                                        )
+                                    }
+
                                     // YouTube button
                                     OutlinedIconButton(
                                         onClick = {
@@ -945,8 +966,8 @@ fun AudioLibrarySection(
                                         border = BorderStroke(1.dp, Color(0xFF334155))
                                     ) {
                                         Icon(
-                                            Icons.Default.FileDownload,
-                                            contentDescription = "تنزيل للهاتف",
+                                            if (track.title in downloadedAudioTitles) Icons.Default.FileDownloadDone else Icons.Default.FileDownload,
+                                            contentDescription = if (track.title in downloadedAudioTitles) "تم تنزيل الصوت" else "تنزيل للهاتف",
                                             tint = primaryColor,
                                             modifier = Modifier.size(17.dp)
                                         )
@@ -984,16 +1005,7 @@ fun AudioLibrarySection(
         }
     }
 
-    if (showUploadDialog) {
-        AddAudioTrackDialog(
-            categories = categories.filter { it != "الكل" },
-            onDismiss = { showUploadDialog = false },
-            onTrackAdded = {
-                showUploadDialog = false
-                loadRealTracks()
-            }
-        )
-    }
+
 }
 
 @Composable
