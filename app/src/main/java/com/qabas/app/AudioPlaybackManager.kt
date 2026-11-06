@@ -355,6 +355,10 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
 
                 setOnCompletionListener {
                     AudioPlaybackManager.updateState(isPlaying = false, positionMs = 0L)
+                    getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()
+                        .putString("last_track_id", track.id)
+                        .putLong("position_ms", 0L)
+                        .apply()
                     when (AudioPlaybackManager.repeatMode.value) {
                         AudioRepeatMode.ONE -> {
                             seekTo(0L)
