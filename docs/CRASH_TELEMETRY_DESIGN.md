@@ -3,14 +3,17 @@
 ## Status
 Draft — pending formal QABAS governance approval.
 
+**Feature ID:** `QABAS-FEAT-001` (working feature identifier; it is not a formal
+QABAS document ID).
+
 This file records a proposed technical design only. It is not an approved
 QABAS decision, EXEC, or DEVSPEC, and must not be treated as authorization
 to merge or release the implementation.
 
-Before implementation is accepted, assign the feature's permanent Feature ID
-and prepare the linked decision, EXEC, and DEVSPEC documents required by
-QABAS-000. The implementation remains unapproved until those documents are
-reviewed and approved.
+The linked decision, EXEC, and DEVSPEC documents still require their own
+official `QABAS-XXX` document IDs from the global registry and the review
+and approval sequence required by QABAS-000. The implementation remains
+unapproved until that governance sequence is complete.
 
 ## Context
 QABAS already has `QabasCrashGuard`, local diagnostic reports, ANR monitoring, and Android `ApplicationExitInfo` scanning. The missing capabilities are durable cloud delivery, explicit startup-stage breadcrumbs, and broader classification of process exits.
