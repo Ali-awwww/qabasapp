@@ -70,6 +70,13 @@ internal object CrashTelemetry {
         }
         val startupStage = prefs.getString(stageKey, "unknown") ?: "unknown"
         val startupStageTimestamp = prefs.getLong(stageTimestampKey, 0L)
+        // Include the bounded in-memory event history and runtime snapshot so a
+        // cloud report explains what happened immediately before the failure.
+        // Both sections are sanitized again at the upload boundary.
+        val recentBreadcrumbs = runCatching { CrashBreadcrumbs.dump() }
+            .getOrDefault("breadcrumb_snapshot_unavailable")
+        val incidentContext = runCatching { CrashBreadcrumbs.dumpContextSnapshot(appContext) }
+            .getOrDefault("incident_context_unavailable")
         val occurredAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date(occurredAtMs))
@@ -88,6 +95,13 @@ internal object CrashTelemetry {
             appendLine("current_screen=${sanitize(CrashBreadcrumbs.currentScreen, 120)}")
             appendLine("previous_screen=${sanitize(CrashBreadcrumbs.previousScreen, 120)}")
             appendLine("last_action=${sanitize(CrashBreadcrumbs.lastAction, 240)}")
+            appendLine("last_action_age_ms=${(System.currentTimeMillis() - CrashBreadcrumbs.lastActionTimeMs).coerceAtLeast(0L)}")
+            appendLine()
+            appendLine("recent_breadcrumbs:")
+            appendLine(sanitize(recentBreadcrumbs, 8_000))
+            appendLine()
+            appendLine("incident_context:")
+            appendLine(sanitize(incidentContext, 2_500))
             appendLine()
             appendLine("stack_trace:")
             throwable.stackTrace.take(100).forEach { appendLine("  at $it") }
