@@ -529,6 +529,8 @@ object QabasCrashGuard {
             env.forEach { (k, v) -> pw.println("   • $k: $v") }
             pw.println()
             pw.println(CrashBreadcrumbs.dumpContextSnapshot(context))
+            pw.println("\\n── آخر الأحداث المسجلة قبل الحادثة (Crash Breadcrumbs) ──")
+            pw.println(CrashTelemetry.sanitize(CrashBreadcrumbs.dump(), 8_000))
 
             if (throwable is ANRDiagnosticException) {
                 pw.println("\n── تفاصيل ANR وتحليل الخيوط ──")
