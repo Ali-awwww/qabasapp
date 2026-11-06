@@ -1569,7 +1569,7 @@ fun DashboardMainGrid(
         CommandHubCardData(
             id = 8,
             title = "إدارة مكتبة الصوتيات",
-            subtitle = "رفع وتحديث التسجيلات • تنظيم التصنيفات • حذف المحتوى غير المناسب",
+            subtitle = "رفع التسجيلات • تنظيم التصنيفات • حذف المحتوى غير المناسب",
             badge = "إدارة المحتوى الصوتي",
             techTag = "// AUDIO LIBRARY CMS",
             icon = Icons.Default.LibraryMusic,
