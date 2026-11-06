@@ -389,7 +389,8 @@ object QabasCrashGuard {
         thread: String,
         throwable: Throwable,
         source: String = "thread",
-        occurredAtMs: Long = System.currentTimeMillis()
+        occurredAtMs: Long = System.currentTimeMillis(),
+        notifyOwner: Boolean = true
     ): String {
         val now = Date(occurredAtMs)
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(now)
@@ -457,7 +458,7 @@ object QabasCrashGuard {
             android.util.Log.e(TAG, "تعذر حفظ تقرير الرفع السحابي محلياً", it)
         }
 
-        notifyDeveloper(context, throwable, source, occurrences)
+        if (notifyOwner) notifyDeveloper(context, throwable, source, occurrences)
         val rootMsg = throwable.message ?: throwable.javaClass.simpleName
         return rootMsg.take(120)
     }
