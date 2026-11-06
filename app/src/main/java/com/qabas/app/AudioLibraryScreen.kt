@@ -128,10 +128,7 @@ fun AudioLibraryScreen(
 
                 ScrollableTabRow(
                     selectedTabIndex = when (selectedTab) {
-                        "library" -> 0
-                        "supabase" -> 1
-                        "ai_voice" -> 2
-                        "saved" -> 3
+                        "saved" -> 1
                         else -> 0
                     },
                     containerColor = Color.Transparent,
@@ -141,13 +138,7 @@ fun AudioLibraryScreen(
                     indicator = { tabPositions ->
                         Box(
                             modifier = Modifier
-                                .tabIndicatorOffset(tabPositions[when (selectedTab) {
-                                    "library" -> 0
-                                    "supabase" -> 1
-                                    "ai_voice" -> 2
-                                    "saved" -> 3
-                                    else -> 0
-                                }])
+                                .tabIndicatorOffset(tabPositions[if (selectedTab == "saved") 1 else 0])
                                 .padding(horizontal = 12.dp)
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
@@ -161,8 +152,6 @@ fun AudioLibraryScreen(
                 ) {
                     val tabs = listOf(
                         "library" to "المكتبة 🏠",
-                        "supabase" to "السحابة ☁️",
-                        "ai_voice" to "استوديو AI 🎙️",
                         "saved" to "المحفوظات 💾"
                     )
                     tabs.forEachIndexed { index, (id, label) ->
