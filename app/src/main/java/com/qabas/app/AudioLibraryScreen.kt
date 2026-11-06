@@ -81,6 +81,7 @@ fun AudioLibraryScreen(
     var activeDownloadTrackTitle by remember { mutableStateOf<String?>(null) }
     var activeDownloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
     var activeDownloadJob by remember { mutableStateOf<Job?>(null) }
+    var downloadedAudioTitles by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -226,6 +227,7 @@ fun AudioLibraryScreen(
                             title = title
                         ) { p ->
                             activeDownloadProgress = p
+                            if (p.isCompleted) downloadedAudioTitles = downloadedAudioTitles + title
                         }
                     } finally {
                         activeDownloadJob = null
@@ -241,6 +243,8 @@ fun AudioLibraryScreen(
                         onPlayTrack = { url, title, ytUrl, author -> playTrack(url, title, ytUrl, author) },
                         onApply = { url, title -> showApplyDialog = Pair(url, title) },
                         onDownloadTrack = { url, title -> triggerDownload(url, title) },
+                        downloadedAudioTitles = downloadedAudioTitles,
+                        onDownloadedTitlesFound = { found -> downloadedAudioTitles = downloadedAudioTitles + found },
                         heroBanner = {
                             SectionHeroBanner(
                                 title = "المكتبة الصوتية المركزية",
@@ -423,6 +427,8 @@ fun AudioLibrarySection(
     onPlayTrack: (url: String, title: String, youtubeUrl: String?, author: String) -> Unit,
     onApply: (url: String, title: String) -> Unit,
     onDownloadTrack: (url: String, title: String) -> Unit = { _, _ -> },
+    downloadedAudioTitles: Set<String> = emptySet(),
+    onDownloadedTitlesFound: (Set<String>) -> Unit = {},
     heroBanner: @Composable (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -536,6 +542,13 @@ fun AudioLibrarySection(
             "الكتب الصوتية" -> listOf("كتاب صوتي", "كتب صوتية", "audiobook").any { source.contains(it) }
             else -> false
         }
+    }
+
+    LaunchedEffect(allRealTracks) {
+        val foundTitles = withContext(Dispatchers.IO) {
+            AudioDownloadHelper.getDownloadedAudioTitles(context, allRealTracks.map { it.title })
+        }
+        onDownloadedTitlesFound(foundTitles)
     }
 
     val filteredTracks by remember(allRealTracks, selectedCategory, searchQuery) {
@@ -953,8 +966,8 @@ fun AudioLibrarySection(
                                         border = BorderStroke(1.dp, Color(0xFF334155))
                                     ) {
                                         Icon(
-                                            Icons.Default.FileDownload,
-                                            contentDescription = "تنزيل للهاتف",
+                                            if (track.title in downloadedAudioTitles) Icons.Default.FileDownloadDone else Icons.Default.FileDownload,
+                                            contentDescription = if (track.title in downloadedAudioTitles) "تم تنزيل الصوت" else "تنزيل للهاتف",
                                             tint = primaryColor,
                                             modifier = Modifier.size(17.dp)
                                         )
