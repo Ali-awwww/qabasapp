@@ -223,6 +223,7 @@ class PrayerCalculationHelperTest {
         val parts = time.split(":")
         return parts[0].toInt() * 60 + parts[1].toInt()
     }
+
     @Test
     fun `choosing a built in city clears local custom coordinates and syncs indexes`() {
         val ankara = CityLocation(
