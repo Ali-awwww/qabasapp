@@ -80,6 +80,8 @@ fun UnifiedMasterStudioScreen(
     var generationStage by rememberSaveable { mutableStateOf("") }
     var generationProgress by rememberSaveable { mutableFloatStateOf(0f) }
     var showProductionApproval by rememberSaveable { mutableStateOf(false) }
+    var pendingScenePlan by remember { mutableStateOf<List<Scene>?>(null) }
+    var showScenePlanApproval by rememberSaveable { mutableStateOf(false) }
 
     // 3. المخرجات الموحدة للعمل المتقن
     var generatedScenes by remember { mutableStateOf<List<Scene>>(emptyList()) }
@@ -132,48 +134,61 @@ fun UnifiedMasterStudioScreen(
             generationStage = "1/5 كتابة السيناريو وتقسيم المشاهد بالذكاء الاصطناعي..."
 
             try {
-                // 1. توليد السيناريو والمشاهد
-                delay(600)
-                val scriptPrompt = "قم بإخراج عمل دعوي سينمائي متقن بعنوان: $topicText. النبرة: $selectedTone. النسبة: $selectedRatio."
-                var rawScenes = PollinationsTextService.generateScript(
-                    idea = topicText,
-                    style = "Islamic Cinematic Slate & Gold Luxury #0B132B #E8C547",
-                    contentType = "ريلز دعوي متقن",
-                    tone = selectedTone
-                )
-
-                // 🔑 إذا فشل Pollinations، نُحاول مزودًا حقيقيًا (Groq → OpenAI)
-                if (rawScenes.isNullOrEmpty()) {
-                    val aiPrompt = "أخرج JSON فقط: [{\"title\":\"عنوان المشهد\",\"description\":\"وصف بالإنجليزية\",\"duration\":5,\"transitionType\":\"Fade\"}] " +
-                            "— 4-6 مشاهد لموضوع: $topicText، نبرة: $selectedTone"
-                    val rawAi = try { RealGroqService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
-                        ?: try { RealOpenAIService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
-                    if (!rawAi.isNullOrBlank() && rawAi.contains("[")) {
-                        try {
-                            val arr = org.json.JSONArray(rawAi.substring(rawAi.indexOf("["), rawAi.lastIndexOf("]") + 1))
-                            val scenesFromAi = (0 until arr.length()).mapNotNull { i ->
-                                val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                                Scene(
-                                    title = o.optString("title", "مشهد ${i+1}"),
-                                    description = o.optString("description", ""),
-                                    durationInSeconds = o.optInt("duration", 5),
-                                    transitionType = o.optString("transitionType", "Fade")
-                                )
-                            }
-                            if (scenesFromAi.isNotEmpty()) rawScenes = scenesFromAi
-                        } catch (_: Exception) {}
-                    }
-                }
-
-                val scenes = if (!rawScenes.isNullOrEmpty()) {
-                    rawScenes
+                val approvedPlan = pendingScenePlan
+                val scenes = if (approvedPlan != null) {
+                    pendingScenePlan = null
+                    approvedPlan
                 } else {
-                    listOf(
-                        Scene("المقدمة الخاشعة", "Opening aerial shot of serene mosque at sunrise", 5, transitionType = "Fade"),
-                        Scene("العبرة والجوهر", "Close-up of golden calligraphy and light rays", 7, transitionType = "ZoomIn"),
-                        Scene("النداء والعمل", "Peaceful silhouette praying at night, deep blue dusk", 6, transitionType = "Crossfade"),
-                        Scene("الخاتمة والدعاء", "Atmospheric golden dust particles in ray of light", 4, transitionType = "Fade")
-                    )
+                                    // 1. توليد السيناريو والمشاهد
+                                    delay(600)
+                                    val scriptPrompt = "قم بإخراج عمل دعوي سينمائي متقن بعنوان: $topicText. النبرة: $selectedTone. النسبة: $selectedRatio."
+                                    var rawScenes = PollinationsTextService.generateScript(
+                                        idea = topicText,
+                                        style = "Islamic Cinematic Slate & Gold Luxury #0B132B #E8C547",
+                                        contentType = "ريلز دعوي متقن",
+                                        tone = selectedTone
+                                    )
+                    
+                                    // 🔑 إذا فشل Pollinations، نُحاول مزودًا حقيقيًا (Groq → OpenAI)
+                                    if (rawScenes.isNullOrEmpty()) {
+                                        val aiPrompt = "أخرج JSON فقط: [{\"title\":\"عنوان المشهد\",\"description\":\"وصف بالإنجليزية\",\"duration\":5,\"transitionType\":\"Fade\"}] " +
+                                                "— 4-6 مشاهد لموضوع: $topicText، نبرة: $selectedTone"
+                                        val rawAi = try { RealGroqService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
+                                            ?: try { RealOpenAIService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
+                                        if (!rawAi.isNullOrBlank() && rawAi.contains("[")) {
+                                            try {
+                                                val arr = org.json.JSONArray(rawAi.substring(rawAi.indexOf("["), rawAi.lastIndexOf("]") + 1))
+                                                val scenesFromAi = (0 until arr.length()).mapNotNull { i ->
+                                                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                                                    Scene(
+                                                        title = o.optString("title", "مشهد ${i+1}"),
+                                                        description = o.optString("description", ""),
+                                                        durationInSeconds = o.optInt("duration", 5),
+                                                        transitionType = o.optString("transitionType", "Fade")
+                                                    )
+                                                }
+                                                if (scenesFromAi.isNotEmpty()) rawScenes = scenesFromAi
+                                            } catch (_: Exception) {}
+                                        }
+                                    }
+                    
+                                    val scenes = if (!rawScenes.isNullOrEmpty()) {
+                                        rawScenes
+                                    } else {
+                                        listOf(
+                                            Scene("المقدمة الخاشعة", "Opening aerial shot of serene mosque at sunrise", 5, transitionType = "Fade"),
+                                            Scene("العبرة والجوهر", "Close-up of golden calligraphy and light rays", 7, transitionType = "ZoomIn"),
+                                            Scene("النداء والعمل", "Peaceful silhouette praying at night, deep blue dusk", 6, transitionType = "Crossfade"),
+                                            Scene("الخاتمة والدعاء", "Atmospheric golden dust particles in ray of light", 4, transitionType = "Fade")
+                                        )
+                                    }
+                    
+                    
+                    pendingScenePlan = scenes
+                    showScenePlanApproval = true
+                    isGeneratingMasterpiece = false
+                    return@launch
+                    scenes
                 }
 
                 generationProgress = 0.30f
@@ -779,6 +794,56 @@ fun UnifiedMasterStudioScreen(
             dismissButton = {
                 TextButton(onClick = { showProductionApproval = false }) {
                     Text("عودة للتعديل", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
+    if (showScenePlanApproval) {
+        AlertDialog(
+            onDismissRequest = { showScenePlanApproval = false },
+            containerColor = Color(0xFF0B132B),
+            title = {
+                Text("مراجعة خطة المشاهد قبل التوليد", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "هذه مسودة السيناريو الناتجة من مرحلة التخطيط. لم يبدأ توليد الصوت أو الصور أو الفيديو بعد. راجع ترتيب المشاهد وأوصافها:",
+                        color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 12.sp
+                    )
+                    pendingScenePlan.orEmpty().forEachIndexed { index, scene ->
+                        Surface(
+                            color = Color(0xFF101B30),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("${index + 1}. ${scene.title} • ${scene.durationInSeconds} ث", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Text(scene.description, color = Color(0xFFE2E8F0), fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("الانتقال: ${scene.transitionType}", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showScenePlanApproval = false
+                    launchMasterpieceGeneration()
+                }) {
+                    Text("اعتماد السيناريو وبدء الإنتاج", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showScenePlanApproval = false
+                    pendingScenePlan = null
+                }) {
+                    Text("رفض المسودة", color = Color(0xFFCBD5E1), fontFamily = CairoFont)
                 }
             }
         )
