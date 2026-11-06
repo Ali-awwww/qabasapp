@@ -424,7 +424,7 @@ fun AudioLibrarySection(
     var cloudTracks by remember { mutableStateOf<List<SupabaseServices.AudioTrackRow>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("الكل 🌐") }
+    var selectedCategory by remember { mutableStateOf("الكل") }
 
     val categories = remember {
         listOf(
