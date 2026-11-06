@@ -35,7 +35,7 @@ object QabasBukhariRepository {
     private const val BUKHARI_ASSET = "sahih_bukhari.json.gz"
     private const val MUSLIM_ASSET = "sahih_muslim.json.gz"
     private const val MAX_IMPORTED_BYTES = 8L * 1024 * 1024
-    private const val MAX_DECOMPRESSED_BYTES = 64L * 1024 * 1024
+    private const val MAX_DECOMPRESSED_BYTES = 24L * 1024 * 1024
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
