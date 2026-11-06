@@ -29,6 +29,9 @@ QABAS already has `QabasCrashGuard`, local diagnostic reports, ANR monitoring, a
 - Persist startup-stage breadcrumbs and report failures from existing startup `runCatching` blocks without changing their continuation behavior.
 - Expand next-launch `ApplicationExitInfo` classification to include signaled termination, excessive resource usage, initialization failure, and dependency death when Android exposes those reasons.
 
+## Diagnostic confidence
+The in-process ANR watchdog reports a delayed main-looper response after its configured sampling window. This is useful evidence of a responsiveness incident, but it is not by itself proof that Android recorded a system ANR. Watchdog-only incidents therefore remain **probable**. A system-recorded ANR is separately identified from the next-launch `ApplicationExitInfo` history when that record is available. Other confidence labels must likewise describe evidence strength, not imply certainty beyond the collected data.
+
 ## Data minimization
 Cloud reports contain the event timestamp, source/thread, exception type/message/stack, startup stage, current/previous screen, last action and its age, a bounded snapshot of the recent in-memory CrashBreadcrumbs ring buffer, a runtime context snapshot, app version, device model, and Android version. Breadcrumb and context sections are sanitized again at the telemetry boundary and capped to bounded lengths. The uploader does not send account email, account number, Supabase UID, authentication tokens, screenshots, or preference contents. Credential-like strings and email addresses are redacted. Exception messages and stack traces can still contain application/runtime values; the privacy notice must disclose this diagnostic collection before release.
 
