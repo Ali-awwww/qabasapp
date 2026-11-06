@@ -50,7 +50,7 @@ class QabasCrashGuardTest {
             QabasCrashGuard.categorize(diagnostic)
         )
         assertEquals(
-            QabasCrashGuard.ConfidenceLevel.PROBABLE,
+            QabasCrashGuard.ConfidenceLevel.UNDETERMINED,
             QabasCrashGuard.confidenceFor(diagnostic, diagnostic, isAppCode = false)
         )
     }
