@@ -612,6 +612,11 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                 val cleanQuote = quoteText.trim()
                                 val cleanAttribution = attribution.trim()
                                 val cleanVideoUrl = videoUrl.trim().takeIf { it.isNotBlank() }
+                                val cleanLessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() }
+                                if (cleanLessonUrl != null && !cleanLessonUrl.startsWith("https://", ignoreCase = true)) {
+                                    errorMessage = "رابط الدرس يجب أن يبدأ بـ HTTPS."
+                                    return@launch
+                                }
                                 if (cleanQuote.isBlank() || cleanAttribution.isBlank()) {
                                     errorMessage = "أدخل العبارة واسم صاحبها قبل حفظ المسودة."
                                     return@launch
@@ -622,7 +627,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
-                                        lessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() },
+                                        lessonUrl = cleanLessonUrl,
                                         isEnabled = false
                                     )
                                 }
