@@ -43,11 +43,13 @@ object HiggsfieldVideoService {
     ): File? = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) return@withContext null
 
-        val enrichedPrompt = buildString {
-            append(prompt.trim())
-            append(", cinematic lighting, photorealistic, reverent atmosphere, steady camera movement: ")
-            append(cameraMotion.trim().ifBlank { "cinematic" })
-        }
+        val enrichedPrompt = QabasIslamicContentPolicy.forVisualGeneration(
+            buildString {
+                append(prompt.trim())
+                append(", cinematic lighting, photorealistic, reverent atmosphere, steady camera movement: ")
+                append(cameraMotion.trim().ifBlank { "cinematic" })
+            }
+        )
         val payload = buildTextToVideoPayload(enrichedPrompt, durationSeconds).apply {
             put("operation", "text_to_video")
         }
@@ -115,7 +117,9 @@ object HiggsfieldVideoService {
             val imageUrl = uploadResponse.body?.optString("public_url").orEmpty()
             if (!imageUrl.startsWith("https://")) return@withContext null
 
-            val imagePrompt = "${prompt.trim()}, camera movement: ${cameraMotion.trim().ifBlank { "cinematic" }}"
+            val imagePrompt = QabasIslamicContentPolicy.forVisualGeneration(
+                "${prompt.trim()}, camera movement: ${cameraMotion.trim().ifBlank { "cinematic" }}"
+            )
             val generationPayload = JSONObject().apply {
                 put("operation", "image_to_video")
                 put("image_url", imageUrl)
