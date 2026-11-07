@@ -951,6 +951,7 @@ object SupabaseServices {
             rows.map { withSignedBugReportImage(it) }
         }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
+
         /**
          * Returns only automatically collected crash telemetry for the protected
          * developer console. RLS remains the server-side authority for support admins.
@@ -1254,27 +1255,13 @@ object SupabaseServices {
             return clean in setOf("developer", "admin", "owner", "مطور", "مكور")
         }
 
+        /**
+         * Authorization roles must come exclusively from server-managed app_metadata.
+         * Database profile fields and user_metadata are not trusted role sources.
+         */
         fun getUserRoleFromMetadata(): String = runCatching {
             if (!isSupabaseAvailable) "user"
-            else {
-                val user = client?.auth?.currentUserOrNull()
-                // 1. فحص app_metadata أولاً (الرتبة الموثقة من السحابة)
-                val appRole = user?.appMetadata?.get("role")?.toString()?.trim('"')
-                if (!appRole.isNullOrBlank() && !appRole.equals("null", ignoreCase = true)) {
-                    return@runCatching appRole
-                }
-                // 2. فحص عمود type في جدول users في قاعدة البيانات
-                val dbType = currentUser.value?.type
-                if (!dbType.isNullOrBlank() && !dbType.equals("null", ignoreCase = true) && !dbType.equals("مجاني", ignoreCase = true)) {
-                    return@runCatching dbType
-                }
-                // 3. فحص user_metadata كخيار إضافي
-                val userRole = user?.userMetadata?.get("role")?.toString()?.trim('"')
-                if (!userRole.isNullOrBlank() && !userRole.equals("null", ignoreCase = true)) {
-                    return@runCatching userRole
-                }
-                "user"
-            }
+            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
         }.getOrDefault("user")
 
         suspend fun refreshVerifiedRole(): String = runCatching {
@@ -1282,10 +1269,8 @@ object SupabaseServices {
         }.getOrDefault("user")
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
-            val role = getUserRoleFromMetadata()
-            val appRole = getCurrentUserAppRole()
-            val dbType = currentUser.value?.type
-            isDeveloperRole(role) || isDeveloperRole(appRole) || isDeveloperRole(dbType)
+            // Authorization must never fall back to mutable database profile fields.
+            isDeveloperRole(getUserRoleFromMetadata())
         }.getOrDefault(false)
 
         suspend fun register(email: String, pass: String, customId: String? = null, displayName: String? = null): Boolean = runCatching {
