@@ -2036,6 +2036,8 @@ fun AzanVoicesDialog(
     var showAddMuezzinDialog by remember { mutableStateOf(false) }
     var showDevUploadDialog by remember { mutableStateOf(false) }
     var isSyncingCloud by remember { mutableStateOf(false) }
+    var showVoiceSetupPrompt by remember { mutableStateOf(false) }
+    var cloudFetchFailed by remember { mutableStateOf(false) }
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
     val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
@@ -2079,11 +2081,17 @@ fun AzanVoicesDialog(
             val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 AzanCloudRepository.fetchCloudVoices()
             }
+            cloudFetchFailed = cloud.isEmpty()
             if (cloud.isNotEmpty()) {
                 MuezzinVoiceManager.cacheCloudVoices(context, cloud)
                 reloadVoices()
             }
             isSyncingCloud = false
+            // عند عدم وجود صوت محلي مضاف أو أصوات سحابية محفوظة، اعرض مسار الإعداد.
+            if (MuezzinVoiceManager.getCustomVoices(context).isEmpty() &&
+                MuezzinVoiceManager.getCloudVoices(context).isEmpty()) {
+                showVoiceSetupPrompt = true
+            }
         }
     }
 
@@ -2437,6 +2445,45 @@ fun AzanVoicesDialog(
                 }
             }
         }
+    }
+
+    // إرشاد أولي عند خلو مكتبة المستخدم من الأصوات المحلية/السحابية.
+    if (showVoiceSetupPrompt) {
+        AlertDialog(
+            onDismissRequest = { showVoiceSetupPrompt = false },
+            containerColor = GeoColor.surfaceSunken(),
+            shape = GeoShape.CardLg,
+            title = { Text("أضف صوت مؤذّن للمحراب", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (cloudFetchFailed) "لا توجد أصوات سحابية متاحة حالياً أو تعذر جلبها. يمكنك إضافة ملف صوتي من هاتفك، أو إعادة محاولة جلب أصوات السحابة." 
+                    else "مكتبة أصواتك فارغة. أضف ملف أذان من هاتفك أو نزّل صوتاً متاحاً من السحابة ليكون جاهزاً للاستخدام.",
+                    color = GeoColor.textPrimary(), fontFamily = CairoFont
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showVoiceSetupPrompt = false; localPicker.launch("audio/*") }) {
+                    Text("إضافة من الهاتف", color = GoldPrimary, fontFamily = CairoFont)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showVoiceSetupPrompt = false
+                    scope.launch {
+                        isSyncingCloud = true
+                        val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AzanCloudRepository.fetchCloudVoices() }
+                        if (cloud.isNotEmpty()) {
+                            MuezzinVoiceManager.cacheCloudVoices(context, cloud)
+                            reloadVoices()
+                            Toast.makeText(context, "تم تحديث أصوات السحابة. اختر الصوت ثم نزّله للاستماع دون إنترنت.", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "لم نتمكن من جلب أصوات السحابة. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                        }
+                        isSyncingCloud = false
+                    }
+                }) { Text("جلب أصوات السحابة", color = GeoColor.Quran, fontFamily = CairoFont) }
+            }
+        )
     }
 
     // نافذة إضافة مؤذن جديد ديناميكياً
