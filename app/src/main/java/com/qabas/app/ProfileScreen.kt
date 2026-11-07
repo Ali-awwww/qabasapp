@@ -2534,7 +2534,16 @@ fun ProfileScreen(
                                         return@launch
                                     }
 
-                                    // Profile name and handle are confirmed by the returned cloud row.
+                                    // The canonical users row is saved above. Keep the profile mirror in sync too,
+                                    // because profile surfaces read full_name from public.profiles.
+                                    val profileMirrorSynced = SupabaseServices.Profiles.syncUserProfile(
+                                        userId = authUid,
+                                        displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName,
+                                        email = activeEmail,
+                                        avatarUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                                            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
+                                    )
+
                                     // Bio is stored separately in user_settings.
                                     val bioSaved = SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
 
@@ -2563,10 +2572,13 @@ fun ProfileScreen(
                                     showEditProfileDialog = false
                                     Toast.makeText(
                                         context,
-                                        if (bioSaved) {
-                                            "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾"
-                                        } else {
-                                            "تم حفظ الاسم واليوزر، لكن تعذرت مزامنة النبذة."
+                                        when {
+                                            !profileMirrorSynced ->
+                                                "تم حفظ الاسم في الحساب، لكن تعذرت مزامنة ملف العرض السحابي."
+                                            bioSaved ->
+                                                "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾"
+                                            else ->
+                                                "تم حفظ الاسم واليوزر، لكن تعذرت مزامنة النبذة."
                                         },
                                         Toast.LENGTH_LONG
                                     ).show()

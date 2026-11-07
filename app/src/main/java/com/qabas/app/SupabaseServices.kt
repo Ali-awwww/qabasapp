@@ -1473,6 +1473,19 @@ object SupabaseServices {
                         }
                     }
                 }
+
+                // Confirm the mirror row is readable and contains the requested identity fields.
+                val verified = client.postgrest.from("profiles").select {
+                    filter { eq("id", userId) }
+                    limit(1)
+                }.decodeSingleOrNull<ProfileRow>()
+                    ?: throw IllegalStateException("Profile mirror row was not returned after sync")
+                if (displayName != null && verified.fullName?.trim() != displayName.trim()) {
+                    throw IllegalStateException("Profile mirror did not confirm the requested display name")
+                }
+                if (email != null && !verified.email.equals(email, ignoreCase = true)) {
+                    throw IllegalStateException("Profile mirror did not confirm the requested email")
+                }
                 true
             }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
