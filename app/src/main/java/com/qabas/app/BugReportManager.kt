@@ -25,12 +25,23 @@ object BugReportManager {
      */
     fun captureScreenshot(view: View): Bitmap? {
         return try {
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            // Compose content may be hosted inside a child View. Capture the laid-out root
+            // so the screenshot uses the complete visible content rather than a partial host.
+            val captureView = view.rootView
+            val width = captureView.width
+            val height = captureView.height
+
+            if (width <= 0 || height <= 0 || !captureView.isLaidOut) {
+                Log.e(TAG, "Screenshot capture skipped: root view is not laid out (width=$width, height=$height)")
+                return null
+            }
+
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            view.draw(canvas)
+            captureView.draw(canvas)
             bitmap
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to capture screenshot: ${e.message}")
+            Log.e(TAG, "Failed to capture screenshot", e)
             null
         }
     }
