@@ -60,6 +60,7 @@ data class MishkatReminderContent(
     @SerialName("quote_text") val quoteText: String,
     val attribution: String,
     @SerialName("video_url") val videoUrl: String? = null,
+    @SerialName("lesson_url") val lessonUrl: String? = null,
     @SerialName("is_enabled") val isEnabled: Boolean = false,
     @SerialName("updated_by") val updatedBy: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null
@@ -154,13 +155,14 @@ fun MishkatReminderCard() {
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
-                        Text("۞", color = Color(0xFFE0BD72), fontSize = 22.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
                         Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
                     }
                     Text(
                         text = published.quoteText
-                            .replace("، ", "،\\n")
-                            .replace("محطَّ نحس ", "محطَّ نحس\\n"),
+                            .replace("، ", "،\n")
+                            .replace("محطَّ نحس ", "محطَّ نحس\n")
+                            .replace("\\n", "\n"),
                         color = Color(0xFFF2E8D4),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
@@ -182,13 +184,30 @@ fun MishkatReminderCard() {
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                    published.lessonUrl?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) }?.let { lessonUrl ->
+                        val context = LocalContext.current
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(lessonUrl)))
+                                }.onFailure {
+                                    Toast.makeText(context, "تعذّر فتح رابط الدرس.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF79D9CB))
+                            Spacer(Modifier.width(8.dp))
+                            Text("مشاهدة الدرس الكامل", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
-                        Text("✧", color = Color(0xFFE0BD72), fontSize = 16.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
                     }
                 }
@@ -312,6 +331,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
     var quoteText by remember { mutableStateOf("") }
     var attribution by remember { mutableStateOf("") }
     var videoUrl by remember { mutableStateOf("") }
+    var lessonUrl by remember { mutableStateOf("") }
     var isEnabled by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
@@ -330,6 +350,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                     quoteText = remote.quoteText
                     attribution = remote.attribution
                     videoUrl = remote.videoUrl.orEmpty()
+                    lessonUrl = remote.lessonUrl.orEmpty()
                     isEnabled = remote.isEnabled
                 } else {
                     errorMessage = "لم يُعثر على إعدادات الميزة في السحابة."
@@ -480,6 +501,16 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         maxLines = 3,
                         enabled = !isSaving && !isUploading
                     )
+                    OutlinedTextField(
+                        value = lessonUrl,
+                        onValueChange = { lessonUrl = it },
+                        label = { Text("رابط الدرس الكامل (اختياري)") },
+                        supportingText = { Text("إذا أضفت الرابط سيظهر أسفل الفيديو للمستخدمين، وإن تركته فارغاً فلن يظهر رابط.") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1,
+                        maxLines = 3,
+                        enabled = !isSaving && !isUploading
+                    )
                     OutlinedButton(
                         onClick = { videoPicker.launch(arrayOf("video/mp4", "video/quicktime", "video/webm")) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -527,6 +558,11 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                 val cleanQuote = quoteText.trim()
                                 val cleanAttribution = attribution.trim()
                                 val cleanVideoUrl = videoUrl.trim().takeIf { it.isNotBlank() }
+                                val cleanLessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() }
+                                if (cleanLessonUrl != null && !cleanLessonUrl.startsWith("https://", ignoreCase = true)) {
+                                    errorMessage = "رابط الدرس يجب أن يبدأ بـ HTTPS."
+                                    return@launch
+                                }
                                 if (cleanQuote.isBlank() || cleanAttribution.isBlank()) {
                                     errorMessage = "أدخل العبارة واسم صاحبها قبل النشر."
                                     return@launch
@@ -541,6 +577,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
+                                        lessonUrl = cleanLessonUrl,
                                         isEnabled = true
                                     )
                                 }
@@ -575,6 +612,11 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                 val cleanQuote = quoteText.trim()
                                 val cleanAttribution = attribution.trim()
                                 val cleanVideoUrl = videoUrl.trim().takeIf { it.isNotBlank() }
+                                val cleanLessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() }
+                                if (cleanLessonUrl != null && !cleanLessonUrl.startsWith("https://", ignoreCase = true)) {
+                                    errorMessage = "رابط الدرس يجب أن يبدأ بـ HTTPS."
+                                    return@launch
+                                }
                                 if (cleanQuote.isBlank() || cleanAttribution.isBlank()) {
                                     errorMessage = "أدخل العبارة واسم صاحبها قبل حفظ المسودة."
                                     return@launch
@@ -585,6 +627,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
+                                        lessonUrl = cleanLessonUrl,
                                         isEnabled = false
                                     )
                                 }
