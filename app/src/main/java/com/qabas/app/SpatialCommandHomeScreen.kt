@@ -165,8 +165,15 @@ fun SpatialCommandHomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) detectCurrentCityOnce()
-        // عند الرفض يبقى اختيار الدولة والمدينة اليدوي متاحاً دون GPS.
+        if (isGranted) {
+            detectCurrentCityOnce()
+        } else {
+            Toast.makeText(
+                context,
+                "لم يُمنح إذن الموقع. يمكنك اختيار المدينة يدويًا من قسم مواقيت الصلاة.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     val openCitySelector: () -> Unit = {
