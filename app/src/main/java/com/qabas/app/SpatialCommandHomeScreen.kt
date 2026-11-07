@@ -2175,6 +2175,7 @@ private fun SpatialHudStatsHeader(
 ) {
     val context = LocalContext.current
     val primaryColor = qabasPrimary()
+    val accentColor = qabasAccent()
 
     val prefs = remember(context) {
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
