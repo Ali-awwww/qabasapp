@@ -91,6 +91,7 @@ object ExoPlayerFactory {
         }
 
         val player = builder.build()
+        runCatching { player.setPlaybackSpeed(UnifiedVideoPlayerSettings.speed(appContext)) }
 
         // إيقاف مؤقت تلقائي عند فصل السماعة (صوت صاخب مفاجئ) أو تغيّر جهاز الإخراج
         player.setHandleAudioBecomingNoisy(true)
