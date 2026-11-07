@@ -41,8 +41,19 @@ object UserAzanCloudRepository {
             }
     }.getOrNull()?.takeIf { it.isNotBlank() }
 
-    fun getMimeType(context: Context, uri: Uri): String =
-        context.contentResolver.getType(uri)?.lowercase() ?: "audio/mpeg"
+    fun getMimeType(context: Context, uri: Uri): String {
+        val providerMime = context.contentResolver.getType(uri)?.lowercase()
+        if (providerMime?.startsWith("audio/") == true) return providerMime
+
+        val extension = getDisplayName(context, uri)
+            ?.substringAfterLast('.', "")
+            ?.lowercase()
+            ?.takeIf { it.matches(Regex("[a-z0-9]{2,5}")) }
+        val inferredMime = extension?.let {
+            android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)?.lowercase()
+        }
+        return inferredMime?.takeIf { it.startsWith("audio/") } ?: "audio/mpeg"
+    }
 
     fun titleFromFileName(displayName: String): String =
         displayName.substringBeforeLast('.', displayName).trim().take(120)
