@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
  * اختبارات منطق حلقة التنفيذ والتحقق (AgentBuildVerifier) — دوال نقية بلا شبكة.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
 class AgentBuildVerifierTest {
 
     @Test
