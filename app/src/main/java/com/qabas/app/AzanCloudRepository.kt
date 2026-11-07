@@ -11,6 +11,11 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 @Serializable
+data class AzanVoiceDescriptionUpdate(
+    val description: String
+)
+
+@Serializable
 data class AzanVoiceRow(
     val id: String,
     @SerialName("name_ar") val nameAr: String,
@@ -127,16 +132,42 @@ object AzanCloudRepository {
         }
     }
 
+    suspend fun updateCloudVoiceDescription(
+        context: Context,
+        cloudVoice: AzanVoice,
+        description: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (!AdminGuard.isDashboardAccessAllowed(context)) return@withContext false
+            val client = SupabaseServices.client ?: return@withContext false
+            val rowId = cloudVoice.id.removePrefix("cloud_")
+            client.from(TABLE).update(AzanVoiceDescriptionUpdate(description.trim())) {
+                filter { eq("id", rowId) }
+            }
+            MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "description update failed: ${e.message}", e)
+            false
+        }
+    }
+
     suspend fun deleteCloudVoice(context: Context, cloudVoice: AzanVoice): Boolean = withContext(Dispatchers.IO) {
         try {
             if (!AdminGuard.isDashboardAccessAllowed(context)) return@withContext false
             val client = SupabaseServices.client ?: return@withContext false
             val rowId = cloudVoice.id.removePrefix("cloud_")
+            val storageMarker = "/object/public/$BUCKET/"
+            val storagePath = cloudVoice.streamUrl.substringAfter(storageMarker, "").substringBefore('?')
+            // Delete our own bucket object through Storage API before removing its database row.
+            if (storagePath.isNotBlank()) {
+                client.storage.from(BUCKET).delete(storagePath)
+            }
             client.from(TABLE).delete { filter { eq("id", rowId) } }
             MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
             true
         } catch (e: Exception) {
-            Log.e(TAG, "delete failed: ${e.message}")
+            Log.e(TAG, "delete failed: ${e.message}", e)
             false
         }
     }

@@ -11,29 +11,63 @@ import org.json.JSONObject
 object MuezzinVoiceManager {
 
     private const val PREFS_NAME = "qabas_muezzin_prefs"
+    private const val CLOUD_PREFS_NAME = "qabas_muezzin_cloud_cache"
     private const val KEY_CUSTOM_MUEZZINS = "custom_muezzin_voices"
     private const val KEY_CLOUD_MUEZZINS = "cloud_muezzin_voices_cache"
     private const val KEY_DEFAULT_VOICE_ID = "default_muezzin_voice_id"
 
+    // Custom audio metadata and the selected default are private to the signed-in account.
+    // Audio bytes remain in app-private device storage and are never uploaded.
+    private fun customPrefs(context: Context): android.content.SharedPreferences {
+        val accountId = Auth.getCurrentUserId()
+        val scopedName = "${PREFS_NAME}_${accountId ?: "device"}"
+        val scoped = context.getSharedPreferences(scopedName, Context.MODE_PRIVATE)
+
+        // One-time migration of older device-wide settings into the first active account.
+        if (accountId != null &&
+            !scoped.contains(KEY_CUSTOM_MUEZZINS) &&
+            !scoped.contains(KEY_DEFAULT_VOICE_ID)
+        ) {
+            val legacySources = listOf(
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+                context.getSharedPreferences("${PREFS_NAME}_device", Context.MODE_PRIVATE)
+            )
+            val source = legacySources.firstOrNull {
+                it.contains(KEY_CUSTOM_MUEZZINS) || it.contains(KEY_DEFAULT_VOICE_ID)
+            }
+            if (source != null) {
+                scoped.edit()
+                    .putString(KEY_CUSTOM_MUEZZINS, source.getString(KEY_CUSTOM_MUEZZINS, "[]") ?: "[]")
+                    .putString(KEY_DEFAULT_VOICE_ID, source.getString(KEY_DEFAULT_VOICE_ID, "") ?: "")
+                    .apply()
+                source.edit()
+                    .remove(KEY_CUSTOM_MUEZZINS)
+                    .remove(KEY_DEFAULT_VOICE_ID)
+                    .apply()
+            }
+        }
+        return scoped
+    }
+
+    private fun cloudPrefs(context: Context): android.content.SharedPreferences {
+        val cloud = context.getSharedPreferences(CLOUD_PREFS_NAME, Context.MODE_PRIVATE)
+        if (!cloud.contains(KEY_CLOUD_MUEZZINS)) {
+            val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (legacy.contains(KEY_CLOUD_MUEZZINS)) {
+                cloud.edit()
+                    .putString(KEY_CLOUD_MUEZZINS, legacy.getString(KEY_CLOUD_MUEZZINS, "[]") ?: "[]")
+                    .apply()
+                legacy.edit().remove(KEY_CLOUD_MUEZZINS).apply()
+            }
+        }
+        return cloud
+    }
+
     /**
      * أصوات المؤذنين الحصرية والمعتمدة حالياً
      */
-    val OFFICIAL_DEFAULT_MUEZZINS = listOf(
-        AzanVoice(
-            id = "alshawky_sharjah",
-            nameAr = "أذان الشارقة الندي",
-            muezzinAr = "الشيخ عبد العزيز الشوكي (مؤذن الشارقة)",
-            description = "أذان خاشع رخيم وصوت هادئ يأسر القلوب بصوت مؤذن مساجد الشارقة الشهير الشيخ عبد العزيز الشوكي.",
-            streamUrl = "https://ia801503.us.archive.org/15/items/AdhanAbdulazizAlshawky/Adhan_Sharjah_Abdulaziz_Alshawky.mp3"
-        ),
-        AzanVoice(
-            id = "abdulmajeed_salama",
-            nameAr = "أذان المؤذن عبد المجيد سلامة",
-            muezzinAr = "المؤذن عبد المجيد سلامة",
-            description = "أداء شجي مؤثر ونبرة إيمانية ندية تهز الوجدان وترفع همم المؤمنين لإجابة النداء.",
-            streamUrl = "https://ia801508.us.archive.org/28/items/AdhanAbdulMajeedSalama/Adhan_Abdul_Majeed_Salama.mp3"
-        )
-    )
+    // No bundled/sample recordings: the library starts empty until real voices are added.
+    val OFFICIAL_DEFAULT_MUEZZINS = emptyList<AzanVoice>()
 
     /**
      * جلب جميع المؤذنين (المعتمدين + السحابة + المخصص المحلي)
@@ -43,7 +77,7 @@ object MuezzinVoiceManager {
     }
 
     fun getCloudVoices(context: Context): List<AzanVoice> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = cloudPrefs(context)
         val jsonStr = prefs.getString(KEY_CLOUD_MUEZZINS, "[]") ?: "[]"
         return parseVoicesJson(jsonStr)
     }
@@ -61,8 +95,7 @@ object MuezzinVoiceManager {
                 put("isFajrSpecific", v.isFajrSpecific)
             })
         }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()
+        cloudPrefs(context).edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()
     }
 
     private fun parseVoicesJson(jsonStr: String): List<AzanVoice> {
@@ -90,7 +123,7 @@ object MuezzinVoiceManager {
      * جلب الأصوات المخصصة المضافة من قبل المستخدم (ملفات محلية فقط — لا تُرفع للسحابة أبداً)
      */
     fun getCustomVoices(context: Context): List<AzanVoice> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = customPrefs(context)
         val jsonStr = prefs.getString(KEY_CUSTOM_MUEZZINS, "[]") ?: "[]"
         return parseVoicesJson(jsonStr)
     }
@@ -101,11 +134,24 @@ object MuezzinVoiceManager {
      */
     fun copyLocalAzanFile(context: Context, sourceUri: android.net.Uri, displayName: String): String? {
         return try {
-            val safe = displayName.replace(Regex("[^a-zA-Z0-9_\\-.]"), "_").take(40)
-            val fileName = "azan_local_${System.currentTimeMillis()}_$safe.mp3"
+            val extension = android.webkit.MimeTypeMap.getSingleton()
+                .getExtensionFromMimeType(context.contentResolver.getType(sourceUri))
+                ?.lowercase(java.util.Locale.ROOT)
+                ?.takeIf { it.matches(Regex("[a-z0-9]{2,5}")) }
+                ?: "mp3"
+            val safe = displayName.substringBeforeLast('.')
+                .replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                .take(40)
+                .ifBlank { "voice" }
+            val fileName = "azan_local_${System.currentTimeMillis()}_$safe.$extension"
             val dest = java.io.File(context.filesDir, "azan_voices").apply { mkdirs() }.resolve(fileName)
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            val input = context.contentResolver.openInputStream(sourceUri) ?: return null
+            input.use {
                 dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!dest.exists() || dest.length() == 0L) {
+                dest.delete()
+                return null
             }
             android.net.Uri.fromFile(dest).toString()
         } catch (_: Exception) { null }
@@ -132,8 +178,19 @@ object MuezzinVoiceManager {
      * حذف مؤذن مخصص
      */
     fun deleteCustomVoice(context: Context, voiceId: String): Boolean {
-        val current = getCustomVoices(context).filter { it.id != voiceId }
-        saveCustomVoices(context, current)
+        val current = getCustomVoices(context)
+        val target = current.firstOrNull { it.id == voiceId } ?: return false
+        val remaining = current.filterNot { it.id == voiceId }
+        saveCustomVoices(context, remaining)
+
+        runCatching {
+            val uri = android.net.Uri.parse(target.streamUrl)
+            if (uri.scheme == "file") java.io.File(uri.path.orEmpty()).takeIf { it.isFile }?.delete()
+        }
+        val prefs = customPrefs(context)
+        if (prefs.getString(KEY_DEFAULT_VOICE_ID, "") == voiceId) {
+            prefs.edit().remove(KEY_DEFAULT_VOICE_ID).apply()
+        }
         return true
     }
 
@@ -149,8 +206,7 @@ object MuezzinVoiceManager {
                 put("isFajrSpecific", v.isFajrSpecific)
             })
         }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
+        customPrefs(context).edit()
             .putString(KEY_CUSTOM_MUEZZINS, arr.toString())
             .apply()
     }
@@ -159,16 +215,16 @@ object MuezzinVoiceManager {
      * جلب الصوت الافتراضي المحدد
      */
     fun getDefaultVoiceId(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_DEFAULT_VOICE_ID, OFFICIAL_DEFAULT_MUEZZINS.first().id) ?: OFFICIAL_DEFAULT_MUEZZINS.first().id
+        val prefs = customPrefs(context)
+        val savedId = prefs.getString(KEY_DEFAULT_VOICE_ID, "").orEmpty()
+        return savedId.takeIf { id -> getAllVoices(context).any { it.id == id } }.orEmpty()
     }
 
     /**
      * تعيين صوت المؤذن الافتراضي
      */
     fun setDefaultVoiceId(context: Context, voiceId: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
+        customPrefs(context).edit()
             .putString(KEY_DEFAULT_VOICE_ID, voiceId)
             .apply()
     }
@@ -176,7 +232,7 @@ object MuezzinVoiceManager {
     /**
      * جلب كائن المؤذن حسب المعرف
      */
-    fun getVoiceById(context: Context, voiceId: String): AzanVoice {
-        return getAllVoices(context).find { it.id == voiceId } ?: OFFICIAL_DEFAULT_MUEZZINS.first()
+    fun getVoiceById(context: Context, voiceId: String): AzanVoice? {
+        return getAllVoices(context).find { it.id == voiceId }
     }
 }
