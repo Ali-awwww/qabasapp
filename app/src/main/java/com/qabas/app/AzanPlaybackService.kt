@@ -140,6 +140,16 @@ class AzanPlaybackService : Service() {
         }
 
         if (voiceId.startsWith("usercloud_")) {
+            val initialNotification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    initialNotification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, initialNotification)
+            }
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 val signedUrl = UserAzanCloudRepository.resolveStreamUrl(voiceId)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
