@@ -381,7 +381,7 @@ fun HasanatHubScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = CutCornerShape(topStart = 24.dp, bottomEnd = 24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.95f)),
                     border = BorderStroke(
                         1.dp,
