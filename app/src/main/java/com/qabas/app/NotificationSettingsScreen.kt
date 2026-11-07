@@ -85,6 +85,7 @@ fun NotificationSettingsScreen(
             }
         )
     }
+    var sendTestNotificationAfterPermission by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -93,7 +94,12 @@ fun NotificationSettingsScreen(
         if (isGranted) {
             Toast.makeText(context, "تم منح إذن الإشعارات بنجاح 🔔", Toast.LENGTH_SHORT).show()
             AppSoundManager.playSuccess()
+            if (sendTestNotificationAfterPermission) {
+                sendTestNotificationAfterPermission = false
+                QabasNotificationHelper.sendInteractiveTestNotification(context)
+            }
         } else {
+            sendTestNotificationAfterPermission = false
             Toast.makeText(context, "لم يتم منح الإذن، لن تظهر التنبيهات في شريط النظام", Toast.LENGTH_LONG).show()
         }
     }
@@ -308,6 +314,7 @@ fun NotificationSettingsScreen(
                             onClick = {
                                 AppSoundManager.playClick()
                                 if (!hasPostNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    sendTestNotificationAfterPermission = true
                                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 } else {
                                     QabasNotificationHelper.sendInteractiveTestNotification(context)
