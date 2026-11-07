@@ -35,6 +35,9 @@ object BugReportManager {
                 val canvas = Canvas(bitmap)
                 view.draw(canvas)
                 bitmap
+            } catch (e: OutOfMemoryError) {
+                bitmap.recycle()
+                throw e
             } catch (e: Exception) {
                 bitmap.recycle()
                 throw e
