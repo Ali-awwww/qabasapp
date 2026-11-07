@@ -23,7 +23,7 @@ import org.robolectric.annotation.Config
  * validateTeam، cleanDisplayName، resolveKeyWithSource، AgentPrefs، وتنقل تبويبات شاشة الوكيل.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
 class AgentQualityTest {
 
     @get:Rule val composeTestRule = createComposeRule()
