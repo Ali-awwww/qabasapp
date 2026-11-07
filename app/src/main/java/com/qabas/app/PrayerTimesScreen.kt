@@ -2117,6 +2117,7 @@ fun AzanVoicesDialog(
     var editingPersonalVoice by remember { mutableStateOf<AzanVoice?>(null) }
     var personalVoiceTitle by remember { mutableStateOf("") }
     var pickedPersonalAudioUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pickedPersonalAudioFileName by remember { mutableStateOf("") }
     var pickedPersonalAudioTitle by remember { mutableStateOf("") }
     var showPersonalUploadDialog by remember { mutableStateOf(false) }
     var isPersonalUploading by remember { mutableStateOf(false) }
@@ -2138,6 +2139,7 @@ fun AzanVoicesDialog(
         if (uri != null) {
             val fileName = UserAzanCloudRepository.getDisplayName(context, uri) ?: "أذان شخصي"
             pickedPersonalAudioUri = uri
+            pickedPersonalAudioFileName = fileName
             pickedPersonalAudioTitle = UserAzanCloudRepository.titleFromFileName(fileName)
             showPersonalUploadDialog = true
         }
@@ -2659,8 +2661,8 @@ fun AzanVoicesDialog(
             title = { Text("أضف صوت مؤذّن للمحراب", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    if (cloudFetchFailed) "لا توجد أصوات سحابية متاحة حالياً أو تعذر جلبها. يمكنك إضافة ملف صوتي من هاتفك، أو إعادة محاولة جلب أصوات السحابة." 
-                    else "مكتبة أصواتك فارغة. أضف ملف أذان من هاتفك أو نزّل صوتاً متاحاً من السحابة ليكون جاهزاً للاستخدام.",
+                    if (cloudFetchFailed) "لا توجد أصوات عامة متاحة حالياً أو تعذر جلبها. يمكنك حفظ ملف أذان من هاتفك في سحابتك الخاصة، أو إعادة محاولة جلب الأصوات العامة." 
+                    else "مكتبتك فارغة. احفظ ملف أذان من هاتفك في حسابك الخاص أو نزّل صوتاً عاماً متاحاً.",
                     color = GeoColor.textPrimary(), fontFamily = CairoFont
                 )
             },
@@ -2717,7 +2719,7 @@ fun AzanVoicesDialog(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Geo.S_SM)) {
                     Text(
-                        "اسم الملف كما هو في الهاتف: ${pickedPersonalAudioTitle}",
+                        "اسم الملف كما هو في الهاتف: ${pickedPersonalAudioFileName}",
                         color = GeoColor.textMuted(),
                         fontFamily = NotoSansFont,
                         fontSize = 10.sp
