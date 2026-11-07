@@ -132,6 +132,11 @@ class AzanPlaybackService : Service() {
 
     private fun playAzanAudio(voiceId: String, prayerName: String) {
         val selectedVoice = MuezzinVoiceManager.getVoiceById(applicationContext, voiceId)
+        if (selectedVoice == null) {
+            Log.w(TAG, "No real adhan voice is configured for id=$voiceId; playback skipped")
+            stopSelf()
+            return
+        }
 
         // 🔑 طلب تركيز الصوت قبل التشغيل — إذا فشل، نكمل مع تحذير
         val gotFocus = requestAudioFocus()
