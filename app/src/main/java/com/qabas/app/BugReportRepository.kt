@@ -140,7 +140,7 @@ object BugReportRepository {
             val connectivityManager =
                 appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             val activeNetwork = connectivityManager?.activeNetwork
-            val capabilities = activeNetwork?.let(connectivityManager::getNetworkCapabilities)
+            val capabilities = if (activeNetwork != null) connectivityManager?.getNetworkCapabilities(activeNetwork) else null
 
             if (capabilities == null) {
                 "غير متصل أو غير متاح"
@@ -163,7 +163,7 @@ object BugReportRepository {
 
         return listOf(
             "— معلومات تشخيصية تلقائية —",
-            "إصدار Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT)",
+            "إصدار Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
             "الجهاز: ${Build.MANUFACTURER} ${Build.MODEL}",
             "إصدار قبس: v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
             "دقة الشاشة: $screenSize | كثافة العرض: $density",
