@@ -24,13 +24,26 @@ object BugReportManager {
      * يلتقط صورة لواجهة المستخدم الحالية.
      */
     fun captureScreenshot(view: View): Bitmap? {
+        if (view.width <= 0 || view.height <= 0 || !view.isLaidOut) {
+            Log.w(TAG, "Screenshot skipped: view has no measured dimensions")
+            return null
+        }
+
         return try {
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            view.draw(canvas)
-            bitmap
+            try {
+                val canvas = Canvas(bitmap)
+                view.draw(canvas)
+                bitmap
+            } catch (e: Exception) {
+                bitmap.recycle()
+                throw e
+            }
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "Screenshot capture ran out of memory", e)
+            null
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to capture screenshot: ${e.message}")
+            Log.e(TAG, "Failed to capture screenshot", e)
             null
         }
     }
@@ -39,15 +52,19 @@ object BugReportManager {
      * يحفظ الـ Bitmap كملف مؤقت.
      */
     suspend fun saveBitmapToCache(context: Context, bitmap: Bitmap): File? = withContext(Dispatchers.IO) {
+        val file = File(context.cacheDir, "bug_report_${UUID.randomUUID()}.jpg")
         try {
-            val file = File(context.cacheDir, "bug_report_${System.currentTimeMillis()}.jpg")
-            val out = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
-            out.flush()
-            out.close()
+            FileOutputStream(file).use { output ->
+                val compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)
+                if (!compressed) {
+                    throw java.io.IOException("Bitmap compression returned false")
+                }
+                output.flush()
+            }
             file
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save bitmap to cache: ${e.message}")
+            runCatching { file.delete() }
+            Log.e(TAG, "Failed to save bitmap to cache", e)
             null
         }
     }
