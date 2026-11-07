@@ -158,6 +158,10 @@ fun ProfileScreen(
         } else realEmail?.takeIf { it.isNotBlank() }?.let { email ->
             SupabaseServices.Database.getUserByEmail(email, null)
         }
+        // The profiles mirror is authoritative for a user-uploaded avatar URL.
+        val cloudProfileMirror = authUid?.takeIf { it.isNotBlank() }?.let {
+            SupabaseServices.Profiles.getUserProfile(it)
+        }
         val realName = cloudProfile?.name?.takeIf { it.isNotBlank() } ?: sbName
         val realAvatar = sbAvatar
         val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
@@ -208,12 +212,18 @@ fun ProfileScreen(
                 .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
         }
 
-        avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+        val savedAvatarUri = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+        val cloudAvatarUrl = cloudProfileMirror?.avatarUrl?.trim()
+            ?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
+        avatarUriString = cloudAvatarUrl ?: savedAvatarUri.ifBlank { realAvatar ?: "" }
         selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
         userAccountNumber = cloudProfile?.accountNumber?.takeIf { it.isNotBlank() }
             ?: UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
 
-        if (avatarUriString.isBlank() && realAvatar != null) {
+        if (!cloudAvatarUrl.isNullOrBlank()) {
+            activeProfilePrefs.edit().putString("user_avatar_uri", cloudAvatarUrl).putInt("user_avatar_preset", -1).apply()
+            selectedPresetAvatar = -1
+        } else if (avatarUriString.isBlank() && realAvatar != null) {
             avatarUriString = realAvatar
             activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
         }
@@ -274,12 +284,30 @@ fun ProfileScreen(
                 } else null
 
                 // الأولوية للرابط السحابي، وإلا النسخة المحلية الدائمة، وإلا رابط النظام المؤقت
+                val profileMirrorSynced = if (!cloudUrl.isNullOrBlank()) {
+                    val activeUid = SupabaseServices.Auth.getCurrentUserId()
+                    if (activeUid.isNullOrBlank()) {
+                        false
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            SupabaseServices.Profiles.syncUserProfile(
+                                userId = activeUid,
+                                displayName = displayName,
+                                email = userEmail,
+                                avatarUrl = cloudUrl
+                            )
+                        }
+                    }
+                } else false
+
                 val finalUri = cloudUrl ?: localFile?.toURI()?.toString() ?: uri.toString()
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
                 profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
-                if (cloudUrl != null) {
-                    Toast.makeText(context, "تم تحديث الصورة الشخصية ومزامنتها مع السحابة 📸", Toast.LENGTH_SHORT).show()
+                if (cloudUrl != null && profileMirrorSynced) {
+                    Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي 📸", Toast.LENGTH_SHORT).show()
+                } else if (cloudUrl != null) {
+                    Toast.makeText(context, "رُفعت الصورة، لكن تعذر مزامنة رابطها مع الملف السحابي", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "تم تحديث الصورة الشخصية محلياً 📸", Toast.LENGTH_SHORT).show()
                 }
@@ -406,7 +434,9 @@ fun ProfileScreen(
                     userId = authUserId,
                     displayName = displayName,
                     email = userEmail,
-                    avatarUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                    avatarUrl = avatarUriString.takeIf {
+                        it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true)
+                    } ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
                         ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
                 )
             }
@@ -626,8 +656,8 @@ fun ProfileScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .wrapContentHeight()
-                        .padding(12.dp),
+                        .wrapContentHeight(unbounded = true)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
