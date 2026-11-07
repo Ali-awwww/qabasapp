@@ -272,6 +272,70 @@ fun PrayerTimesScreen(
     var currentCity by remember(context) {
         mutableStateOf(PrayerCalculationHelper.getSavedCity(context))
     }
+    var isRefreshingLocation by remember { mutableStateOf(false) }
+    val locationScope = rememberCoroutineScope()
+
+    suspend fun refreshPrayerLocation() {
+        if (isRefreshingLocation) return
+        isRefreshingLocation = true
+        try {
+            val fineGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val detectedCity = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                PrayerLocationProvider.detectCurrentCity(context, fineGranted)
+            }
+            if (detectedCity != null) {
+                currentCity = detectedCity
+                PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
+                Toast.makeText(
+                    context,
+                    "تم تحديث الموقع ومواقيت الصلاة: ${detectedCity.nameAr}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    "تعذر تحديد الموقع الحالي؛ ستبقى المواقيت على آخر موقع محفوظ",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } finally {
+            isRefreshingLocation = false
+        }
+    }
+
+    val locationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            locationScope.launch { refreshPrayerLocation() }
+        } else {
+            Toast.makeText(
+                context,
+                "لم يُمنح إذن الموقع؛ يمكنك اختيار المدينة يدويًا",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    // Every entry into the Mihrab refreshes the device location once.
+    // If location permission is absent, request approximate location; manual city selection remains available.
+    LaunchedEffect(Unit) {
+        val fineGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val coarseGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            refreshPrayerLocation()
+        } else {
+            locationPermissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+
     val selectedMethod = currentCity.defaultMethod
 
     // Audio Playback State
@@ -382,12 +446,20 @@ fun PrayerTimesScreen(
                             .clickable { showCityDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = "تغيير المدينة",
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(Geo.I_SM)
-                        )
+                        if (isRefreshingLocation) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(Geo.I_SM),
+                                color = GoldPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = "تغيير المدينة",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(Geo.I_SM)
+                            )
+                        }
                     }
                     Spacer(Modifier.width(Geo.S_SM))
                     Box(
