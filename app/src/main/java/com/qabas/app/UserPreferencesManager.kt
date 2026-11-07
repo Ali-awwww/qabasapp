@@ -263,43 +263,44 @@ object UserPreferencesManager {
             return@withContext false
         }
         _isSyncing.value = true
-        val userId = getEffectiveUserId(context)
+        try {
+            val userId = getEffectiveUserId(context)
 
-        // ارفع الصورة الشخصية المحلية أولاً حتى يتضمّن الملف المصدَّر رابطها السحابي
-        val avatarUrl = uploadLocalAvatarIfNeeded(context, userId)
+            // ارفع الصورة الشخصية المحلية أولاً حتى يتضمّن الملف المصدّر رابطها السحابي
+            val avatarUrl = uploadLocalAvatarIfNeeded(context, userId)
+            val jsonPayload = exportBackupJson(context) ?: return@withContext false
+            val success = SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
 
-        val jsonPayload = exportBackupJson(context) ?: run {
+            // مزامنة الملف الشخصي محاولة مستقلة؛ لا تجعل فشلها يعلق مؤشر المزامنة.
+            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val savedName = identityPrefs.getString("user_name", null)
+                ?: legacyPrefs.getString("user_name", null)
+                ?: legacyPrefs.getString("saved_user_name", null)
+            val savedEmail = identityPrefs.getString("user_email", null)
+                ?: legacyPrefs.getString("user_email", null)
+                ?: legacyPrefs.getString("saved_login_email", null)
+            runCatching {
+                SupabaseRepository.getInstance().syncUserProfile(
+                    userId = userId,
+                    displayName = savedName,
+                    email = savedEmail,
+                    avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
+                    preferencesJson = jsonPayload
+                )
+            }.onFailure { Log.e("UserPreferencesManager", "profile sync failed: ${it.message}") }
+
+            if (success) {
+                hasPendingChanges = false
+                val now = System.currentTimeMillis()
+                _lastSyncTime.value = now
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putLong("last_sync_timestamp", now).apply()
+            }
+            success
+        } finally {
             _isSyncing.value = false
-            return@withContext false
         }
-        val success = SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
-
-        // Sync with 'profiles' table as well — اقرأ الهوية من الملف الصحيح (qabas_prefs)
-        val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
-        val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedName = identityPrefs.getString("user_name", null)
-            ?: legacyPrefs.getString("user_name", null)
-            ?: legacyPrefs.getString("saved_user_name", null)
-        val savedEmail = identityPrefs.getString("user_email", null)
-            ?: legacyPrefs.getString("user_email", null)
-            ?: legacyPrefs.getString("saved_login_email", null)
-        SupabaseRepository.getInstance().syncUserProfile(
-            userId = userId,
-            displayName = savedName,
-            email = savedEmail,
-            avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
-            preferencesJson = jsonPayload
-        )
-
-        if (success) {
-            hasPendingChanges = false
-            val now = System.currentTimeMillis()
-            _lastSyncTime.value = now
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putLong("last_sync_timestamp", now).apply()
-        }
-        _isSyncing.value = false
-        success
     }
 
     suspend fun fetchAndApplyFromSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
@@ -307,43 +308,46 @@ object UserPreferencesManager {
             return@withContext false
         }
         _isSyncing.value = true
-        val userId = getEffectiveUserId(context)
-        val row = SupabaseServices.UserSettings.getUserSettings(userId)
-        var applied = false
-        if (row != null && row.preferencesJson.isNotBlank()) {
-            val ok = importBackupJson(context, row.preferencesJson)
-            if (ok) {
-                _lastSyncTime.value = row.updatedAtMillis
-                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().putLong("last_sync_timestamp", row.updatedAtMillis).apply()
-                applied = true
+        try {
+            val userId = getEffectiveUserId(context)
+            val row = SupabaseServices.UserSettings.getUserSettings(userId)
+            var applied = false
+            if (row != null && row.preferencesJson.isNotBlank()) {
+                val ok = importBackupJson(context, row.preferencesJson)
+                if (ok) {
+                    _lastSyncTime.value = row.updatedAtMillis
+                    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putLong("last_sync_timestamp", row.updatedAtMillis).apply()
+                    applied = true
+                }
             }
-        }
 
-        // استرجاع الاسم/البريد/الصورة من جدول profiles عند غيابها محلياً (مهم على جهاز جديد)
-        runCatching {
-            val profile = SupabaseServices.Profiles.getUserProfile(userId) ?: return@runCatching
-            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
-            val editor = identityPrefs.edit()
-            var changed = false
-            val localAvatar = identityPrefs.getString("user_avatar_uri", null)
-            if ((localAvatar.isNullOrBlank() || localAvatar.startsWith("content")) && !profile.avatarUrl.isNullOrBlank()) {
-                editor.putString("user_avatar_uri", profile.avatarUrl); changed = true
-            }
-            if (identityPrefs.getString("user_name", null).isNullOrBlank() && !profile.fullName.isNullOrBlank()) {
-                editor.putString("user_name", profile.fullName); changed = true
-            }
-            if (identityPrefs.getString("user_email", null).isNullOrBlank() && !profile.email.isNullOrBlank()) {
-                editor.putString("user_email", profile.email); changed = true
-            }
-            if (changed) {
-                isApplyingRemoteChanges = true
-                try { editor.commit() } finally { isApplyingRemoteChanges = false }
-                applied = true
-            }
-        }.onFailure { Log.e("UserPreferencesManager", "profile restore failed: ${it.message}") }
-        _isSyncing.value = false
-        applied
+            // استرجاع الاسم/البريد/الصورة من جدول profiles عند غيابها محلياً (مهم على جهاز جديد)
+            runCatching {
+                val profile = SupabaseServices.Profiles.getUserProfile(userId) ?: return@runCatching
+                val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+                val editor = identityPrefs.edit()
+                var changed = false
+                val localAvatar = identityPrefs.getString("user_avatar_uri", null)
+                if ((localAvatar.isNullOrBlank() || localAvatar.startsWith("content")) && !profile.avatarUrl.isNullOrBlank()) {
+                    editor.putString("user_avatar_uri", profile.avatarUrl); changed = true
+                }
+                if (identityPrefs.getString("user_name", null).isNullOrBlank() && !profile.fullName.isNullOrBlank()) {
+                    editor.putString("user_name", profile.fullName); changed = true
+                }
+                if (identityPrefs.getString("user_email", null).isNullOrBlank() && !profile.email.isNullOrBlank()) {
+                    editor.putString("user_email", profile.email); changed = true
+                }
+                if (changed) {
+                    isApplyingRemoteChanges = true
+                    try { editor.commit() } finally { isApplyingRemoteChanges = false }
+                    applied = true
+                }
+            }.onFailure { Log.e("UserPreferencesManager", "profile restore failed: ${it.message}") }
+            applied
+        } finally {
+            _isSyncing.value = false
+        }
     }
 
     /**
