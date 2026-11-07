@@ -656,7 +656,7 @@ fun ProfileScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .wrapContentHeight(unbounded = true)
+                        .wrapContentHeight()
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
