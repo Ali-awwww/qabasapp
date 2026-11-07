@@ -18,7 +18,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  # Use a fresh group namespace to release runs queued under the previous key.
+  # Newer pushes on the same branch cancel the older in-progress build.
+  group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,12 +34,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # Gradle executes code from pull requests; do not persist a repository token in the checkout.
+          persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version: "17"
@@ -45,7 +49,8 @@ jobs:
       - name: Setup Gradle (Cache & Build Setup)
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: false
+          # Untrusted pull-request builds must not be able to poison caches used by trusted builds.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           gradle-home-cache-cleanup: true
 
       - name: Setup Android SDK
@@ -54,8 +59,14 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "build-tools;36.0.0" "platforms;android-36" || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "platforms;android-36" || true
+            "platform-tools" \
+            "build-tools;36.0.0" \
+            "platforms;android-36" \
+            "cmake;3.22.1" \
+            "ndk;28.2.13676358"
+          test -d "$ANDROID_HOME/cmake/3.22.1"
+          test -d "$ANDROID_HOME/ndk/28.2.13676358"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E "platforms;android-36|cmake;3.22.1|ndk;28.2.13676358"
 
       - name: Fix gradle-wrapper.jar
         run: |
@@ -67,19 +78,31 @@ jobs:
           python3 -c "import zipfile; zipfile.ZipFile('gradle/wrapper/gradle-wrapper.jar').namelist(); print('wrapper jar OK')"
           chmod +x gradlew
 
+      # Pull-request source is untrusted: never materialize a repository signing secret before Gradle runs.
       - name: Restore Stable Signing Keystore
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         shell: bash
         run: |
           echo "Restoring permanent, consistent signing keystore to preserve app update compatibility..."
 
-          if [ -f "debug.keystore.base64" ]; then
-            echo "Found debug.keystore.base64 in repository, decoding..."
-            base64 -d debug.keystore.base64 > debug.keystore
-          elif [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
-            printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
-          else
-            echo "🔧 No custom keystore found, using default debug keystore setup"
+          SUCCESS=0
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "🔑 Decoding from GitHub Secret RELEASE_KEYSTORE_BASE64..."
+            printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | tr -d ' \t\r\n' | base64 -d > debug.keystore 2>/dev/null || true
+            if [ -s debug.keystore ]; then
+              SUCCESS=1
+            else
+              echo "⚠️ GitHub Secret RELEASE_KEYSTORE_BASE64 contained invalid base64 data. Falling back to repo file."
+              rm -f debug.keystore
+            fi
+          fi
+
+          if [ $SUCCESS -eq 0 ] && [ -f "debug.keystore.base64" ]; then
+            echo "📦 Found debug.keystore.base64 in repository, decoding fallback..."
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+            if [ -s debug.keystore ]; then
+              SUCCESS=1
+            fi
           fi
           # Ensure debug.keystore exists with proper Android debug key
           if [ ! -f debug.keystore ]; then
@@ -93,6 +116,11 @@ jobs:
             echo "❌ Keystore restoration failed"
             exit 1
           fi
+
+      - name: Create ephemeral debug keystore for pull request builds
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Extract & Display Signing Key Fingerprint
         run: |
@@ -131,7 +159,33 @@ jobs:
             echo "✅ Signing key information saved to: signing_key_info.txt"
           fi
 
+      # Keep BuildConfig generation valid without exposing repository secrets to PR-controlled code.
+      - name: Create non-secret environment for pull request builds
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          AW_CLIENT_ID="ci-placeholder"
+          AW_CLIENT_SECRET="ci-placeholder"
+          AZURE_SPEECH_KEY="ci-placeholder"
+          AZURE_SPEECH_REGION="ci-placeholder"
+          COVERR_API_KEY="ci-placeholder"
+          ELEVENLABS_API_KEY="ci-placeholder"
+          GOOGLE_WEB_CLIENT_ID="ci-placeholder"
+          GROQ_API_KEY="ci-placeholder"
+          HUGGINGFACE_API_KEY="ci-placeholder"
+          OPENAI_API_KEY="ci-placeholder"
+          OPENROUTER_API_KEY="ci-placeholder"
+          PEXELS_API_KEY="ci-placeholder"
+          PIXABAY_API_KEY="ci-placeholder"
+          QF_CLIENT_ID="ci-placeholder"
+          QF_CLIENT_SECRET="ci-placeholder"
+          SUPABASE_ANON_KEY="ci-placeholder"
+          SUPABASE_URL="https://example.supabase.co"
+          EOF
+
       - name: Inject secrets (optional)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -167,6 +221,7 @@ jobs:
           } > .env
 
       - name: Compute Unique Release Version (xdelta base = last successful build)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         id: release-version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -195,6 +250,21 @@ jobs:
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "✅ Release tag: $RELEASE_TAG (versionName=$VERSION_NAME, versionCode=$NEW_CODE)"
 
+      - name: Run Debug Unit Tests
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvmargs=\"-Xmx1536m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
+        run: |
+          ./gradlew testDebugUnitTest \
+            --stacktrace \
+            --no-daemon \
+            --max-workers=2 \
+            -PappVersionName="$VERSION_NAME" \
+            -PappVersionCode="$VERSION_CODE" \
+            -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+
       - name: Assemble Debug APK
         env:
           BUILD_NUMBER: ${{ github.run_number }}
@@ -211,11 +281,31 @@ jobs:
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
 
-      - name: Run unit tests
+      - name: Verify xdelta JNI is packaged
+        shell: bash
         run: |
-          ./gradlew testDebugUnitTest \
-            --no-daemon \
-            --max-workers=2
+          set -euo pipefail
+          APK_FILE=$(find app/build/outputs/apk/debug -maxdepth 1 -name "*.apk" -print -quit)
+          test -n "$APK_FILE"
+          python3 - "$APK_FILE" <<'PY'
+          import sys
+          import zipfile
+
+          apk = sys.argv[1]
+          expected_abis = {"arm64-v8a", "armeabi-v7a", "x86_64"}
+          with zipfile.ZipFile(apk) as archive:
+              entries = set(archive.namelist())
+          packaged = {
+              abi for abi in expected_abis
+              if f"lib/{abi}/libqabas_xdelta.so" in entries
+          }
+          missing = expected_abis - packaged
+          if missing:
+              raise SystemExit(
+                  "Missing xdelta JNI library for ABI(s): " + ", ".join(sorted(missing))
+              )
+          print("Verified libqabas_xdelta.so in APK for: " + ", ".join(sorted(packaged)))
+          PY
 
       - name: Verify APK Signature
         run: |
@@ -230,7 +320,7 @@ jobs:
 
       - name: Upload APK artifact
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qabas-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -239,7 +329,7 @@ jobs:
 
       - name: Upload Signing Key Information
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signing-key-info
           path: signing_key_info.txt
@@ -247,7 +337,7 @@ jobs:
           retention-days: 7
 
       - name: Distribute APK to Firebase App Distribution
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -270,7 +360,7 @@ jobs:
             --release-notes "Qabas Studio CI build ${{ github.run_number }} from ${{ github.sha }}"
 
       - name: Create or Update GitHub Release
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
@@ -290,6 +380,7 @@ jobs:
             echo "- Build Number: ${{ github.run_number }}"
             echo "- Built at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             echo "- Branch: ${{ github.ref }}"
+            echo "- Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo ""
             echo "👇 xdelta updates are generated from this release."
           } > release_notes.md
@@ -308,7 +399,7 @@ jobs:
           echo "✅ APK successfully attached to release $VERSION"
 
       - name: Trigger xdelta delta generation
-        if: success() && github.event_name != 'pull_request'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
