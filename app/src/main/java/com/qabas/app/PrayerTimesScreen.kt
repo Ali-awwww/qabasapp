@@ -2128,6 +2128,9 @@ fun AzanVoicesDialog(
     ) { uri ->
         if (uri != null) {
             scope.launch {
+                // Wait for Supabase session restoration so the file metadata is stored
+                // under the correct account namespace, never under another user's preferences.
+                Auth.awaitCurrentUserId()
                 val localUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     MuezzinVoiceManager.copyLocalAzanFile(context, uri, "azan_user.mp3")
                 }
@@ -2151,6 +2154,8 @@ fun AzanVoicesDialog(
 
     // مزامنة أصوات السحابة (قراءة للجميع)
     LaunchedEffect(Unit) {
+        Auth.awaitCurrentUserId()
+        reloadVoices()
         if (SupabaseServices.isSupabaseAvailable) {
             isSyncingCloud = true
             val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
