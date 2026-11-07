@@ -973,10 +973,6 @@ object SupabaseServices {
         suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
             // Ownership is determined only by the authenticated Supabase UID.
             // Never use user_email as an authorization filter: report inserts do not
-
-        suspend fun getBugReportsByUser(): List<BugReportRow> = runCatching {
-            // Ownership is determined only by the authenticated Supabase UID.
-            // Never use user_email as an authorization filter: report inserts do not
             // establish that email as the authenticated identity.
             val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
             val client = client ?: return emptyList()
