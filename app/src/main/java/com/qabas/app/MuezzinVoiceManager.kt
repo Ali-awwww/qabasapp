@@ -11,9 +11,20 @@ import org.json.JSONObject
 object MuezzinVoiceManager {
 
     private const val PREFS_NAME = "qabas_muezzin_prefs"
+    private const val CLOUD_PREFS_NAME = "qabas_muezzin_cloud_cache"
     private const val KEY_CUSTOM_MUEZZINS = "custom_muezzin_voices"
     private const val KEY_CLOUD_MUEZZINS = "cloud_muezzin_voices_cache"
     private const val KEY_DEFAULT_VOICE_ID = "default_muezzin_voice_id"
+
+    // Custom audio metadata and the selected default are private to the signed-in account.
+    // Audio bytes remain in app-private device storage and are never uploaded.
+    private fun customPrefs(context: Context) = context.getSharedPreferences(
+        "${PREFS_NAME}_${Auth.getCurrentUserId() ?: "device"}",
+        Context.MODE_PRIVATE
+    )
+
+    private fun cloudPrefs(context: Context) =
+        context.getSharedPreferences(CLOUD_PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
      * أصوات المؤذنين الحصرية والمعتمدة حالياً
@@ -29,7 +40,7 @@ object MuezzinVoiceManager {
     }
 
     fun getCloudVoices(context: Context): List<AzanVoice> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = cloudPrefs(context)
         val jsonStr = prefs.getString(KEY_CLOUD_MUEZZINS, "[]") ?: "[]"
         return parseVoicesJson(jsonStr)
     }
@@ -47,8 +58,7 @@ object MuezzinVoiceManager {
                 put("isFajrSpecific", v.isFajrSpecific)
             })
         }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()
+        cloudPrefs(context).edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()
     }
 
     private fun parseVoicesJson(jsonStr: String): List<AzanVoice> {
@@ -76,7 +86,7 @@ object MuezzinVoiceManager {
      * جلب الأصوات المخصصة المضافة من قبل المستخدم (ملفات محلية فقط — لا تُرفع للسحابة أبداً)
      */
     fun getCustomVoices(context: Context): List<AzanVoice> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = customPrefs(context)
         val jsonStr = prefs.getString(KEY_CUSTOM_MUEZZINS, "[]") ?: "[]"
         return parseVoicesJson(jsonStr)
     }
@@ -90,8 +100,13 @@ object MuezzinVoiceManager {
             val safe = displayName.replace(Regex("[^a-zA-Z0-9_\\-.]"), "_").take(40)
             val fileName = "azan_local_${System.currentTimeMillis()}_$safe.mp3"
             val dest = java.io.File(context.filesDir, "azan_voices").apply { mkdirs() }.resolve(fileName)
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            val input = context.contentResolver.openInputStream(sourceUri) ?: return null
+            input.use {
                 dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!dest.exists() || dest.length() == 0L) {
+                dest.delete()
+                return null
             }
             android.net.Uri.fromFile(dest).toString()
         } catch (_: Exception) { null }
@@ -118,8 +133,19 @@ object MuezzinVoiceManager {
      * حذف مؤذن مخصص
      */
     fun deleteCustomVoice(context: Context, voiceId: String): Boolean {
-        val current = getCustomVoices(context).filter { it.id != voiceId }
-        saveCustomVoices(context, current)
+        val current = getCustomVoices(context)
+        val target = current.firstOrNull { it.id == voiceId } ?: return false
+        val remaining = current.filterNot { it.id == voiceId }
+        saveCustomVoices(context, remaining)
+
+        runCatching {
+            val uri = android.net.Uri.parse(target.streamUrl)
+            if (uri.scheme == "file") java.io.File(uri.path.orEmpty()).takeIf { it.isFile }?.delete()
+        }
+        val prefs = customPrefs(context)
+        if (prefs.getString(KEY_DEFAULT_VOICE_ID, "") == voiceId) {
+            prefs.edit().remove(KEY_DEFAULT_VOICE_ID).apply()
+        }
         return true
     }
 
@@ -135,8 +161,7 @@ object MuezzinVoiceManager {
                 put("isFajrSpecific", v.isFajrSpecific)
             })
         }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
+        customPrefs(context).edit()
             .putString(KEY_CUSTOM_MUEZZINS, arr.toString())
             .apply()
     }
@@ -145,7 +170,7 @@ object MuezzinVoiceManager {
      * جلب الصوت الافتراضي المحدد
      */
     fun getDefaultVoiceId(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = customPrefs(context)
         val savedId = prefs.getString(KEY_DEFAULT_VOICE_ID, "").orEmpty()
         return savedId.takeIf { id -> getAllVoices(context).any { it.id == id } }.orEmpty()
     }
@@ -154,8 +179,7 @@ object MuezzinVoiceManager {
      * تعيين صوت المؤذن الافتراضي
      */
     fun setDefaultVoiceId(context: Context, voiceId: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
+        customPrefs(context).edit()
             .putString(KEY_DEFAULT_VOICE_ID, voiceId)
             .apply()
     }
