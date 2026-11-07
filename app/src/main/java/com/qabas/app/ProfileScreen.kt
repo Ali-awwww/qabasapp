@@ -724,18 +724,21 @@ fun ProfileScreen(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 21.sp
+                        fontSize = 20.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(modifier = Modifier.height(2.dp))
 
                     // Row with Username and Account Number side-by-side
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically
                     ) {
                         // 1. User Tag Chip
                         Surface(
@@ -774,7 +777,7 @@ fun ProfileScreen(
                             ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
                             ?: "بانتظار المزامنة..."
 
-                        Spacer(modifier = Modifier.width(8.dp))
+
 
                         Surface(
                             color = GoldPrimary.copy(alpha = 0.12f),
@@ -867,11 +870,15 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
