@@ -2540,10 +2540,9 @@ fun AzanVoicesDialog(
                                         reloadVoices()
                                         BackgroundPermissionManager.refreshBackgroundSchedulers(context)
                                         scope.launch {
-                                            val synced = if (voice.id.startsWith("custom_")) true else
-                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                                    UserAzanCloudRepository.saveDefaultVoiceId(voice.id)
-                                                }
+                                            val synced = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                UserAzanCloudRepository.saveDefaultVoiceId(voice.id)
+                                            }
                                             Toast.makeText(
                                                 context,
                                                 if (synced) "تم تعيين ${voice.muezzinAr} كأذان افتراضي ومزامنة التفضيل"
