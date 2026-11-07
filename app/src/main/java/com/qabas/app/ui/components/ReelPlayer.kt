@@ -308,7 +308,7 @@ fun ReelPlayer(
                     PlayerView(ctx).apply {
                         player = exoPlayer
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        resizeMode = com.qabas.app.UnifiedVideoPlayerSettings.resizeMode(ctx)
                         setShutterBackgroundColor(android.graphics.Color.BLACK)
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -321,7 +321,7 @@ fun ReelPlayer(
                         view.player = exoPlayer
                     }
                     // AndroidView is reused by Compose; always apply the latest ratio mode.
-                    view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    view.resizeMode = com.qabas.app.UnifiedVideoPlayerSettings.resizeMode(view.context)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
