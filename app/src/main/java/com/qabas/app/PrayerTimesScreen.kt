@@ -375,7 +375,7 @@ fun PrayerTimesScreen(
                     // أزرار دائرية هندسية
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .clip(GeoShape.Circle)
                             .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
                             .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
@@ -392,7 +392,7 @@ fun PrayerTimesScreen(
                     Spacer(Modifier.width(Geo.S_SM))
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .clip(GeoShape.Circle)
                             .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
                             .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
