@@ -154,6 +154,15 @@ fun AppNavigation(
             LoginScreen(
                 onLoginSuccess = { _ ->
                     viewModel.updateState { copy(appState = AppState.HOME) }
+                    // Restore account-scoped settings only after an authenticated UID exists.
+                    if (SupabaseServices.Auth.getCurrentUserId() != null &&
+                        UserPreferencesManager.cloudSyncEnabled.value
+                    ) {
+                        viewModel.viewModelScope.launch(Dispatchers.IO) {
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
+                                .onFailure { android.util.Log.e("AppNavigation", "Post-login preferences restore failed: ${it.message}") }
+                        }
+                    }
                 },
                 onNavigateToRegister = { viewModel.updateState { copy(appState = AppState.REGISTER) } },
                 onNavigateToForgotPassword = { viewModel.updateState { copy(appState = AppState.FORGOT_PASSWORD) } },
@@ -164,6 +173,15 @@ fun AppNavigation(
             RegisterScreen(
                 onRegisterSuccess = {
                     viewModel.updateState { copy(appState = AppState.HOME) }
+                    // Registration may establish the account session on this device.
+                    if (SupabaseServices.Auth.getCurrentUserId() != null &&
+                        UserPreferencesManager.cloudSyncEnabled.value
+                    ) {
+                        viewModel.viewModelScope.launch(Dispatchers.IO) {
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
+                                .onFailure { android.util.Log.e("AppNavigation", "Post-registration preferences restore failed: ${it.message}") }
+                        }
+                    }
                 },
                 onNavigateToLogin = { viewModel.updateState { copy(appState = AppState.LOGIN) } },
                 onNavigateToRules = { viewModel.updateState { copy(appState = AppState.RULES) } }
