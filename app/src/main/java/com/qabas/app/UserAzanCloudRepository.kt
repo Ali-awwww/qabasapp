@@ -58,6 +58,8 @@ object UserAzanCloudRepository {
         try {
             val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
                 ?: return@withContext Result.failure(SecurityException("سجّل الدخول لحفظ الأذان في حسابك"))
+            val client = SupabaseServices.client
+                ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
             val safeTitle = title.trim().take(120)
             if (safeTitle.isBlank()) {
                 return@withContext Result.failure(IllegalArgumentException("عنوان الأذان مطلوب"))
@@ -120,8 +122,6 @@ object UserAzanCloudRepository {
                 sizeBytes = file.length()
             )
             try {
-                val client = SupabaseServices.client
-                    ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
                 client.from(TABLE).insert(row)
             } catch (dbError: Exception) {
                 // Roll back the object if the owner-scoped metadata insert did not succeed.
