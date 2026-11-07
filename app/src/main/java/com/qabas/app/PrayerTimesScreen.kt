@@ -2038,6 +2038,9 @@ fun AzanVoicesDialog(
     var isSyncingCloud by remember { mutableStateOf(false) }
     var showVoiceSetupPrompt by remember { mutableStateOf(false) }
     var cloudFetchFailed by remember { mutableStateOf(false) }
+    var editingCloudVoice by remember { mutableStateOf<AzanVoice?>(null) }
+    var editCloudDescription by remember { mutableStateOf("") }
+    var cloudVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
     val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
@@ -2237,7 +2240,8 @@ fun AzanVoicesDialog(
 
                     val isPlaying = playbackState is AzanPlaybackState.Playing && isCurrentVoice
                     val isLoading = playbackState is AzanPlaybackState.Loading && isCurrentVoice
-                    val isCustom = voice.id !in MuezzinVoiceManager.OFFICIAL_DEFAULT_MUEZZINS.map { it.id }
+                    val isCustom = voice.id.startsWith("custom_")
+                    val isCloudVoice = voice.id.startsWith("cloud_")
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -2362,6 +2366,36 @@ fun AzanVoicesDialog(
                                 lineHeight = 14.sp
                             )
 
+                            if (isCloudVoice && isDeveloper) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingCloudVoice = voice
+                                            editCloudDescription = voice.description
+                                        },
+                                        modifier = Modifier.weight(1f).height(36.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(5.dp))
+                                        Text("تعديل الوصف", fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { cloudVoicePendingDelete = voice },
+                                        modifier = Modifier.weight(1f).height(36.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                                    ) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(5.dp))
+                                        Text("حذف من السحابة", fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1)
+                                    }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // عدّاد تنزيل الأذان السحابي — عبر مدير التنزيلات نفسه
@@ -2445,6 +2479,69 @@ fun AzanVoicesDialog(
                 }
             }
         }
+    }
+
+    if (editingCloudVoice != null && isDeveloper) {
+        AlertDialog(
+            onDismissRequest = { editingCloudVoice = null },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("تعديل وصف الأذان", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editCloudDescription,
+                    onValueChange = { editCloudDescription = it },
+                    label = { Text("الوصف") },
+                    minLines = 3,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val voice = editingCloudVoice ?: return@TextButton
+                    scope.launch {
+                        val updated = AzanCloudRepository.updateCloudVoiceDescription(context, voice, editCloudDescription)
+                        if (updated) {
+                            reloadVoices()
+                            Toast.makeText(context, "تم تحديث وصف الأذان", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "تعذر تحديث الوصف", Toast.LENGTH_LONG).show()
+                        }
+                        editingCloudVoice = null
+                    }
+                }) { Text("حفظ", color = GoldPrimary) }
+            },
+            dismissButton = { TextButton(onClick = { editingCloudVoice = null }) { Text("إلغاء") } }
+        )
+    }
+
+    if (cloudVoicePendingDelete != null && isDeveloper) {
+        AlertDialog(
+            onDismissRequest = { cloudVoicePendingDelete = null },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("حذف صوت الأذان؟", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيُحذف سجل الأذان وملفه الصوتي من السحابة، ولن يتمكن المستخدمون من تشغيله.", color = GeoColor.textPrimary(), fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val voice = cloudVoicePendingDelete ?: return@TextButton
+                    scope.launch {
+                        val deleted = AzanCloudRepository.deleteCloudVoice(context, voice)
+                        if (deleted) {
+                            reloadVoices()
+                            if (defaultVoiceId == voice.id) {
+                                MuezzinVoiceManager.setDefaultVoiceId(context, "")
+                                defaultVoiceId = ""
+                            }
+                            Toast.makeText(context, "تم حذف الأذان من السحابة", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "تعذر حذف الأذان", Toast.LENGTH_LONG).show()
+                        }
+                        cloudVoicePendingDelete = null
+                    }
+                }) { Text("حذف نهائياً", color = Color(0xFFEF4444)) }
+            },
+            dismissButton = { TextButton(onClick = { cloudVoicePendingDelete = null }) { Text("إلغاء") } }
+        )
     }
 
     // إرشاد أولي عند خلو مكتبة المستخدم من الأصوات المحلية/السحابية.
