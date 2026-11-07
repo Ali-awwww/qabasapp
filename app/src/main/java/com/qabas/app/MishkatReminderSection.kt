@@ -60,6 +60,7 @@ data class MishkatReminderContent(
     @SerialName("quote_text") val quoteText: String,
     val attribution: String,
     @SerialName("video_url") val videoUrl: String? = null,
+    @SerialName("lesson_url") val lessonUrl: String? = null,
     @SerialName("is_enabled") val isEnabled: Boolean = false,
     @SerialName("updated_by") val updatedBy: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null
@@ -182,6 +183,23 @@ fun MishkatReminderCard() {
                             videoUrl = videoUrl,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+                    published.lessonUrl?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) }?.let { lessonUrl ->
+                        val context = LocalContext.current
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(lessonUrl)))
+                                }.onFailure {
+                                    Toast.makeText(context, "تعذّر فتح رابط الدرس.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF79D9CB))
+                            Spacer(Modifier.width(8.dp))
+                            Text("مشاهدة الدرس الكامل", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -313,6 +331,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
     var quoteText by remember { mutableStateOf("") }
     var attribution by remember { mutableStateOf("") }
     var videoUrl by remember { mutableStateOf("") }
+    var lessonUrl by remember { mutableStateOf("") }
     var isEnabled by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
@@ -331,6 +350,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                     quoteText = remote.quoteText
                     attribution = remote.attribution
                     videoUrl = remote.videoUrl.orEmpty()
+                    lessonUrl = remote.lessonUrl.orEmpty()
                     isEnabled = remote.isEnabled
                 } else {
                     errorMessage = "لم يُعثر على إعدادات الميزة في السحابة."
@@ -481,6 +501,16 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         maxLines = 3,
                         enabled = !isSaving && !isUploading
                     )
+                    OutlinedTextField(
+                        value = lessonUrl,
+                        onValueChange = { lessonUrl = it },
+                        label = { Text("رابط الدرس الكامل (اختياري)") },
+                        supportingText = { Text("إذا أضفت الرابط سيظهر أسفل الفيديو للمستخدمين، وإن تركته فارغاً فلن يظهر رابط.") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1,
+                        maxLines = 3,
+                        enabled = !isSaving && !isUploading
+                    )
                     OutlinedButton(
                         onClick = { videoPicker.launch(arrayOf("video/mp4", "video/quicktime", "video/webm")) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -542,6 +572,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
+                                        lessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() },
                                         isEnabled = true
                                     )
                                 }
@@ -586,6 +617,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                                         quoteText = cleanQuote,
                                         attribution = cleanAttribution,
                                         videoUrl = cleanVideoUrl,
+                                        lessonUrl = lessonUrl.trim().takeIf { it.isNotBlank() },
                                         isEnabled = false
                                     )
                                 }
