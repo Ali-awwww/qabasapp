@@ -600,8 +600,19 @@ fun SettingsScreen(
                                 },
                                 onSyncCloud = {
                                     coroutineScope.launch {
-                                        UserPreferencesManager.syncToSupabase(context)
-                                        Toast.makeText(context, "تمت المزامنة بنجاح ☁️", Toast.LENGTH_SHORT).show()
+                                        val synced = runCatching {
+                                            UserPreferencesManager.syncToSupabase(context)
+                                        }.getOrDefault(false)
+                                        val message = if (synced) {
+                                            "تمت مزامنة إعداداتك مع السحابة بنجاح ☁️"
+                                        } else {
+                                            "تعذرت المزامنة السحابية. تحقق من الاتصال وتسجيل الدخول ثم أعد المحاولة."
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            message,
+                                            if (synced) Toast.LENGTH_SHORT else Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 },
                                 onCheckUpdate = {
