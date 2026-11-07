@@ -154,13 +154,14 @@ fun MishkatReminderCard() {
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
-                        Text("۞", color = Color(0xFFE0BD72), fontSize = 22.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
                         Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
                     }
                     Text(
                         text = published.quoteText
-                            .replace("، ", "،\\n")
-                            .replace("محطَّ نحس ", "محطَّ نحس\\n"),
+                            .replace("، ", "،\n")
+                            .replace("محطَّ نحس ", "محطَّ نحس\n")
+                            .replace("\\\\n", "\n"),
                         color = Color(0xFFF2E8D4),
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
@@ -188,7 +189,7 @@ fun MishkatReminderCard() {
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
-                        Text("✧", color = Color(0xFFE0BD72), fontSize = 16.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
                     }
                 }
