@@ -78,16 +78,19 @@ object SupabaseServices {
             quoteText: String,
             attribution: String,
             videoUrl: String?,
+            lessonUrl: String?,
             isEnabled: Boolean
         ): Boolean = runCatching {
             val client = client ?: return false
             val userId = Auth.getCurrentUserId() ?: return false
             val cleanVideoUrl = videoUrl?.trim()?.takeIf { it.isNotBlank() }
+            val cleanLessonUrl = lessonUrl?.trim()?.takeIf { it.isNotBlank() }
             val payload = buildJsonObject {
                 put("id", "global")
                 put("quote_text", quoteText.trim())
                 put("attribution", attribution.trim())
                 put("video_url", cleanVideoUrl?.let { JsonPrimitive(it) } ?: JsonNull)
+                put("lesson_url", cleanLessonUrl?.let { JsonPrimitive(it) } ?: JsonNull)
                 put("is_enabled", isEnabled)
                 put("updated_by", userId)
                 put("updated_at", java.time.Instant.now().toString())
