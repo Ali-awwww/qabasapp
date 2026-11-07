@@ -32,8 +32,25 @@ class MuslimToolsEngine(context: Context) {
         goldCarat: Int,
         silverGrams: Double,
         tradeGoods: Double,
-        goldPricePerGram24k: Double = 300.0
+        goldPricePerGram24k: Double,
+        silverPricePerGram: Double
     ): ZakatResult {
+        require(listOf(cash, goldGrams, silverGrams, tradeGoods).all { it.isFinite() && it >= 0.0 }) {
+            "Zakat asset values must be finite and non-negative."
+        }
+        require(goldCarat == 24 || goldCarat == 22 || goldCarat == 21 || goldCarat == 18) {
+            "Unsupported gold carat."
+        }
+        require(goldPricePerGram24k.isFinite() && goldPricePerGram24k > 0.0) {
+            "A positive current 24k gold price is required."
+        }
+        require(silverPricePerGram.isFinite() && silverPricePerGram >= 0.0) {
+            "Silver price must be finite and non-negative."
+        }
+        require(silverGrams == 0.0 || silverPricePerGram > 0.0) {
+            "A positive silver price is required when silver is included."
+        }
+
         val nisabGold = 85.0 * goldPricePerGram24k
         val goldWeight24k = when (goldCarat) {
             24 -> goldGrams
@@ -42,7 +59,11 @@ class MuslimToolsEngine(context: Context) {
             18 -> goldGrams * (18.0 / 24.0)
             else -> goldGrams
         }
-        val totalWealth = cash + (goldWeight24k * goldPricePerGram24k) + (silverGrams * (goldPricePerGram24k / 70.0)) + tradeGoods
+        val totalWealth = cash + (goldWeight24k * goldPricePerGram24k) + (silverGrams * silverPricePerGram) + tradeGoods
+        require(totalWealth.isFinite() && nisabGold.isFinite()) {
+            "Zakat calculation exceeds the supported numeric range."
+        }
+
         val isNisabReached = totalWealth >= nisabGold
         val zakatAmount = if (isNisabReached) totalWealth * 0.025 else 0.0
         return ZakatResult(totalWealth, zakatAmount, isNisabReached, nisabGold)

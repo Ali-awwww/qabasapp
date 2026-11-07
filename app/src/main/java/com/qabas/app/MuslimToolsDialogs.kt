@@ -93,9 +93,17 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     var gold by remember { mutableStateOf("") }
     var silver by remember { mutableStateOf("") }
     var trade by remember { mutableStateOf("") }
+    var goldPricePerGram24k by remember { mutableStateOf("") }
+    var silverPricePerGram by remember { mutableStateOf("") }
     var carat by remember { mutableIntStateOf(24) }
 
     var result by remember { mutableStateOf<MuslimToolsEngine.ZakatResult?>(null) }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    fun invalidateResult() {
+        result = null
+        validationError = null
+    }
 
     MuslimToolsGlassDialog(
         title = Translator.tr("حاسبة الزكاة الذكية"),
@@ -104,12 +112,21 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     ) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                ZakatInputField(Translator.tr("السيولة النقدية (المال المدخر)"), cash, { cash = it }, "💵")
+                Text(
+                    Translator.tr("حاسبة تقديرية تعتمد نصاب الذهب (85 غراماً عيار 24) ومعدل 2.5% مع افتراض اكتمال الحول. لا تخصم الديون ولا تغطي جميع تفاصيل أحكام الزكاة؛ راجع جهة شرعية موثوقة. أدخل جميع المبالغ والأسعار بالعملة نفسها ولا يتم تحويل العملات."),
+                    color = qabasTextSecondary(),
+                    fontSize = 11.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = CairoFont
+                )
+            }
+            item {
+                ZakatInputField(Translator.tr("السيولة النقدية (بالعملة نفسها)"), cash, { cash = it; invalidateResult() }, "💵")
             }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(modifier = Modifier.weight(1f)) {
-                        ZakatInputField(Translator.tr("وزن الذهب (غرام)"), gold, { gold = it }, "🟡")
+                        ZakatInputField(Translator.tr("وزن الذهب (غرام)"), gold, { gold = it; invalidateResult() }, "🟡")
                     }
                     Column(modifier = Modifier.width(80.dp)) {
                         Text(Translator.tr("العيار"), color = qabasTextSecondary(), fontSize = 10.sp, fontFamily = CairoFont)
@@ -132,7 +149,7 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                                 listOf(24, 22, 21, 18).forEach { c ->
                                     DropdownMenuItem(
                                         text = { Text(c.toString(), color = Color.White) },
-                                        onClick = { carat = c; expanded = false }
+                                        onClick = { carat = c; expanded = false; invalidateResult() }
                                     )
                                 }
                             }
@@ -141,22 +158,83 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 }
             }
             item {
-                ZakatInputField(Translator.tr("وزن الفضة (غرام)"), silver, { silver = it }, "⚪")
+                ZakatInputField(Translator.tr("وزن الفضة (غرام)"), silver, { silver = it; invalidateResult() }, "⚪")
             }
             item {
-                ZakatInputField(Translator.tr("عروض التجارة والأسهم"), trade, { trade = it }, "📈")
+                ZakatInputField(Translator.tr("عروض التجارة والأسهم (بالعملة نفسها)"), trade, { trade = it; invalidateResult() }, "📈")
+            }
+            item {
+                ZakatInputField(
+                    Translator.tr("سعر غرام الذهب عيار 24 الحالي (بالعملة نفسها)"),
+                    goldPricePerGram24k,
+                    { goldPricePerGram24k = it; invalidateResult() },
+                    "💰"
+                )
+            }
+            item {
+                ZakatInputField(
+                    Translator.tr("سعر غرام الفضة الحالي (بالعملة نفسها؛ مطلوب عند إدخال وزن الفضة)"),
+                    silverPricePerGram,
+                    { silverPricePerGram = it; invalidateResult() },
+                    "⚪"
+                )
+            }
+            validationError?.let { message ->
+                item {
+                    Text(
+                        Translator.tr(message),
+                        color = Color(0xFFFF8A80),
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
             }
             item {
                 Button(
                     onClick = {
-                        result = engine.calculateZakat(
-                            cash.toDoubleOrNull() ?: 0.0,
-                            gold.toDoubleOrNull() ?: 0.0,
-                            carat,
-                            silver.toDoubleOrNull() ?: 0.0,
-                            trade.toDoubleOrNull() ?: 0.0
+                        val parsedCash = parseZakatAmount(cash, allowBlank = true)
+                        val parsedGold = parseZakatAmount(gold, allowBlank = true)
+                        val parsedSilver = parseZakatAmount(silver, allowBlank = true)
+                        val parsedTrade = parseZakatAmount(trade, allowBlank = true)
+                        val parsedGoldPrice = parseZakatAmount(goldPricePerGram24k, allowBlank = false)
+                        val parsedSilverPrice = parseZakatAmount(
+                            silverPricePerGram,
+                            allowBlank = parsedSilver == 0.0
                         )
-                        AppSoundManager.playSuccess()
+
+                        when {
+                            parsedCash == null || parsedGold == null || parsedSilver == null || parsedTrade == null -> {
+                                result = null
+                                validationError = "تحقق من إدخال أرقام صحيحة غير سالبة للأصول والأوزان."
+                            }
+                            parsedGoldPrice == null || parsedGoldPrice <= 0.0 -> {
+                                result = null
+                                validationError = "أدخل سعر غرام الذهب عيار 24 موجباً من السوق الحالي."
+                            }
+                            parsedSilverPrice == null || (parsedSilver > 0.0 && parsedSilverPrice <= 0.0) -> {
+                                result = null
+                                validationError = "تحقق من سعر الفضة؛ يجب أن يكون موجباً عند إدخال وزن فضة."
+                            }
+                            else -> {
+                                try {
+                                    result = engine.calculateZakat(
+                                        cash = parsedCash,
+                                        goldGrams = parsedGold,
+                                        goldCarat = carat,
+                                        silverGrams = parsedSilver,
+                                        tradeGoods = parsedTrade,
+                                        goldPricePerGram24k = parsedGoldPrice,
+                                        silverPricePerGram = parsedSilverPrice
+                                    )
+                                    validationError = null
+                                    AppSoundManager.playSuccess()
+                                } catch (_: IllegalArgumentException) {
+                                    result = null
+                                    validationError = "تعذر الحساب؛ تحقق من القيم ومن أن مجموعها ضمن النطاق العددي."
+                                }
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
@@ -169,25 +247,26 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 item {
                     Surface(
                         color = if (res.isNisabReached) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
-                        shape = CutCornerShape(12.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, if (res.isNisabReached) Color(0xFF10B981) else Color(0xFFEF4444))
                     ) {
                         Column(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                if (res.isNisabReached) Translator.tr("لقد بلغ مالك النصاب الشرعي ✅") else Translator.tr("لم يبلغ مالك النصاب بعد ⏳"),
+                                if (res.isNisabReached) Translator.tr("بلغ مجموع المدخلات نصاب الذهب (85 غ) ✅") else Translator.tr("لم يبلغ مجموع المدخلات نصاب الذهب (85 غ) ⏳"),
                                 color = if (res.isNisabReached) Color(0xFF34D399) else Color(0xFFF87171),
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
                             )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(Translator.tr("إجمالي الأصول المدخلة (بالعملة نفسها):"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                            Text(String.format(Locale.US, "%.2f", res.totalWealth), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             Spacer(modifier = Modifier.height(4.dp))
+                            Text(Translator.tr("نصاب الذهب المحسوب (85 غ):"), color = qabasTextSecondary(), fontSize = 11.sp, fontFamily = CairoFont)
+                            Text(String.format(Locale.US, "%.2f", res.nisabValueGold), color = qabasTextSecondary(), fontSize = 13.sp, fontFamily = CairoFont)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(Translator.tr("قيمة الزكاة التقديرية (2.5%):"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
                             Text(
-                                Translator.tr("قيمة الزكاة المستحقة:"),
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontFamily = CairoFont
-                            )
-                            Text(
-                                String.format("%.2f", res.zakatAmount),
+                                String.format(Locale.US, "%.2f", res.zakatAmount),
                                 color = GoldPrimary,
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Black,
@@ -515,6 +594,28 @@ fun HijriCalendarDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     }
 }
 
+private fun parseZakatAmount(raw: String, allowBlank: Boolean): Double? {
+    if (raw.isBlank()) return if (allowBlank) 0.0 else null
+
+    val normalizedDigits = buildString(raw.length) {
+        raw.forEach { char ->
+            val digit = when {
+                char in '٠'..'٩' -> char.code - '٠'.code
+                char in '۰'..'۹' -> char.code - '۰'.code
+                else -> null
+            }
+            if (digit == null) append(char) else append(('0'.code + digit).toChar())
+        }
+    }
+    val normalized = normalizedDigits
+        .trim()
+        .replace('٫', '.')
+        .replace("٬", "")
+        .replace(" ", "")
+    val parsed = normalized.toDoubleOrNull() ?: return null
+    return parsed.takeIf { it.isFinite() && it >= 0.0 }
+}
+
 @Composable
 private fun ZakatInputField(label: String, value: String, onValueChange: (String) -> Unit, icon: String) {
     Column {
@@ -525,7 +626,7 @@ private fun ZakatInputField(label: String, value: String, onValueChange: (String
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Text(icon, modifier = Modifier.padding(start = 8.dp)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = GoldPrimary,
                 unfocusedBorderColor = Color(0xFF334155),
