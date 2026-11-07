@@ -18,22 +18,8 @@ object MuezzinVoiceManager {
     /**
      * أصوات المؤذنين الحصرية والمعتمدة حالياً
      */
-    val OFFICIAL_DEFAULT_MUEZZINS = listOf(
-        AzanVoice(
-            id = "alshawky_sharjah",
-            nameAr = "أذان الشارقة الندي",
-            muezzinAr = "الشيخ عبد العزيز الشوكي (مؤذن الشارقة)",
-            description = "أذان خاشع رخيم وصوت هادئ يأسر القلوب بصوت مؤذن مساجد الشارقة الشهير الشيخ عبد العزيز الشوكي.",
-            streamUrl = "https://ia801503.us.archive.org/15/items/AdhanAbdulazizAlshawky/Adhan_Sharjah_Abdulaziz_Alshawky.mp3"
-        ),
-        AzanVoice(
-            id = "abdulmajeed_salama",
-            nameAr = "أذان المؤذن عبد المجيد سلامة",
-            muezzinAr = "المؤذن عبد المجيد سلامة",
-            description = "أداء شجي مؤثر ونبرة إيمانية ندية تهز الوجدان وترفع همم المؤمنين لإجابة النداء.",
-            streamUrl = "https://ia801508.us.archive.org/28/items/AdhanAbdulMajeedSalama/Adhan_Abdul_Majeed_Salama.mp3"
-        )
-    )
+    // No bundled/sample recordings: the library starts empty until real voices are added.
+    val OFFICIAL_DEFAULT_MUEZZINS = emptyList<AzanVoice>()
 
     /**
      * جلب جميع المؤذنين (المعتمدين + السحابة + المخصص المحلي)
@@ -160,7 +146,8 @@ object MuezzinVoiceManager {
      */
     fun getDefaultVoiceId(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_DEFAULT_VOICE_ID, OFFICIAL_DEFAULT_MUEZZINS.first().id) ?: OFFICIAL_DEFAULT_MUEZZINS.first().id
+        val savedId = prefs.getString(KEY_DEFAULT_VOICE_ID, "").orEmpty()
+        return savedId.takeIf { id -> getAllVoices(context).any { it.id == id } }.orEmpty()
     }
 
     /**
@@ -176,7 +163,7 @@ object MuezzinVoiceManager {
     /**
      * جلب كائن المؤذن حسب المعرف
      */
-    fun getVoiceById(context: Context, voiceId: String): AzanVoice {
-        return getAllVoices(context).find { it.id == voiceId } ?: OFFICIAL_DEFAULT_MUEZZINS.first()
+    fun getVoiceById(context: Context, voiceId: String): AzanVoice? {
+        return getAllVoices(context).find { it.id == voiceId }
     }
 }
