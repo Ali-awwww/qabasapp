@@ -269,21 +269,19 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     .height(56.dp)
                     .background(if (isAgreed) primaryColor.copy(alpha = 0.05f) else Color.Transparent, CutCornerShape(8.dp))
                     .border(1.dp, if (isAgreed) primaryColor.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp))
-                    .toggleable(value = isAgreed, role = Role.Checkbox) { isAgreed = it }
+                    .toggleable(value = isAgreed, role = Role.Checkbox, onValueChange = { isAgreed = it })
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .border(1.5.dp, if (isAgreed) primaryColor else Color.Gray, CutCornerShape(4.dp))
-                        .padding(2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isAgreed) {
-                        Box(modifier = Modifier.fillMaxSize().background(primaryColor, CutCornerShape(2.dp)))
-                    }
-                }
+                Checkbox(
+                    checked = isAgreed,
+                    onCheckedChange = null,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = primaryColor,
+                        uncheckedColor = Color.Gray,
+                        checkmarkColor = DeepSlate
+                    )
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "أقر وأتعهد بالالتزام بهذا الميثاق بروح إبداعية مسؤولة",
