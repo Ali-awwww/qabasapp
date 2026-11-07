@@ -14,10 +14,11 @@ object MuezzinVoiceManager {
     private const val CLOUD_PREFS_NAME = "qabas_muezzin_cloud_cache"
     private const val KEY_CUSTOM_MUEZZINS = "custom_muezzin_voices"
     private const val KEY_CLOUD_MUEZZINS = "cloud_muezzin_voices_cache"
+    private const val KEY_PERSONAL_CLOUD_MUEZZINS = "personal_cloud_muezzin_voices_cache"
     private const val KEY_DEFAULT_VOICE_ID = "default_muezzin_voice_id"
 
-    // Custom audio metadata and the selected default are private to the signed-in account.
-    // Audio bytes remain in app-private device storage and are never uploaded.
+    // Local metadata and account-owned cloud voice cache are private to the signed-in account.
+    // Personal cloud audio objects are stored in the owner's private Supabase Storage bucket.
     private fun customPrefs(context: Context): android.content.SharedPreferences {
         val accountId = Auth.getCurrentUserId()
         val scopedName = "${PREFS_NAME}_${accountId ?: "device"}"
@@ -73,7 +74,7 @@ object MuezzinVoiceManager {
      * جلب جميع المؤذنين (المعتمدين + السحابة + المخصص المحلي)
      */
     fun getAllVoices(context: Context): List<AzanVoice> {
-        return OFFICIAL_DEFAULT_MUEZZINS + getCloudVoices(context) + getCustomVoices(context)
+        return OFFICIAL_DEFAULT_MUEZZINS + getCloudVoices(context) + getPersonalCloudVoices(context) + getCustomVoices(context)
     }
 
     fun getCloudVoices(context: Context): List<AzanVoice> {
@@ -96,6 +97,25 @@ object MuezzinVoiceManager {
             })
         }
         cloudPrefs(context).edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()
+    }
+
+    /** Account-private metadata cache; streamUrl stores the owner-only Storage path, not a public URL. */
+    fun getPersonalCloudVoices(context: Context): List<AzanVoice> =
+        parseVoicesJson(customPrefs(context).getString(KEY_PERSONAL_CLOUD_MUEZZINS, "[]") ?: "[]")
+
+    fun cachePersonalCloudVoices(context: Context, voices: List<AzanVoice>) {
+        val arr = JSONArray()
+        voices.forEach { voice ->
+            arr.put(JSONObject().apply {
+                put("id", voice.id)
+                put("nameAr", voice.nameAr)
+                put("muezzinAr", voice.muezzinAr)
+                put("description", voice.description)
+                put("streamUrl", voice.streamUrl)
+                put("isFajrSpecific", voice.isFajrSpecific)
+            })
+        }
+        customPrefs(context).edit().putString(KEY_PERSONAL_CLOUD_MUEZZINS, arr.toString()).apply()
     }
 
     private fun parseVoicesJson(jsonStr: String): List<AzanVoice> {
