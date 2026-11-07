@@ -2113,6 +2113,15 @@ fun AzanVoicesDialog(
     var editingCloudVoice by remember { mutableStateOf<AzanVoice?>(null) }
     var editCloudDescription by remember { mutableStateOf("") }
     var cloudVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
+    var personalVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
+    var editingPersonalVoice by remember { mutableStateOf<AzanVoice?>(null) }
+    var personalVoiceTitle by remember { mutableStateOf("") }
+    var pickedPersonalAudioUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pickedPersonalAudioTitle by remember { mutableStateOf("") }
+    var showPersonalUploadDialog by remember { mutableStateOf(false) }
+    var isPersonalUploading by remember { mutableStateOf(false) }
+    var personalUploadSent by remember { mutableStateOf(0L) }
+    var personalUploadTotal by remember { mutableStateOf(0L) }
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
     val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
@@ -2122,33 +2131,15 @@ fun AzanVoicesDialog(
         defaultVoiceId = MuezzinVoiceManager.getDefaultVoiceId(context)
     }
 
-    // المستخدم العادي: اختيار ملف من الهاتف (محلي فقط — لا يُرفع للسحابة أبداً)
+    // اختيار ملف من الهاتف ثم إظهار اسمه المسجل وإتاحة حفظه في السحابة الخاصة بالحساب.
     val localPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            scope.launch {
-                // Wait for Supabase session restoration so the file metadata is stored
-                // under the correct account namespace, never under another user's preferences.
-                Auth.awaitCurrentUserId()
-                val localUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    MuezzinVoiceManager.copyLocalAzanFile(context, uri, "azan_user.mp3")
-                }
-                if (localUrl != null) {
-                    val v = AzanVoice(
-                        id = "custom_" + System.currentTimeMillis(),
-                        nameAr = "أذان من هاتفي 📱",
-                        muezzinAr = "ملف محلي خاص بي",
-                        description = "صوت أذان محفوظ على جهازك فقط — لا يُشارك ولا يُرفع للسحابة.",
-                        streamUrl = localUrl
-                    )
-                    MuezzinVoiceManager.addCustomVoice(context, v)
-                    reloadVoices()
-                    Toast.makeText(context, "تمت إضافة صوتك من الهاتف ✅ (محلي فقط)", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "تعذر نسخ الملف", Toast.LENGTH_SHORT).show()
-                }
-            }
+            val fileName = UserAzanCloudRepository.getDisplayName(context, uri) ?: "أذان شخصي"
+            pickedPersonalAudioUri = uri
+            pickedPersonalAudioTitle = UserAzanCloudRepository.titleFromFileName(fileName)
+            showPersonalUploadDialog = true
         }
     }
 
@@ -2158,17 +2149,28 @@ fun AzanVoicesDialog(
         reloadVoices()
         if (SupabaseServices.isSupabaseAvailable) {
             isSyncingCloud = true
-            val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val publicCloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 AzanCloudRepository.fetchCloudVoices()
             }
-            cloudFetchFailed = cloud.isEmpty()
-            if (cloud.isNotEmpty()) {
-                MuezzinVoiceManager.cacheCloudVoices(context, cloud)
-                reloadVoices()
+            cloudFetchFailed = publicCloud.isEmpty()
+            if (publicCloud.isNotEmpty()) MuezzinVoiceManager.cacheCloudVoices(context, publicCloud)
+
+            val personalCloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                UserAzanCloudRepository.fetchMyVoices()
             }
+            personalCloud.onSuccess { MuezzinVoiceManager.cachePersonalCloudVoices(context, it) }
+
+            val accountDefault = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                UserAzanCloudRepository.getDefaultVoiceId()
+            }
+            if (!accountDefault.isNullOrBlank() &&
+                MuezzinVoiceManager.getAllVoices(context).any { it.id == accountDefault }
+            ) MuezzinVoiceManager.setDefaultVoiceId(context, accountDefault)
+
+            reloadVoices()
             isSyncingCloud = false
-            // عند عدم وجود صوت محلي مضاف أو أصوات سحابية محفوظة، اعرض مسار الإعداد.
             if (MuezzinVoiceManager.getCustomVoices(context).isEmpty() &&
+                MuezzinVoiceManager.getPersonalCloudVoices(context).isEmpty() &&
                 MuezzinVoiceManager.getCloudVoices(context).isEmpty()) {
                 showVoiceSetupPrompt = true
             }
@@ -2319,6 +2321,7 @@ fun AzanVoicesDialog(
                     val isLoading = playbackState is AzanPlaybackState.Loading && isCurrentVoice
                     val isCustom = voice.id.startsWith("custom_")
                     val isCloudVoice = voice.id.startsWith("cloud_")
+                    val isPersonalCloudVoice = voice.id.startsWith("usercloud_")
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -2424,11 +2427,27 @@ fun AzanVoicesDialog(
                                             onClick = {
                                                 MuezzinVoiceManager.deleteCustomVoice(context, voice.id)
                                                 reloadVoices()
-                                                Toast.makeText(context, "تم حذف المؤذن المخصص", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "تم حذف الصوت المحلي من الهاتف", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف محلي", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                        }
+                                    } else if (isPersonalCloudVoice) {
+                                        IconButton(
+                                            onClick = {
+                                                editingPersonalVoice = voice
+                                                personalVoiceTitle = voice.nameAr
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.Edit, contentDescription = "تعديل عنوان الصوت الشخصي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                        }
+                                        IconButton(
+                                            onClick = { personalVoicePendingDelete = voice },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف من السحابة الشخصية", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
@@ -2520,7 +2539,18 @@ fun AzanVoicesDialog(
                                         MuezzinVoiceManager.setDefaultVoiceId(context, voice.id)
                                         reloadVoices()
                                         BackgroundPermissionManager.refreshBackgroundSchedulers(context)
-                                        Toast.makeText(context, "تم تعيين ${voice.muezzinAr} كأذان افتراضي", Toast.LENGTH_SHORT).show()
+                                        scope.launch {
+                                            val synced = if (voice.id.startsWith("custom_")) true else
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                    UserAzanCloudRepository.saveDefaultVoiceId(voice.id)
+                                                }
+                                            Toast.makeText(
+                                                context,
+                                                if (synced) "تم تعيين ${voice.muezzinAr} كأذان افتراضي ومزامنة التفضيل"
+                                                else "تم تعيين الصوت على هذا الجهاز؛ تعذرت مزامنة التفضيل السحابي",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
                                     },
                                     shape = GeoShape.ButtonSmCompat,
                                     border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
@@ -2672,6 +2702,159 @@ fun AzanVoicesDialog(
                 }
                 showAddMuezzinDialog = false
             }
+        )
+    }
+
+    if (showPersonalUploadDialog && pickedPersonalAudioUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isPersonalUploading) {
+                    showPersonalUploadDialog = false
+                    pickedPersonalAudioUri = null
+                }
+            },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("حفظ أذان في حسابك", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Geo.S_SM)) {
+                    Text(
+                        "اسم الملف كما هو في الهاتف: ${pickedPersonalAudioTitle}",
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                    OutlinedTextField(
+                        value = pickedPersonalAudioTitle,
+                        onValueChange = { pickedPersonalAudioTitle = it },
+                        label = { Text("عنوان الأذان", fontFamily = CairoFont) },
+                        singleLine = true,
+                        enabled = !isPersonalUploading,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (isPersonalUploading || personalUploadTotal > 0L) {
+                        TransferCounterBar(
+                            label = "رفع إلى سحابتك الخاصة",
+                            sentBytes = personalUploadSent,
+                            totalBytes = personalUploadTotal,
+                            isUpload = true
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = pickedPersonalAudioTitle.isNotBlank() && !isPersonalUploading,
+                    onClick = {
+                        val uri = pickedPersonalAudioUri ?: return@TextButton
+                        isPersonalUploading = true
+                        personalUploadSent = 0L
+                        personalUploadTotal = 0L
+                        scope.launch {
+                            Auth.awaitCurrentUserId()
+                            val result = UserAzanCloudRepository.upload(
+                                context, uri, pickedPersonalAudioTitle
+                            ) { sent, total ->
+                                personalUploadSent = sent
+                                personalUploadTotal = total
+                            }
+                            isPersonalUploading = false
+                            if (result.isSuccess) {
+                                UserAzanCloudRepository.fetchMyVoices().onSuccess {
+                                    MuezzinVoiceManager.cachePersonalCloudVoices(context, it)
+                                }
+                                reloadVoices()
+                                Toast.makeText(context, "تم حفظ الأذان في سحابتك الخاصة", Toast.LENGTH_SHORT).show()
+                                showPersonalUploadDialog = false
+                                pickedPersonalAudioUri = null
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "تعذر حفظ الأذان: ${result.exceptionOrNull()?.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+                ) { Text(if (isPersonalUploading) "جارٍ الرفع" else "حفظ", color = GoldPrimary) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isPersonalUploading,
+                    onClick = {
+                        showPersonalUploadDialog = false
+                        pickedPersonalAudioUri = null
+                    }
+                ) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (editingPersonalVoice != null) {
+        AlertDialog(
+            onDismissRequest = { editingPersonalVoice = null },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("تعديل عنوان الأذان", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = personalVoiceTitle,
+                    onValueChange = { personalVoiceTitle = it },
+                    label = { Text("عنوان الأذان") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val voice = editingPersonalVoice ?: return@TextButton
+                    scope.launch {
+                        val updated = UserAzanCloudRepository.updateTitle(voice.id, personalVoiceTitle)
+                        if (updated) {
+                            UserAzanCloudRepository.fetchMyVoices().onSuccess {
+                                MuezzinVoiceManager.cachePersonalCloudVoices(context, it)
+                            }
+                            reloadVoices()
+                            Toast.makeText(context, "تم تحديث عنوان الأذان", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "تعذر تحديث عنوان الأذان", Toast.LENGTH_LONG).show()
+                        }
+                        editingPersonalVoice = null
+                    }
+                }) { Text("حفظ", color = GoldPrimary) }
+            },
+            dismissButton = { TextButton(onClick = { editingPersonalVoice = null }) { Text("إلغاء") } }
+        )
+    }
+
+    if (personalVoicePendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { personalVoicePendingDelete = null },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("حذف الأذان الشخصي؟", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيُحذف الملف من سحابتك الخاصة فقط.", color = GeoColor.textPrimary(), fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val voice = personalVoicePendingDelete ?: return@TextButton
+                    scope.launch {
+                        val deleted = UserAzanCloudRepository.deleteMyVoice(voice.id)
+                        if (deleted) {
+                            UserAzanCloudRepository.fetchMyVoices().onSuccess {
+                                MuezzinVoiceManager.cachePersonalCloudVoices(context, it)
+                            }
+                            if (defaultVoiceId == voice.id) {
+                                MuezzinVoiceManager.setDefaultVoiceId(context, "")
+                                UserAzanCloudRepository.saveDefaultVoiceId("")
+                            }
+                            reloadVoices()
+                            BackgroundPermissionManager.refreshBackgroundSchedulers(context)
+                            Toast.makeText(context, "تم حذف الأذان من سحابتك الخاصة", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "تعذر حذف الأذان الشخصي", Toast.LENGTH_LONG).show()
+                        }
+                        personalVoicePendingDelete = null
+                    }
+                }) { Text("حذف نهائياً", color = Color(0xFFEF4444)) }
+            },
+            dismissButton = { TextButton(onClick = { personalVoicePendingDelete = null }) { Text("إلغاء") } }
         )
     }
 
