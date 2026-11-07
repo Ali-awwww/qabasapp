@@ -144,6 +144,20 @@ fun SpatialCommandHomeScreen(
             if (detectedCity != null) {
                 selectedCity = detectedCity
                 PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
+                // Show detected city as the pending choice: dismiss to keep it,
+                // or select a different city in the picker.
+                showCityDialog = true
+                Toast.makeText(
+                    context,
+                    "تم تحديد موقعك: ${detectedCity.nameAr}. أبقِه أو اختر مدينة أخرى.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    "تعذر تحديد الموقع. تحقق من تفعيل الموقع وحاول مجددًا أو اختر المدينة يدويًا.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -459,7 +473,23 @@ fun SpatialCommandHomeScreen(
                     SpatialHudStatsHeader(
                         currentTimeMillis = currentTimeMillis,
                         selectedCity = selectedCity,
-                        onOpenCitySelector = openCitySelector
+                        onLocateAndChooseCity = {
+                            val hasLocationPermission =
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                            if (hasLocationPermission) {
+                                detectCurrentCityOnce()
+                            } else {
+                                locationPermissionLauncher.launch(
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            }
+                        }
                     )
 
                     // 1.2 Dynamic System Ticker (Quran, Sunnah & Developer Pro Tips)
@@ -2171,7 +2201,7 @@ private fun SpatialSystemTicker() {
 private fun SpatialHudStatsHeader(
     currentTimeMillis: Long,
     selectedCity: CityLocation,
-    onOpenCitySelector: () -> Unit
+    onLocateAndChooseCity: () -> Unit
 ) {
     val context = LocalContext.current
     val primaryColor = qabasPrimary()
@@ -2272,36 +2302,35 @@ private fun SpatialHudStatsHeader(
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        onClick = onOpenCitySelector,
-                        shape = RoundedCornerShape(13.dp),
-                        color = primaryColor.copy(alpha = 0.13f),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.42f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Surface(
+                            onClick = onLocateAndChooseCity,
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            color = primaryColor.copy(alpha = 0.14f),
+                            border = BorderStroke(1.2.dp, primaryColor.copy(alpha = 0.58f)),
+                            shadowElevation = 3.dp
                         ) {
-                            Icon(
-                                Icons.Default.LocationOn,
-                                contentDescription = "اختيار المدينة",
-                                tint = primaryColor,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = selectedCity.nameAr,
-                                color = primaryColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text("⌄", color = primaryColor, fontSize = 12.sp)
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.MyLocation,
+                                    contentDescription = "تحديد موقعي تلقائيًا ثم اختيار المدينة",
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
+                        Text(
+                            text = selectedCity.nameAr,
+                            color = primaryColor.copy(alpha = 0.9f),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 72.dp)
+                        )
                     }
                 }
 
