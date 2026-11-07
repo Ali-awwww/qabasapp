@@ -71,6 +71,8 @@ fun ReelPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val configuredDefaultSpeed = remember(context) { com.qabas.app.UnifiedVideoPlayerSettings.speed(context) }
+    val effectivePlaybackSpeed = if (playbackSpeed == 1.0f) configuredDefaultSpeed else playbackSpeed
     var isUserPaused by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
