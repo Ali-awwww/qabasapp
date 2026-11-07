@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.view.HapticFeedbackConstants
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -194,33 +195,41 @@ fun SpatialDraggableDevCameraButton(
             AppSoundManager.playClick()
             scope.launch {
                 isCapturing = true
-                showFlashEffect = true
-                delay(120) // ومضة قصيرة كتغذية بصرية فقط
-                // إزالة الوميض الأبيض تماماً قبل الالتقاط حتى لا يُحفظ داخل الصورة
-                showFlashEffect = false
-                if (skipWhiteFlashDelay) {
-                    // مهلة ثانية واحدة: تسمح بانتهاء أي انتقال/وميض أبيض قبل التقاط اللقطة
-                    captureCountdown = 3
-                    repeat(3) {
-                        delay(334)
-                        captureCountdown -= 1
+                try {
+                    showFlashEffect = true
+                    delay(120) // ومضة قصيرة كتغذية بصرية فقط
+                    // إزالة الوميض الأبيض تماماً قبل الالتقاط حتى لا يُحفظ داخل الصورة
+                    showFlashEffect = false
+                    if (skipWhiteFlashDelay) {
+                        // مهلة ثانية واحدة: تسمح بانتهاء أي انتقال/وميض أبيض قبل التقاط اللقطة
+                        captureCountdown = 3
+                        repeat(3) {
+                            delay(334)
+                            captureCountdown -= 1
+                        }
+                        captureCountdown = 0
+                        // مهلة قصيرة إضافية حتى تُحذف واجهة العدّاد من الشاشة قبل الالتقاط
+                        delay(120)
                     }
-                    captureCountdown = 0
-                    // مهلة قصيرة إضافية حتى تُحذف واجهة العدّاد من الشاشة قبل الالتقاط
-                    delay(120)
-                }
-                val bitmap = BugReportManager.captureScreenshot(view)
-                isCapturing = false
 
-                if (bitmap != null) {
-                    val file = withContext(Dispatchers.IO) {
-                        BugReportManager.saveBitmapToCache(context, bitmap)
+                    val bitmap = BugReportManager.captureScreenshot(view)
+                    if (bitmap != null) {
+                        val file = withContext(Dispatchers.IO) {
+                            BugReportManager.saveBitmapToCache(context, bitmap)
+                        }
+                        latestScreenshotBitmap = bitmap
+                        latestScreenshotFile = file
+                        onDone(bitmap, file)
+                    } else {
+                        Toast.makeText(context, "تعذر التقاط صورة الشاشة الحالية", Toast.LENGTH_SHORT).show()
                     }
-                    latestScreenshotBitmap = bitmap
-                    latestScreenshotFile = file
-                    onDone(bitmap, file)
-                } else {
-                    Toast.makeText(context, "تعذر التقاط صورة الشاشة الحالية", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e("SpatialDevCamera", "Screenshot flow failed", e)
+                    Toast.makeText(context, "حدث خطأ أثناء التقاط الصورة", Toast.LENGTH_SHORT).show()
+                } finally {
+                    captureCountdown = 0
+                    showFlashEffect = false
+                    isCapturing = false
                 }
             }
         }
