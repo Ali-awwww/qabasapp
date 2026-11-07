@@ -275,13 +275,12 @@ private fun MishkatReminderVideoPlayer(
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
                             this.player = player
-                            useController = true
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            UnifiedVideoPlayerSettings.configure(this, viewContext)
                         }
                     },
                     update = { view ->
                         if (view.player !== player) view.player = player
-                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        UnifiedVideoPlayerSettings.configure(view, view.context)
                     },
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                 )
