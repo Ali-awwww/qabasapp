@@ -150,11 +150,13 @@ object UserAzanCloudRepository {
         }
     }
 
-    suspend fun fetchMyVoices(): List<AzanVoice> = withContext(Dispatchers.IO) {
+    suspend fun fetchMyVoices(): Result<List<AzanVoice>> = withContext(Dispatchers.IO) {
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext emptyList()
-            val client = SupabaseServices.client ?: return@withContext emptyList()
-            client.from(TABLE).select {
+            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
+                ?: return@withContext Result.success(emptyList())
+            val client = SupabaseServices.client
+                ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
+            val voices = client.from(TABLE).select {
                 filter { eq("user_id", userId) }
                 order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
             }.decodeList<UserAzanVoiceRow>().map { row ->
@@ -167,9 +169,10 @@ object UserAzanCloudRepository {
                     isFajrSpecific = false
                 )
             }
+            Result.success(voices)
         } catch (error: Exception) {
             Log.e(TAG, "fetch personal voices failed: ${error.message}", error)
-            emptyList()
+            Result.failure(error)
         }
     }
 
