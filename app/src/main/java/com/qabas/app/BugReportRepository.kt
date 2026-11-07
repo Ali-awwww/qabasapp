@@ -1,6 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
@@ -124,6 +126,52 @@ object BugReportRepository {
         return dir
     }
 
+    /**
+     * Collects non-sensitive device diagnostics for support. Does not read location,
+     * IP addresses, network identifiers, or installed-app data.
+     */
+    private fun collectDiagnosticDetails(context: Context): String {
+        val appContext = context.applicationContext
+        val metrics = appContext.resources.displayMetrics
+        val screenSize = "${metrics.widthPixels}×${metrics.heightPixels}px"
+        val density = String.format(Locale.US, "%.2f", metrics.density)
+
+        val networkDescription = runCatching {
+            val connectivityManager =
+                appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNetwork = connectivityManager?.activeNetwork
+            val capabilities = activeNetwork?.let(connectivityManager::getNetworkCapabilities)
+
+            if (capabilities == null) {
+                "غير متصل أو غير متاح"
+            } else {
+                val transports = buildList {
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) add("Wi-Fi")
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) add("خلوي")
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) add("Ethernet")
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) add("Bluetooth")
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) add("VPN")
+                }.ifEmpty { listOf("غير معروف") }
+                val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                "${transports.joinToString()} | إنترنت: ${if (hasInternet) "متاح" else "غير متاح"} | تحقق الاتصال: ${if (validated) "ناجح" else "غير مؤكد"}"
+            }
+        }.getOrElse { error ->
+            Log.w(TAG, "Unable to collect network diagnostics", error)
+            "تعذر جمع حالة الشبكة"
+        }
+
+        return listOf(
+            "— معلومات تشخيصية تلقائية —",
+            "إصدار Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT)",
+            "الجهاز: ${Build.MANUFACTURER} ${Build.MODEL}",
+            "إصدار قبس: v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            "دقة الشاشة: $screenSize | كثافة العرض: $density",
+            "الشبكة: $networkDescription",
+            "ملاحظة: لا تتضمن هذه المعلومات الموقع أو عنوان IP."
+        ).joinToString("\n")
+    }
+
     suspend fun loadLocalReports(context: Context): List<BugReportItem> = withContext(Dispatchers.IO) {
         try {
             val file = getStorageFile(context)
@@ -204,11 +252,15 @@ object BugReportRepository {
         val accountNumber = UserIdentifierManager.getAccountNumber(context, userEmail).ifBlank {
             UserIdentifierManager.getOrCreateAccountNumber(context, userEmail, userName)
         }
-        val enrichedDescription = if (accountNumber.isNotBlank() && !description.contains(accountNumber)) {
+        val accountEnrichedDescription = if (accountNumber.isNotBlank() && !description.contains(accountNumber)) {
             "• معرّف الحساب: $accountNumber | المستخدم: $userName\n" + description.trim()
         } else {
             description.trim()
         }
+        val enrichedDescription = listOf(
+            accountEnrichedDescription,
+            collectDiagnosticDetails(context)
+        ).filter { it.isNotBlank() }.joinToString("\n\n")
 
         // 1. حفظ الصورة محلياً بشكل دائم
         var localImagePath: String? = null
