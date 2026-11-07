@@ -51,6 +51,7 @@ enum class SettingsSubScreen {
     MAIN,
     UX_DESIGN_STUDIO,     // Merge: Home Style, Animations, Sound Effects, Language
     SOUND_STUDIO,         // Dedicated Sound Effects Control Studio
+    VIDEO_PLAYER_SETTINGS, // Unified video player controls and preferences
     SPIRITUAL_STUDIO,      // Merge: Reading Customization, Spiritual Preferences
     PRO_PRODUCTION_HUB,    // Merge: AI Identity, Watermark, Quality
     COMMUNITY_SUPPORT,     // Merge: About, Official Channels, Social, Support
@@ -117,6 +118,7 @@ fun SettingsScreen(
         currentSubScreen = when (currentSubScreen) {
             SettingsSubScreen.CYBER_HUD_PREVIEW -> SettingsSubScreen.UX_DESIGN_STUDIO
             SettingsSubScreen.SOUND_STUDIO -> SettingsSubScreen.MAIN
+            SettingsSubScreen.VIDEO_PLAYER_SETTINGS -> SettingsSubScreen.MAIN
             SettingsSubScreen.PERMISSIONS_HUB -> SettingsSubScreen.MAIN
             SettingsSubScreen.CRASH_LOGS -> SettingsSubScreen.COMMUNITY_SUPPORT
             SettingsSubScreen.NOTIFICATION_SETTINGS -> SettingsSubScreen.MAIN
@@ -170,6 +172,7 @@ fun SettingsScreen(
         listOf(
             SearchableSetting("استوديو الواجهة والتفاعل", "الثيمات، لغة التطبيق، الأنميشن، والمؤثرات الصوتية", Icons.Default.AutoAwesomeMotion, SettingsSubScreen.UX_DESIGN_STUDIO, listOf("ديزاين", "ثيم", "لغة", "صوت"), badge = "تجربة المستخدم ✦", accentColor = Color(0xFF00E5FF)),
             SearchableSetting("استوديو المؤثرات الصوتية والصدى", "التحكم بالأصوات التفاعلية، مستوى الصوت، أنماط النقر والاهتزاز", Icons.Default.GraphicEq, SettingsSubScreen.SOUND_STUDIO, listOf("صوت", "اهتزاز", "نقر"), badge = "صوتيات 🔊", accentColor = Color(0xFF38BDF8)),
+            SearchableSetting("إعدادات مشغل الفيديو الموحد", "سرعة التشغيل، ملاءمة الصورة، وأزرار التحكم للمشغلات", Icons.Default.PlayCircle, SettingsSubScreen.VIDEO_PLAYER_SETTINGS, listOf("فيديو", "مشغل", "سرعة", "ملء الشاشة"), badge = "مشغل موحد 🎬", accentColor = Color(0xFF38BDF8)),
             SearchableSetting("الاستوديو الروحاني والمصحف الشريف", "تخصيص القراءة، الأذان، مواقيت الصلاة، والأذكار", Icons.Default.MenuBook, SettingsSubScreen.SPIRITUAL_STUDIO, listOf("قرآن", "صلاة", "أذان", "أذكار"), badge = "زاد إيماني 🕋", accentColor = Color(0xFF10B981)),
             SearchableSetting("مركز الإنتاج والذكاء الاحترافي", "هوية الذكاء، العلامة المائية، وجودة التصدير", Icons.Default.Psychology, SettingsSubScreen.PRO_PRODUCTION_HUB, listOf("ذكاء", "فيديو", "إنتاج", "علامة مائية"), badge = "إبداع احترافي 🎬", accentColor = Color(0xFFA855F7)),
             SearchableSetting("إعدادات الإشعارات والتنبيهات الإيمانية", "أوقات الأذان، تنبيه السحر، الفجر، الحديث اليومي، وتخصيص أدوات الإشعار", Icons.Default.NotificationsActive, SettingsSubScreen.NOTIFICATION_SETTINGS, listOf("تنبيه", "إشعار"), badge = "تفاعلي 🔔", accentColor = Color(0xFFF59E0B)),
@@ -916,6 +919,13 @@ fun SettingsScreen(
             SettingsSubScreen.SOUND_STUDIO -> {
                 SoundEffectsSubScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN }
+                )
+            }
+
+            SettingsSubScreen.VIDEO_PLAYER_SETTINGS -> {
+                UnifiedVideoPlayerSettingsScreen(
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN },
+                    bottomBar = bottomBar
                 )
             }
 
