@@ -218,7 +218,17 @@ jobs:
             # التطبيق ينزّل الـ APK كاملاً بدلاً من ذلك.
             PREV_SHA256=$(sha256sum "$PREV_APK" | awk '{print $1}')
             TARGET_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
-            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
+
+            EXPECTED_BASE_SHA256="${{ github.event.inputs.expected_base_sha256 }}"
+            EXPECTED_TARGET_SHA256="${{ github.event.inputs.expected_target_sha256 }}"
+            if [ -n "$EXPECTED_BASE_SHA256" ] && [ "$PREV_SHA256" != "$EXPECTED_BASE_SHA256" ]; then
+              echo "Base APK SHA-256 does not match approved request."
+              exit 1
+            fi
+            if [ -n "$EXPECTED_TARGET_SHA256" ] && [ "$TARGET_SHA256" != "$EXPECTED_TARGET_SHA256" ]; then
+              echo "Target APK SHA-256 does not match approved release registry."
+              exit 1
+            fi            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
               echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
               echo "delta_created=false" >> "$GITHUB_OUTPUT"
               exit 0
