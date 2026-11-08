@@ -228,7 +228,9 @@ jobs:
             if [ -n "$EXPECTED_TARGET_SHA256" ] && [ "$TARGET_SHA256" != "$EXPECTED_TARGET_SHA256" ]; then
               echo "Target APK SHA-256 does not match approved release registry."
               exit 1
-            fi            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
+            fi
+
+            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
               echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
               echo "delta_created=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -275,6 +277,7 @@ jobs:
           fi
 
       - name: Attach Delta & xdelta3 Binaries to Release
+        id: attach-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
@@ -320,6 +323,58 @@ jobs:
             gh release edit "$TARGET_TAG" --notes-file notes_current.md
             echo "✅ Release notes updated with delta stats."
           fi
+
+
+      - name: Report On-Demand Delta Job Result
+        if: always() && inputs.job_id != ''
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
+          EXPECTED_TARGET_SHA256: ${{ inputs.expected_target_sha256 }}
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          DELTA_CREATED: ${{ steps.compute-delta.outputs.delta_created }}
+          DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
+          ATTACH_OUTCOME: ${{ steps.attach-release.outcome }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Supabase callback secrets are not configured; job status remains pending."
+            exit 0
+          fi
+
+          if [ "$DELTA_CREATED" = "true" ] && [ "$ATTACH_OUTCOME" = "success" ] && [ -f "$DELTA_PATH" ]; then
+            STATUS="ready"
+            ERROR_CODE=""
+            DELTA_FILE_NAME=$(basename "$DELTA_PATH")
+            DELTA_URL="https://github.com/Ali-awwww/qabasapp/releases/download/$TARGET_TAG/$DELTA_FILE_NAME"
+            DELTA_SIZE=$(stat -c%s "$DELTA_PATH")
+            DELTA_SHA256=$(sha256sum "$DELTA_PATH" | awk '{print $1}')
+          else
+            STATUS="failed"
+            ERROR_CODE="delta_generation_or_upload_failed"
+            DELTA_URL=""
+            DELTA_SIZE=0
+            DELTA_SHA256=""
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg job_id "$JOB_ID" \
+            --arg expected_base_sha256 "$EXPECTED_BASE_SHA256" \
+            --arg expected_target_sha256 "$EXPECTED_TARGET_SHA256" \
+            --arg status "$STATUS" \
+            --arg error_code "$ERROR_CODE" \
+            --arg delta_url "$DELTA_URL" \
+            --argjson delta_size_bytes "$DELTA_SIZE" \
+            --arg delta_sha256_hash "$DELTA_SHA256" \
+            '{job_id:$job_id,expected_base_sha256:$expected_base_sha256,expected_target_sha256:$expected_target_sha256,status:$status,error_code:$error_code,delta_url:$delta_url,delta_size_bytes:$delta_size_bytes,delta_sha256_hash:$delta_sha256_hash}')
+
+          curl --fail-with-body --silent --show-error \
+            -X POST "$SUPABASE_URL/functions/v1/qabas-xdelta-callback" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD"
 
       - name: Summary
         run: |
