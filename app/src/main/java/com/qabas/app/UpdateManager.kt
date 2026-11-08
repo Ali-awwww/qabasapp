@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -749,11 +750,34 @@ object UpdateManager {
                 .header("User-Agent", "Qabas-Studio")
             if (!token.isNullOrBlank()) requestBuilder.header("Authorization", "Bearer $token")
 
-            val response = client.newCall(requestBuilder.build()).execute()
-            val body = response.use {
-                if (!it.isSuccessful) throw IllegalStateException("GitHub API ${it.code}")
-                it.body?.string() ?: throw IllegalStateException("استجابة GitHub فارغة")
+            var responseBody: String? = null
+            var lastNetworkError: IOException? = null
+            for (attempt in 0..2) {
+                try {
+                    val response = client.newCall(requestBuilder.build()).execute()
+                    val retryableStatus = response.code == 429 || response.code in 500..599
+                    if (retryableStatus && attempt < 2) {
+                        val retryAfterMs = response.header("Retry-After")
+                            ?.toLongOrNull()
+                            ?.times(1_000L)
+                        response.close()
+                        delay(retryAfterMs?.coerceIn(500L, 8_000L) ?: (750L * (1L shl attempt)))
+                        continue
+                    }
+                    responseBody = response.use {
+                        if (!it.isSuccessful) throw IllegalStateException("GitHub API ${it.code}")
+                        it.body?.string() ?: throw IllegalStateException("استجابة GitHub فارغة")
+                    }
+                    break
+                } catch (e: IOException) {
+                    lastNetworkError = e
+                    if (attempt == 2) throw e
+                    delay(750L * (1L shl attempt))
+                }
             }
+            val body = responseBody
+                ?: throw lastNetworkError
+                ?: IllegalStateException("تعذر جلب قائمة إصدارات GitHub")
             val releases = JSONArray(body)
             buildList {
                 for (index in 0 until releases.length()) {
