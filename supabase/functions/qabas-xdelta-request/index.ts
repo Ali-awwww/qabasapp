@@ -73,6 +73,38 @@ Deno.serve(async (req) => {
     if (existingError) throw existingError;
     if (existing && existing.status !== "failed") return json({ job: existing, reused: true });
 
+    // Reuse a previously verified patch for this exact base/target byte pair.
+    const { data: cached, error: cacheError } = await admin.from("app_update_delta_cache")
+      .select("delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+      .eq("base_sha256_hash", baseSha)
+      .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+    if (cacheError) throw cacheError;
+    if (cached) {
+      const cachedJobPayload = {
+        user_id: userId,
+        base_version_code: baseVersionCode,
+        base_sha256_hash: baseSha,
+        target_version_code: Number(target.version_code),
+        target_sha256_hash: String(target.sha256_hash).toLowerCase(),
+        status: "ready",
+        delta_url: cached.delta_url,
+        delta_size_bytes: cached.delta_size_bytes,
+        delta_sha256_hash: cached.delta_sha256_hash,
+        expires_at: cached.expires_at,
+        error_code: null,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: cachedJob, error: cachedJobError } = await admin.from("app_update_delta_jobs")
+        .upsert({ ...cachedJobPayload, ...(existing ? { id: existing.id } : {}) },
+          { onConflict: "user_id,base_sha256_hash,target_sha256_hash" })
+        .select("id,status,base_version_code,target_version_code,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+        .single();
+      if (cachedJobError) throw cachedJobError;
+      return json({ job: cachedJob, reused: true, cache_hit: true });
+    }
+
     const { data: secret, error: secretError } = await admin.from("app_secrets")
       .select("secret_value").eq("secret_key", "github_token").eq("is_active", true)
       .limit(1).maybeSingle();
@@ -118,7 +150,11 @@ Deno.serve(async (req) => {
       }).eq("id", job.id);
       return json({ error: "dispatch_failed" }, 502);
     }
-    return json({ job, reused: false }, 202);
+    const { data: buildingJob, error: buildingError } = await admin.from("app_update_delta_jobs")
+      .update({ status: "building", updated_at: new Date().toISOString() })
+      .eq("id", job.id).select("id,status,base_version_code,target_version_code").single();
+    if (buildingError) throw buildingError;
+    return json({ job: buildingJob, reused: false }, 202);
   } catch (error) {
     console.error("XDelta request failed", error instanceof Error ? error.message : "unknown_error");
     return json({ error: "request_failed" }, 500);
