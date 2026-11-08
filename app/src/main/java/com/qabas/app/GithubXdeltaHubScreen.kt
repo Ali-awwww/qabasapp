@@ -434,7 +434,7 @@ fun GithubXdeltaHubScreen(
                                         .background(Color(0xFF10B981))
                                 )
                                 Text(
-                                    text = if (isDevMode && tokenInput.isNotBlank()) "متصل ومفوض ✓" else "القناة الرسمية ✓",
+                                    text = if (isDevMode) "إدارة المطور ✓" else "القناة الرسمية ✓",
                                     color = Color(0xFF10B981),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
