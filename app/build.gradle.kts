@@ -96,6 +96,20 @@ android {
     includeInBundle = true
   }
 
+  defaultConfig {
+    ndk {
+      // Build the native xdelta engine for the ABIs required by the APK verification workflow.
+      abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
+
   packaging {
     jniLibs {
       pickFirsts += listOf(
