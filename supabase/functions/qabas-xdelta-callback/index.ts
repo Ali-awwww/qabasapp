@@ -59,24 +59,33 @@ Deno.serve(async req => {
       update.expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     }
 
-    if (status === "ready") {
-      const { error: cacheWriteError } = await admin.from("app_update_delta_cache").upsert({
-        base_sha256_hash: baseSha,
-        target_sha256_hash: targetSha,
-        delta_url: update.delta_url,
-        delta_size_bytes: update.delta_size_bytes,
-        delta_sha256_hash: update.delta_sha256_hash,
-        expires_at: update.expires_at,
-      }, { onConflict: "base_sha256_hash,target_sha256_hash" });
-      if (cacheWriteError) throw cacheWriteError;
-    }
+    const cacheExpiresAt = status === "ready"
+      ? String(update.expires_at)
+      : new Date().toISOString();
+    const cachePayload: Record<string, unknown> = {
+      base_sha256_hash: baseSha,
+      target_sha256_hash: targetSha,
+      status,
+      job_id: jobId,
+      delta_url: status === "ready" ? update.delta_url : null,
+      delta_size_bytes: status === "ready" ? update.delta_size_bytes : null,
+      delta_sha256_hash: status === "ready" ? update.delta_sha256_hash : null,
+      expires_at: cacheExpiresAt,
+    };
+    const { error: cacheWriteError } = await admin.from("app_update_delta_cache").upsert(
+      cachePayload, { onConflict: "base_sha256_hash,target_sha256_hash" },
+    );
+    if (cacheWriteError) throw cacheWriteError;
 
-    const { data, error } = await admin.from("app_update_delta_jobs").update(update)
-      .eq("id", jobId).eq("base_sha256_hash", baseSha).eq("target_sha256_hash", targetSha)
-      .in("status", ["queued", "building"]).select("id,status").maybeSingle();
+    // Complete every user job waiting for this exact shared digest pair.
+    const { data, error } = await admin.from("app_update_delta_jobs").update({
+      ...update,
+      expires_at: status === "ready" ? update.expires_at : null,
+    }).eq("base_sha256_hash", baseSha).eq("target_sha256_hash", targetSha)
+      .in("status", ["queued", "building"]).select("id,status");
     if (error) throw error;
-    if (!data) return json({ error: "job_not_found_or_already_finalized" }, 404);
-    return json({ job: data });
+    if (!data || data.length === 0) return json({ error: "jobs_not_found_or_already_finalized" }, 404);
+    return json({ jobs_updated: data.length, status });
   } catch (error) {
     console.error("XDelta callback failed", error instanceof Error ? error.message : "unknown_error");
     return json({ error: "callback_failed" }, 500);
