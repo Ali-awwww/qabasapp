@@ -157,11 +157,14 @@ object AzanCloudRepository {
             if (!AdminGuard.isDashboardAccessAllowed(context)) return@withContext false
             val client = SupabaseServices.client ?: return@withContext false
             val rowId = cloudVoice.id.removePrefix("cloud_")
-            val storageMarker = "/object/public/$BUCKET/"
-            val storagePath = cloudVoice.streamUrl.substringAfter(storageMarker, "").substringBefore('?')
-            // Delete our own bucket object through Storage API before removing its database row.
-            if (storagePath.isNotBlank()) {
-                client.storage.from(BUCKET).delete(storagePath)
+            val storagePath = SupabaseServices.Storage.normalizeObjectPath(BUCKET, cloudVoice.streamUrl)
+            // Delete the Storage object through the shared service before removing its database row.
+            if (storagePath != null) {
+                val storageDeleted = SupabaseServices.Storage.deleteFiles(BUCKET, listOf(storagePath))
+                if (!storageDeleted) {
+                    Log.e(TAG, "Storage deletion failed; keeping database row for voice $rowId")
+                    return@withContext false
+                }
             }
             client.from(TABLE).delete { filter { eq("id", rowId) } }
             MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
