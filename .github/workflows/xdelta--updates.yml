@@ -213,15 +213,6 @@ jobs:
             exit 0
           fi
 
-          CLEAN_VERSION="${TARGET_TAG#v}"
-          SOURCE_VERSION="${PREV_TAG#v}"
-          if [ -n "$JOB_ID" ]; then
-            DELTA_NAME="qabas-ondemand-${CLEAN_VERSION}-from-${SOURCE_VERSION}-${PREV_SHA256:0:12}-${TARGET_SHA256:0:12}.delta"
-          else
-            DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
-          fi
-          DELTA_PATH="dist/${DELTA_NAME}"
-
           if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
 
             # منع الدلتا الذاتية: إذا كان أساس الدلتا مطابقاً للملف الهدف
@@ -238,6 +229,15 @@ jobs:
               echo "Target APK SHA-256 does not match approved release registry."
               exit 1
             fi
+
+          CLEAN_VERSION="${TARGET_TAG#v}"
+          SOURCE_VERSION="${PREV_TAG#v}"
+          if [ -n "$JOB_ID" ]; then
+            DELTA_NAME="qabas-ondemand-${CLEAN_VERSION}-from-${SOURCE_VERSION}-${PREV_SHA256:0:12}-${TARGET_SHA256:0:12}.delta"
+          else
+            DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
+          fi
+          DELTA_PATH="dist/${DELTA_NAME}"
 
             if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
               echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
