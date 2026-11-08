@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
       delta_size_bytes: null,
       delta_sha256_hash: null,
       error_code: null,
+      created_at: new Date().toISOString(),
       expires_at: null,
       updated_at: new Date().toISOString(),
     };
