@@ -19,12 +19,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * مدير التفضيلات والإعدادات المركزية لتطبيق قبس (مشكاة الهدى).
@@ -151,6 +154,9 @@ object UserPreferencesManager {
     private val _networkStatus = MutableStateFlow(ConnectivityObserver.Status.Available)
     val networkStatus: StateFlow<ConnectivityObserver.Status> = _networkStatus.asStateFlow()
 
+    private val syncMutex = Mutex()
+    private val pendingSyncRevision = AtomicLong(0L)
+    @Volatile
     private var hasPendingChanges = false
     private var networkObserverStarted = false
 
@@ -258,48 +264,82 @@ object UserPreferencesManager {
         return getDeviceId(context)
     }
 
+    internal suspend fun <T> withSyncLock(block: suspend () -> T): T {
+        syncMutex.lock()
+        return try {
+            block()
+        } finally {
+            syncMutex.unlock()
+        }
+    }
+
+    internal fun shouldKeepPendingChanges(
+        saveSucceeded: Boolean,
+        revisionAtSyncStart: Long,
+        currentRevision: Long
+    ): Boolean = !saveSucceeded || currentRevision != revisionAtSyncStart
+
     suspend fun syncToSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
         if (!_cloudSyncEnabled.value || !SupabaseServices.isSupabaseAvailable) {
             return@withContext false
         }
-        _isSyncing.value = true
-        try {
-            val userId = getEffectiveUserId(context)
+        withSyncLock {
+            _isSyncing.value = true
+            try {
+                val userId = getEffectiveUserId(context)
+                val syncRevision = pendingSyncRevision.get()
 
-            // ارفع الصورة الشخصية المحلية أولاً حتى يتضمّن الملف المصدّر رابطها السحابي
-            val avatarUrl = uploadLocalAvatarIfNeeded(context, userId)
-            val jsonPayload = exportBackupJson(context) ?: return@withContext false
-            val success = SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
+                // ارفع الصورة الشخصية المحلية أولاً حتى يتضمّن الملف المصدّر رابطها السحابي
+                val avatarUrl = uploadLocalAvatarIfNeeded(context, userId)
+                val jsonPayload = exportBackupJson(context)
+                if (jsonPayload == null) {
+                    hasPendingChanges = true
+                    false
+                } else {
+                    val success = SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
+                    hasPendingChanges = shouldKeepPendingChanges(
+                        saveSucceeded = success,
+                        revisionAtSyncStart = syncRevision,
+                        currentRevision = pendingSyncRevision.get()
+                    )
 
-            // مزامنة الملف الشخصي محاولة مستقلة؛ لا تجعل فشلها يعلق مؤشر المزامنة.
-            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
-            val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val savedName = identityPrefs.getString("user_name", null)
-                ?: legacyPrefs.getString("user_name", null)
-                ?: legacyPrefs.getString("saved_user_name", null)
-            val savedEmail = identityPrefs.getString("user_email", null)
-                ?: legacyPrefs.getString("user_email", null)
-                ?: legacyPrefs.getString("saved_login_email", null)
-            runCatching {
-                SupabaseRepository.getInstance().syncUserProfile(
-                    userId = userId,
-                    displayName = savedName,
-                    email = savedEmail,
-                    avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
-                    preferencesJson = jsonPayload
-                )
-            }.onFailure { Log.e("UserPreferencesManager", "profile sync failed: ${it.message}") }
+                    // مزامنة الملف الشخصي محاولة مستقلة؛ لا تجعل فشلها يعلق مؤشر المزامنة.
+                    val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+                    val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val savedName = identityPrefs.getString("user_name", null)
+                        ?: legacyPrefs.getString("user_name", null)
+                        ?: legacyPrefs.getString("saved_user_name", null)
+                    val savedEmail = identityPrefs.getString("user_email", null)
+                        ?: legacyPrefs.getString("user_email", null)
+                        ?: legacyPrefs.getString("saved_login_email", null)
+                    runCatching {
+                        SupabaseRepository.getInstance().syncUserProfile(
+                            userId = userId,
+                            displayName = savedName,
+                            email = savedEmail,
+                            avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
+                            preferencesJson = jsonPayload
+                        )
+                    }.onFailure { Log.e("UserPreferencesManager", "profile sync failed: ${it.message}") }
 
-            if (success) {
-                hasPendingChanges = false
-                val now = System.currentTimeMillis()
-                _lastSyncTime.value = now
-                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().putLong("last_sync_timestamp", now).apply()
+                    if (success) {
+                        val now = System.currentTimeMillis()
+                        _lastSyncTime.value = now
+                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                            .edit().putLong("last_sync_timestamp", now).apply()
+                    }
+                    success
+                }
+            } catch (cancelled: CancellationException) {
+                hasPendingChanges = true
+                throw cancelled
+            } catch (error: Exception) {
+                hasPendingChanges = true
+                Log.e("UserPreferencesManager", "syncToSupabase failed: ${error.message}", error)
+                false
+            } finally {
+                _isSyncing.value = false
             }
-            success
-        } finally {
-            _isSyncing.value = false
         }
     }
 
@@ -399,12 +439,12 @@ object UserPreferencesManager {
 
     fun triggerAutoSync(context: Context) {
         if (_cloudSyncEnabled.value && SupabaseServices.isSupabaseAvailable) {
+            pendingSyncRevision.incrementAndGet()
+            hasPendingChanges = true
             if (_networkStatus.value == ConnectivityObserver.Status.Available) {
                 kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                     runCatching { syncToSupabase(context) }
                 }
-            } else {
-                hasPendingChanges = true
             }
         }
     }
