@@ -63,8 +63,9 @@ Deno.serve(async (req) => {
       .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
       .maybeSingle();
     if (existingError) throw existingError;
-    if (existing && existing.status !== "failed" &&
-        (existing.status !== "ready" || (existing.expires_at && Date.parse(existing.expires_at) > Date.now()))) {
+    if (existing &&
+        (["queued", "building", "ready"].includes(existing.status) &&
+          existing.expires_at && Date.parse(existing.expires_at) > Date.now())) {
       return json({ job: existing, reused: true });
     }
 
@@ -141,6 +142,7 @@ Deno.serve(async (req) => {
       return json({ error: "server_dispatch_not_configured" }, 503);
     }
 
+    const reservationExpires = new Date(Date.now() + 40 * 60 * 1000).toISOString();
     const jobPayload = {
       user_id: userId,
       base_version_code: baseVersionCode,
@@ -153,7 +155,7 @@ Deno.serve(async (req) => {
       delta_sha256_hash: null,
       error_code: null,
       created_at: new Date().toISOString(),
-      expires_at: null,
+      expires_at: reservationExpires,
       updated_at: new Date().toISOString(),
     };
     const { data: job, error: insertError } = await admin.from("app_update_delta_jobs")
@@ -163,7 +165,6 @@ Deno.serve(async (req) => {
       .single();
     if (insertError) throw insertError;
 
-    const reservationExpires = new Date(Date.now() + 40 * 60 * 1000).toISOString();
     // Expired reservations are reclaimed; active reservations are immutable.
     const { error: reclaimError } = await admin.from("app_update_delta_cache").update({
       status: "building", job_id: job.id, delta_url: null, delta_size_bytes: null,
@@ -251,8 +252,8 @@ Deno.serve(async (req) => {
       return json({ error: "dispatch_failed" }, 502);
     }
     const { data: buildingJob, error: buildingError } = await admin.from("app_update_delta_jobs")
-      .update({ status: "building", updated_at: new Date().toISOString() })
-      .eq("id", job.id).select("id,status,base_version_code,target_version_code").single();
+      .update({ status: "building", expires_at: reservationExpires, updated_at: new Date().toISOString() })
+      .eq("id", job.id).select("id,status,base_version_code,target_version_code,expires_at").single();
     if (buildingError) throw buildingError;
     return json({ job: buildingJob, reused: false }, 202);
   } catch (error) {
