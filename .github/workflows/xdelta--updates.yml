@@ -201,6 +201,7 @@ jobs:
           PREV_APK: ${{ steps.download-apks.outputs.prev_apk }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
           PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+          JOB_ID: ${{ inputs.job_id }}
           EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
           EXPECTED_TARGET_SHA256: ${{ inputs.expected_target_sha256 }}
         run: |
@@ -214,7 +215,11 @@ jobs:
 
           CLEAN_VERSION="${TARGET_TAG#v}"
           SOURCE_VERSION="${PREV_TAG#v}"
-          DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
+          if [ -n "$JOB_ID" ]; then
+            DELTA_NAME="qabas-ondemand-${CLEAN_VERSION}-from-${SOURCE_VERSION}-${PREV_SHA256:0:12}-${TARGET_SHA256:0:12}.delta"
+          else
+            DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
+          fi
           DELTA_PATH="dist/${DELTA_NAME}"
 
           if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
@@ -289,6 +294,7 @@ jobs:
           DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
           SAVINGS_PCT: ${{ steps.compute-delta.outputs.savings_pct }}
           DELTA_SIZE: ${{ steps.compute-delta.outputs.delta_size }}
+          JOB_ID: ${{ inputs.job_id }}
         run: |
           echo "📤 Uploading assets to release $TARGET_TAG..."
 
@@ -309,7 +315,7 @@ jobs:
             echo "✅ Assets successfully attached to release!"
           fi
 
-          if [ "$DELTA_CREATED" = "true" ]; then
+          if [ "$DELTA_CREATED" = "true" ] && [ -z "$JOB_ID" ]; then
             DELTA_FILE_NAME=$(basename "$DELTA_PATH")
             DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
 
