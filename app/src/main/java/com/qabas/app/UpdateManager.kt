@@ -61,11 +61,10 @@ object UpdateManager {
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             .getLong(PREF_LAST_CHECK, 0L)
 
-    // توكن مسرّب متقاعد: يُرفض في كل المسارات ولا يُرسل أبداً.
-    // (أبطل مفعوله من إعدادات GitHub أيضاً)
-    private const val RETIRED_LEAKED_TOKEN = "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"
+    // GitHub credentials are server-side only. The app never reads or caches a PAT.
+    fun isRetiredToken(token: String): Boolean = false
 
-    fun isRetiredToken(token: String): Boolean = token.trim() == RETIRED_LEAKED_TOKEN
+    suspend fun getEffectiveToken(context: Context): String? = null
 
     fun getEffectiveRepo(context: Context): String {
         // قناة التحديث الرسمية إجبارية لغير المطور — لا يمكن لأي مستخدم
@@ -86,68 +85,7 @@ object UpdateManager {
         return DEFAULT_REPO
     }
 
-    suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val cachedToken = prefs.getString("github_token_cached", null)?.trim()
-            if (!cachedToken.isNullOrBlank()) {
-                if (isRetiredToken(cachedToken)) {
-                    Log.w(TAG, "⚠️ Retired leaked token found in cache — purging")
-                    prefs.edit().remove("github_token_cached").apply()
-                } else {
-                    Log.d(TAG, "✅ Using cached GitHub token")
-                    return@withContext cachedToken
-                }
-            }
-
-            val token = fetchGitHubTokenFromSupabase()
-            if (!token.isNullOrBlank() && !isRetiredToken(token)) {
-                Log.d(TAG, "✅ GitHub token fetched from Supabase")
-                prefs.edit().putString("github_token_cached", token).apply()
-                return@withContext token
-            }
-
-            Log.w(TAG, "⚠️ Could not fetch token, continuing without auth")
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ getEffectiveToken error: ${e.message}")
-            null
-        }
-    }
-
-    private suspend fun fetchGitHubTokenFromSupabase(): String? = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val supabase = SupabaseServices.client ?: return@withContext null
-
-            val response = supabase.postgrest
-                .from("app_secrets")
-                .select {
-                    filter {
-                        eq("secret_key", "github_token")
-                        eq("is_active", true)
-                    }
-                    limit(1)
-                }
-                .decodeSingleOrNull<AppSecret>()
-
-            if (response != null && response.secret_value.isNotBlank()) {
-                Log.d(TAG, "🔐 Token retrieved from Supabase")
-                return@withContext response.secret_value
-            }
-            null
-        } catch (e: Exception) {
-            Log.d(TAG, "fetchGitHubTokenFromSupabase skipped/denied: ${e.message}")
-            null
-        }
-    }
-
-    @Serializable
-    data class AppSecret(
-        val id: Long = 0,
-        val secret_key: String = "",
-        val secret_value: String = "",
-        val is_active: Boolean = true
-    )
+    // No PAT retrieval from app_secrets: privileged GitHub operations must be server-side.
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
