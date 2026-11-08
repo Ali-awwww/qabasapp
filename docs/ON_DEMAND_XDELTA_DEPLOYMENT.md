@@ -13,7 +13,7 @@ This feature is implemented in the repository but is **not enabled in the live S
 3. Configure `QABAS_OWNER_EMAIL` for the admin dispatch function to match the owner account's authenticated email. Confirm the server-side `app_secrets` entry named `github_token` is active and its GitHub credential has Actions workflow-dispatch and release-asset write access for `Ali-awwww/qabasapp`.
 4. Add repository Actions secrets:
    - `SUPABASE_URL`: the Qabas Supabase project API URL.
-   - `SUPABASE_SERVICE_ROLE_KEY`: the service-role secret for that project. Keep it out of client builds, source control, logs, and PR comments.
+   - `XDELTA_CALLBACK_SECRET`: a dedicated high-entropy callback secret. Configure the same value as a Supabase Edge Function secret and a GitHub Actions repository secret; do **not** use the project service-role key for this callback.
 5. Merge the workflow changes to the default branch (`main`). On-demand dispatches target `main`, which must contain the declared workflow inputs and completion callback.
 6. Only after reviewing the deployed schema, function permissions, and workflow secrets, perform a controlled test with an approved old APK base and an active target release.
 
