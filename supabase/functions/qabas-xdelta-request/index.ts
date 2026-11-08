@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         ref: "feature/issue-69-on-demand-xdelta-secure",
-        inputs: { target_tag: target.release_tag, previous_tag: base.release_tag },
+        inputs: { target_tag: target.release_tag, previous_tag: base.release_tag, job_id: job.id, expected_base_sha256: baseSha, expected_target_sha256: String(target.sha256_hash).toLowerCase() },
       }),
     });
     if (dispatch.status !== 204) {
