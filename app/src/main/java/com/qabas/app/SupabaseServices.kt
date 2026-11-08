@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -28,6 +29,7 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import java.io.File
 import java.util.concurrent.TimeUnit
+import io.ktor.client.call.body
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -116,6 +118,58 @@ object SupabaseServices {
             runCatching { getLatestActiveUpdateOrThrow() }
                 .onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }
                 .getOrNull()
+
+        @Serializable
+        data class OnDemandDeltaJob(
+            val id: String = "",
+            val status: String = "",
+            @SerialName("base_version_code") val baseVersionCode: Int = 0,
+            @SerialName("target_version_code") val targetVersionCode: Int = 0,
+            @SerialName("delta_url") val deltaUrl: String? = null,
+            @SerialName("delta_size_bytes") val deltaSizeBytes: Long? = null,
+            @SerialName("delta_sha256_hash") val deltaSha256Hash: String? = null,
+            @SerialName("error_code") val errorCode: String? = null,
+            @SerialName("expires_at") val expiresAt: String? = null
+        )
+
+        @Serializable
+        data class OnDemandDeltaEnvelope(val job: OnDemandDeltaJob)
+
+        suspend fun requestOnDemandDelta(baseVersionCode: Int, baseSha256: String): OnDemandDeltaJob {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-request",
+                body = buildJsonObject {
+                    put("base_version_code", baseVersionCode)
+                    put("base_sha256_hash", baseSha256)
+                }
+            )
+            return response.body<OnDemandDeltaEnvelope>().job
+        }
+
+        suspend fun getOnDemandDeltaStatus(jobId: String): OnDemandDeltaJob {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-status",
+                body = buildJsonObject { put("job_id", jobId) }
+            )
+            return response.body<OnDemandDeltaEnvelope>().job
+        }
+
+        @Serializable
+        data class AdminDeltaDispatchResponse(val accepted: Boolean = false)
+
+        suspend fun dispatchAdminXdelta(targetTag: String, previousTag: String): Boolean {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-admin-dispatch",
+                body = buildJsonObject {
+                    put("target_tag", targetTag)
+                    put("previous_tag", previousTag)
+                }
+            )
+            return response.body<AdminDeltaDispatchResponse>().accepted
+        }
 
         suspend fun getAppUpdateAuditOrThrow(): List<AppUpdateAudit> {
             val client = client ?: throw IllegalStateException("Supabase is not configured")

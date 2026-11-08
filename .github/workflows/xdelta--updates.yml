@@ -13,9 +13,21 @@ on:
         description: 'Previous Release Tag (leave empty for automatic detection)'
         required: false
         default: ''
+      job_id:
+        description: 'On-demand delta job identifier'
+        required: false
+        default: ''
+      expected_base_sha256:
+        description: 'Approved base APK SHA-256'
+        required: false
+        default: ''
+      expected_target_sha256:
+        description: 'Approved target APK SHA-256'
+        required: false
+        default: ''
 
 concurrency:
-  group: xdelta-release-${{ github.ref }}
+  group: xdelta-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.job_id != '' && github.event.inputs.job_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -116,17 +128,21 @@ jobs:
         id: resolve-tags
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG_INPUT: ${{ inputs.target_tag }}
+          PREV_TAG_INPUT: ${{ inputs.previous_tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          TARGET_TAG="${{ github.event.inputs.target_tag }}"
+          TARGET_TAG="$TARGET_TAG_INPUT"
           if [ -z "$TARGET_TAG" ]; then
-            if [ "${{ github.event_name }}" = "release" ]; then
-              TARGET_TAG="${{ github.event.release.tag_name }}"
+            if [ "$EVENT_NAME" = "release" ]; then
+              TARGET_TAG="$RELEASE_TAG"
             else
               TARGET_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
             fi
           fi
 
-          PREV_TAG="${{ github.event.inputs.previous_tag }}"
+          PREV_TAG="$PREV_TAG_INPUT"
           if [ -z "$PREV_TAG" ]; then
             PREV_TAG=$(gh release list --limit 10 --json tagName --jq ".[].tagName" | grep -v "^${TARGET_TAG}$" | head -n 1 || true)
           fi
@@ -185,6 +201,9 @@ jobs:
           PREV_APK: ${{ steps.download-apks.outputs.prev_apk }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
           PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+          JOB_ID: ${{ inputs.job_id }}
+          EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
+          EXPECTED_TARGET_SHA256: ${{ inputs.expected_target_sha256 }}
         run: |
           mkdir -p dist
 
@@ -194,19 +213,33 @@ jobs:
             exit 0
           fi
 
-          CLEAN_VERSION="${TARGET_TAG#v}"
-          SOURCE_VERSION="${PREV_TAG#v}"
-          DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
-          DELTA_PATH="dist/${DELTA_NAME}"
-
           if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ] && [ -f "$TARGET_APK" ]; then
 
             # منع الدلتا الذاتية: إذا كان أساس الدلتا مطابقاً للملف الهدف
             # (أساس قديم/مستبدل)، أي دلتا ستكون نسخة لاغية، فيُتخطّى ويُترك
             # التطبيق ينزّل الـ APK كاملاً بدلاً من ذلك.
-            PREV_MD5=$(md5sum "$PREV_APK" | awk '{print $1}')
-            TARGET_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
-            if [ "$PREV_MD5" = "$TARGET_MD5" ]; then
+            PREV_SHA256=$(sha256sum "$PREV_APK" | awk '{print $1}')
+            TARGET_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
+
+            if [ -n "$EXPECTED_BASE_SHA256" ] && [ "$PREV_SHA256" != "$EXPECTED_BASE_SHA256" ]; then
+              echo "Base APK SHA-256 does not match approved request."
+              exit 1
+            fi
+            if [ -n "$EXPECTED_TARGET_SHA256" ] && [ "$TARGET_SHA256" != "$EXPECTED_TARGET_SHA256" ]; then
+              echo "Target APK SHA-256 does not match approved release registry."
+              exit 1
+            fi
+
+          CLEAN_VERSION="${TARGET_TAG#v}"
+          SOURCE_VERSION="${PREV_TAG#v}"
+          if [ -n "$JOB_ID" ]; then
+            DELTA_NAME="qabas-ondemand-${CLEAN_VERSION}-from-${SOURCE_VERSION}-${PREV_SHA256:0:12}-${TARGET_SHA256:0:12}.delta"
+          else
+            DELTA_NAME="qabas-${CLEAN_VERSION}-from-${SOURCE_VERSION}.delta"
+          fi
+          DELTA_PATH="dist/${DELTA_NAME}"
+
+            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
               echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
               echo "delta_created=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -221,19 +254,25 @@ jobs:
             VERIFY_APK="dist/verify-reconstructed.apk"
             xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"
 
-            ORIGINAL_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
-            VERIFY_MD5=$(md5sum "$VERIFY_APK" | awk '{print $1}')
+            ORIGINAL_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
+            VERIFY_SHA256=$(sha256sum "$VERIFY_APK" | awk '{print $1}')
             rm -f "$VERIFY_APK"
 
-            if [ "$ORIGINAL_MD5" = "$VERIFY_MD5" ]; then
-              echo "✅ Patch verification successful! Checksums match 100%."
+            if [ "$ORIGINAL_SHA256" = "$VERIFY_SHA256" ]; then
+              echo "✅ Patch verification successful! SHA-256 checksums match 100%."
             else
-              echo "❌ Patch verification failed! MD5 mismatch."
+              echo "❌ Patch verification failed! SHA-256 mismatch."
               exit 1
             fi
 
             DELTA_SIZE=$(stat -c%s "$DELTA_PATH")
             TARGET_SIZE=$(stat -c%s "$TARGET_APK")
+            if [ "$DELTA_SIZE" -ge "$TARGET_SIZE" ]; then
+              echo "Delta is not smaller than the full APK; discard it and use full APK fallback."
+              rm -f "$DELTA_PATH"
+              echo "delta_created=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             SAVINGS=$(( (TARGET_SIZE - DELTA_SIZE) * 100 / TARGET_SIZE ))
             echo "🎉 Delta generated: $DELTA_PATH ($DELTA_SIZE bytes)"
             echo "🚀 Bandwidth savings: ${SAVINGS}% compared to full APK!"
@@ -247,6 +286,7 @@ jobs:
           fi
 
       - name: Attach Delta & xdelta3 Binaries to Release
+        id: attach-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
@@ -254,6 +294,7 @@ jobs:
           DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
           SAVINGS_PCT: ${{ steps.compute-delta.outputs.savings_pct }}
           DELTA_SIZE: ${{ steps.compute-delta.outputs.delta_size }}
+          JOB_ID: ${{ inputs.job_id }}
         run: |
           echo "📤 Uploading assets to release $TARGET_TAG..."
 
@@ -274,7 +315,7 @@ jobs:
             echo "✅ Assets successfully attached to release!"
           fi
 
-          if [ "$DELTA_CREATED" = "true" ]; then
+          if [ "$DELTA_CREATED" = "true" ] && [ -z "$JOB_ID" ]; then
             DELTA_FILE_NAME=$(basename "$DELTA_PATH")
             DELTA_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DELTA_SIZE/1048576}")
 
@@ -293,15 +334,73 @@ jobs:
             echo "✅ Release notes updated with delta stats."
           fi
 
+
+      - name: Report On-Demand Delta Job Result
+        if: always() && inputs.job_id != ''
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
+          EXPECTED_TARGET_SHA256: ${{ inputs.expected_target_sha256 }}
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          DELTA_CREATED: ${{ steps.compute-delta.outputs.delta_created }}
+          DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
+          ATTACH_OUTCOME: ${{ steps.attach-release.outcome }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          XDELTA_CALLBACK_SECRET: ${{ secrets.XDELTA_CALLBACK_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$XDELTA_CALLBACK_SECRET" ]; then
+            echo "Supabase callback secrets are not configured; job status remains pending."
+            exit 0
+          fi
+
+          if [ "$DELTA_CREATED" = "true" ] && [ "$ATTACH_OUTCOME" = "success" ] && [ -f "$DELTA_PATH" ]; then
+            STATUS="ready"
+            ERROR_CODE=""
+            DELTA_FILE_NAME=$(basename "$DELTA_PATH")
+            DELTA_URL="https://github.com/Ali-awwww/qabasapp/releases/download/$TARGET_TAG/$DELTA_FILE_NAME"
+            DELTA_SIZE=$(stat -c%s "$DELTA_PATH")
+            DELTA_SHA256=$(sha256sum "$DELTA_PATH" | awk '{print $1}')
+          else
+            STATUS="failed"
+            ERROR_CODE="delta_generation_or_upload_failed"
+            DELTA_URL=""
+            DELTA_SIZE=0
+            DELTA_SHA256=""
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg job_id "$JOB_ID" \
+            --arg expected_base_sha256 "$EXPECTED_BASE_SHA256" \
+            --arg expected_target_sha256 "$EXPECTED_TARGET_SHA256" \
+            --arg status "$STATUS" \
+            --arg error_code "$ERROR_CODE" \
+            --arg delta_url "$DELTA_URL" \
+            --argjson delta_size_bytes "$DELTA_SIZE" \
+            --arg delta_sha256_hash "$DELTA_SHA256" \
+            '{job_id:$job_id,expected_base_sha256:$expected_base_sha256,expected_target_sha256:$expected_target_sha256,status:$status,error_code:$error_code,delta_url:$delta_url,delta_size_bytes:$delta_size_bytes,delta_sha256_hash:$delta_sha256_hash}')
+
+          curl --fail-with-body --silent --show-error \
+            -X POST "$SUPABASE_URL/functions/v1/qabas-xdelta-callback" \
+            -H "Authorization: Bearer $XDELTA_CALLBACK_SECRET" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD"
+
       - name: Summary
+        env:
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+          DELTA_CREATED: ${{ steps.compute-delta.outputs.delta_created }}
+          SAVINGS_PCT: ${{ steps.compute-delta.outputs.savings_pct }}
+          DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
         run: |
           echo "### 🚀 xdelta Update Generation Completed!" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Target Release:** \`${{ steps.resolve-tags.outputs.target_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Previous Release:** \`${{ steps.resolve-tags.outputs.prev_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target Release:** \`$TARGET_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Previous Release:** \`$PREV_TAG\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Delta Created:** \`${{ steps.compute-delta.outputs.delta_created }}\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.compute-delta.outputs.delta_created }}" = "true" ]; then
-            echo "- **Savings:** **${{ steps.compute-delta.outputs.savings_pct }}%**" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Delta File:** \`${{ steps.compute-delta.outputs.delta_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DELTA_CREATED" = "true" ]; then
+            echo "- **Savings:** **$SAVINGS_PCT%**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Delta File:** \`$DELTA_PATH\`" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "- **Architecture Binaries Attached:**" >> "$GITHUB_STEP_SUMMARY"
           echo "  - \`xdelta3-arm64-v8a\`" >> "$GITHUB_STEP_SUMMARY"

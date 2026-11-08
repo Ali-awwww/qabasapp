@@ -89,23 +89,17 @@ fun GithubXdeltaHubScreen(
     var repoInput by remember {
         mutableStateOf(prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp")
     }
-    var tokenInput by remember {
-        mutableStateOf(prefs.getString("build_center_token", "") ?: "")
-    }
-    var showToken by remember { mutableStateOf(false) }
     var isEditingRepo by remember { mutableStateOf(false) }
 
     // تطهير لمرة واحدة: إسقاط أي توكن مسرّب قديم مخزن على الجهاز
     LaunchedEffect(Unit) {
-        val stored = prefs.getString("build_center_token", "")
-        if (!stored.isNullOrBlank() && UpdateManager.isRetiredToken(stored)) {
-            prefs.edit().remove("build_center_token").apply()
-            tokenInput = ""
-        }
+        // XDelta dispatch credentials are held server-side; purge the legacy local PAT field.
+        prefs.edit().remove("build_center_token").apply()
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit().remove("build_center_token").apply()
         if (!isDevMode) {
             ownerInput = "Ali-awwww"
             repoInput = "qabasapp"
-            tokenInput = ""
         }
     }
 
@@ -144,6 +138,7 @@ fun GithubXdeltaHubScreen(
         if (p != null) {
             isDownloading = true
             downloadPhaseName = when (p.phase) {
+                UpdateManager.Phase.PREPARING_DELTA -> "جاري تجهيز التحديث التفاضلي من النسخة المثبتة..."
                 UpdateManager.Phase.DOWNLOADING_DELTA -> "جاري تحميل التحديث الصغير..."
                 UpdateManager.Phase.APPLYING_PATCH -> "جاري معالجة وتحسين ملف التحديث (Patching)..."
                 UpdateManager.Phase.DOWNLOADING_FULL -> "جاري تحميل الحزمة الكاملة..."
@@ -170,7 +165,7 @@ fun GithubXdeltaHubScreen(
             val res = UpdateManager.inspectGitHubRelease(
                 context = context,
                 customRepo = targetRepo,
-                customToken = if (dev) tokenInput.trim().ifBlank { null } else null
+                customToken = null
             )
             isChecking = false
             res.fold(
@@ -200,18 +195,17 @@ fun GithubXdeltaHubScreen(
             Toast.makeText(context, "توليد الديلتا للمطور فقط 🔒", Toast.LENGTH_SHORT).show()
             return
         }
-        val pat = tokenInput.trim()
-        if (pat.isBlank()) {
-            Toast.makeText(context, "أدخل رمز PAT بصلاحية actions:write أولاً", Toast.LENGTH_LONG).show()
+        val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
+        val repo = repoInput.trim().ifBlank { "qabasapp" }
+        if (!owner.equals("Ali-awwww", ignoreCase = true) || !repo.equals("qabasapp", ignoreCase = true)) {
+            dispatchMessage = "إرسال التوليد متاح للمستودع الرسمي Ali-awwww/qabasapp فقط"
             return
         }
         isDispatching = true
         dispatchMessage = null
         coroutineScope.launch {
-            val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
-            val repo = repoInput.trim().ifBlank { "qabasapp" }
-            // منع التكرار: إن كان تشغيل نشط وحديث — تتبعه بدل إرسال أمر جديد
-            val existing = UpdateManager.fetchLatestXdeltaRun(owner, repo, pat).getOrNull()
+            // Public release/run metadata can be read without exposing a PAT to the client.
+            val existing = UpdateManager.fetchLatestXdeltaRun(owner, repo, null).getOrNull()
             if (existing != null && existing.isActive() && runAgeMinutes(existing) < 30) {
                 isDispatching = false
                 trackedRun = existing
@@ -219,7 +213,7 @@ fun GithubXdeltaHubScreen(
                 dispatchMessage = "التوليد يعمل بالفعل (بدأ ${runAgeText(existing)}) — أتتبعه حياً بدل التكرار ⏳"
                 return@launch
             }
-            val tags = UpdateManager.fetchLatestTwoReleaseTags(owner, repo, pat.ifBlank { null })
+            val tags = UpdateManager.fetchLatestTwoReleaseTags(owner, repo, null)
             val (target, prev) = tags.getOrNull() ?: run {
                 isDispatching = false
                 dispatchMessage = tags.exceptionOrNull()?.message ?: "تعذر قراءة الإصدارات"
@@ -230,18 +224,20 @@ fun GithubXdeltaHubScreen(
                 dispatchMessage = "لا يوجد إصدار سابق للمقارنة — الديلتا تحتاج إصدارين على الأقل"
                 return@launch
             }
-            val res = UpdateManager.dispatchDeltaWorkflow(owner, repo, pat, target, prev)
-            isDispatching = false
-            res.fold(
-                onSuccess = {
+            try {
+                val accepted = SupabaseServices.Database.dispatchAdminXdelta(target, prev)
+                isDispatching = false
+                if (accepted) {
                     dispatchMessage = "انطلق التوليد لـ $target من $prev ⚡ — أتتبع التقدم حياً..."
                     trackingRun = true
-                    Toast.makeText(context, "تم إرسال أمر توليد الديلتا 🚀", Toast.LENGTH_LONG).show()
-                },
-                onFailure = { err ->
-                    dispatchMessage = err.message ?: "فشل إرسال الأمر (تحقق من صلاحية actions:write)"
+                    Toast.makeText(context, "تم إرسال أمر توليد الديلتا عبر الخادم 🚀", Toast.LENGTH_LONG).show()
+                } else {
+                    dispatchMessage = "لم يقبل الخادم أمر التوليد"
                 }
-            )
+            } catch (err: Exception) {
+                isDispatching = false
+                dispatchMessage = err.message ?: "فشل إرسال الأمر من الخادم"
+            }
         }
     }
 
@@ -250,10 +246,9 @@ fun GithubXdeltaHubScreen(
         if (!trackingRun) return@LaunchedEffect
         val owner = ownerInput.trim().ifBlank { "Ali-awwww" }
         val repo = repoInput.trim().ifBlank { "qabasapp" }
-        val pat = tokenInput.trim()
         repeat(24) {
             kotlinx.coroutines.delay(30000)
-            val info = UpdateManager.fetchLatestXdeltaRun(owner, repo, pat.ifBlank { null }).getOrNull()
+            val info = UpdateManager.fetchLatestXdeltaRun(owner, repo, null).getOrNull()
             trackedRun = info
             if (info == null || !info.isActive()) {
                 trackingRun = false
@@ -280,7 +275,7 @@ fun GithubXdeltaHubScreen(
             return
         }
         AgentPrefs.putGitHubRepo(context, ownerInput.trim(), repoInput.trim())
-        AgentPrefs.putGitHubPat(context, tokenInput.trim())
+        AgentPrefs.remove(context, AgentPrefs.GITHUB_PAT)
 
         // مزامنة مع خزانة المستودعات
         runCatching {
@@ -290,7 +285,7 @@ fun GithubXdeltaHubScreen(
                     id = "repo_ali_awwww_qabasapp",
                     owner = ownerInput.trim(),
                     repo = repoInput.trim(),
-                    token = tokenInput.trim(),
+                    token = "",
                     customName = "مستودع قبس الرسمي (${ownerInput.trim()}/${repoInput.trim()})",
                     description = "مستودع GitHub المباشر لتحديثات xdelta وبناء الـ APK"
                 ),
@@ -305,7 +300,6 @@ fun GithubXdeltaHubScreen(
     fun resetToOfficialDefaults() {
         ownerInput = "Ali-awwww"
         repoInput = "qabasapp"
-        tokenInput = ""
         saveRepoCredentials()
     }
 
@@ -440,7 +434,7 @@ fun GithubXdeltaHubScreen(
                                         .background(Color(0xFF10B981))
                                 )
                                 Text(
-                                    text = if (isDevMode && tokenInput.isNotBlank()) "متصل ومفوض ✓" else "القناة الرسمية ✓",
+                                    text = if (isDevMode) "إدارة المطور ✓" else "القناة الرسمية ✓",
                                     color = Color(0xFF10B981),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -492,46 +486,6 @@ fun GithubXdeltaHubScreen(
                     if (isDevMode) {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // عرض التوكن
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF090E1A),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(16.dp))
-                                Text(
-                                    text = if (tokenInput.isBlank()) "بدون توكن (قناة عامة)" else if (showToken) tokenInput else "ghp_" + "•".repeat(24) + tokenInput.takeLast(6),
-                                    color = Color(0xFF94A3B8),
-                                    fontFamily = RobotoMonoFont,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            IconButton(onClick = { showToken = !showToken }, modifier = Modifier.size(24.dp)) {
-                                Icon(
-                                    if (showToken) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "إظهار",
-                                    tint = Color(0xFF64748B),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     // أزرار التحكم بالمستودع
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -579,13 +533,6 @@ fun GithubXdeltaHubScreen(
                                 value = repoInput,
                                 onValueChange = { repoInput = it },
                                 label = { Text("اسم المستودع (Repo)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = tokenInput,
-                                onValueChange = { tokenInput = it },
-                                label = { Text("توكن GitHub (PAT)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true
                             )

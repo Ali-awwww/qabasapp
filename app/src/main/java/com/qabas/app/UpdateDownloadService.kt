@@ -129,6 +129,7 @@ class UpdateDownloadService : Service() {
         if (p.percent == lastPercent) return
         lastPercent = p.percent
         val label = when (p.phase) {
+            UpdateManager.Phase.PREPARING_DELTA -> "جارٍ تجهيز التحديث التفاضلي من النسخة المثبتة…"
             UpdateManager.Phase.DOWNLOADING_DELTA -> "تنزيل تحديث صغير ${p.percent}٪"
             UpdateManager.Phase.APPLYING_PATCH -> "تطبيق التحديث الصغير…"
             UpdateManager.Phase.DOWNLOADING_FULL -> "تنزيل التحديث الكامل ${p.percent}٪"

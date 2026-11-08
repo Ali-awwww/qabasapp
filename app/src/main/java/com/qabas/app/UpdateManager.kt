@@ -61,11 +61,15 @@ object UpdateManager {
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             .getLong(PREF_LAST_CHECK, 0L)
 
-    // توكن مسرّب متقاعد: يُرفض في كل المسارات ولا يُرسل أبداً.
-    // (أبطل مفعوله من إعدادات GitHub أيضاً)
-    private const val RETIRED_LEAKED_TOKEN = "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"
+    // GitHub credentials are server-side only. The app never reads or caches a PAT.
+    fun isRetiredToken(token: String): Boolean = false
 
-    fun isRetiredToken(token: String): Boolean = token.trim() == RETIRED_LEAKED_TOKEN
+    suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
+        // Purge the legacy client-side token cache; privileged credentials are server-only.
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit().remove("github_token_cached").apply()
+        null
+    }
 
     fun getEffectiveRepo(context: Context): String {
         // قناة التحديث الرسمية إجبارية لغير المطور — لا يمكن لأي مستخدم
@@ -86,68 +90,7 @@ object UpdateManager {
         return DEFAULT_REPO
     }
 
-    suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val cachedToken = prefs.getString("github_token_cached", null)?.trim()
-            if (!cachedToken.isNullOrBlank()) {
-                if (isRetiredToken(cachedToken)) {
-                    Log.w(TAG, "⚠️ Retired leaked token found in cache — purging")
-                    prefs.edit().remove("github_token_cached").apply()
-                } else {
-                    Log.d(TAG, "✅ Using cached GitHub token")
-                    return@withContext cachedToken
-                }
-            }
-
-            val token = fetchGitHubTokenFromSupabase()
-            if (!token.isNullOrBlank() && !isRetiredToken(token)) {
-                Log.d(TAG, "✅ GitHub token fetched from Supabase")
-                prefs.edit().putString("github_token_cached", token).apply()
-                return@withContext token
-            }
-
-            Log.w(TAG, "⚠️ Could not fetch token, continuing without auth")
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ getEffectiveToken error: ${e.message}")
-            null
-        }
-    }
-
-    private suspend fun fetchGitHubTokenFromSupabase(): String? = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val supabase = SupabaseServices.client ?: return@withContext null
-
-            val response = supabase.postgrest
-                .from("app_secrets")
-                .select {
-                    filter {
-                        eq("secret_key", "github_token")
-                        eq("is_active", true)
-                    }
-                    limit(1)
-                }
-                .decodeSingleOrNull<AppSecret>()
-
-            if (response != null && response.secret_value.isNotBlank()) {
-                Log.d(TAG, "🔐 Token retrieved from Supabase")
-                return@withContext response.secret_value
-            }
-            null
-        } catch (e: Exception) {
-            Log.d(TAG, "fetchGitHubTokenFromSupabase skipped/denied: ${e.message}")
-            null
-        }
-    }
-
-    @Serializable
-    data class AppSecret(
-        val id: Long = 0,
-        val secret_key: String = "",
-        val secret_value: String = "",
-        val is_active: Boolean = true
-    )
+    // No PAT retrieval from app_secrets: privileged GitHub operations must be server-side.
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -402,7 +345,7 @@ object UpdateManager {
         val baseSha256Hash: String? = null
     )
 
-    enum class Phase { DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
+    enum class Phase { PREPARING_DELTA, DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
 
     data class DownloadProgress(
         val percent: Int,
@@ -1080,39 +1023,6 @@ object UpdateManager {
         }
     }
 
-    /**
-     * تشغيل سير توليد الديلتا على GitHub (workflow_dispatch) — للمطور فقط.
-     * يتطلب PAT بصلاحية actions:write. يرمي 204 عند القبول.
-     */
-    suspend fun dispatchDeltaWorkflow(        owner: String,
-        repo: String,
-        token: String,
-        targetTag: String,
-        prevTag: String?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val body = JSONObject()
-                .put("ref", "main")
-                .put("inputs", JSONObject()
-                    .put("target_tag", targetTag)
-                    .put("previous_tag", prevTag ?: ""))
-                .toString()
-                .toRequestBody("application/json".toMediaType())
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo/actions/workflows/xdelta--updates.yml/dispatches")
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "Qabas-Studio")
-                .header("Authorization", "Bearer $token")
-                .post(body)
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (resp.code == 204) return@withContext Result.success(Unit)
-                val errBody = resp.body?.string().orEmpty().take(200)
-                throw IllegalStateException("GitHub: ${resp.code} $errBody")
-            }
-        }
-    }
-
     fun downloadAndInstall(
         context: Context,
         update: UpdateInfo,
@@ -1139,9 +1049,13 @@ object UpdateManager {
                 val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
-                if (!forceFull && update.deltaUsable) {
-                    Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
-                    val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
+                val deltaCandidate = if (!forceFull && !update.deltaUsable) {
+                    requestOnDemandDelta(context, update, handle, emitProgress)
+                } else update
+
+                if (!forceFull && deltaCandidate != null && deltaCandidate.deltaUsable) {
+                    Log.d(TAG, "⚡ Trying delta (${formatSize(deltaCandidate.deltaSize)})…")
+                    val patched = tryDeltaUpdate(context, deltaCandidate, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
                         if (isApkValid(context, patched, update.versionCode) && isSha256Valid(patched, update.apkSha256)) {
                             withContext(Dispatchers.Main) {
@@ -1158,7 +1072,7 @@ object UpdateManager {
                                 }
                                 emitDone(
                                     true,
-                                    "تحديث صغير ${update.versionName} (${formatSize(update.deltaSize)} بدل ${formatSize(update.apkSize)})"
+                                    "تحديث صغير ${update.versionName} (${formatSize(deltaCandidate.deltaSize)} بدل ${formatSize(update.apkSize)})"
                                 )
                             }
                             return@launch
@@ -1223,6 +1137,86 @@ object UpdateManager {
         }
         return handle
     }
+
+
+    /**
+     * Ask the authenticated Supabase control plane for a patch matching the exact
+     * installed APK digest. Wait for a verified job result; on any timeout/failure
+     * the caller continues through the normal full-APK fallback.
+     */
+    private suspend fun requestOnDemandDelta(
+        context: Context,
+        update: UpdateInfo,
+        handle: DownloadHandle,
+        onProgress: (DownloadProgress) -> Unit
+    ): UpdateInfo? = withContext(Dispatchers.IO) {
+        try {
+            val baseVersionCode = getCurrentVersionCode(context)
+            if (baseVersionCode <= 0 || baseVersionCode >= update.versionCode) return@withContext null
+            val installedApk = File(context.applicationInfo.sourceDir)
+            if (!installedApk.isFile || installedApk.length() <= 0L) return@withContext null
+            val baseSha256 = calculateSha256(installedApk) ?: return@withContext null
+
+            onProgress(DownloadProgress(0, 0L, 0L, Phase.PREPARING_DELTA, 0L))
+            val requested = SupabaseServices.Database.requestOnDemandDelta(baseVersionCode, baseSha256)
+            if (requested.id.isBlank()) return@withContext null
+
+            var job = requested
+            val deadline = System.currentTimeMillis() + 20L * 60L * 1000L
+            while (!handle.cancelled && job.status != "ready" && job.status != "failed" &&
+                System.currentTimeMillis() < deadline
+            ) {
+                delay(8_000L)
+                job = runCatching {
+                    SupabaseServices.Database.getOnDemandDeltaStatus(requested.id)
+                }.onFailure {
+                    Log.w(TAG, "On-demand delta status retry: ${it.message}")
+                }.getOrDefault(job)
+            }
+
+            if (handle.cancelled || job.status != "ready") {
+                Log.w(TAG, "On-demand delta did not become ready (status=${job.status})")
+                return@withContext null
+            }
+            val deltaUrl = job.deltaUrl?.takeIf {
+                it.startsWith("https://github.com/Ali-awwww/qabasapp/releases/download/")
+            } ?: return@withContext null
+            val deltaSize = job.deltaSizeBytes ?: return@withContext null
+            val deltaSha = job.deltaSha256Hash?.takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
+                ?.lowercase() ?: return@withContext null
+            if (job.baseVersionCode != baseVersionCode || job.targetVersionCode != update.versionCode ||
+                deltaSize <= 0L || (update.apkSize > 0L && deltaSize >= update.apkSize)
+            ) {
+                Log.e(TAG, "Rejected on-demand delta metadata due to identity/size mismatch")
+                return@withContext null
+            }
+
+            update.copy(
+                deltaUrl = deltaUrl,
+                deltaSize = deltaSize,
+                checksum = deltaSha,
+                baseApkSha256 = baseSha256
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.w(TAG, "On-demand delta request unavailable; using full APK: ${error.message}")
+            null
+        }
+    }
+
+    private fun calculateSha256(file: File): String? = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }.getOrNull()
 
     private suspend fun tryDeltaUpdate(
         context: Context,
