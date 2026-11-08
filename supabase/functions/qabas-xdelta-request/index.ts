@@ -164,12 +164,13 @@ Deno.serve(async (req) => {
 
     const reservationExpires = new Date(Date.now() + 40 * 60 * 1000).toISOString();
     // Expired reservations are reclaimed; active reservations are immutable.
-    await admin.from("app_update_delta_cache").update({
+    const { error: reclaimError } = await admin.from("app_update_delta_cache").update({
       status: "building", job_id: job.id, delta_url: null, delta_size_bytes: null,
       delta_sha256_hash: null, expires_at: reservationExpires,
     }).eq("base_sha256_hash", baseSha)
       .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
       .lt("expires_at", new Date().toISOString());
+    if (reclaimError) throw reclaimError;
 
     const { error: reserveError } = await admin.from("app_update_delta_cache").upsert({
       base_sha256_hash: baseSha,
