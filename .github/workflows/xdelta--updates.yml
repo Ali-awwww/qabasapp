@@ -204,9 +204,9 @@ jobs:
             # منع الدلتا الذاتية: إذا كان أساس الدلتا مطابقاً للملف الهدف
             # (أساس قديم/مستبدل)، أي دلتا ستكون نسخة لاغية، فيُتخطّى ويُترك
             # التطبيق ينزّل الـ APK كاملاً بدلاً من ذلك.
-            PREV_MD5=$(md5sum "$PREV_APK" | awk '{print $1}')
-            TARGET_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
-            if [ "$PREV_MD5" = "$TARGET_MD5" ]; then
+            PREV_SHA256=$(sha256sum "$PREV_APK" | awk '{print $1}')
+            TARGET_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
+            if [ "$PREV_SHA256" = "$TARGET_SHA256" ]; then
               echo "⚠️ Base APK is byte-identical to target (stale base) — skipping delta to avoid a self-patch."
               echo "delta_created=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -221,14 +221,14 @@ jobs:
             VERIFY_APK="dist/verify-reconstructed.apk"
             xdelta3 -d -s "$PREV_APK" "$DELTA_PATH" "$VERIFY_APK"
 
-            ORIGINAL_MD5=$(md5sum "$TARGET_APK" | awk '{print $1}')
-            VERIFY_MD5=$(md5sum "$VERIFY_APK" | awk '{print $1}')
+            ORIGINAL_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
+            VERIFY_SHA256=$(sha256sum "$VERIFY_APK" | awk '{print $1}')
             rm -f "$VERIFY_APK"
 
-            if [ "$ORIGINAL_MD5" = "$VERIFY_MD5" ]; then
-              echo "✅ Patch verification successful! Checksums match 100%."
+            if [ "$ORIGINAL_SHA256" = "$VERIFY_SHA256" ]; then
+              echo "✅ Patch verification successful! SHA-256 checksums match 100%."
             else
-              echo "❌ Patch verification failed! MD5 mismatch."
+              echo "❌ Patch verification failed! SHA-256 mismatch."
               exit 1
             fi
 
