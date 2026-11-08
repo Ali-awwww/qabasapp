@@ -38,14 +38,6 @@ Deno.serve(async (req) => {
       return json({ error: "invalid_base_identity" }, 400);
     }
 
-    // Per-user request throttle: at most 5 requests in a rolling 10-minute window.
-    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { count, error: throttleError } = await admin.from("app_update_delta_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId).gte("created_at", cutoff);
-    if (throttleError) throw throttleError;
-    if ((count ?? 0) >= 5) return json({ error: "rate_limited" }, 429);
-
     const { data: base, error: baseError } = await admin.from("app_updates")
       .select("version_code, sha256_hash, release_tag, download_url")
       .eq("version_code", baseVersionCode).maybeSingle();
@@ -107,6 +99,14 @@ Deno.serve(async (req) => {
       if (cachedJobError) throw cachedJobError;
       return json({ job: cachedJob, reused: true, cache_hit: true });
     }
+
+    // Per-user request throttle: at most 5 requests in a rolling 10-minute window.
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { count, error: throttleError } = await admin.from("app_update_delta_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).gte("created_at", cutoff);
+    if (throttleError) throw throttleError;
+    if ((count ?? 0) >= 5) return json({ error: "rate_limited" }, 429);
 
     const { data: secret, error: secretError } = await admin.from("app_secrets")
       .select("secret_value").eq("secret_key", "github_token").eq("is_active", true)
