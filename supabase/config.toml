@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.qabas-gateway]
 verify_jwt = false
+
+[functions.qabas-xdelta-request]
+verify_jwt = false
+
+[functions.qabas-xdelta-status]
+verify_jwt = false
