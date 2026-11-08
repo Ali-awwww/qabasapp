@@ -238,8 +238,11 @@ Deno.serve(async (req) => {
     });
     if (dispatch.status !== 204) {
       await admin.from("app_update_delta_jobs").update({
-        status: "failed", error_code: "github_dispatch_failed", updated_at: new Date().toISOString(),
-      }).eq("id", job.id);
+        status: "failed", error_code: "github_dispatch_failed", expires_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq("base_sha256_hash", baseSha)
+        .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
+        .in("status", ["queued", "building"]);
       await admin.from("app_update_delta_cache").update({
         status: "failed", expires_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq("base_sha256_hash", baseSha)
