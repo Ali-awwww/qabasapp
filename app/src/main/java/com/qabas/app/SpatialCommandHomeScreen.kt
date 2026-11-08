@@ -1015,13 +1015,34 @@ private fun SpatialSpiritualBeacon(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        Text(
-                            text = "متبقي: ${formatRemainingTime(prayerTimes.millisUntilNextPrayer)} • 📍 ${selectedCity.nameAr}",
-                            color = TextSecondary,
-                            fontFamily = NotoSansFont,
-                            fontSize = 10.5.sp,
-                            maxLines = 1
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "متبقي:",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp
+                            )
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Text(
+                                    text = formatRemainingTime(prayerTimes.millisUntilNextPrayer),
+                                    color = primaryColor,
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "• 📍 ${selectedCity.nameAr}",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -2341,83 +2362,147 @@ private fun SpatialHudStatsHeader(
                     }
                 }
 
+                val isAm = calendar.get(Calendar.AM_PM) == Calendar.AM
+                val amPmLabel = if (isAm) "صباحًا" else "مساءً"
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Date panel: weekday is emphasized, followed by the full Arabic date.
+                    // 📅 بطاقة التقويم والتاريخ الموحدة (الهجري الفاخر والميلادي)
                     Surface(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF071526),
-                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.22f))
+                        modifier = Modifier
+                            .weight(1.08f)
+                            .fillMaxHeight(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF071424).copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.28f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
+                            val toolsEngine = remember(context) { MuslimToolsEngine(context) }
+                            val hijriDateStr = remember(currentTimeMillis) { toolsEngine.getHijriDate(currentTimeMillis) }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Event,
+                                    contentDescription = null,
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "التقويم والتاريخ",
+                                    color = primaryColor.copy(alpha = 0.85f),
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 10.sp,
+                                    maxLines = 1
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             Text(
-                                text = "التاريخ الميلادي",
-                                color = primaryColor.copy(alpha = 0.85f),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = formattedDate,
-                                color = TextPrimary,
+                                text = "🌙 $hijriDateStr",
+                                color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp,
-                                maxLines = 2,
-                                softWrap = true,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Text(
+                                text = formattedDate,
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // Live local clock. Seconds remain visible but are visually secondary.
+                    // ⏰ بطاقة الساعة الحية الرحبة بتصميم فضائي مريح بدون تداخل
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = primaryColor.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.38f))
+                        modifier = Modifier
+                            .weight(0.92f)
+                            .fillMaxHeight(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF071424).copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.28f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = "الوقت المحلي",
-                                color = primaryColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "الوقت الآن",
+                                    color = primaryColor,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 10.sp,
+                                    maxLines = 1
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                Row(verticalAlignment = Alignment.Bottom) {
+                                Row(
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Text(
                                         text = "$clockHour:$clockMinute",
                                         color = Color.White,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 19.sp,
+                                        fontSize = 20.sp,
+                                        letterSpacing = 0.5.sp,
                                         maxLines = 1
                                     )
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = ":$clockSecond",
                                         color = primaryColor,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(bottom = 2.dp),
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.padding(bottom = 2.5.dp),
                                         maxLines = 1
                                     )
                                 }
                             }
+
+                            Text(
+                                text = amPmLabel,
+                                color = accentColor,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
