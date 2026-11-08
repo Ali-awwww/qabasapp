@@ -17,7 +17,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
 
 /**
  * إشعار العدّاد التنازلي للأذان: يعرض الوقت المتبقي للصلاة القادمة ويُحدّث كل ثانية.
@@ -61,24 +60,37 @@ class AzanCountdownService : Service() {
         startForeground(NOTIF_ID, buildNotif("مواقيت الصلاة", "جارٍ حساب الصلاة القادمة…"))
         job?.cancel()
         job = scope.launch {
+            var lastPrayerName: String? = null
+            var lastTriggerMillis: Long? = null
             while (true) {
                 val next = findNextPrayer(applicationContext)
                 if (next == null) {
-                    updateNotif("مواقيت الصلاة", "فعّل مواقيت الصلاة من الإعدادات")
+                    if (lastPrayerName != null) {
+                        updateNotif("مواقيت الصلاة", "فعّل مواقيت الصلاة من الإعدادات")
+                        lastPrayerName = null
+                        lastTriggerMillis = null
+                    }
                     delay(60_000)
                     continue
                 }
                 val remaining = next.triggerMillis - System.currentTimeMillis()
                 if (remaining <= 0) {
-                    // 🔑 تجاوزنا الموعد: لا نشغّل الأذان هنا لتجنّب الازدواج مع المنبه الدقيق
-                    // (PrayerAlarmManager/PrayerAzanReceiver هو المسؤول الوحيد عن تشغيل الأذان)
+                    // لا نشغّل الأذان هنا لتجنّب الازدواج مع المنبه الدقيق.
                     PrayerAlarmManager.scheduleAllPrayers(applicationContext)
+                    lastPrayerName = null
+                    lastTriggerMillis = null
                     delay(5_000)
                     continue
                 }
-                updateNotif("المتبقي على ${next.prayerName}", formatRemaining(remaining))
-                // عدّاد لحظي حقيقي: تحديث كل ثانية ليعرض الثواني بدقة
-                delay(1_000)
+
+                // أندرويد يتولى تحديث الثواني عبر Chronometer؛ لا نعيد بناء الإشعار كل ثانية.
+                if (lastPrayerName != next.prayerName || lastTriggerMillis != next.triggerMillis) {
+                    updateCountdownNotif("المتبقي على ${next.prayerName}", next.triggerMillis)
+                    lastPrayerName = next.prayerName
+                    lastTriggerMillis = next.triggerMillis
+                }
+                // نعيد حساب الصلاة القادمة دورياً فقط لمواكبة تغيّر الإعدادات أو الوقت.
+                delay(60_000)
             }
         }
     }
@@ -93,7 +105,16 @@ class AzanCountdownService : Service() {
         nm.notify(NOTIF_ID, buildNotif(title, text))
     }
 
-    private fun buildNotif(title: String, text: String): android.app.Notification {
+    private fun updateCountdownNotif(title: String, targetMillis: Long) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotif(title, "الوقت المتبقي للصلاة", targetMillis))
+    }
+
+    private fun buildNotif(
+        title: String,
+        text: String,
+        countdownTargetMillis: Long? = null
+    ): android.app.Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("navigate_to", "prayer_times")
@@ -108,9 +129,16 @@ class AzanCountdownService : Service() {
             .setSmallIcon(R.drawable.ic_stat_qabas)
             .setColor(QabasNotificationHelper.BRAND_COLOR)
             .setContentTitle(title)
-            .setContentText(digitalSpan(text))
-            // صف واحد مضغوط: العدّاد يتغيّر كل ثانية فلا يليق بنص موسّع ولا بختم زمني متجدّد
-            .setShowWhen(false)
+            .setContentText(text)
+            // يحدّث النظام العدّ التنازلي كل ثانية دون إعادة إرسال الإشعار من الخدمة.
+            .setShowWhen(countdownTargetMillis != null)
+            .apply {
+                if (countdownTargetMillis != null) {
+                    setWhen(countdownTargetMillis)
+                    setUsesChronometer(true)
+                    setChronometerCountDown(true)
+                }
+            }
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -169,28 +197,6 @@ class AzanCountdownService : Service() {
             }
             best
         } catch (_: Exception) { null }
-    }
-
-    private fun formatRemaining(millis: Long): String {
-        val h = TimeUnit.MILLISECONDS.toHours(millis)
-        val m = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
-        val s = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
-        // Locale.US: أرقام لاتينية دائماً بدل الأرقام الهندية الافتراضية في لغة الجهاز،
-        // وشكل رقمي ثابت HH:MM:SS — قراءة عدّاد إلكتروني حديث
-        return String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s)
-    }
-
-    /** خط أحادي المسافة (Monospace) للأرقام فقط — مظهر شاشة رقمية */
-    private fun digitalSpan(text: String): CharSequence {
-        val isDigital = text.isNotEmpty() && text.all { it.isDigit() || it == ':' }
-        if (!isDigital) return text
-        return android.text.SpannableString(text).apply {
-            setSpan(
-                android.text.style.TypefaceSpan("monospace"),
-                0, length,
-                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
     }
 
     override fun onDestroy() {
