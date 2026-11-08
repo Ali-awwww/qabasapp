@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.qabas-xdelta-status]
 verify_jwt = false
+
+[functions.qabas-xdelta-callback]
+verify_jwt = false
