@@ -71,7 +71,10 @@ Deno.serve(async (req) => {
       .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
       .maybeSingle();
     if (existingError) throw existingError;
-    if (existing && existing.status !== "failed") return json({ job: existing, reused: true });
+    if (existing && existing.status !== "failed" &&
+        (existing.status !== "ready" || (existing.expires_at && Date.parse(existing.expires_at) > Date.now()))) {
+      return json({ job: existing, reused: true });
+    }
 
     // Reuse a previously verified patch for this exact base/target byte pair.
     const { data: cached, error: cacheError } = await admin.from("app_update_delta_cache")
@@ -121,6 +124,11 @@ Deno.serve(async (req) => {
       target_version_code: Number(target.version_code),
       target_sha256_hash: String(target.sha256_hash).toLowerCase(),
       status: "queued",
+      delta_url: null,
+      delta_size_bytes: null,
+      delta_sha256_hash: null,
+      error_code: null,
+      expires_at: null,
       updated_at: new Date().toISOString(),
     };
     const { data: job, error: insertError } = await admin.from("app_update_delta_jobs")
