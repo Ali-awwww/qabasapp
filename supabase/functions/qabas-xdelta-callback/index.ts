@@ -8,6 +8,7 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const callbackSecret = Deno.env.get("XDELTA_CALLBACK_SECRET") || "";
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -22,7 +23,7 @@ const validJobId = (value: unknown): value is string =>
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!serviceRoleKey || req.headers.get("Authorization") !== `Bearer ${serviceRoleKey}`) {
+  if (!callbackSecret || req.headers.get("Authorization") !== `Bearer ${callbackSecret}`) {
     return json({ error: "callback_authentication_failed" }, 401);
   }
 
