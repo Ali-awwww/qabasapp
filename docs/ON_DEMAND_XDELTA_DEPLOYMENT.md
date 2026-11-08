@@ -4,13 +4,14 @@ This feature is implemented in the repository but is **not enabled in the live S
 
 ## Required deployment sequence
 
-1. Apply the migrations that create `app_update_delta_jobs` and `app_update_delta_cache` to the Qabas Supabase project.
+1. Apply the migrations that create `app_update_delta_jobs`, `app_update_delta_cache`, and the restricted `replace_github_token` function to the Qabas Supabase project.
 2. Deploy Edge Functions:
    - `qabas-xdelta-request`
    - `qabas-xdelta-status`
    - `qabas-xdelta-callback`
    - `qabas-xdelta-admin-dispatch` (owner-only developer release workflow dispatch)
-3. Configure `QABAS_OWNER_EMAIL` for the admin dispatch function to match the owner account's authenticated email. Confirm the server-side `app_secrets` entry named `github_token` is active and its GitHub credential has Actions workflow-dispatch and release-asset write access for `Ali-awwww/qabasapp`.
+   - `qabas-xdelta-token-admin` (owner-only GitHub token status and secure save)
+3. Configure `QABAS_OWNER_EMAIL` for both XDelta admin functions to match the canonical owner account email (`admin@qabas.studio` by default in the Android owner guard). The developer-only XDelta screen sends a GitHub PAT to `qabas-xdelta-token-admin`; the function validates the token against the GitHub account and repository workflow, then stores it through the restricted `replace_github_token` database function. The PAT is never returned to Android or stored in local preferences. Use a fine-grained token scoped to `Ali-awwww/qabasapp` with **Actions: Read and write** and **Contents: Read**. The endpoint can verify account/repository workflow read access; workflow write permission must be confirmed by the owner before relying on dispatch.
 4. Add repository Actions secrets:
    - `SUPABASE_URL`: the Qabas Supabase project API URL.
    - `XDELTA_CALLBACK_SECRET`: a dedicated high-entropy callback secret. Configure the same value as a Supabase Edge Function secret and a GitHub Actions repository secret; do **not** use the project service-role key for this callback.
