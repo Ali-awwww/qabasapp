@@ -656,9 +656,9 @@ fun QabasSmartTipsBar(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(modifier = Modifier.weight(1f)) {
+            Box {
                 val selectedCategory = selectedCategoryFilter
                 val selectedCategoryTitle = selectedCategory?.title ?: "كل التصنيفات"
                 val selectedCategoryColor = selectedCategory?.accentColor ?: primaryColor
@@ -666,17 +666,16 @@ fun QabasSmartTipsBar(
                     .getTipsForUser(isDeveloper, selectedCategory, quranTips, bukhariHadiths)
                     .size
 
+                // زر التصنيفات الملموم غير الشفاف (Solid & Content-fitted Button)
                 Surface(
                     onClick = {
                         AppSoundManager.playClick()
                         isCategoryMenuExpanded = true
                     },
-                    shape = RoundedCornerShape(18.dp),
-                    color = selectedCategoryColor.copy(alpha = 0.13f),
-                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.58f)),
-                    modifier = Modifier
-                        .height(36.dp)
-                        .fillMaxWidth()
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF071424),
+                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.50f)),
+                    modifier = Modifier.height(36.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 11.dp),
@@ -695,13 +694,11 @@ fun QabasSmartTipsBar(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            maxLines = 1
                         )
                         Surface(
                             shape = CircleShape,
-                            color = selectedCategoryColor.copy(alpha = 0.18f)
+                            color = selectedCategoryColor.copy(alpha = 0.22f)
                         ) {
                             Text(
                                 text = selectedCategoryCount.toString(),
@@ -716,25 +713,20 @@ fun QabasSmartTipsBar(
                             imageVector = if (isCategoryMenuExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = if (isCategoryMenuExpanded) "إخفاء التصنيفات" else "عرض التصنيفات",
                             tint = selectedCategoryColor,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
 
+                // قائمة التصنيفات الشفافة الفاخرة (Transparent Glassmorphic Dropdown)
                 DropdownMenu(
                     expanded = isCategoryMenuExpanded,
                     onDismissRequest = { isCategoryMenuExpanded = false },
-                    modifier = Modifier
-                        .widthIn(min = 210.dp)
-                        .background(
-                            Color(0xF218263A),
-                            RoundedCornerShape(16.dp)
-                        )
-                        .border(
-                            1.dp,
-                            Color.White.copy(alpha = 0.16f),
-                            RoundedCornerShape(16.dp)
-                        )
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = Color(0xB8071322),
+                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.40f)),
+                    shadowElevation = 10.dp,
+                    modifier = Modifier.widthIn(min = 220.dp)
                 ) {
                     DropdownMenuItem(
                         text = {
@@ -801,6 +793,7 @@ fun QabasSmartTipsBar(
                 }
             }
 
+            // زر التدوير الحي المتناسق غير الشفاف (Solid Auto-Rotate Button)
             Surface(
                 onClick = {
                     AppSoundManager.playToggle()
@@ -812,11 +805,11 @@ fun QabasSmartTipsBar(
                         Toast.LENGTH_SHORT
                     ).show()
                 },
-                shape = RoundedCornerShape(18.dp),
-                color = if (isAutoRotating) primaryColor.copy(alpha = 0.14f) else Color(0xFF111827),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF071424),
                 border = BorderStroke(
                     1.dp,
-                    if (isAutoRotating) primaryColor.copy(alpha = 0.75f) else Color(0xFF475569).copy(alpha = 0.7f)
+                    if (isAutoRotating) primaryColor.copy(alpha = 0.55f) else Color(0xFF334155).copy(alpha = 0.7f)
                 ),
                 modifier = Modifier.height(36.dp)
             ) {
