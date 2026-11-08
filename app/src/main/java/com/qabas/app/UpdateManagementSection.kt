@@ -55,6 +55,7 @@ fun UpdateManagementSection() {
     var releaseNotes by remember { mutableStateOf("") }
     var isMandatory by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var githubError by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val selectedRelease = releases.firstOrNull { it.tagName == selectedTag }
@@ -64,23 +65,34 @@ fun UpdateManagementSection() {
     suspend fun refresh() {
         isLoading = true
         error = null
+        githubError = null
         try {
-            val fetchedReleases = UpdateManager.getAdminGitHubReleases(context).getOrThrow()
+            // Supabase is the source of truth for published/active updates.
+            // Load it independently so a GitHub outage cannot hide the live release.
             val fetchedHistory = SupabaseServices.Database.getAppUpdateHistoryOrThrow()
             val current = SupabaseServices.Database.getLatestActiveUpdateOrThrow()
-            val fetchedAudit = runCatching { SupabaseServices.Database.getAppUpdateAuditOrThrow() }.getOrDefault(emptyList())
-            releases = fetchedReleases
             history = fetchedHistory
-            audit = fetchedAudit
             activeUpdate = current
-            val nextSelection = fetchedReleases.firstOrNull {
-                it.versionCode > (fetchedHistory.maxOfOrNull { row -> row.versionCode } ?: 0)
+            audit = runCatching {
+                SupabaseServices.Database.getAppUpdateAuditOrThrow()
+            }.getOrDefault(emptyList())
+
+            // GitHub only supplies candidate releases. Preserve the last known list
+            // if this request fails; never interpret a timeout as "no APK releases".
+            try {
+                val fetchedReleases = UpdateManager.getAdminGitHubReleases(context).getOrThrow()
+                releases = fetchedReleases
+                val nextSelection = fetchedReleases.firstOrNull {
+                    it.versionCode > (fetchedHistory.maxOfOrNull { row -> row.versionCode } ?: 0)
+                }
+                selectedTag = nextSelection?.tagName
+                releaseNotes = nextSelection?.releaseNotes.orEmpty()
+                isMandatory = false
+            } catch (e: Exception) {
+                githubError = e.message ?: "تعذر جلب قائمة إصدارات GitHub"
             }
-            selectedTag = nextSelection?.tagName
-            releaseNotes = nextSelection?.releaseNotes.orEmpty()
-            isMandatory = false
         } catch (e: Exception) {
-            error = e.message ?: "تعذر تحميل بيانات الإصدارات"
+            error = e.message ?: "تعذر تحميل بيانات الإصدارات من Supabase"
         } finally {
             isLoading = false
         }
@@ -190,7 +202,16 @@ fun UpdateManagementSection() {
         }
 
         if (!error.isNullOrBlank()) {
-            item { Text("خطأ: $error", color = Color(0xFFF87171), fontSize = 12.sp) }
+            item { Text("خطأ في بيانات Supabase: $error", color = Color(0xFFF87171), fontSize = 12.sp) }
+        }
+        if (!githubError.isNullOrBlank()) {
+            item {
+                Text(
+                    "تعذر تحديث قائمة GitHub: $githubError. بيانات الإصدار المعتمد وسجل Supabase ما زالت معروضة.",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 12.sp
+                )
+            }
         }
         if (!message.isNullOrBlank()) {
             item { Text(message!!, color = Color(0xFF34D399), fontSize = 12.sp) }
@@ -204,7 +225,8 @@ fun UpdateManagementSection() {
         if (!isLoading && eligibleReleases.isEmpty()) {
             item {
                 Text(
-                    if (releases.isEmpty()) "لم يتم العثور على إصدارات منشورة تحتوي على APK صالح."
+                    if (githubError != null) "تعذر التحقق من إصدارات GitHub حالياً؛ أعد المحاولة لاحقاً. لا يعني ذلك عدم وجود APK."
+                    else if (releases.isEmpty()) "لم يتم العثور على إصدارات منشورة تحتوي على APK صالح."
                     else "لا توجد إصدارات أحدث من آخر بناء منشور في Supabase.",
                     color = Color.LightGray,
                     fontSize = 12.sp
