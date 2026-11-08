@@ -1023,39 +1023,6 @@ object UpdateManager {
         }
     }
 
-    /**
-     * تشغيل سير توليد الديلتا على GitHub (workflow_dispatch) — للمطور فقط.
-     * يتطلب PAT بصلاحية actions:write. يرمي 204 عند القبول.
-     */
-    suspend fun dispatchDeltaWorkflow(        owner: String,
-        repo: String,
-        token: String,
-        targetTag: String,
-        prevTag: String?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val body = JSONObject()
-                .put("ref", "main")
-                .put("inputs", JSONObject()
-                    .put("target_tag", targetTag)
-                    .put("previous_tag", prevTag ?: ""))
-                .toString()
-                .toRequestBody("application/json".toMediaType())
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo/actions/workflows/xdelta--updates.yml/dispatches")
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "Qabas-Studio")
-                .header("Authorization", "Bearer $token")
-                .post(body)
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (resp.code == 204) return@withContext Result.success(Unit)
-                val errBody = resp.body?.string().orEmpty().take(200)
-                throw IllegalStateException("GitHub: ${resp.code} $errBody")
-            }
-        }
-    }
-
     fun downloadAndInstall(
         context: Context,
         update: UpdateInfo,
