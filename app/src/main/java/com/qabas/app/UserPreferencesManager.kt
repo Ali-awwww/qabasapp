@@ -12,15 +12,15 @@ import com.qabas.app.ui.theme.AmiriFont
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.TajawalFont
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -281,8 +281,10 @@ object UserPreferencesManager {
 
     internal fun shouldReportSyncSuccess(
         saveSucceeded: Boolean,
-        hasPendingChanges: Boolean
-    ): Boolean = saveSucceeded && !hasPendingChanges
+        hasPendingChanges: Boolean,
+        revisionAtSyncStart: Long,
+        currentRevision: Long
+    ): Boolean = saveSucceeded && !hasPendingChanges && currentRevision == revisionAtSyncStart
 
     suspend fun syncToSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
         if (!_cloudSyncEnabled.value || !SupabaseServices.isSupabaseAvailable) {
@@ -307,6 +309,9 @@ object UserPreferencesManager {
                         revisionAtSyncStart = syncRevision,
                         currentRevision = pendingSyncRevision.get()
                     )
+                    if (success && pendingSyncRevision.get() != syncRevision) {
+                        hasPendingChanges = true
+                    }
 
                     // مزامنة الملف الشخصي محاولة مستقلة؛ لا تجعل فشلها يعلق مؤشر المزامنة.
                     val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
@@ -333,7 +338,12 @@ object UserPreferencesManager {
                         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                             .edit().putLong("last_sync_timestamp", now).apply()
                     }
-                    shouldReportSyncSuccess(success, hasPendingChanges)
+                    shouldReportSyncSuccess(
+                        saveSucceeded = success,
+                        hasPendingChanges = hasPendingChanges,
+                        revisionAtSyncStart = syncRevision,
+                        currentRevision = pendingSyncRevision.get()
+                    )
                 }
             } catch (cancelled: CancellationException) {
                 hasPendingChanges = true

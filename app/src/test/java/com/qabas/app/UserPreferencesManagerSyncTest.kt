@@ -70,7 +70,9 @@ class UserPreferencesManagerSyncTest {
         assertFalse(
             UserPreferencesManager.shouldReportSyncSuccess(
                 saveSucceeded = true,
-                hasPendingChanges = true
+                hasPendingChanges = true,
+                revisionAtSyncStart = 4L,
+                currentRevision = 4L
             )
         )
     }
@@ -80,13 +82,29 @@ class UserPreferencesManagerSyncTest {
         assertTrue(
             UserPreferencesManager.shouldReportSyncSuccess(
                 saveSucceeded = true,
-                hasPendingChanges = false
+                hasPendingChanges = false,
+                revisionAtSyncStart = 4L,
+                currentRevision = 4L
             )
         )
         assertFalse(
             UserPreferencesManager.shouldReportSyncSuccess(
                 saveSucceeded = false,
-                hasPendingChanges = false
+                hasPendingChanges = false,
+                revisionAtSyncStart = 4L,
+                currentRevision = 4L
+            )
+        )
+    }
+
+    @Test
+    fun syncSuccessIsNotReportedWhenRevisionAdvancedEvenIfPendingFlagHasNotUpdatedYet() {
+        assertFalse(
+            UserPreferencesManager.shouldReportSyncSuccess(
+                saveSucceeded = true,
+                hasPendingChanges = false,
+                revisionAtSyncStart = 4L,
+                currentRevision = 5L
             )
         )
     }
