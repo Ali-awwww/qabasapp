@@ -368,6 +368,12 @@ fun GithubXdeltaHubScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
+            // Credential management is visible only to the canonical owner account.
+            // The Edge Function independently enforces the same owner identity.
+            if (AdminGuard.isCloudUserOwner()) {
+                XdeltaGitHubTokenCard()
+            }
+
             // 1️⃣ بطاقة هوية المستودع والاتصال المباشر (Spatial HUD Connectivity Banner)
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),

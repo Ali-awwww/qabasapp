@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.qabas-xdelta-admin-dispatch]
 verify_jwt = false
+
+[functions.qabas-xdelta-token-admin]
+verify_jwt = false
