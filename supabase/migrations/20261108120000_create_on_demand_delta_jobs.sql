@@ -19,7 +19,7 @@ create table if not exists public.app_update_delta_jobs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   expires_at timestamptz,
-  unique (base_sha256_hash, target_sha256_hash)
+  unique (user_id, base_sha256_hash, target_sha256_hash)
 );
 
 create index if not exists app_update_delta_jobs_user_created_idx
