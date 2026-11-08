@@ -20,7 +20,7 @@ object MuezzinVoiceManager {
     // Local metadata and account-owned cloud voice cache are private to the signed-in account.
     // Personal cloud audio objects are stored in the owner's private Supabase Storage bucket.
     private fun customPrefs(context: Context): android.content.SharedPreferences {
-        val accountId = Auth.getCurrentUserId()
+        val accountId = SupabaseServices.Auth.getCurrentUserId()
         val scopedName = "${PREFS_NAME}_${accountId ?: "device"}"
         val scoped = context.getSharedPreferences(scopedName, Context.MODE_PRIVATE)
 
