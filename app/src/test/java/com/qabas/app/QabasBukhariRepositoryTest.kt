@@ -6,6 +6,14 @@ import org.junit.Test
 
 class QabasBukhariRepositoryTest {
     @Test
+    fun `rejects empty or unsupported imported JSON instead of returning an empty hadith list`() {
+        for (input in listOf("", "{}", "null")) {
+            val result = runCatching { QabasBukhariRepository.parse(input) }
+            assertTrue("Expected invalid input to be rejected: $input", result.isFailure)
+        }
+    }
+
+    @Test
     fun `maps canonical hadith and chapter metadata into tips model`() {
         val book = FullSahihBook(
             metadata = FullSahihBook.Metadata(
