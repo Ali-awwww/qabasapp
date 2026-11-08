@@ -365,11 +365,15 @@ fun AppNavigation(
             )
         }
         AppState.PRO_EDITOR -> {
-            StudioProEditorScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                onSave = {
-                    viewModel.updateState { copy(appState = AppState.PROJECTS) }
-                }
+            UnifiedEditorScreen(
+                initialTab = EDITOR_TAB_PRO,
+                scenes = state.scenesToProcess?.takeIf { it.isNotEmpty() } ?: state.libraryScenes,
+                onScenesApplied = { updatedScenes ->
+                    viewModel.updateState { copy(libraryScenes = updatedScenes, scenesToProcess = updatedScenes, appState = AppState.REVIEW) }
+                },
+                onExit = { viewModel.updateState { copy(appState = AppState.REVIEW) } },
+                onProEditorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onProEditorSave = { viewModel.updateState { copy(appState = AppState.PROJECTS) } }
             )
         }
         AppState.SOCIAL_STATS -> {
@@ -772,12 +776,15 @@ fun AppNavigation(
             val scenesToEdit = (state.scenesToProcess?.takeIf { it.isNotEmpty() } ?: state.libraryScenes).ifEmpty {
                 listOf(Scene("المقدمة", "مشهد افتتاحي", 3))
             }
-            TranscriptVideoEditorScreen(
+            UnifiedEditorScreen(
+                initialTab = EDITOR_TAB_TRANSCRIPT,
                 scenes = scenesToEdit,
-                onBack = { viewModel.updateState { copy(appState = AppState.REVIEW) } },
-                onApply = { updatedScenes ->
+                onScenesApplied = { updatedScenes ->
                     viewModel.updateState { copy(libraryScenes = updatedScenes, scenesToProcess = updatedScenes, appState = AppState.REVIEW) }
-                }
+                },
+                onExit = { viewModel.updateState { copy(appState = AppState.REVIEW) } },
+                onProEditorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onProEditorSave = { viewModel.updateState { copy(appState = AppState.PROJECTS) } }
             )
         }
         AppState.QASAS -> {
@@ -815,10 +822,10 @@ fun AppNavigation(
                     Scene("الخاتمة", "خاتمة هادئة مع شعار التطبيق", 4)
                 )
             }
-            AdvancedEditScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.REVIEW) } },
+            UnifiedEditorScreen(
+                initialTab = EDITOR_TAB_ADVANCED,
                 scenes = scenesToEdit,
-                onUpdateScenes = { updatedScenes ->
+                onScenesApplied = { updatedScenes ->
                     viewModel.updateState {
                         copy(
                             libraryScenes = updatedScenes,
@@ -826,7 +833,10 @@ fun AppNavigation(
                             appState = AppState.REVIEW
                         )
                     }
-                }
+                },
+                onExit = { viewModel.updateState { copy(appState = AppState.REVIEW) } },
+                onProEditorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onProEditorSave = { viewModel.updateState { copy(appState = AppState.PROJECTS) } }
             )
         }
         AppState.PAYMENT -> {
