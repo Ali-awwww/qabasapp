@@ -279,6 +279,11 @@ object UserPreferencesManager {
         currentRevision: Long
     ): Boolean = !saveSucceeded || currentRevision != revisionAtSyncStart
 
+    internal fun shouldReportSyncSuccess(
+        saveSucceeded: Boolean,
+        hasPendingChanges: Boolean
+    ): Boolean = saveSucceeded && !hasPendingChanges
+
     suspend fun syncToSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
         if (!_cloudSyncEnabled.value || !SupabaseServices.isSupabaseAvailable) {
             return@withContext false
@@ -328,7 +333,7 @@ object UserPreferencesManager {
                         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                             .edit().putLong("last_sync_timestamp", now).apply()
                     }
-                    success
+                    shouldReportSyncSuccess(success, hasPendingChanges)
                 }
             } catch (cancelled: CancellationException) {
                 hasPendingChanges = true

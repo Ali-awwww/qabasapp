@@ -66,6 +66,32 @@ class UserPreferencesManagerSyncTest {
     }
 
     @Test
+    fun syncSuccessIsNotReportedWhileLatestChangesRemainPending() {
+        assertFalse(
+            UserPreferencesManager.shouldReportSyncSuccess(
+                saveSucceeded = true,
+                hasPendingChanges = true
+            )
+        )
+    }
+
+    @Test
+    fun syncSuccessRequiresBackendSaveAndNoPendingChanges() {
+        assertTrue(
+            UserPreferencesManager.shouldReportSyncSuccess(
+                saveSucceeded = true,
+                hasPendingChanges = false
+            )
+        )
+        assertFalse(
+            UserPreferencesManager.shouldReportSyncSuccess(
+                saveSucceeded = false,
+                hasPendingChanges = false
+            )
+        )
+    }
+
+    @Test
     fun failedSyncAlwaysKeepsPending() {
         assertTrue(
             UserPreferencesManager.shouldKeepPendingChanges(
