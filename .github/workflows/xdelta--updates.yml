@@ -256,6 +256,12 @@ jobs:
 
             DELTA_SIZE=$(stat -c%s "$DELTA_PATH")
             TARGET_SIZE=$(stat -c%s "$TARGET_APK")
+            if [ "$DELTA_SIZE" -ge "$TARGET_SIZE" ]; then
+              echo "Delta is not smaller than the full APK; discard it and use full APK fallback."
+              rm -f "$DELTA_PATH"
+              echo "delta_created=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             SAVINGS=$(( (TARGET_SIZE - DELTA_SIZE) * 100 / TARGET_SIZE ))
             echo "🎉 Delta generated: $DELTA_PATH ($DELTA_SIZE bytes)"
             echo "🚀 Bandwidth savings: ${SAVINGS}% compared to full APK!"
