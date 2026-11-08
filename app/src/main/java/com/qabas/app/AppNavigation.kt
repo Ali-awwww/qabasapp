@@ -759,9 +759,10 @@ fun AppNavigation(
             )
         }
         AppState.REVIEW -> {
-            ReviewScreen(
+            UnifiedPublishScreen(
+                initialTab = PUBLISH_TAB_REVIEW,
                 state = state,
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onUpdateScenes = { updatedScenes ->
                     viewModel.updateState { copy(libraryScenes = updatedScenes, scenesToProcess = updatedScenes) }
                 },
@@ -769,7 +770,19 @@ fun AppNavigation(
                     viewModel.updateState { copy(ambientSound = sound) }
                 },
                 onAdvancedEdit = { viewModel.updateState { copy(appState = AppState.TRANSCRIPT_EDIT) } },
-                onApprove = { viewModel.updateState { copy(appState = AppState.SAVE_SHARE) } }
+                onApprove = { viewModel.updateState { copy(appState = AppState.SAVE_SHARE) } },
+                onBackToEditor = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onStartSeries = {
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.INPUT,
+                            inputText = "",
+                            mediaResources = emptyList(),
+                            libraryScenes = emptyList()
+                        )
+                    }
+                },
+                onRequireLogin = { viewModel.updateState { copy(appState = AppState.LOGIN) } }
             )
         }
         AppState.TRANSCRIPT_EDIT -> {
@@ -846,28 +859,22 @@ fun AppNavigation(
             )
         }
         AppState.SAVE_SHARE -> {
-            if (state.libraryScenes.isEmpty() && state.finalVideoPath.isBlank()) {
-                ReviewScreen(
-                    state = state,
-                    onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                    onUpdateScenes = { updatedScenes ->
-                        viewModel.updateState { copy(libraryScenes = updatedScenes, scenesToProcess = updatedScenes) }
-                    },
-                    onUpdateAmbientSound = { sound ->
-                        viewModel.updateState { copy(ambientSound = sound) }
-                    },
-                    onAdvancedEdit = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
-                    onApprove = { viewModel.updateState { copy(appState = AppState.SAVE_SHARE) } }
-                )
-            } else {
-            SaveShareScreen(
-                scriptText = state.inputText,
-                videoDuration = state.videoDuration,
-                selectedRatio = state.selectedRatio,
-                scenes = state.libraryScenes,
-                ambientSound = state.ambientSound,
-                videoStyleAnalysis = state.videoStyleAnalysis,
-                onBackToHome = { viewModel.updateState { copy(appState = AppState.HOME) } },
+            UnifiedPublishScreen(
+                initialTab = if (state.libraryScenes.isEmpty() && state.finalVideoPath.isBlank()) {
+                    PUBLISH_TAB_REVIEW
+                } else {
+                    PUBLISH_TAB_EXPORT
+                },
+                state = state,
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onUpdateScenes = { updatedScenes ->
+                    viewModel.updateState { copy(libraryScenes = updatedScenes, scenesToProcess = updatedScenes) }
+                },
+                onUpdateAmbientSound = { sound ->
+                    viewModel.updateState { copy(ambientSound = sound) }
+                },
+                onAdvancedEdit = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onApprove = { viewModel.updateState { copy(appState = AppState.SAVE_SHARE) } },
                 onBackToEditor = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
                 onStartSeries = {
                     viewModel.updateState {
@@ -878,9 +885,9 @@ fun AppNavigation(
                             libraryScenes = emptyList()
                         )
                     }
-                }
+                },
+                onRequireLogin = { viewModel.updateState { copy(appState = AppState.LOGIN) } }
             )
-            }
         }
         AppState.SMART_DIRECTOR -> {
             UnifiedBriefScreen(
