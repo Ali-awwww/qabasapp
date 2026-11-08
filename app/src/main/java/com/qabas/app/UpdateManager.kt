@@ -64,7 +64,12 @@ object UpdateManager {
     // GitHub credentials are server-side only. The app never reads or caches a PAT.
     fun isRetiredToken(token: String): Boolean = false
 
-    suspend fun getEffectiveToken(context: Context): String? = null
+    suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
+        // Purge the legacy client-side token cache; privileged credentials are server-only.
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit().remove("github_token_cached").apply()
+        null
+    }
 
     fun getEffectiveRepo(context: Context): String {
         // قناة التحديث الرسمية إجبارية لغير المطور — لا يمكن لأي مستخدم
