@@ -13,6 +13,18 @@ on:
         description: 'Previous Release Tag (leave empty for automatic detection)'
         required: false
         default: ''
+      job_id:
+        description: 'On-demand delta job identifier'
+        required: false
+        default: ''
+      expected_base_sha256:
+        description: 'Approved base APK SHA-256'
+        required: false
+        default: ''
+      expected_target_sha256:
+        description: 'Approved target APK SHA-256'
+        required: false
+        default: ''
 
 concurrency:
   group: xdelta-release-${{ github.ref }}
