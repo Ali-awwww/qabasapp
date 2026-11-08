@@ -340,7 +340,7 @@ object UpdateManager {
         val baseSha256Hash: String? = null
     )
 
-    enum class Phase { DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
+    enum class Phase { PREPARING_DELTA, DOWNLOADING_DELTA, APPLYING_PATCH, DOWNLOADING_FULL }
 
     data class DownloadProgress(
         val percent: Int,
@@ -1077,9 +1077,13 @@ object UpdateManager {
                 val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
-                if (!forceFull && update.deltaUsable) {
-                    Log.d(TAG, "⚡ Trying delta (${formatSize(update.deltaSize)})…")
-                    val patched = tryDeltaUpdate(context, update, updatesDir, resolvedAuthToken, handle, emitProgress)
+                val deltaCandidate = if (!forceFull && !update.deltaUsable) {
+                    requestOnDemandDelta(context, update, handle, emitProgress)
+                } else update
+
+                if (!forceFull && deltaCandidate != null && deltaCandidate.deltaUsable) {
+                    Log.d(TAG, "⚡ Trying delta (${formatSize(deltaCandidate.deltaSize)})…")
+                    val patched = tryDeltaUpdate(context, deltaCandidate, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
                         if (isApkValid(context, patched, update.versionCode) && isSha256Valid(patched, update.apkSha256)) {
                             withContext(Dispatchers.Main) {
@@ -1096,7 +1100,7 @@ object UpdateManager {
                                 }
                                 emitDone(
                                     true,
-                                    "تحديث صغير ${update.versionName} (${formatSize(update.deltaSize)} بدل ${formatSize(update.apkSize)})"
+                                    "تحديث صغير ${update.versionName} (${formatSize(deltaCandidate.deltaSize)} بدل ${formatSize(update.apkSize)})"
                                 )
                             }
                             return@launch
@@ -1161,6 +1165,86 @@ object UpdateManager {
         }
         return handle
     }
+
+
+    /**
+     * Ask the authenticated Supabase control plane for a patch matching the exact
+     * installed APK digest. Wait for a verified job result; on any timeout/failure
+     * the caller continues through the normal full-APK fallback.
+     */
+    private suspend fun requestOnDemandDelta(
+        context: Context,
+        update: UpdateInfo,
+        handle: DownloadHandle,
+        onProgress: (DownloadProgress) -> Unit
+    ): UpdateInfo? = withContext(Dispatchers.IO) {
+        try {
+            val baseVersionCode = getCurrentVersionCode(context)
+            if (baseVersionCode <= 0 || baseVersionCode >= update.versionCode) return@withContext null
+            val installedApk = File(context.applicationInfo.sourceDir)
+            if (!installedApk.isFile || installedApk.length() <= 0L) return@withContext null
+            val baseSha256 = calculateSha256(installedApk) ?: return@withContext null
+
+            onProgress(DownloadProgress(0, 0L, 0L, Phase.PREPARING_DELTA, 0L))
+            val requested = SupabaseServices.Database.requestOnDemandDelta(baseVersionCode, baseSha256)
+            if (requested.id.isBlank()) return@withContext null
+
+            var job = requested
+            val deadline = System.currentTimeMillis() + 20L * 60L * 1000L
+            while (!handle.cancelled && job.status != "ready" && job.status != "failed" &&
+                System.currentTimeMillis() < deadline
+            ) {
+                delay(8_000L)
+                job = runCatching {
+                    SupabaseServices.Database.getOnDemandDeltaStatus(requested.id)
+                }.onFailure {
+                    Log.w(TAG, "On-demand delta status retry: ${it.message}")
+                }.getOrDefault(job)
+            }
+
+            if (handle.cancelled || job.status != "ready") {
+                Log.w(TAG, "On-demand delta did not become ready (status=${job.status})")
+                return@withContext null
+            }
+            val deltaUrl = job.deltaUrl?.takeIf {
+                it.startsWith("https://github.com/Ali-awwww/qabasapp/releases/download/")
+            } ?: return@withContext null
+            val deltaSize = job.deltaSizeBytes ?: return@withContext null
+            val deltaSha = job.deltaSha256Hash?.takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
+                ?.lowercase() ?: return@withContext null
+            if (job.baseVersionCode != baseVersionCode || job.targetVersionCode != update.versionCode ||
+                deltaSize <= 0L || (update.apkSize > 0L && deltaSize >= update.apkSize)
+            ) {
+                Log.e(TAG, "Rejected on-demand delta metadata due to identity/size mismatch")
+                return@withContext null
+            }
+
+            update.copy(
+                deltaUrl = deltaUrl,
+                deltaSize = deltaSize,
+                checksum = deltaSha,
+                baseApkSha256 = baseSha256
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.w(TAG, "On-demand delta request unavailable; using full APK: ${error.message}")
+            null
+        }
+    }
+
+    private fun calculateSha256(file: File): String? = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }.getOrNull()
 
     private suspend fun tryDeltaUpdate(
         context: Context,
