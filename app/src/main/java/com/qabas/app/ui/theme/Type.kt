@@ -5,48 +5,41 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.googlefonts.GoogleFont
-import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.font.Font
 import com.qabas.app.R
 
-val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-
-val NotoSansFont = FontFamily(
-    Font(googleFont = GoogleFont("Noto Sans Arabic"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Noto Sans Arabic"), fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = GoogleFont("Noto Sans"), fontProvider = provider, weight = FontWeight.Normal), // Fallback
-    Font(googleFont = GoogleFont("Noto Sans"), fontProvider = provider, weight = FontWeight.Medium)
-)
-
-val TajawalFont = FontFamily(
-    Font(googleFont = GoogleFont("Tajawal"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Tajawal"), fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = GoogleFont("Tajawal"), fontProvider = provider, weight = FontWeight.Bold)
+val AmiriFont = FontFamily(
+    Font(R.font.amiri_regular, weight = FontWeight.Normal),
+    Font(R.font.amiri_regular, weight = FontWeight.Bold)
 )
 
 val CairoFont = FontFamily(
-    Font(googleFont = GoogleFont("Cairo"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Cairo"), fontProvider = provider, weight = FontWeight.Bold)
+    Font(R.font.cairo_regular, weight = FontWeight.Normal),
+    Font(R.font.cairo_regular, weight = FontWeight.Bold)
 )
 
-val AmiriFont = FontFamily(
-    Font(googleFont = GoogleFont("Amiri"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Amiri"), fontProvider = provider, weight = FontWeight.Bold)
+val TajawalFont = FontFamily(
+    Font(R.font.tajawal_regular, weight = FontWeight.Normal),
+    Font(R.font.tajawal_regular, weight = FontWeight.Bold)
 )
 
 val ReemKufiFont = FontFamily(
-    Font(googleFont = GoogleFont("Reem Kufi"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Reem Kufi"), fontProvider = provider, weight = FontWeight.Bold)
+    Font(R.font.reem_kufi_regular, weight = FontWeight.Normal),
+    Font(R.font.reem_kufi_regular, weight = FontWeight.Bold)
 )
 
-val RobotoMonoFont = FontFamily(
-    Font(googleFont = GoogleFont("Roboto Mono"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Roboto Mono"), fontProvider = provider, weight = FontWeight.Medium)
+val ScheherazadeFont = FontFamily(
+    Font(R.font.scheherazade_regular, weight = FontWeight.Normal),
+    Font(R.font.scheherazade_regular, weight = FontWeight.Bold)
 )
+
+val ArefRuqaaFont = FontFamily(
+    Font(R.font.aref_ruqaa_regular, weight = FontWeight.Normal),
+    Font(R.font.aref_ruqaa_regular, weight = FontWeight.Bold)
+)
+
+val RobotoMonoFont = FontFamily.Monospace
+val NotoSansFont = CairoFont
 
 val Typography = Typography(
     displayLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Normal, fontSize = 24.sp, lineHeight = 64.sp),

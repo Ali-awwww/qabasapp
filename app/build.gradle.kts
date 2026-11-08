@@ -24,10 +24,6 @@ android {
     versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 105
     versionName = (project.findProperty("appVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.3.7"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    ndk {
-      // Build the native xdelta engine for the ABIs required by the APK verification workflow.
-      abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-    }
 
     // Safe secret resolution for GitHub OAuth keys
     val resolveSecret = { key: String ->
@@ -98,13 +94,6 @@ android {
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
-  }
-
-  externalNativeBuild {
-    cmake {
-      path = file("src/main/cpp/CMakeLists.txt")
-      version = "3.22.1"
-    }
   }
 
   packaging {

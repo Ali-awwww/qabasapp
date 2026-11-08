@@ -2283,7 +2283,7 @@ private fun SpatialHudStatsHeader(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(44.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
@@ -2303,10 +2303,10 @@ private fun SpatialHudStatsHeader(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column(
                             modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             Text(
                                 text = "مرحبًا بك",
@@ -2321,7 +2321,7 @@ private fun SpatialHudStatsHeader(
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis
@@ -2329,7 +2329,7 @@ private fun SpatialHudStatsHeader(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Surface(
                             onClick = onLocateAndChooseCity,
@@ -2348,6 +2348,7 @@ private fun SpatialHudStatsHeader(
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             text = selectedCity.nameAr,
                             color = primaryColor.copy(alpha = 0.9f),
@@ -2357,7 +2358,7 @@ private fun SpatialHudStatsHeader(
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 72.dp)
+                            modifier = Modifier.widthIn(max = 76.dp)
                         )
                     }
                 }
@@ -2372,137 +2373,222 @@ private fun SpatialHudStatsHeader(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 📅 بطاقة التقويم والتاريخ الموحدة (الهجري الفاخر والميلادي)
+                    // 📅 بطاقة التقويم الرقمية الحديثة مع شارة اليوم المستقلة وخط أميري الأصيل
                     Surface(
                         modifier = Modifier
-                            .weight(1.08f)
+                            .weight(1.12f)
                             .fillMaxHeight(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = Color(0xFF071424).copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.28f))
+                        border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.40f)),
+                        shadowElevation = 6.dp
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 11.dp),
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             val toolsEngine = remember(context) { MuslimToolsEngine(context) }
-                            val hijriDateStr = remember(currentTimeMillis) { toolsEngine.getHijriDate(currentTimeMillis) }
+                            val hijriComp = remember(currentTimeMillis) { toolsEngine.getHijriComponents(currentTimeMillis) }
 
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Event,
-                                    contentDescription = null,
-                                    tint = primaryColor,
-                                    modifier = Modifier.size(13.dp)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Event,
+                                        contentDescription = null,
+                                        tint = GoldPrimary,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "التقويم الهجري",
+                                        color = GoldPrimary,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                }
+
                                 Text(
-                                    text = "التقويم والتاريخ",
-                                    color = primaryColor.copy(alpha = 0.85f),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 10.sp,
-                                    maxLines = 1
+                                    text = "🌙",
+                                    fontSize = 11.sp
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            Text(
-                                text = "🌙 $hijriDateStr",
-                                color = GoldPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            // المحتوى المدمج: شارة اليوم المستقلة + اسم الشهر والسنة بخط أميري الأصيل
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // 🌟 شارة اليوم المستقلة (Independent Day Badge)
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF0F1E36),
+                                    border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.65f)),
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = "اليوم",
+                                            color = GoldPrimary.copy(alpha = 0.85f),
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 7.5.sp,
+                                            lineHeight = 9.sp
+                                        )
+                                        Text(
+                                            text = hijriComp.day,
+                                            color = Color.White,
+                                            fontFamily = RobotoMonoFont,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 16.sp,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                }
 
-                            Text(
-                                text = formattedDate,
-                                color = TextSecondary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 10.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                                // تفاصيل الشهر والسنة الهجرية بخط أميري الأصيل
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
+                                    Text(
+                                        text = "${hijriComp.monthName} ${hijriComp.year}",
+                                        color = Color(0xFFFDE68A),
+                                        fontFamily = AmiriFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = formattedDate,
+                                        color = Color.White.copy(alpha = 0.70f),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 9.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // ⏰ بطاقة الساعة الحية الرحبة بتصميم فضائي مريح بدون تداخل
+                    // ⏰ بطاقة الوقت الرقمي الحديث (عداد رقمي ناصع ومتطور)
                     Surface(
                         modifier = Modifier
-                            .weight(0.92f)
+                            .weight(0.88f)
                             .fillMaxHeight(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = Color(0xFF071424).copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.28f))
+                        border = BorderStroke(1.2.dp, primaryColor.copy(alpha = 0.38f)),
+                        shadowElevation = 6.dp
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Schedule,
-                                    contentDescription = null,
-                                    tint = primaryColor,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Text(
-                                    text = "الوقت الآن",
-                                    color = primaryColor,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 10.sp,
-                                    maxLines = 1
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                                 Row(
-                                    verticalAlignment = Alignment.Bottom,
-                                    horizontalArrangement = Arrangement.Center
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        tint = primaryColor,
+                                        modifier = Modifier.size(12.dp)
+                                    )
                                     Text(
-                                        text = "$clockHour:$clockMinute",
-                                        color = Color.White,
-                                        fontFamily = RobotoMonoFont,
+                                        text = "الوقت الآن",
+                                        color = primaryColor,
+                                        fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 20.sp,
-                                        letterSpacing = 0.5.sp,
+                                        fontSize = 10.sp,
                                         maxLines = 1
                                     )
-                                    Spacer(modifier = Modifier.width(3.dp))
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = accentColor.copy(alpha = 0.20f),
+                                    border = BorderStroke(0.6.dp, accentColor.copy(alpha = 0.55f))
+                                ) {
                                     Text(
-                                        text = ":$clockSecond",
-                                        color = primaryColor,
-                                        fontFamily = RobotoMonoFont,
+                                        text = amPmLabel,
+                                        color = accentColor,
+                                        fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.5.sp,
-                                        modifier = Modifier.padding(bottom = 2.5.dp),
-                                        maxLines = 1
+                                        fontSize = 8.5.sp,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                                     )
                                 }
                             }
 
-                            Text(
-                                text = amPmLabel,
-                                color = accentColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // عداد رقمي ناصع بنمط هولوجرافي فائق الدقة
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF040A14),
+                                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.30f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                    Row(
+                                        modifier = Modifier.padding(vertical = 5.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "$clockHour:$clockMinute",
+                                            color = Color.White,
+                                            fontFamily = RobotoMonoFont,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 18.sp,
+                                            letterSpacing = 1.sp,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = primaryColor.copy(alpha = 0.18f),
+                                            modifier = Modifier.padding(bottom = 0.5.dp)
+                                        ) {
+                                            Text(
+                                                text = ":$clockSecond",
+                                                color = primaryColor,
+                                                fontFamily = RobotoMonoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

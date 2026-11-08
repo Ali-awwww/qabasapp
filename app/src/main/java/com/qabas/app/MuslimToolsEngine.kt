@@ -183,7 +183,9 @@ class MuslimToolsEngine(context: Context) {
     }
 
     // --- Hijri Calendar Logic ---
-    fun getHijriDate(timeMillis: Long = System.currentTimeMillis()): String {
+    data class HijriDateComponents(val day: String, val monthName: String, val year: String, val fullFormatted: String)
+
+    fun getHijriComponents(timeMillis: Long = System.currentTimeMillis()): HijriDateComponents {
         val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
         val day = cal.get(Calendar.DAY_OF_MONTH)
         val month = cal.get(Calendar.MONTH) + 1
@@ -204,7 +206,17 @@ class MuslimToolsEngine(context: Context) {
         val hDay = (lDoublePrime - floor((709 * hMonth) / 24.0)).toInt()
         val hYear = (30 * n + j - 30).toInt()
         val hijriMonthsAr = listOf("محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة")
-        return "$hDay ${hijriMonthsAr.getOrElse(hMonth - 1) { "رمضان" }} $hYear هـ"
+        val monthName = hijriMonthsAr.getOrElse(hMonth - 1) { "رمضان" }
+        return HijriDateComponents(
+            day = hDay.toString(),
+            monthName = monthName,
+            year = "$hYear هـ",
+            fullFormatted = "$hDay $monthName $hYear هـ"
+        )
+    }
+
+    fun getHijriDate(timeMillis: Long = System.currentTimeMillis()): String {
+        return getHijriComponents(timeMillis).fullFormatted
     }
 
     // --- Islamic Events ---
