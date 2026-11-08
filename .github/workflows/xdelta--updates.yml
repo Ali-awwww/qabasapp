@@ -128,17 +128,21 @@ jobs:
         id: resolve-tags
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG_INPUT: ${{ inputs.target_tag }}
+          PREV_TAG_INPUT: ${{ inputs.previous_tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          TARGET_TAG="${{ github.event.inputs.target_tag }}"
+          TARGET_TAG="$TARGET_TAG_INPUT"
           if [ -z "$TARGET_TAG" ]; then
-            if [ "${{ github.event_name }}" = "release" ]; then
-              TARGET_TAG="${{ github.event.release.tag_name }}"
+            if [ "$EVENT_NAME" = "release" ]; then
+              TARGET_TAG="$RELEASE_TAG"
             else
               TARGET_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
             fi
           fi
 
-          PREV_TAG="${{ github.event.inputs.previous_tag }}"
+          PREV_TAG="$PREV_TAG_INPUT"
           if [ -z "$PREV_TAG" ]; then
             PREV_TAG=$(gh release list --limit 10 --json tagName --jq ".[].tagName" | grep -v "^${TARGET_TAG}$" | head -n 1 || true)
           fi
@@ -197,6 +201,8 @@ jobs:
           PREV_APK: ${{ steps.download-apks.outputs.prev_apk }}
           TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
           PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+          EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
+          EXPECTED_TARGET_SHA256: ${{ inputs.expected_target_sha256 }}
         run: |
           mkdir -p dist
 
@@ -219,8 +225,6 @@ jobs:
             PREV_SHA256=$(sha256sum "$PREV_APK" | awk '{print $1}')
             TARGET_SHA256=$(sha256sum "$TARGET_APK" | awk '{print $1}')
 
-            EXPECTED_BASE_SHA256="${{ github.event.inputs.expected_base_sha256 }}"
-            EXPECTED_TARGET_SHA256="${{ github.event.inputs.expected_target_sha256 }}"
             if [ -n "$EXPECTED_BASE_SHA256" ] && [ "$PREV_SHA256" != "$EXPECTED_BASE_SHA256" ]; then
               echo "Base APK SHA-256 does not match approved request."
               exit 1
@@ -377,14 +381,20 @@ jobs:
             --data "$PAYLOAD"
 
       - name: Summary
+        env:
+          TARGET_TAG: ${{ steps.resolve-tags.outputs.target_tag }}
+          PREV_TAG: ${{ steps.resolve-tags.outputs.prev_tag }}
+          DELTA_CREATED: ${{ steps.compute-delta.outputs.delta_created }}
+          SAVINGS_PCT: ${{ steps.compute-delta.outputs.savings_pct }}
+          DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
         run: |
           echo "### 🚀 xdelta Update Generation Completed!" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Target Release:** \`${{ steps.resolve-tags.outputs.target_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Previous Release:** \`${{ steps.resolve-tags.outputs.prev_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target Release:** \`$TARGET_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Previous Release:** \`$PREV_TAG\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Delta Created:** \`${{ steps.compute-delta.outputs.delta_created }}\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.compute-delta.outputs.delta_created }}" = "true" ]; then
-            echo "- **Savings:** **${{ steps.compute-delta.outputs.savings_pct }}%**" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Delta File:** \`${{ steps.compute-delta.outputs.delta_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DELTA_CREATED" = "true" ]; then
+            echo "- **Savings:** **$SAVINGS_PCT%**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Delta File:** \`$DELTA_PATH\`" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "- **Architecture Binaries Attached:**" >> "$GITHUB_STEP_SUMMARY"
           echo "  - \`xdelta3-arm64-v8a\`" >> "$GITHUB_STEP_SUMMARY"
