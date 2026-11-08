@@ -62,17 +62,20 @@ class AzanCountdownService : Service() {
         job = scope.launch {
             var lastPrayerName: String? = null
             var lastTriggerMillis: Long? = null
+            var showingNoPrayer = false
             while (true) {
                 val next = findNextPrayer(applicationContext)
                 if (next == null) {
-                    if (lastPrayerName != null) {
+                    if (!showingNoPrayer) {
                         updateNotif("مواقيت الصلاة", "فعّل مواقيت الصلاة من الإعدادات")
-                        lastPrayerName = null
-                        lastTriggerMillis = null
+                        showingNoPrayer = true
                     }
+                    lastPrayerName = null
+                    lastTriggerMillis = null
                     delay(60_000)
                     continue
                 }
+                showingNoPrayer = false
                 val remaining = next.triggerMillis - System.currentTimeMillis()
                 if (remaining <= 0) {
                     // لا نشغّل الأذان هنا لتجنّب الازدواج مع المنبه الدقيق.
