@@ -630,23 +630,22 @@ fun AppNavigation(
                 bottomBar = bottomNav
             )
         }
+        // شاشات ما قبل الإنتاج موحّدة في غرفة التوجيه — كل حالة تدخل على تبويبها الصحيح
         AppState.INPUT -> {
-            InputScreen(
+            UnifiedBriefScreen(
+                initialTab = TAB_IDEA,
                 state = state,
                 onStateChange = { newState -> viewModel.updateState { newState } },
-                onProceed = { viewModel.updateState { copy(appState = AppState.UNDERSTANDING) } },
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onProceedFromUnderstanding = {
+                    val cur = state.styleDescription
+                    val withCaptions = if (cur.contains("kinetic captions")) cur else (cur + CaptionStyles.VIRAL_DIRECTIVE)
+                    viewModel.updateState { copy(styleDescription = withCaptions, appState = AppState.RESOURCES) }
+                },
                 onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
-                onOpenDirector = { viewModel.updateState { copy(appState = AppState.DIRECTOR_CHAT) } },
                 onOpenQasas = { viewModel.updateState { copy(appState = AppState.QASAS) } },
-                onOpenClips = { viewModel.updateState { copy(appState = AppState.CLIP_EXTRACTOR) } }
-            )
-        }
-        AppState.DIRECTOR_CHAT -> {
-            DirectorChatScreen(
-                initialText = state.inputText,
-                onBack = { viewModel.updateState { copy(appState = AppState.INPUT) } },
-                onComplete = { brief ->
+                onOpenClips = { viewModel.updateState { copy(appState = AppState.CLIP_EXTRACTOR) } },
+                onBriefComplete = { brief ->
                     viewModel.createProject(brief.idea)
                     viewModel.updateState {
                         copy(
@@ -658,27 +657,71 @@ fun AppNavigation(
                             appState = AppState.UNDERSTANDING
                         )
                     }
-                }
+                },
+                onMakeMagic = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onSmartDirectorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
             )
         }
-        AppState.UNDERSTANDING -> {
-            UnderstandingScreen(
-                inputText = state.inputText,
-                contentType = state.contentType,
-                contentTone = state.contentTone,
-                selectedRatio = state.selectedRatio,
-                videoDuration = state.videoDuration,
-                videoStyleAnalysis = state.videoStyleAnalysis,
-                styleDescription = state.styleDescription,
-                onStyleDescriptionChange = { newStyle ->
-                    viewModel.updateState { copy(styleDescription = newStyle) }
-                },
-                onEditIdea = { viewModel.updateState { copy(appState = AppState.INPUT) } },
-                onProceed = {
+        AppState.DIRECTOR_CHAT -> {
+            UnifiedBriefScreen(
+                initialTab = TAB_DIRECTOR,
+                state = state,
+                onStateChange = { newState -> viewModel.updateState { newState } },
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onProceedFromUnderstanding = {
                     val cur = state.styleDescription
                     val withCaptions = if (cur.contains("kinetic captions")) cur else (cur + CaptionStyles.VIRAL_DIRECTIVE)
                     viewModel.updateState { copy(styleDescription = withCaptions, appState = AppState.RESOURCES) }
-                }
+                },
+                onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
+                onOpenQasas = { viewModel.updateState { copy(appState = AppState.QASAS) } },
+                onOpenClips = { viewModel.updateState { copy(appState = AppState.CLIP_EXTRACTOR) } },
+                onBriefComplete = { brief ->
+                    viewModel.createProject(brief.idea)
+                    viewModel.updateState {
+                        copy(
+                            inputText = brief.idea,
+                            contentType = brief.contentType.ifBlank { "ريلز / شورتس" },
+                            contentTone = brief.contentTone.ifBlank { "خاشع" },
+                            videoDuration = brief.videoDuration.ifBlank { "30 ثانية" },
+                            selectedRatio = brief.selectedRatio.ifBlank { "9:16" },
+                            appState = AppState.UNDERSTANDING
+                        )
+                    }
+                },
+                onMakeMagic = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onSmartDirectorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
+            )
+        }
+        AppState.UNDERSTANDING -> {
+            UnifiedBriefScreen(
+                initialTab = TAB_UNDERSTANDING,
+                state = state,
+                onStateChange = { newState -> viewModel.updateState { newState } },
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onProceedFromUnderstanding = {
+                    val cur = state.styleDescription
+                    val withCaptions = if (cur.contains("kinetic captions")) cur else (cur + CaptionStyles.VIRAL_DIRECTIVE)
+                    viewModel.updateState { copy(styleDescription = withCaptions, appState = AppState.RESOURCES) }
+                },
+                onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
+                onOpenQasas = { viewModel.updateState { copy(appState = AppState.QASAS) } },
+                onOpenClips = { viewModel.updateState { copy(appState = AppState.CLIP_EXTRACTOR) } },
+                onBriefComplete = { brief ->
+                    viewModel.createProject(brief.idea)
+                    viewModel.updateState {
+                        copy(
+                            inputText = brief.idea,
+                            contentType = brief.contentType.ifBlank { "ريلز / شورتس" },
+                            contentTone = brief.contentTone.ifBlank { "خاشع" },
+                            videoDuration = brief.videoDuration.ifBlank { "30 ثانية" },
+                            selectedRatio = brief.selectedRatio.ifBlank { "9:16" },
+                            appState = AppState.UNDERSTANDING
+                        )
+                    }
+                },
+                onMakeMagic = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onSmartDirectorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
             )
         }
         AppState.PROCESSING -> {
@@ -830,9 +873,34 @@ fun AppNavigation(
             }
         }
         AppState.SMART_DIRECTOR -> {
-            AiSmartDirectorScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                onMakeMagic = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } }
+            UnifiedBriefScreen(
+                initialTab = TAB_SMART_DIRECTOR,
+                state = state,
+                onStateChange = { newState -> viewModel.updateState { newState } },
+                onExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onProceedFromUnderstanding = {
+                    val cur = state.styleDescription
+                    val withCaptions = if (cur.contains("kinetic captions")) cur else (cur + CaptionStyles.VIRAL_DIRECTIVE)
+                    viewModel.updateState { copy(styleDescription = withCaptions, appState = AppState.RESOURCES) }
+                },
+                onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
+                onOpenQasas = { viewModel.updateState { copy(appState = AppState.QASAS) } },
+                onOpenClips = { viewModel.updateState { copy(appState = AppState.CLIP_EXTRACTOR) } },
+                onBriefComplete = { brief ->
+                    viewModel.createProject(brief.idea)
+                    viewModel.updateState {
+                        copy(
+                            inputText = brief.idea,
+                            contentType = brief.contentType.ifBlank { "ريلز / شورتس" },
+                            contentTone = brief.contentTone.ifBlank { "خاشع" },
+                            videoDuration = brief.videoDuration.ifBlank { "30 ثانية" },
+                            selectedRatio = brief.selectedRatio.ifBlank { "9:16" },
+                            appState = AppState.UNDERSTANDING
+                        )
+                    }
+                },
+                onMakeMagic = { viewModel.updateState { copy(appState = AppState.ADVANCED_EDIT) } },
+                onSmartDirectorExit = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
             )
         }
         AppState.REWARDS -> {
