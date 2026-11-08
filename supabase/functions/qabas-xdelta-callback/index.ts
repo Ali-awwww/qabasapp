@@ -59,6 +59,18 @@ Deno.serve(async req => {
       update.expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     }
 
+    if (status === "ready") {
+      const { error: cacheWriteError } = await admin.from("app_update_delta_cache").upsert({
+        base_sha256_hash: baseSha,
+        target_sha256_hash: targetSha,
+        delta_url: update.delta_url,
+        delta_size_bytes: update.delta_size_bytes,
+        delta_sha256_hash: update.delta_sha256_hash,
+        expires_at: update.expires_at,
+      }, { onConflict: "base_sha256_hash,target_sha256_hash" });
+      if (cacheWriteError) throw cacheWriteError;
+    }
+
     const { data, error } = await admin.from("app_update_delta_jobs").update(update)
       .eq("id", jobId).eq("base_sha256_hash", baseSha).eq("target_sha256_hash", targetSha)
       .in("status", ["queued", "building"]).select("id,status").maybeSingle();
