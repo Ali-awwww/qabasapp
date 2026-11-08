@@ -157,6 +157,33 @@ object SupabaseServices {
         }
 
         @Serializable
+        data class GitHubTokenAdminResponse(val configured: Boolean = false)
+
+        /** Reads only whether the server has a token; the credential itself is never returned. */
+        suspend fun getGitHubTokenConfigured(): Boolean {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-token-admin",
+                body = buildJsonObject { put("action", "status") }
+            )
+            return response.body<GitHubTokenAdminResponse>().configured
+        }
+
+        /** Sends the token once to the owner-only server function; it is not persisted on-device. */
+        suspend fun saveGitHubToken(token: String): Boolean {
+            require(token.isNotBlank()) { "GitHub token is required" }
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-token-admin",
+                body = buildJsonObject {
+                    put("action", "save")
+                    put("token", token)
+                }
+            )
+            return response.body<GitHubTokenAdminResponse>().configured
+        }
+
+        @Serializable
         data class AdminDeltaDispatchResponse(val accepted: Boolean = false)
 
         suspend fun dispatchAdminXdelta(targetTag: String, previousTag: String): Boolean {
