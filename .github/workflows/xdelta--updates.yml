@@ -346,10 +346,10 @@ jobs:
           DELTA_PATH: ${{ steps.compute-delta.outputs.delta_path }}
           ATTACH_OUTCOME: ${{ steps.attach-release.outcome }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          XDELTA_CALLBACK_SECRET: ${{ secrets.XDELTA_CALLBACK_SECRET }}
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+          if [ -z "$SUPABASE_URL" ] || [ -z "$XDELTA_CALLBACK_SECRET" ]; then
             echo "Supabase callback secrets are not configured; job status remains pending."
             exit 0
           fi
@@ -382,7 +382,7 @@ jobs:
 
           curl --fail-with-body --silent --show-error \
             -X POST "$SUPABASE_URL/functions/v1/qabas-xdelta-callback" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $XDELTA_CALLBACK_SECRET" \
             -H "Content-Type: application/json" \
             --data "$PAYLOAD"
 
