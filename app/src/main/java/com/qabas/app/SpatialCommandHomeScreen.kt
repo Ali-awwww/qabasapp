@@ -144,6 +144,20 @@ fun SpatialCommandHomeScreen(
             if (detectedCity != null) {
                 selectedCity = detectedCity
                 PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
+                // Show detected city as the pending choice: dismiss to keep it,
+                // or select a different city in the picker.
+                showCityDialog = true
+                Toast.makeText(
+                    context,
+                    "تم تحديد موقعك: ${detectedCity.nameAr}. أبقِه أو اختر مدينة أخرى.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    "تعذر تحديد الموقع. تحقق من تفعيل الموقع وحاول مجددًا أو اختر المدينة يدويًا.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -151,8 +165,15 @@ fun SpatialCommandHomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) detectCurrentCityOnce()
-        // عند الرفض يبقى اختيار الدولة والمدينة اليدوي متاحاً دون GPS.
+        if (isGranted) {
+            detectCurrentCityOnce()
+        } else {
+            Toast.makeText(
+                context,
+                "لم يُمنح إذن الموقع. يمكنك اختيار المدينة يدويًا من قسم مواقيت الصلاة.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     val openCitySelector: () -> Unit = {
@@ -459,7 +480,23 @@ fun SpatialCommandHomeScreen(
                     SpatialHudStatsHeader(
                         currentTimeMillis = currentTimeMillis,
                         selectedCity = selectedCity,
-                        onOpenCitySelector = openCitySelector
+                        onLocateAndChooseCity = {
+                            val hasLocationPermission =
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                            if (hasLocationPermission) {
+                                detectCurrentCityOnce()
+                            } else {
+                                locationPermissionLauncher.launch(
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            }
+                        }
                     )
 
                     // 1.2 Dynamic System Ticker (Quran, Sunnah & Developer Pro Tips)
@@ -2171,94 +2208,99 @@ private fun SpatialSystemTicker() {
 private fun SpatialHudStatsHeader(
     currentTimeMillis: Long,
     selectedCity: CityLocation,
-    onOpenCitySelector: () -> Unit
+    onLocateAndChooseCity: () -> Unit
 ) {
     val context = LocalContext.current
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
-    
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val savedDisplayName = remember(prefs) {
+
+    val prefs = remember(context) {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+    }
+    // Read the preference on each clock tick so a profile-name change is reflected
+    // without requiring the home screen to be recreated.
+    val savedDisplayName = (
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
-            ?: "مستخدم قبس"
-    }
+    )?.trim()?.takeIf { it.isNotBlank() } ?: "مستخدم قبس"
 
     val calendar = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
-    val greeting = "أهلاً بك يا $savedDisplayName"
-
-    // Time & Date Formats
     val hourFormat = remember { java.text.SimpleDateFormat("HH", Locale.getDefault()) }
     val minuteFormat = remember { java.text.SimpleDateFormat("mm", Locale.getDefault()) }
     val secondFormat = remember { java.text.SimpleDateFormat("ss", Locale.getDefault()) }
-    val clockHour = remember(currentTimeMillis) { hourFormat.format(calendar.time) }
-    val clockMinute = remember(currentTimeMillis) { minuteFormat.format(calendar.time) }
-    val clockSecond = remember(currentTimeMillis) { secondFormat.format(calendar.time) }
-    val clockTransition = rememberInfiniteTransition(label = "clock_separator")
-    val separatorAlpha by clockTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.28f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 550, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "clock_separator_alpha"
-    )
+    val clockHour = hourFormat.format(calendar.time)
+    val clockMinute = minuteFormat.format(calendar.time)
+    val clockSecond = secondFormat.format(calendar.time)
     val dateFormat = remember { java.text.SimpleDateFormat("EEEE، d MMMM yyyy", Locale("ar")) }
-    val formattedDate = remember(currentTimeMillis) { dateFormat.format(calendar.time) }
+    val formattedDate = dateFormat.format(calendar.time)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(horizontal = 14.dp, vertical = 3.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // بطاقة الترحيب والساعة الرقمية الحية الكوانتية (Linear Minimalist Spatial Card)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = CardSurface.copy(alpha = 0.85f),
-            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.25f))
+            shape = RoundedCornerShape(20.dp),
+            color = CardSurface.copy(alpha = 0.92f),
+            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.32f))
         ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                // الصف العلوي: التحية واسم المستخدم + زر المدينة
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Identity row: greeting is a label; the account display name appears once.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = greeting,
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 2.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(primaryColor.copy(alpha = 0.30f), accentColor.copy(alpha = 0.12f))
+                                    )
+                                )
+                                .border(1.dp, primaryColor.copy(alpha = 0.65f), CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(EmeraldGreen)
+                            Text(
+                                text = savedDisplayName.firstOrNull()?.toString() ?: "ق",
+                                color = primaryColor,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 20.sp,
+                                maxLines = 1
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            Text(
+                                text = "مرحبًا بك",
+                                color = TextSecondary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
                             Text(
                                 text = savedDisplayName,
-                                color = GoldPrimary,
+                                color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
+                                fontSize = 16.sp,
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis
@@ -2266,99 +2308,113 @@ private fun SpatialHudStatsHeader(
                         }
                     }
 
-                    // زر المدينة
-                    Surface(
-                        onClick = onOpenCitySelector,
-                        shape = RoundedCornerShape(12.dp),
-                        color = primaryColor.copy(alpha = 0.12f),
-                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.4f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Surface(
+                            onClick = onLocateAndChooseCity,
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            color = primaryColor.copy(alpha = 0.14f),
+                            border = BorderStroke(1.2.dp, primaryColor.copy(alpha = 0.58f)),
+                            shadowElevation = 3.dp
                         ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = primaryColor, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "${selectedCity.nameAr} ▾",
-                                color = primaryColor,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.MyLocation,
+                                    contentDescription = "تحديد موقعي تلقائيًا ثم اختيار المدينة",
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
+                        Text(
+                            text = selectedCity.nameAr,
+                            color = primaryColor.copy(alpha = 0.9f),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 72.dp)
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // الصف السفلي: التاريخ والساعة المباشرة
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = formattedDate,
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp
-                    )
-
+                    // Date panel: weekday is emphasized, followed by the full Arabic date.
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = primaryColor.copy(alpha = 0.10f),
-                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.32f))
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF071526),
+                        border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.22f))
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(EmeraldGreen)
+                            Text(
+                                text = "التاريخ الميلادي",
+                                color = primaryColor.copy(alpha = 0.85f),
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.sp,
+                                maxLines = 1
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formattedDate,
+                                color = TextPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                maxLines = 2,
+                                softWrap = true,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // Live local clock. Seconds remain visible but are visually secondary.
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = primaryColor.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.38f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "الوقت المحلي",
+                                color = primaryColor,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
                             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.Bottom) {
                                     Text(
-                                        text = clockHour,
+                                        text = "$clockHour:$clockMinute",
                                         color = Color.White,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = 19.sp,
+                                        maxLines = 1
                                     )
                                     Text(
-                                        text = ":",
-                                        color = primaryColor.copy(alpha = separatorAlpha),
-                                        fontFamily = RobotoMonoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = clockMinute,
-                                        color = Color.White,
-                                        fontFamily = RobotoMonoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = ":",
-                                        color = primaryColor.copy(alpha = separatorAlpha),
-                                        fontFamily = RobotoMonoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = clockSecond,
+                                        text = ":$clockSecond",
                                         color = primaryColor,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(bottom = 2.dp),
+                                        maxLines = 1
                                     )
                                 }
                             }
