@@ -955,8 +955,35 @@ fun AppNavigation(
             )
         }
         AppState.VIDEO_STYLE_CLONER -> {
-            VideoStyleClonerScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+            UnifiedStyleScreen(
+                initialTab = STYLE_TAB_CLONER,
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onApplyMasterStyle = { masterStyle ->
+                    val analysis = masterStyle.toVideoStyleAnalysis()
+                    viewModel.createProject(masterStyle.name)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = analysis,
+                            styleDescription = masterStyle.fusionSummary,
+                            editingStyle = masterStyle.name,
+                            contentTone = masterStyle.contentTone.tone,
+                            appState = AppState.INPUT
+                        )
+                    }
+                },
+                onApplyStyleObject = { styleObject ->
+                    val analysis = styleObject.toVideoStyleAnalysis()
+                    viewModel.createProject(styleObject.name)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = analysis,
+                            styleDescription = styleObject.analysisSummary,
+                            editingStyle = styleObject.name,
+                            contentTone = styleObject.contentTone.tone,
+                            appState = AppState.INPUT
+                        )
+                    }
+                },
                 onGenerateProjectWithStyle = { topic, style ->
                     val richStyleDescription = buildString {
                         append("الأسلوب المستنسخ: ${style.detectedStyle}. ")
@@ -989,9 +1016,10 @@ fun AppNavigation(
             )
         }
         AppState.STYLE_SELECTION -> {
-            StyleSelectionScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onApplyMasterStyleToProject = { masterStyle ->
+            UnifiedStyleScreen(
+                initialTab = STYLE_TAB_SELECTION,
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onApplyMasterStyle = { masterStyle ->
                     val analysis = masterStyle.toVideoStyleAnalysis()
                     viewModel.createProject(masterStyle.name)
                     viewModel.updateState {
@@ -1004,18 +1032,7 @@ fun AppNavigation(
                         )
                     }
                 },
-                onCreateCustomStyle = {
-                    viewModel.updateState { copy(appState = AppState.CREATE_STYLE_OBJECT) }
-                }
-            )
-        }
-        AppState.CREATE_STYLE_OBJECT -> {
-            CreateStyleObjectScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
-                onStyleSaved = { _ ->
-                    viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) }
-                },
-                onApplyDirectlyToProject = { styleObject ->
+                onApplyStyleObject = { styleObject ->
                     val analysis = styleObject.toVideoStyleAnalysis()
                     viewModel.createProject(styleObject.name)
                     viewModel.updateState {
@@ -1025,6 +1042,86 @@ fun AppNavigation(
                             editingStyle = styleObject.name,
                             contentTone = styleObject.contentTone.tone,
                             appState = AppState.INPUT
+                        )
+                    }
+                },
+                onGenerateProjectWithStyle = { topic, style ->
+                    val richStyleDescription = buildString {
+                        append("الأسلوب المستنسخ: ${style.detectedStyle}. ")
+                        append("لوحة الألوان والتباين: ${style.dominantColors}. ")
+                        append("سرعة تقطيع المشاهد: ${style.transitionSpeed}. ")
+                        append("حركة الكاميرا والزووم: ${style.movementPatterns}. ")
+                        append("الهوية الصوتية: ${style.audioStyle}. ")
+                        append("نمط الكابشن والخط: ${style.typographyStyle}. ")
+                        append("نبرة المحتوى: ${style.contentTone}. ")
+                        if (style.keywords.isNotEmpty()) {
+                            append("كلمات مفتاحية: ${style.keywords.joinToString(", ")}. ")
+                        }
+                    }
+                    viewModel.createProject(topic)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = style,
+                            styleDescription = richStyleDescription,
+                            inputText = topic,
+                            contentTone = style.contentTone.ifBlank { "مؤثر" },
+                            appState = AppState.RESOURCES
+                        )
+                    }
+                }
+            )
+        }
+        AppState.CREATE_STYLE_OBJECT -> {
+            UnifiedStyleScreen(
+                initialTab = STYLE_TAB_CREATE,
+                onExit = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onApplyMasterStyle = { masterStyle ->
+                    val analysis = masterStyle.toVideoStyleAnalysis()
+                    viewModel.createProject(masterStyle.name)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = analysis,
+                            styleDescription = masterStyle.fusionSummary,
+                            editingStyle = masterStyle.name,
+                            contentTone = masterStyle.contentTone.tone,
+                            appState = AppState.INPUT
+                        )
+                    }
+                },
+                onApplyStyleObject = { styleObject ->
+                    val analysis = styleObject.toVideoStyleAnalysis()
+                    viewModel.createProject(styleObject.name)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = analysis,
+                            styleDescription = styleObject.analysisSummary,
+                            editingStyle = styleObject.name,
+                            contentTone = styleObject.contentTone.tone,
+                            appState = AppState.INPUT
+                        )
+                    }
+                },
+                onGenerateProjectWithStyle = { topic, style ->
+                    val richStyleDescription = buildString {
+                        append("الأسلوب المستنسخ: ${style.detectedStyle}. ")
+                        append("لوحة الألوان والتباين: ${style.dominantColors}. ")
+                        append("سرعة تقطيع المشاهد: ${style.transitionSpeed}. ")
+                        append("حركة الكاميرا والزووم: ${style.movementPatterns}. ")
+                        append("الهوية الصوتية: ${style.audioStyle}. ")
+                        append("نمط الكابشن والخط: ${style.typographyStyle}. ")
+                        append("نبرة المحتوى: ${style.contentTone}. ")
+                        if (style.keywords.isNotEmpty()) {
+                            append("كلمات مفتاحية: ${style.keywords.joinToString(", ")}. ")
+                        }
+                    }
+                    viewModel.createProject(topic)
+                    viewModel.updateState {
+                        copy(
+                            videoStyleAnalysis = style,
+                            styleDescription = richStyleDescription,
+                            inputText = topic,
+                            contentTone = style.contentTone.ifBlank { "مؤثر" },
+                            appState = AppState.RESOURCES
                         )
                     }
                 }
