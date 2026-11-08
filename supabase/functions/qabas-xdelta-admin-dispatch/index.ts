@@ -10,7 +10,7 @@ const cors = {
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
-const ownerEmail = (Deno.env.get("QABAS_OWNER_EMAIL") || "aliwalead.2007@gmail.com").toLowerCase();
+const ownerEmail = (Deno.env.get("QABAS_OWNER_EMAIL") || "admin@qabas.studio").trim().toLowerCase();
 const json = (body: unknown, status = 200) => Response.json(body, {
   status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" },
 });
