@@ -9,7 +9,8 @@ This feature is implemented in the repository but is **not enabled in the live S
    - `qabas-xdelta-request`
    - `qabas-xdelta-status`
    - `qabas-xdelta-callback`
-3. Confirm the server-side `app_secrets` entry named `github_token` is active and its GitHub credential has Actions workflow-dispatch and release-asset write access for `Ali-awwww/qabasapp`.
+   - `qabas-xdelta-admin-dispatch` (owner-only developer release workflow dispatch)
+3. Configure `QABAS_OWNER_EMAIL` for the admin dispatch function to match the owner account's authenticated email. Confirm the server-side `app_secrets` entry named `github_token` is active and its GitHub credential has Actions workflow-dispatch and release-asset write access for `Ali-awwww/qabasapp`.
 4. Add repository Actions secrets:
    - `SUPABASE_URL`: the Qabas Supabase project API URL.
    - `SUPABASE_SERVICE_ROLE_KEY`: the service-role secret for that project. Keep it out of client builds, source control, logs, and PR comments.
