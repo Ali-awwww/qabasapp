@@ -30,3 +30,4 @@ debug.keystore
 .codex/
 .codeam/
 *-debug.log
+app/google-services.json
