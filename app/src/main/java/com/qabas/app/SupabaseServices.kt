@@ -156,6 +156,21 @@ object SupabaseServices {
             return response.body<OnDemandDeltaEnvelope>().job
         }
 
+        @Serializable
+        data class AdminDeltaDispatchResponse(val accepted: Boolean = false)
+
+        suspend fun dispatchAdminXdelta(targetTag: String, previousTag: String): Boolean {
+            val client = client ?: throw IllegalStateException("Supabase is not configured")
+            val response = client.functions.invoke(
+                function = "qabas-xdelta-admin-dispatch",
+                body = buildJsonObject {
+                    put("target_tag", targetTag)
+                    put("previous_tag", previousTag)
+                }
+            )
+            return response.body<AdminDeltaDispatchResponse>().accepted
+        }
+
         suspend fun getAppUpdateAuditOrThrow(): List<AppUpdateAudit> {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             return client.postgrest.from("app_update_audit")
