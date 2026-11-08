@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (baseVersionCode >= Number(target.version_code)) return json({ error: "base_not_older_than_target" }, 409);
 
     const { data: existing, error: existingError } = await admin.from("app_update_delta_jobs")
-      .select("id,status,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+      .select("id,status,base_version_code,target_version_code,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
       .eq("user_id", userId).eq("base_sha256_hash", baseSha)
       .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
       .maybeSingle();
