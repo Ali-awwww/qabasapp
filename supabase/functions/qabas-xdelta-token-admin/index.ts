@@ -18,7 +18,7 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 });
 
 async function isOwner(req: Request): Promise<boolean> {
-  const bearer = (req.headers.get("Authorization") || "").match(/^Bearer\\s+(.+)$/i)?.[1];
+  const bearer = (req.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1];
   if (!bearer) return false;
   const { data, error } = await admin.auth.getUser(bearer);
   if (error || !data.user) return false;
@@ -32,11 +32,11 @@ async function validateGitHubToken(token: string): Promise<boolean> {
     "X-GitHub-Api-Version": "2022-11-28",
     "User-Agent": "Qabas-Xdelta-Token-Manager",
   };
-  const [userResponse, workflowResponse] = await Promise.all([
-    fetch("https://api.github.com/user", { headers }),
-    fetch("https://api.github.com/repos/Ali-awwww/qabasapp/actions/workflows/xdelta--updates.yml", { headers }),
-  ]);
-  return userResponse.ok && workflowResponse.ok;
+  const workflowResponse = await fetch(
+    "https://api.github.com/repos/Ali-awwww/qabasapp/actions/workflows/xdelta--updates.yml",
+    { headers },
+  );
+  return workflowResponse.ok;
 }
 
 Deno.serve(async (req) => {
