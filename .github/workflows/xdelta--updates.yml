@@ -27,7 +27,7 @@ on:
         default: ''
 
 concurrency:
-  group: xdelta-release-${{ github.ref }}
+  group: xdelta-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.job_id != '' && github.event.inputs.job_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
