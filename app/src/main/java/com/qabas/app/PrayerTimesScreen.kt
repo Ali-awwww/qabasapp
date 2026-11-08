@@ -2147,7 +2147,7 @@ fun AzanVoicesDialog(
 
     // مزامنة أصوات السحابة (قراءة للجميع)
     LaunchedEffect(Unit) {
-        Auth.awaitCurrentUserId()
+        SupabaseServices.Auth.awaitCurrentUserId()
         reloadVoices()
         if (SupabaseServices.isSupabaseAvailable) {
             isSyncingCloud = true
@@ -2751,7 +2751,7 @@ fun AzanVoicesDialog(
                         personalUploadSent = 0L
                         personalUploadTotal = 0L
                         scope.launch {
-                            Auth.awaitCurrentUserId()
+                            SupabaseServices.Auth.awaitCurrentUserId()
                             val result = UserAzanCloudRepository.upload(
                                 context, uri, pickedPersonalAudioTitle
                             ) { sent, total ->
