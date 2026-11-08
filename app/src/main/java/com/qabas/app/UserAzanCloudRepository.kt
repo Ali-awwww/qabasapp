@@ -67,7 +67,7 @@ object UserAzanCloudRepository {
         var tempFile: File? = null
         var storagePath: String? = null
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
+            val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
                 ?: return@withContext Result.failure(SecurityException("سجّل الدخول لحفظ الأذان في حسابك"))
             val client = SupabaseServices.client
                 ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
@@ -163,7 +163,7 @@ object UserAzanCloudRepository {
 
     suspend fun fetchMyVoices(): Result<List<AzanVoice>> = withContext(Dispatchers.IO) {
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
+            val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }
                 ?: return@withContext Result.success(emptyList())
             val client = SupabaseServices.client
                 ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
@@ -189,7 +189,7 @@ object UserAzanCloudRepository {
 
     suspend fun resolveStreamUrl(voiceId: String): String? = withContext(Dispatchers.IO) {
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext null
+            val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext null
             val rowId = voiceId.removePrefix("usercloud_")
             val client = SupabaseServices.client ?: return@withContext null
             val row = client.from(TABLE).select {
@@ -208,7 +208,7 @@ object UserAzanCloudRepository {
 
     suspend fun deleteMyVoice(voiceId: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext false
+            val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext false
             val rowId = voiceId.removePrefix("usercloud_")
             val client = SupabaseServices.client ?: return@withContext false
             val row = client.from(TABLE).select {
@@ -234,7 +234,7 @@ object UserAzanCloudRepository {
     }
 
     suspend fun getDefaultVoiceId(): String? {
-        val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return null
+        val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return null
         val settings = SupabaseServices.UserSettings.getUserSettings(userId) ?: return null
         return runCatching {
             JSONObject(settings.preferencesJson).optString("azan_default_voice_id").takeIf { it.isNotBlank() }
@@ -242,7 +242,7 @@ object UserAzanCloudRepository {
     }
 
     suspend fun saveDefaultVoiceId(voiceId: String): Boolean {
-        val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return false
+        val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return false
         val settings = SupabaseServices.UserSettings.getUserSettings(userId)
         val json = runCatching {
             JSONObject(settings?.preferencesJson?.takeIf { it.isNotBlank() } ?: "{}")
@@ -256,7 +256,7 @@ object UserAzanCloudRepository {
 
     suspend fun updateTitle(voiceId: String, title: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val userId = Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext false
+            val userId = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return@withContext false
             val safeTitle = title.trim().take(120).takeIf { it.isNotBlank() } ?: return@withContext false
             val client = SupabaseServices.client ?: return@withContext false
             client.from(TABLE).update(mapOf("title" to safeTitle)) {
