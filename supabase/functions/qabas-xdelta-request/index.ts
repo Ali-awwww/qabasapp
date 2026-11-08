@@ -70,13 +70,13 @@ Deno.serve(async (req) => {
 
     // Reuse a previously verified patch for this exact base/target byte pair.
     const { data: cached, error: cacheError } = await admin.from("app_update_delta_cache")
-      .select("delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+      .select("status,job_id,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
       .eq("base_sha256_hash", baseSha)
       .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
     if (cacheError) throw cacheError;
-    if (cached) {
+    if (cached?.status === "ready" && Date.parse(cached.expires_at) > Date.now()) {
       const cachedJobPayload = {
         user_id: userId,
         base_version_code: baseVersionCode,
@@ -98,6 +98,30 @@ Deno.serve(async (req) => {
         .single();
       if (cachedJobError) throw cachedJobError;
       return json({ job: cachedJob, reused: true, cache_hit: true });
+    }
+
+    if (cached?.status === "building" && Date.parse(cached.expires_at) > Date.now()) {
+      const pendingPayload = {
+        user_id: userId,
+        base_version_code: baseVersionCode,
+        base_sha256_hash: baseSha,
+        target_version_code: Number(target.version_code),
+        target_sha256_hash: String(target.sha256_hash).toLowerCase(),
+        status: "building",
+        delta_url: null,
+        delta_size_bytes: null,
+        delta_sha256_hash: null,
+        error_code: null,
+        expires_at: cached.expires_at,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: pendingJob, error: pendingError } = await admin.from("app_update_delta_jobs")
+        .upsert({ ...pendingPayload, ...(existing ? { id: existing.id } : {}) },
+          { onConflict: "user_id,base_sha256_hash,target_sha256_hash" })
+        .select("id,status,base_version_code,target_version_code")
+        .single();
+      if (pendingError) throw pendingError;
+      return json({ job: pendingJob, reused: true, cache_hit: false }, 202);
     }
 
     // Per-user request throttle: at most 5 requests in a rolling 10-minute window.
@@ -138,6 +162,65 @@ Deno.serve(async (req) => {
       .single();
     if (insertError) throw insertError;
 
+    const reservationExpires = new Date(Date.now() + 40 * 60 * 1000).toISOString();
+    // Expired reservations are reclaimed; active reservations are immutable.
+    await admin.from("app_update_delta_cache").update({
+      status: "building", job_id: job.id, delta_url: null, delta_size_bytes: null,
+      delta_sha256_hash: null, expires_at: reservationExpires,
+    }).eq("base_sha256_hash", baseSha)
+      .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
+      .lt("expires_at", new Date().toISOString());
+
+    const { error: reserveError } = await admin.from("app_update_delta_cache").upsert({
+      base_sha256_hash: baseSha,
+      target_sha256_hash: String(target.sha256_hash).toLowerCase(),
+      status: "building",
+      job_id: job.id,
+      delta_url: null,
+      delta_size_bytes: null,
+      delta_sha256_hash: null,
+      expires_at: reservationExpires,
+    }, { onConflict: "base_sha256_hash,target_sha256_hash", ignoreDuplicates: true });
+    if (reserveError) throw reserveError;
+
+    const { data: reservationRow, error: reservationReadError } = await admin.from("app_update_delta_cache")
+      .select("status,job_id,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+      .eq("base_sha256_hash", baseSha)
+      .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase())
+      .maybeSingle();
+    if (reservationReadError) throw reservationReadError;
+    if (!reservationRow) throw new Error("delta_cache_reservation_missing");
+
+    if (reservationRow.status === "ready" && Date.parse(reservationRow.expires_at) > Date.now()) {
+      const { data: readyJob, error: readyJobError } = await admin.from("app_update_delta_jobs")
+        .update({
+          status: "ready", delta_url: reservationRow.delta_url,
+          delta_size_bytes: reservationRow.delta_size_bytes,
+          delta_sha256_hash: reservationRow.delta_sha256_hash,
+          expires_at: reservationRow.expires_at, error_code: null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", job.id)
+        .select("id,status,base_version_code,target_version_code,delta_url,delta_size_bytes,delta_sha256_hash,expires_at")
+        .single();
+      if (readyJobError) throw readyJobError;
+      return json({ job: readyJob, reused: true, cache_hit: true }, 202);
+    }
+    if (reservationRow.job_id !== job.id && reservationRow.status === "building" &&
+        Date.parse(reservationRow.expires_at) > Date.now()) {
+      const { data: waitingJob, error: waitingError } = await admin.from("app_update_delta_jobs")
+        .update({ status: "building", expires_at: reservationRow.expires_at, updated_at: new Date().toISOString() })
+        .eq("id", job.id).select("id,status,base_version_code,target_version_code").single();
+      if (waitingError) throw waitingError;
+      return json({ job: waitingJob, reused: true, cache_hit: false }, 202);
+    }
+    if (reservationRow.job_id !== job.id) {
+      await admin.from("app_update_delta_jobs").update({
+        status: "failed", error_code: "delta_cache_reservation_unavailable",
+        updated_at: new Date().toISOString(),
+      }).eq("id", job.id);
+      return json({ error: "delta_cache_reservation_unavailable" }, 503);
+    }
+
     const dispatch = await fetch("https://api.github.com/repos/Ali-awwww/qabasapp/actions/workflows/xdelta--updates.yml/dispatches", {
       method: "POST",
       headers: {
@@ -156,6 +239,10 @@ Deno.serve(async (req) => {
       await admin.from("app_update_delta_jobs").update({
         status: "failed", error_code: "github_dispatch_failed", updated_at: new Date().toISOString(),
       }).eq("id", job.id);
+      await admin.from("app_update_delta_cache").update({
+        status: "failed", expires_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq("base_sha256_hash", baseSha)
+        .eq("target_sha256_hash", String(target.sha256_hash).toLowerCase()).eq("job_id", job.id);
       return json({ error: "dispatch_failed" }, 502);
     }
     const { data: buildingJob, error: buildingError } = await admin.from("app_update_delta_jobs")
