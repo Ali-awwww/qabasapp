@@ -2518,6 +2518,39 @@ object SupabaseServices {
          * رفع متدفق من ملف (بلا تحميل كامل في الذاكرة) مع عدّاد تقدم.
          * يُعيد الرابط العام أو null — والسبب التفصيلي في Log للتشخيص.
          */
+        /** Upload a private account-owned file using the active user's JWT and Storage RLS. */
+        suspend fun uploadPrivateFileWithProgress(
+            bucketName: String,
+            path: String,
+            file: File,
+            contentType: String,
+            onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+        ): Boolean = withContext(Dispatchers.IO) {
+            runCatching {
+                if (!file.exists() || file.length() <= 0L) return@runCatching false
+                val base = SupabaseConfig.url.trimEnd('/')
+                val anon = SupabaseConfig.key
+                if (anon.isBlank()) return@runCatching false
+                val bearerToken = currentAccessToken() ?: return@runCatching false
+                val encodedPath = path.split('/').joinToString("/") {
+                    java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20")
+                }
+                val request = Request.Builder()
+                    .url("$base/storage/v1/object/$bucketName/$encodedPath")
+                    .header("apikey", anon)
+                    .header("Authorization", "Bearer $bearerToken")
+                    .header("x-upsert", "false")
+                    .post(CountingRequestBody(file, contentType, onProgress))
+                    .build()
+                rawHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Log.e(TAG, "private upload HTTP ${response.code}: ${response.body?.string().orEmpty().take(200)}")
+                        false
+                    } else true
+                }
+            }.onFailure { Log.e(TAG, "private upload failed: ${it.message}", it) }.getOrDefault(false)
+        }
+
         suspend fun uploadFileWithProgress(
             bucketName: String = "media-assets",
             path: String,

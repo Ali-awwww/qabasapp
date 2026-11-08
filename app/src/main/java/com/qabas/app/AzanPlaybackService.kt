@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.launch
 
 /**
  * خدمة تشغيل صوت الأذان في الخلفية مع FullScreenIntent (تظهر شاشة الأذان فوق أي تطبيق)
@@ -132,7 +133,41 @@ class AzanPlaybackService : Service() {
 
     private fun playAzanAudio(voiceId: String, prayerName: String) {
         val selectedVoice = MuezzinVoiceManager.getVoiceById(applicationContext, voiceId)
+        if (selectedVoice == null) {
+            Log.w(TAG, "No real adhan voice is configured for id=$voiceId; playback skipped")
+            stopSelf()
+            return
+        }
 
+        if (voiceId.startsWith("usercloud_")) {
+            val initialNotification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    initialNotification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, initialNotification)
+            }
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val signedUrl = UserAzanCloudRepository.resolveStreamUrl(voiceId)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (signedUrl.isNullOrBlank()) {
+                        Log.e(TAG, "Could not resolve owner-authorized signed URL for personal adhan")
+                        stopSelf()
+                    } else {
+                        playAzanAudioResolved(selectedVoice, prayerName, signedUrl)
+                    }
+                }
+            }
+            return
+        }
+
+        playAzanAudioResolved(selectedVoice, prayerName, selectedVoice.streamUrl)
+    }
+
+    private fun playAzanAudioResolved(selectedVoice: AzanVoice, prayerName: String, streamUrl: String) {
         // 🔑 طلب تركيز الصوت قبل التشغيل — إذا فشل، نكمل مع تحذير
         val gotFocus = requestAudioFocus()
         if (!gotFocus) {
@@ -142,20 +177,19 @@ class AzanPlaybackService : Service() {
         wakeLock?.acquire(300000L) // 5 minutes max
 
         val notification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        // 🔑 احتياطي: جرب ملفًا محليًا محفوظًا قبل البث المباشر
-        val localFile = java.io.File(getExternalFilesDir(null), "azan_${voiceId}.mp3")
+        val localFile = java.io.File(getExternalFilesDir(null), "azan_${selectedVoice.id}.mp3")
         val dataSource: String = if (localFile.exists() && localFile.length() > 0) {
             Log.d(TAG, "Using cached azan file: ${localFile.absolutePath}")
             localFile.absolutePath
         } else {
-            Log.d(TAG, "No cached file — streaming: ${selectedVoice.streamUrl}")
-            selectedVoice.streamUrl
+            Log.d(TAG, "Streaming configured adhan source")
+            streamUrl
         }
 
         try {
@@ -164,7 +198,7 @@ class AzanPlaybackService : Service() {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .setUsage(AudioAttributes.USAGE_ALARM) // يضمن سماع الأذان مع DND/الصوت المنخفض
+                        .setUsage(AudioAttributes.USAGE_ALARM)
                         .build()
                 )
                 if (dataSource.startsWith("http")) {
@@ -172,12 +206,8 @@ class AzanPlaybackService : Service() {
                 } else {
                     setDataSource(dataSource)
                 }
-                setOnPreparedListener { mp ->
-                    mp.start()
-                }
-                setOnCompletionListener {
-                    stopPlayingAndSelf()
-                }
+                setOnPreparedListener { mp -> mp.start() }
+                setOnCompletionListener { stopPlayingAndSelf() }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
                     stopPlayingAndSelf()
