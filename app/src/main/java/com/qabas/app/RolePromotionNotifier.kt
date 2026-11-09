@@ -13,7 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 object RolePromotionNotifier {
     private const val TAG = "RolePromotionNotifier"
     private const val PREFS_NAME = "qabas_role_prefs"
-    private const val KEY_LAST_NOTIFIED_ROLE = "last_notified_cloud_role"
+    private const val KEY_ROLE_PREFIX = "cloud_role_for_uid_"
+    private val elevatedRoles = setOf("developer", "admin", "owner", "مطور", "مكور")
 
     data class CelebrationInfo(
         val roleTitle: String,
@@ -29,51 +30,45 @@ object RolePromotionNotifier {
     }
 
     /**
-     * تفحص الرتبة السحابية الحالية وتقارنها بآخر رتبة مُعلَن عنها.
-     * إذا تحول المستخدم إلى مطور أو تم ترقيته سحابياً، يتم إرسال إشعار تهنئة فوري.
+     * First observation for a UID is a silent baseline. Celebration is emitted only
+     * when a previously observed non-elevated cloud role changes to an elevated role.
      */
-    fun checkAndNotifyPromotion(context: Context, newCloudRole: String?) {
-        if (newCloudRole.isNullOrBlank()) return
+    fun checkAndNotifyPromotion(context: Context, userId: String?, newCloudRole: String?) {
+        if (userId.isNullOrBlank() || newCloudRole.isNullOrBlank()) return
+
         val normalizedRole = newCloudRole.trim().lowercase(java.util.Locale.ROOT)
-        val isDev = normalizedRole in setOf("developer", "admin", "owner", "مطور", "مكور")
-        if (!isDev) return
-
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val lastNotifiedRole = prefs.getString(KEY_LAST_NOTIFIED_ROLE, null)
+        val roleKey = KEY_ROLE_PREFIX + userId
+        val previousRole = prefs.getString(roleKey, null)
+        prefs.edit().putString(roleKey, normalizedRole).apply()
 
-        // إذا كانت الرتبة السابقة غير مطور، أو رتبة جديدة تماماً لم يُخطر بها بعد
-        if (lastNotifiedRole == null || !lastNotifiedRole.equals(normalizedRole, ignoreCase = true)) {
-            Log.i(TAG, "🎉 User role promoted to $normalizedRole! Sending celebration notification.")
-            prefs.edit().putString(KEY_LAST_NOTIFIED_ROLE, normalizedRole).apply()
+        val isElevated = normalizedRole in elevatedRoles
+        val wasElevated = previousRole?.lowercase(java.util.Locale.ROOT) in elevatedRoles
+        if (previousRole == null || !isElevated || wasElevated) return
 
-            val roleDisplayName = when (normalizedRole) {
-                "owner" -> "مالك المنظومة"
-                "admin" -> "مشرف إداري"
-                "developer", "مطور", "مكور" -> "مطور معتمد (Developer)"
-                else -> normalizedRole
-            }
-
-            val title = "🎉 مبارك! تم تفعيل رتبة المطور لحسابك سحابياً"
-            val message = "تهانينا! تم التحقق من هويتك كـ $roleDisplayName في سحابة قبس. تم فتح لوحة التحكم السحابية وأدوات التطوير المتقدمة بنجاح."
-
-            // 1. إرسال إشعار نظام Android
-            try {
-                NotificationHelper.showNotification(
-                    context = context,
-                    title = title,
-                    message = message
-                )
-            } catch (e: Throwable) {
-                Log.w(TAG, "⚠️ Failed to post system notification: ${e.message}")
-            }
-
-            // 2. تفعيل الحدث الاحتفالي للواجهة
-            val userEmail = SupabaseServices.Auth.getCurrentUserEmail() ?: SupabaseServices.Auth.currentUser.value?.email
-            _celebrationEvent.value = CelebrationInfo(
-                roleTitle = roleDisplayName,
-                email = userEmail,
-                message = message
-            )
+        Log.i(TAG, "Cloud role changed from $previousRole to elevated $normalizedRole for UID $userId.")
+        val roleDisplayName = when (normalizedRole) {
+            "owner" -> "مالك المنظومة"
+            "admin" -> "مشرف إداري"
+            "developer", "مطور", "مكور" -> "مطور معتمد (Developer)"
+            else -> normalizedRole
         }
+        val title = "🎉 مبارك! تم تفعيل رتبة المطور لحسابك سحابياً"
+        val message = "تهانينا! تم التحقق من هويتك كـ $roleDisplayName في سحابة قبس. تم فتح لوحة التحكم السحابية وأدوات التطوير المتقدمة بنجاح."
+
+        try {
+            NotificationHelper.showNotification(context = context, title = title, message = message)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to post system notification: ${e.message}")
+        }
+
+        val userEmail = SupabaseServices.Auth.getCurrentUserEmail()
+            ?: SupabaseServices.Auth.currentUser.value?.email
+        _celebrationEvent.value = CelebrationInfo(
+            roleTitle = roleDisplayName,
+            email = userEmail,
+            message = message
+        )
     }
+
 }
