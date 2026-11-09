@@ -644,26 +644,16 @@ object SupabaseServices {
             client.postgrest.from("users").select().decodeList<UserRow>()
         }.onFailure { Log.e(TAG, "getAllUsers failed: ${it.message}") }.getOrDefault(emptyList())
 
+        /** Role changes must pass the server-authorized RPC; never fall back to direct profile writes. */
         suspend fun updateUserRole(userId: String, newType: String): Boolean = runCatching {
             val client = client ?: return false
-            val rpcSuccess = runCatching {
-                val params = buildJsonObject {
-                    put("p_target_user_id", userId)
-                    put("p_new_type", newType)
-                }
-                client.postgrest.rpc("promote_user_role", params)
-                true
-            }.getOrDefault(false)
-
-            if (rpcSuccess) return true
-
-            client.postgrest.from("users").update(mapOf("type" to newType)) {
-                filter {
-                    eq("id", userId)
-                }
+            val params = buildJsonObject {
+                put("p_target_user_id", userId)
+                put("p_new_type", newType)
             }
+            client.postgrest.rpc("promote_user_role", params)
             true
-        }.onFailure { Log.e(TAG, "updateUserRole failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { Log.e(TAG, "updateUserRole RPC failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun updateUserSuspension(userId: String, isSuspended: Boolean): Boolean = runCatching {
             val client = client ?: return false
