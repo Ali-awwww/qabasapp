@@ -152,7 +152,11 @@ fun SettingsScreen(
     val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
     val isGuest = accountAuthState !is AuthState.Authenticated
     val isLoggedInAccount = accountAuthState is AuthState.Authenticated
-    val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(userEmail)
+    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
+    val isAdmin = remember(accountAuthState, verifiedRole) {
+        SupabaseServices.Auth.isAdminRole(verifiedRole) ||
+            CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
+    }
     val isRelative = prefs.getBoolean("is_relative_user", false)
 
     var autoPublishing by remember {
@@ -162,7 +166,9 @@ fun SettingsScreen(
         mutableStateOf(prefs.getString("default_export_quality", "1080p") ?: "1080p")
     }
 
-    val isDeveloperAccount = AdminGuard.isDashboardAccessAllowed(context)
+    val isDeveloperAccount = remember(accountAuthState, verifiedRole) {
+        AdminGuard.isDashboardAccessAllowed(context)
+    }
     val canViewCrashTelemetry = remember(supabaseAuthUser) { AdminGuard.isCrashTelemetryAccessAllowed() }
     val isSyncing by UserPreferencesManager.isSyncing.collectAsState()
 

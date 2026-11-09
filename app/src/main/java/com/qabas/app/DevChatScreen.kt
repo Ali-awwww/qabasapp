@@ -66,12 +66,14 @@ fun DevChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // هوية المستخدم الحالية والصلاحيات
+    // Identity and elevated chat actions are taken from the active Supabase Auth session.
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val isAdmin = remember { prefs.getBoolean("is_admin", false) || prefs.getBoolean("is_developer", false) }
-    val effectiveEmail = remember(userEmail) {
-        if (userEmail.isNotBlank()) userEmail else prefs.getString("user_email", "user@qabas.app") ?: "user@qabas.app"
+    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
+    val isAdmin = remember(verifiedRole) {
+        SupabaseServices.Auth.isAdminRole(verifiedRole) || AdminGuard.isCloudUserOwner()
     }
+    val effectiveEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        ?: userEmail.takeIf { it.isNotBlank() }.orEmpty()
 
     // حالة الرسائل والتفاعل والضوابط الصارمة
     var messages by remember { mutableStateOf<List<DevChatRepository.DevChatMessage>>(emptyList()) }

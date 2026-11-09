@@ -105,8 +105,15 @@ fun SpatialCommandHomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val isAdmin = prefs.getBoolean("is_admin", false)
-    val isDeveloper = remember(context) { AdminGuard.isDashboardAccessAllowed(context) }
+    val authState by SupabaseRepository.getInstance().authState.collectAsState()
+    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
+    val isAdmin = remember(authState, verifiedRole) {
+        SupabaseServices.Auth.isAdminRole(verifiedRole) ||
+            CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
+    }
+    val isDeveloper = remember(authState, verifiedRole) {
+        AdminGuard.isDashboardAccessAllowed(context)
+    }
     val networkStatus by UserPreferencesManager.networkStatus.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 

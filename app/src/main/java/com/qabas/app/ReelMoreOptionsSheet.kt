@@ -56,7 +56,8 @@ fun ReelMoreOptionsSheet(
     var selectedReportReason by remember { mutableStateOf("محتوى مخالف للضوابط الشرعية أو به منكرات ⚠️") }
     var reportAdditionalNotes by remember { mutableStateOf("") }
 
-    val isDeveloper = remember(currentUserEmail) {
+    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
+    val isDeveloper = remember(currentUserEmail, verifiedRole) {
         ReelPublishManager.isDeveloperUser(context, currentUserEmail)
     }
 
