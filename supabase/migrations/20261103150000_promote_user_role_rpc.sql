@@ -15,7 +15,6 @@ AS $$
 DECLARE
     v_caller_uid UUID := auth.uid();
     v_caller_email TEXT;
-    v_caller_type TEXT;
     v_is_authorized BOOLEAN := FALSE;
 BEGIN
     IF v_caller_uid IS NULL THEN
@@ -24,11 +23,10 @@ BEGIN
 
     -- Get caller email & type
     SELECT lower(email) INTO v_caller_email FROM auth.users WHERE id = v_caller_uid;
-    SELECT type INTO v_caller_type FROM public.users WHERE id = v_caller_uid::text;
 
-    -- Check authorization: Owner email or developer/admin type or app_metadata role
+    -- Authorization trusts only server-managed app_metadata roles or the configured owner identity.
+    -- public.users.type is profile data and must never grant permission to promote accounts.
     IF v_caller_email = 'aliwalead.2007@gmail.com'
-       OR v_caller_type IN ('مطور', 'developer', 'admin', 'owner')
        OR lower(COALESCE((auth.jwt() -> 'app_metadata' ->> 'role'), '')) IN ('admin', 'developer', 'owner') THEN
         v_is_authorized := TRUE;
     END IF;
@@ -48,7 +46,7 @@ BEGIN
         UPDATE auth.users
            SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', 'developer')
          WHERE id::text = p_target_user_id;
-    ELSIF lower(p_new_type) IN ('مجاني', 'freemium', 'user') THEN
+    ELSE
         UPDATE auth.users
            SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', 'user')
          WHERE id::text = p_target_user_id;
