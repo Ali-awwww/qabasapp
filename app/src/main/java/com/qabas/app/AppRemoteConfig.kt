@@ -127,8 +127,11 @@ object AppRemoteConfig {
 
     private fun deviceUserType(context: Context): String {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+        val isDeveloper = SupabaseServices.Auth.isDeveloperRole(cloudRole) ||
+            AdminGuard.isCloudUserOwner()
         return when {
-            prefs.getBoolean("is_developer", false) -> "developers"
+            isDeveloper -> "developers"
             prefs.getBoolean("is_premium", false) -> "premium"
             else -> "free"
         }
