@@ -28,43 +28,14 @@ object AdminGuard {
     }
 
     /**
-     * هل الوصول إلى لوحة المطور مسموح؟
-     * محصور حصرياً بالسحابة (Supabase RBAC) دون أي تجاوزات محلية:
-     * 1) أن يكون مالك التطبيق السحابي.
-     * 2) أو أن تكون رتبته في السحابة (app_metadata.role أو user_metadata أو users.type)
-     *    ضمن الرتب المعتمدة: developer, admin, owner, مطور, مكور.
+     * لوحة المطور تُفتح فقط عند وجود رتبة موثوقة من Supabase app_metadata.
+     * بيانات users.type وuser_metadata والتفضيلات المحلية ليست مصادر صلاحية.
      */
     fun isDashboardAccessAllowed(context: Context): Boolean {
-        if (isCloudUserOwner()) {
-            RolePromotionNotifier.checkAndNotifyPromotion(context, "owner")
-            return true
-        }
-
-        val appRole = SupabaseServices.Auth.getCurrentUserAppRole()
-        if (SupabaseServices.Auth.isDeveloperRole(appRole)) {
-            RolePromotionNotifier.checkAndNotifyPromotion(context, appRole)
-            return true
-        }
-
-        val metaRole = SupabaseServices.Auth.getUserRoleFromMetadata()
-        if (SupabaseServices.Auth.isDeveloperRole(metaRole)) {
-            RolePromotionNotifier.checkAndNotifyPromotion(context, metaRole)
-            return true
-        }
-
-        val verifiedRole = SupabaseServices.Auth.verifiedRole.value
-        if (SupabaseServices.Auth.isDeveloperRole(verifiedRole)) {
-            RolePromotionNotifier.checkAndNotifyPromotion(context, verifiedRole)
-            return true
-        }
-
-        val dbType = SupabaseServices.Auth.currentUser.value?.type
-        if (SupabaseServices.Auth.isDeveloperRole(dbType)) {
-            RolePromotionNotifier.checkAndNotifyPromotion(context, dbType)
-            return true
-        }
-
-        return false
+        val userId = SupabaseServices.Auth.getCurrentUserId() ?: return false
+        val role = if (isCloudUserOwner()) "owner" else SupabaseServices.Auth.getUserRoleFromMetadata()
+        RolePromotionNotifier.checkAndNotifyPromotion(context, userId, role)
+        return SupabaseServices.Auth.isDeveloperRole(role)
     }
 
     /**
