@@ -1353,7 +1353,8 @@ object SupabaseServices {
         suspend fun refreshVerifiedRole(): String = getUserRoleFromMetadata()
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
-            isAdminRole(getUserRoleFromMetadata())
+            // "special" is an account category, not an authorization role for admin APIs.
+            isDeveloperRole(getUserRoleFromMetadata())
         }.getOrDefault(false)
 
         suspend fun register(email: String, pass: String, customId: String? = null, displayName: String? = null): Boolean = runCatching {
