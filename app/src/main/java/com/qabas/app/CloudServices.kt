@@ -112,6 +112,14 @@ object CloudServices {
         val isDeveloper = SupabaseServices.Auth.isDeveloperRole(role)
         val isAdmin = SupabaseServices.Auth.isAdminRole(role) || isOwnerAccount(authEmail)
 
+        // Observe cloud role transitions at sign-in and explicit role refresh, not only
+        // when the developer dashboard is opened. First observation per UID is silent.
+        RolePromotionNotifier.checkAndNotifyPromotion(
+            context = context,
+            userId = SupabaseServices.Auth.getCurrentUserId(),
+            newCloudRole = role
+        )
+
         // Cached flags are display/compatibility caches only. Always overwrite them
         // from the authenticated Supabase session, including clearing revoked roles.
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
