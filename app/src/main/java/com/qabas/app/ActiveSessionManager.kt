@@ -53,6 +53,10 @@ object ActiveSessionManager {
             .remove("user_custom_id")
             .remove("user_tag")
             .remove("user_account_number")
+            .remove("user_custom_id")
+            .remove("custom_id")
             .apply()
+        RolePromotionNotifier.dismissCelebration()
+        SupabaseServices.Auth.clearVerifiedRole()
     }
 }
