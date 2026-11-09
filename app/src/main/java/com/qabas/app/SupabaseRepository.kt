@@ -499,18 +499,33 @@ class SupabaseRepository(
         }
     }
 
-    /** Sign out current user and broadcast Unauthenticated state to toggle UI back to login screen. */
+    /** Sign out and remove cached account/session fields so another UID cannot inherit them. */
     suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
-        if (!isAvailable) {
-            _authState.value = AuthState.Unauthenticated
-            return@withContext Result.success(Unit)
-        }
         runCatching {
-            client.auth.signOut()
+            if (isAvailable) client.auth.signOut()
+
+            AppServices.appContext.getSharedPreferences(
+                "qabas_prefs",
+                android.content.Context.MODE_PRIVATE
+            ).edit().apply {
+                putBoolean("is_logged_in", false)
+                putBoolean("is_guest", false)
+                remove("is_admin")
+                remove("is_developer")
+                remove("user_id")
+                remove("user_email")
+                remove("user_name")
+                remove("user_display_name")
+                remove("user_custom_id")
+                remove("user_tag")
+                remove("user_account_number")
+                apply()
+            }
+            RolePromotionNotifier.dismissCelebration()
             _authState.value = AuthState.Unauthenticated
             Unit
         }.onFailure { e ->
-            _authState.value = AuthState.Unauthenticated
+            Log.e(TAG, "Logout failed: ${e.message}")
         }
     }
 
