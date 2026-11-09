@@ -44,7 +44,8 @@ fun AccountSettingsSection(context: Context) {
     var isTransactionNotificationsEnabled by remember {
         mutableStateOf(prefs.getBoolean("dev_transaction_notifications", false))
     }
-    var isAdmin by remember { mutableStateOf(prefs.getBoolean("is_admin", false)) }
+    val cloudUser by CloudServices.Auth.currentUser.collectAsState()
+    val isAdmin = cloudUser?.isAdmin == true
 
     Column(
         modifier = Modifier
@@ -262,8 +263,7 @@ fun AccountSettingsSection(context: Context) {
                 syncScope.launch {
                     try {
                         CloudServices.syncAdminClaimFromFirebase(syncCtx)
-                        // Refresh local state after sync
-                        isAdmin = prefs.getBoolean("is_admin", false)
+                        // Cloud auth state drives the badge; no local role is trusted here.
                     } catch (e: Exception) {
                         Toast.makeText(syncCtx, "فشل المزامنة: ${e.message}", Toast.LENGTH_SHORT).show()
                     }

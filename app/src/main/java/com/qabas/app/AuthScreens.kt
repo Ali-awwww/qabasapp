@@ -496,9 +496,16 @@ fun RegisterScreen(
 
                                     val effectiveManualName = cloudUser.name?.takeIf { it.isNotBlank() }
                                         ?: name.trim().ifBlank { trimmedEmail.substringBefore('@') }
-                                    val userType = cloudUser.type.ifBlank { "مجاني" }
-                                    val isAdmin = userType == "مطور" || userType == "خاص"
-                                    val isDeveloper = userType == "مطور" || CloudServices.isOwnerAccount(lowerEmail)
+                                    val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+                                    val isDeveloper = SupabaseServices.Auth.isDeveloperRole(cloudRole) ||
+                                        lowerEmail.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)
+                                    val isAdmin = SupabaseServices.Auth.isAdminRole(cloudRole) ||
+                                        CloudServices.isOwnerAccount(lowerEmail)
+                                    val userType = when {
+                                        isDeveloper -> "مطور"
+                                        isAdmin -> "خاص"
+                                        else -> "مجاني"
+                                    }
 
                                     UserIdentifierManager.saveCustomId(context, cloudCustomId, lowerEmail)
                                     UserIdentifierManager.saveAccountNumber(context, lowerEmail, accountNumber)

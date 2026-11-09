@@ -353,15 +353,13 @@ fun ReelsScreen(
     // Never use an email or locally cached account ID as an interaction owner.
     val currentUserId = currentSupabaseId.orEmpty()
 
-    val isDeveloper = remember(currentUserEmail) {
-        ReelPublishManager.isDeveloperUser(context, currentUserEmail) ||
-        prefs.getBoolean("is_developer", false) ||
-        prefs.getBoolean("is_admin", false) ||
-        CloudServices.isOwnerAccount(currentUserEmail)
+    // Account access and creator privileges follow the current authenticated cloud role.
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
+    val isDeveloper = remember(accountAuthState, verifiedRole) {
+        AdminGuard.isDashboardAccessAllowed(context)
     }
 
-    // Account access is determined by the unified Supabase-backed account state.
-    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
     val isGuest = accountAuthState !is AuthState.Authenticated && !isDeveloper
     var showGuestLoginPrompt by remember { mutableStateOf(false) }
     var pendingInteractionAction by remember { mutableStateOf<(() -> Unit)?>(null) }

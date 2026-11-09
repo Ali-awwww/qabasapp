@@ -418,18 +418,12 @@ fun DeveloperUnlockDialog(
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val submitUnlock = {
-        val trimmed = passcode.trim()
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val userEmail = prefs.getString("user_email", "") ?: ""
+        // Authorization uses the currently signed-in Supabase identity, never a cached email.
+        val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        val isAuthenticatedOwner = SupabaseServices.Auth.getCurrentUserId() != null &&
+            CloudServices.isOwnerAccount(authEmail)
 
-        // Validate developer credentials:
-        // Restricted ONLY to registered owner accounts via CloudServices
-        if (CloudServices.isOwnerAccount(userEmail)) {
-            prefs.edit().apply {
-                putBoolean("is_admin", true)
-                putString("user_type", "مطور")
-                apply()
-            }
+        if (isAuthenticatedOwner) {
             keyboardController?.hide()
             onSuccess()
         } else {

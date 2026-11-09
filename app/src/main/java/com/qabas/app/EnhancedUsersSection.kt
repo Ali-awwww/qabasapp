@@ -143,9 +143,6 @@ fun EnhancedUsersSection(
                                 val sbOk = SupabaseServices.Database.updateUserRole(user.id, newType)
                                 if (sbOk) success = true
                             }
-                            if (!success && !SupabaseServices.isSupabaseAvailable) {
-                                success = true
-                            }
                             if (success) {
                                 val idx = devUsers.indexOf(user)
                                 if (idx != -1) {

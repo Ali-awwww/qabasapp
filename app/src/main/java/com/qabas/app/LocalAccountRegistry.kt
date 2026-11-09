@@ -137,21 +137,32 @@ object LocalAccountRegistry {
 
         // 🌟 التأكد التام من إدراج الحساب الحالي المسجل على الهاتف إن لم يكن موجوداً في القائمة
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val currentEmail = prefs.getString("user_email", "")?.trim().orEmpty()
+        val currentEmail = SupabaseServices.Auth.getCurrentUserEmail()?.trim().orEmpty()
+        val currentUid = SupabaseServices.Auth.getCurrentUserId()
 
-        if (isLoggedIn && currentEmail.isNotBlank() && currentEmail != "guest@qabas.studio") {
+        if (isLoggedIn && !currentUid.isNullOrBlank() &&
+            currentEmail.isNotBlank() && currentEmail != "guest@qabas.studio"
+        ) {
             val currentName = prefs.getString("user_name", "")?.trim()
                 ?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }
                 .orEmpty()
             val currentCustomId = prefs.getString("user_custom_id", "")?.trim()
                 ?.ifBlank { UserIdentifierManager.getCustomId(context) }
                 .orEmpty()
-            val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(currentEmail)
-            val isDev = prefs.getBoolean("is_developer", false) || isAdmin
+            val cloudRole = if (currentEmail.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)) {
+                "owner"
+            } else {
+                SupabaseServices.Auth.getUserRoleFromMetadata()
+            }
+            val accountType = when {
+                SupabaseServices.Auth.isDeveloperRole(cloudRole) -> "مطور"
+                SupabaseServices.Auth.isAdminRole(cloudRole) || CloudServices.isOwnerAccount(currentEmail) -> "خاص"
+                else -> "مجاني"
+            }
             val exists = list.any { it.email.equals(currentEmail, ignoreCase = true) }
             val accNum = UserIdentifierManager.getOrCreateAccountNumber(context, currentEmail, currentName)
             if (!exists) {
-                val role = if (isDev) "مطور" else "مجاني"
+                val role = accountType
                 val currentRec = AccountRecord(
                     id = currentEmail,
                     name = currentName.ifBlank { "مستخدم قبس" },
@@ -242,15 +253,27 @@ object LocalAccountRegistry {
      */
     fun syncCurrentLoggedInUser(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val email = prefs.getString("user_email", "")?.trim().orEmpty()
+        val email = SupabaseServices.Auth.getCurrentUserEmail()?.trim().orEmpty()
+        val currentUid = SupabaseServices.Auth.getCurrentUserId()
         val name = prefs.getString("user_name", "")?.trim()
             ?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }
             .orEmpty()
         val customId = prefs.getString("user_custom_id", "")?.trim().orEmpty()
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val isAdmin = prefs.getBoolean("is_admin", false) || CloudServices.isOwnerAccount(email)
+        val cloudRole = if (email.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)) {
+            "owner"
+        } else {
+            SupabaseServices.Auth.getUserRoleFromMetadata()
+        }
+        val accountType = when {
+            SupabaseServices.Auth.isDeveloperRole(cloudRole) -> "مطور"
+            SupabaseServices.Auth.isAdminRole(cloudRole) || CloudServices.isOwnerAccount(email) -> "خاص"
+            else -> "مجاني"
+        }
 
-        if (isLoggedIn && email.isNotBlank() && email != "guest@qabas.studio") {
+        if (isLoggedIn && !currentUid.isNullOrBlank() &&
+            email.isNotBlank() && email != "guest@qabas.studio"
+        ) {
             val accNum = UserIdentifierManager.getOrCreateAccountNumber(context, email, name)
             registerOrUpdateAccount(
                 context = context,
@@ -260,7 +283,7 @@ object LocalAccountRegistry {
                     email = email,
                     customId = customId.ifBlank { UserIdentifierManager.normalize(name.ifBlank { "user" }) },
                     accountNumber = accNum,
-                    type = if (isAdmin) "مطور" else "مجاني",
+                    type = accountType,
                     status = "active"
                 )
             )

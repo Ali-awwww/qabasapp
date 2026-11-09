@@ -43,6 +43,7 @@ object ActiveSessionManager {
         runCatching { SupabaseServices.Auth.logout() }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .remove("is_logged_in")
+            .remove("is_guest")
             .remove("is_admin")
             .remove("is_developer")
             .remove("user_id")
@@ -52,6 +53,9 @@ object ActiveSessionManager {
             .remove("user_custom_id")
             .remove("user_tag")
             .remove("user_account_number")
+            .remove("custom_id")
             .apply()
+        RolePromotionNotifier.dismissCelebration()
+        SupabaseServices.Auth.clearVerifiedRole()
     }
 }

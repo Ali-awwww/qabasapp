@@ -54,15 +54,12 @@ object ReelPublishManager {
      * التحقق مما إذا كان المستخدم يملك صلاحيات المطور (Developer / SuperUser)
      */
     fun isDeveloperUser(context: Context, email: String?): Boolean {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val devFlag = prefs.getBoolean("is_developer", false) || prefs.getBoolean("is_admin", false)
-        val cleanEmail = email?.trim()?.lowercase().orEmpty()
-        val isDevEmail = cleanEmail.startsWith("dev@") ||
-            cleanEmail.contains("developer") ||
-            cleanEmail.contains("admin") ||
-            CloudServices.isOwnerAccount(cleanEmail)
-
-        return devFlag || isDevEmail
+        // The argument is display context only. Authorization comes from the current Auth session.
+        val userId = SupabaseServices.Auth.getCurrentUserId() ?: return false
+        val role = SupabaseServices.Auth.getUserRoleFromMetadata()
+        return userId.isNotBlank() &&
+            (SupabaseServices.Auth.isDeveloperRole(role) ||
+                CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail()))
     }
 
     /**

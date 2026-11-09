@@ -644,26 +644,16 @@ object SupabaseServices {
             client.postgrest.from("users").select().decodeList<UserRow>()
         }.onFailure { Log.e(TAG, "getAllUsers failed: ${it.message}") }.getOrDefault(emptyList())
 
+        /** Role changes must pass the server-authorized RPC; never fall back to direct profile writes. */
         suspend fun updateUserRole(userId: String, newType: String): Boolean = runCatching {
             val client = client ?: return false
-            val rpcSuccess = runCatching {
-                val params = buildJsonObject {
-                    put("p_target_user_id", userId)
-                    put("p_new_type", newType)
-                }
-                client.postgrest.rpc("promote_user_role", params)
-                true
-            }.getOrDefault(false)
-
-            if (rpcSuccess) return true
-
-            client.postgrest.from("users").update(mapOf("type" to newType)) {
-                filter {
-                    eq("id", userId)
-                }
+            val params = buildJsonObject {
+                put("p_target_user_id", userId)
+                put("p_new_type", newType)
             }
+            client.postgrest.rpc("promote_user_role", params)
             true
-        }.onFailure { Log.e(TAG, "updateUserRole failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { Log.e(TAG, "updateUserRole RPC failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun updateUserSuspension(userId: String, isSuspended: Boolean): Boolean = runCatching {
             val client = client ?: return false
@@ -1288,8 +1278,8 @@ object SupabaseServices {
         val currentUser: StateFlow<UserRow?>
             get() = SupabaseRepository.getInstance().currentUser
 
-        val verifiedRole: StateFlow<String>
-            get() = MutableStateFlow(getUserRoleFromMetadata())
+        private val _verifiedRole = MutableStateFlow("user")
+        val verifiedRole: StateFlow<String> = _verifiedRole
 
         fun getCurrentUserId(): String? = runCatching {
             if (!isSupabaseAvailable) null 
@@ -1336,21 +1326,34 @@ object SupabaseServices {
             return clean in setOf("developer", "admin", "owner", "مطور", "مكور")
         }
 
+        /** Account-level admin role, separate from developer-console authorization. */
+        fun isAdminRole(role: String?): Boolean {
+            if (role.isNullOrBlank()) return false
+            val clean = role.trim().lowercase(java.util.Locale.ROOT)
+            return isDeveloperRole(clean) || clean in setOf("special", "خاص")
+        }
+
         /**
          * Authorization roles must come exclusively from server-managed app_metadata.
          * Database profile fields and user_metadata are not trusted role sources.
          */
-        fun getUserRoleFromMetadata(): String = runCatching {
-            if (!isSupabaseAvailable) "user"
-            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
-        }.getOrDefault("user")
+        fun getUserRoleFromMetadata(): String {
+            val role = runCatching {
+                if (!isSupabaseAvailable) "user"
+                else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
+            }.getOrDefault("user")
+            _verifiedRole.value = role
+            return role
+        }
 
-        suspend fun refreshVerifiedRole(): String = runCatching {
-            getUserRoleFromMetadata()
-        }.getOrDefault("user")
+        fun clearVerifiedRole() {
+            _verifiedRole.value = "user"
+        }
+
+        suspend fun refreshVerifiedRole(): String = getUserRoleFromMetadata()
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
-            // Authorization must never fall back to mutable database profile fields.
+            // "special" is an account category, not an authorization role for admin APIs.
             isDeveloperRole(getUserRoleFromMetadata())
         }.getOrDefault(false)
 
@@ -1406,11 +1409,9 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "updateRecoveredPassword failed: ${it.message}") }.getOrDefault(false)
 
-        suspend fun logout(): Boolean = runCatching {
-            val client = client ?: return false
-            client.auth.signOut()
-            true
-        }.onFailure { Log.e(TAG, "logout failed: ${it.message}") }.getOrDefault(false)
+        /** Route every application logout path through the repository cleanup. */
+        suspend fun logout(): Boolean =
+            SupabaseRepository.getInstance().logout().isSuccess
 
         suspend fun diagnoseSignInAttempt(email: String, pass: String): AuthDiagnosticsResult {
             if (!isSupabaseAvailable) {

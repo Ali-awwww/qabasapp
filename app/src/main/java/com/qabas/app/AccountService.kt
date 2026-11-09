@@ -20,10 +20,9 @@ class AccountService(private val context: Context) {
 
     val isDeveloperOrAdmin: Boolean
         get() {
-            val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            val isAdmin = qabasPrefs.getBoolean("is_admin", false)
-            val isDev = qabasPrefs.getBoolean("is_developer", false) // لا يُمنح افتراضياً — فقط من كُتب له (المالك/العلامة المكتوبة مسبقاً)
-            return isAdmin || isDev
+            val role = SupabaseServices.Auth.getUserRoleFromMetadata()
+            return SupabaseServices.Auth.isAdminRole(role) ||
+                CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
         }
 
     val hasCustomKeys: Boolean

@@ -81,7 +81,8 @@ object BroadcastCloudRepository {
 
     private fun deliverLocalNotification(context: Context, row: BroadcastRow) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val isDev = prefs.getBoolean("is_developer", false)
+        val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+        val isDev = SupabaseServices.Auth.isDeveloperRole(cloudRole) || AdminGuard.isCloudUserOwner()
         val isPremium = prefs.getBoolean("is_premium", false)
         val matches = when (row.target) {
             "all" -> true
