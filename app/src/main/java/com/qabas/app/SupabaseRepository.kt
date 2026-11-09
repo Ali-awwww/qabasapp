@@ -518,6 +518,7 @@ class SupabaseRepository(
                 remove("user_name")
                 remove("user_display_name")
                 remove("user_custom_id")
+                remove("custom_id")
                 remove("user_tag")
                 remove("user_account_number")
                 apply()
