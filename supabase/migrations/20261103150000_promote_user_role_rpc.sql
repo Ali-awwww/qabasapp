@@ -88,7 +88,7 @@ CREATE POLICY users_admin_update
     )
     WITH CHECK (
         lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')
-        OR lower(auth.jwt() ->> 'email') = 'aliwalead.2007@gmail.com'
+        OR lower(COALESCE(auth.jwt() ->> 'email', '')) IN ('admin@qabas.studio', 'aliwalead.2007@gmail.com')
     );
 
 REVOKE ALL ON FUNCTION public.promote_user_role(TEXT, TEXT) FROM PUBLIC, anon;
