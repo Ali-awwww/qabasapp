@@ -368,9 +368,16 @@ fun LoginScreen(
 
                                 val effectiveLoginName = cloudUser.name?.takeIf { it.isNotBlank() }
                                     ?: authEmail.substringBefore('@')
-                                val userType = cloudUser.type.ifBlank { "مجاني" }
-                                val finalIsAdmin = userType == "مطور" || userType == "خاص"
-                                val finalIsDeveloper = userType == "مطور" || CloudServices.isOwnerAccount(authEmail)
+                                val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
+                                val finalIsDeveloper = SupabaseServices.Auth.isDeveloperRole(cloudRole) ||
+                                    authEmail.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)
+                                val finalIsAdmin = SupabaseServices.Auth.isAdminRole(cloudRole) ||
+                                    CloudServices.isOwnerAccount(authEmail)
+                                val userType = when {
+                                    finalIsDeveloper -> "مطور"
+                                    finalIsAdmin -> "خاص"
+                                    else -> "مجاني"
+                                }
                                 val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveLoginName, accountNumber)
 
                                 UserIdentifierManager.saveCustomId(context, cloudCustomId, authEmail)
