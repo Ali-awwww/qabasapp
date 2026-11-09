@@ -43,7 +43,7 @@ object RolePromotionNotifier {
         prefs.edit().putString(roleKey, normalizedRole).apply()
 
         val isElevated = normalizedRole in elevatedRoles
-        val wasElevated = previousRole?.lowercase(java.util.Locale.ROOT) in elevatedRoles
+        val wasElevated = previousRole?.lowercase(java.util.Locale.ROOT)?.let { it in elevatedRoles } == true
         if (previousRole == null || !isElevated || wasElevated) return
 
         Log.i(TAG, "Cloud role changed from $previousRole to elevated $normalizedRole for UID $userId.")
