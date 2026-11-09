@@ -209,8 +209,9 @@ class SupabaseRepository(
                 }
 
                 val role = SupabaseServices.Auth.getUserRoleFromMetadata()
-                val isAdmin = role == "admin" || role == "developer" || role == "owner" ||
-                    CloudServices.isOwnerAccount(email)
+                val authEmail = SupabaseServices.Auth.getCurrentUserEmail() ?: email
+                val isAdmin = SupabaseServices.Auth.isAdminRole(role) ||
+                    CloudServices.isOwnerAccount(authEmail)
                 _authState.value = AuthState.Authenticated(
                     userRow = userRow,
                     session = session,
@@ -522,6 +523,7 @@ class SupabaseRepository(
                 apply()
             }
             RolePromotionNotifier.dismissCelebration()
+            SupabaseServices.Auth.clearVerifiedRole()
             _authState.value = AuthState.Unauthenticated
             Unit
         }.onFailure { e ->

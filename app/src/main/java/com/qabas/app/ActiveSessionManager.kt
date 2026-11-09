@@ -43,6 +43,7 @@ object ActiveSessionManager {
         runCatching { SupabaseServices.Auth.logout() }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .remove("is_logged_in")
+            .remove("is_guest")
             .remove("is_admin")
             .remove("is_developer")
             .remove("user_id")

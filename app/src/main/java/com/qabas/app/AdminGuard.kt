@@ -4,11 +4,8 @@ import android.content.Context
 import android.util.Log
 
 /**
- * حارس الوصول للوحة المطور (AdminGuard):
- * 1) الوصول المحلي «الراثي»: العلم `is_developer` يُحترَم فقط إذا كان مكتوباً فعلياً
- *    في التفضيلات (يساوي true) — لا يُمنح افتراضياً لأي جهاز جديد (إغلاق الثغرة).
- * 2) الوصول الحاسم: بريد مستخدم Firebase Auth الحالي == بريد المالك.
- * 3) يوفر هوية الجالس للاستخدام في سجل التدقيق.
+ * حارس صلاحيات المطور: مصدر رتبة المطور هو جلسة Supabase Auth
+ * وبيانات app_metadata الموثوقة فقط؛ لا تُستخدم تفضيلات الجهاز أو بيانات الملف الشخصي.
  */
 object AdminGuard {
     private const val TAG = "AdminGuard"
@@ -19,8 +16,8 @@ object AdminGuard {
      */
     fun isCloudUserOwner(): Boolean {
         return try {
-            val email = SupabaseServices.Auth.currentUser.value?.email
-            email != null && email.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)
+            val email = SupabaseServices.Auth.getCurrentUserEmail()
+            !email.isNullOrBlank() && email.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)
         } catch (e: Exception) {
             Log.w(TAG, "isCloudUserOwner failed: ${e.message}")
             false
@@ -56,7 +53,7 @@ object AdminGuard {
     }
 
     fun currentIdentity(context: Context): String {
-        val cloudEmail = SupabaseServices.Auth.currentUser.value?.email
+        val cloudEmail = SupabaseServices.Auth.getCurrentUserEmail()
         return cloudEmail ?: run {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             prefs.getString("dev_display_name", null) ?: "local_device"

@@ -1278,8 +1278,8 @@ object SupabaseServices {
         val currentUser: StateFlow<UserRow?>
             get() = SupabaseRepository.getInstance().currentUser
 
-        val verifiedRole: StateFlow<String>
-            get() = MutableStateFlow(getUserRoleFromMetadata())
+        private val _verifiedRole = MutableStateFlow("user")
+        val verifiedRole: StateFlow<String> = _verifiedRole
 
         fun getCurrentUserId(): String? = runCatching {
             if (!isSupabaseAvailable) null 
@@ -1326,22 +1326,34 @@ object SupabaseServices {
             return clean in setOf("developer", "admin", "owner", "مطور", "مكور")
         }
 
+        /** Account-level admin role, separate from developer-console authorization. */
+        fun isAdminRole(role: String?): Boolean {
+            if (role.isNullOrBlank()) return false
+            val clean = role.trim().lowercase(java.util.Locale.ROOT)
+            return isDeveloperRole(clean) || clean in setOf("special", "خاص")
+        }
+
         /**
          * Authorization roles must come exclusively from server-managed app_metadata.
          * Database profile fields and user_metadata are not trusted role sources.
          */
-        fun getUserRoleFromMetadata(): String = runCatching {
-            if (!isSupabaseAvailable) "user"
-            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
-        }.getOrDefault("user")
+        fun getUserRoleFromMetadata(): String {
+            val role = runCatching {
+                if (!isSupabaseAvailable) "user"
+                else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
+            }.getOrDefault("user")
+            _verifiedRole.value = role
+            return role
+        }
 
-        suspend fun refreshVerifiedRole(): String = runCatching {
-            getUserRoleFromMetadata()
-        }.getOrDefault("user")
+        fun clearVerifiedRole() {
+            _verifiedRole.value = "user"
+        }
+
+        suspend fun refreshVerifiedRole(): String = getUserRoleFromMetadata()
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
-            // Authorization must never fall back to mutable database profile fields.
-            isDeveloperRole(getUserRoleFromMetadata())
+            isAdminRole(getUserRoleFromMetadata())
         }.getOrDefault(false)
 
         suspend fun register(email: String, pass: String, customId: String? = null, displayName: String? = null): Boolean = runCatching {
@@ -1396,11 +1408,9 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "updateRecoveredPassword failed: ${it.message}") }.getOrDefault(false)
 
-        suspend fun logout(): Boolean = runCatching {
-            val client = client ?: return false
-            client.auth.signOut()
-            true
-        }.onFailure { Log.e(TAG, "logout failed: ${it.message}") }.getOrDefault(false)
+        /** Route every application logout path through the repository cleanup. */
+        suspend fun logout(): Boolean =
+            SupabaseRepository.getInstance().logout().isSuccess
 
         suspend fun diagnoseSignInAttempt(email: String, pass: String): AuthDiagnosticsResult {
             if (!isSupabaseAvailable) {

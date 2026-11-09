@@ -64,13 +64,16 @@ object CloudServices {
                         if (uid.isNullOrBlank()) {
                             null
                         } else {
-                            val email = state.userRow.email
-                                ?: SupabaseServices.Auth.getCurrentUserEmail()
-                            val role = SupabaseServices.Auth.getUserRoleFromMetadata().lowercase(Locale.ROOT)
-                            val isDeveloper = role == "developer" || role == "owner" ||
-                                state.userRow.type.equals("مطور", ignoreCase = true)
-                            val isAdmin = state.isAdmin || isDeveloper ||
-                                state.userRow.type.equals("خاص", ignoreCase = true)
+                            val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+                                ?: state.session?.user?.email
+                            val email = authEmail ?: state.userRow.email
+                            val role = if (authEmail.equals(OWNER_EMAIL, ignoreCase = true)) {
+                                "owner"
+                            } else {
+                                SupabaseServices.Auth.getUserRoleFromMetadata().lowercase(Locale.ROOT)
+                            }
+                            val isDeveloper = SupabaseServices.Auth.isDeveloperRole(role)
+                            val isAdmin = SupabaseServices.Auth.isAdminRole(role) || isOwnerAccount(authEmail)
                             User(
                                 uid = uid,
                                 email = email,
@@ -100,55 +103,22 @@ object CloudServices {
     suspend fun syncAdminClaimFromFirebase(context: Context) = syncAdminClaim(context)
 
     suspend fun syncAdminClaim(context: Context) {
-        val email = SupabaseServices.Auth.getCurrentUserEmail()
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-
-        // 1. Permanent Check for Owner
-        if (isOwnerAccount(email)) {
-            Log.d(TAG, "Recognized developer owner account ($email). Auto-granting permanent full developer access.")
-            prefs.edit()
-                .putBoolean("is_developer", true)
-                .putBoolean("is_admin", true)
-                .apply()
-            return
+        val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+        val role = if (authEmail.equals(OWNER_EMAIL, ignoreCase = true)) {
+            "owner"
+        } else {
+            SupabaseServices.Auth.getUserRoleFromMetadata().lowercase(Locale.ROOT)
         }
+        val isDeveloper = SupabaseServices.Auth.isDeveloperRole(role)
+        val isAdmin = SupabaseServices.Auth.isAdminRole(role) || isOwnerAccount(authEmail)
 
-        // 2. Fetch Rank from Supabase Auth Metadata (Secure Role Metadata)
-        if (SupabaseServices.isSupabaseAvailable) {
-            val authRole = SupabaseServices.Auth.getUserRoleFromMetadata()
-            if (authRole != "free") {
-                val isDeveloper = authRole == "developer" || authRole == "owner"
-                val isAdmin = isDeveloper || authRole == "admin" || authRole == "special"
-                
-                if (isAdmin || isDeveloper) {
-                    prefs.edit()
-                        .putBoolean("is_developer", isDeveloper)
-                        .putBoolean("is_admin", isAdmin)
-                        .apply()
-                    Log.d(TAG, "User $email granted $authRole access from Auth Metadata.")
-                    return // Stop if found and verified in secure metadata
-                }
-            }
-        }
-
-        // 3. Fallback: Fetch Rank from Supabase Public Table
-        val currentUserId = Auth.getCurrentUserId()
-        if (currentUserId != null && SupabaseServices.isSupabaseAvailable) {
-            val dbUser = SupabaseServices.Database.ensureUser(currentUserId, email, null)
-            if (dbUser != null) {
-                val role = dbUser.type.lowercase(Locale.ROOT)
-                val isDeveloper = role == "developer" || role == "مطور"
-                val isSpecial = role == "special" || role == "خاص"
-                
-                if (isDeveloper || isSpecial) {
-                    prefs.edit()
-                        .putBoolean("is_developer", isDeveloper)
-                        .putBoolean("is_admin", isDeveloper || isSpecial)
-                        .apply()
-                    Log.d(TAG, "User $email granted $role access from cloud.")
-                }
-            }
-        }
+        // Cached flags are display/compatibility caches only. Always overwrite them
+        // from the authenticated Supabase session, including clearing revoked roles.
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
+            .putBoolean("is_developer", isDeveloper)
+            .putBoolean("is_admin", isAdmin)
+            .apply()
+        Log.d(TAG, "Synchronized cloud role $role for authenticated account.")
     }
 
     // --- خدمة قاعدة البيانات (Supabase + Local Database) ---
