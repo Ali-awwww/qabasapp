@@ -1,7 +1,12 @@
 # استوديو قبس (Qabas Studio)
 
-> **⚠️ MANDATORY CONSTITUTION FOR ALL DEVELOPERS & AI AGENTS:**
-> Every assistant (human or AI) starting or working on this codebase **MUST READ AND ADHERE TO `/CORE_OPERATIONAL_PROMPT.md`** before making any code updates.
+## تعليمات المساهمة ووكلاء الذكاء الاصطناعي
+
+قبل إجراء أي تعديل على هذا المستودع، اقرأ ملف [AGENTS.md](AGENTS.md) واتبع التعليمات المشتركة الواردة فيه.
+
+إذا كنت تستخدم Gemini أو أحد أدوات Google التي تعتمد ملف تعليمات المشروع، فاقرأ أيضًا [GEMINI.md](GEMINI.md). يكمّل هذا الملف التعليمات المشتركة في `AGENTS.md` ويحدد ما يخص Gemini، ولا يحل محلها.
+
+على بقية المطورين والوكلاء الرجوع إلى `AGENTS.md` بوصفه نقطة البداية لتعليمات المشروع. وعند وجود تعليمات متخصصة بأداة أو بيئة عمل، تُقرأ بالإضافة إلى التعليمات المشتركة ذات الصلة.
 
 تطبيق أندرويد متكامل لصناعة المحتوى المرئي، القرآني، والذكاء الاصطناعي بلغة Kotlin و Jetpack Compose ومربوط بقاعدة بيانات Supabase.
 
