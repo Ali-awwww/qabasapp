@@ -414,6 +414,7 @@ fun RegisterScreen(
 
                     Button(
                         onClick = {
+                            if (isLoading) return@Button
                             val trimmedEmail = email.trim()
                             if (name.isBlank() || trimmedEmail.isBlank() || password.isBlank()) {
                                 Toast.makeText(context, "الرجاء تعبئة جميع الحقول", Toast.LENGTH_SHORT).show()
@@ -574,6 +575,7 @@ fun RegisterScreen(
                                 isLoading = false
                             }
                         },
+                        enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
                         shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)

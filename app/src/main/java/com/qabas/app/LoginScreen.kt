@@ -308,6 +308,7 @@ fun LoginScreen(
 
                     // محاولة الدخول الموحّدة: يستدعيها زر الإدخال وزر «إعادة المحاولة» في بطاقة الخطأ
                     val submitLogin: () -> Unit = submitLogin@{
+                        if (isLoading) return@submitLogin
                         val trimmedInput = accountInput.trim()
                         if (trimmedInput.isBlank() || password.isBlank()) {
                             authErrorMessage = "الرجاء إدخال البريد أو اليوزر أو رقم الحساب وكلمة المرور"
@@ -726,6 +727,7 @@ fun LoginScreen(
                     // Submit Button (Compact Geometric Solid)
                     Button(
                         onClick = submitLogin,
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(46.dp)
@@ -781,9 +783,6 @@ fun LoginScreen(
                         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                         if (UserIdentifierManager.isEmail(currentTyped)) {
                             prefs.edit().putString("draft_register_email", currentTyped).apply()
-                        }
-                        if (password.isNotBlank()) {
-                            prefs.edit().putString("draft_register_password", password).apply()
                         }
                         onNavigateToRegister() 
                     }
@@ -852,9 +851,6 @@ fun LoginScreen(
                         if (UserIdentifierManager.isEmail(currentTyped)) {
                             prefs.edit().putString("draft_register_email", currentTyped).apply()
                         }
-                        if (password.isNotBlank()) {
-                            prefs.edit().putString("draft_register_password", password).apply()
-                        }
                         onNavigateToRegister()
                     },
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
@@ -880,6 +876,10 @@ fun LoginScreen(
                         putBoolean("is_guest", true)
                         putBoolean("is_admin", false)
                         putBoolean("is_developer", false)
+                        remove("user_id")
+                        remove("saved_login_email")
+                        remove("user_account_number")
+                        remove("user_name_with_account")
                         putString("user_email", "guest@qabas.studio")
                         putString("user_name", "ضيف قبس")
                         putString("user_display_name", "زائر مؤقت")

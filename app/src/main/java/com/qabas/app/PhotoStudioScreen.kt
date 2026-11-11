@@ -342,22 +342,24 @@ fun PhotoStudioScreen(
                         if (selectedAudioOption == "مؤثرات طبيعية") {
                             progressMessage = "جاري تحميل المؤثرات..."
                             try {
-                                val assetFile = File(context.cacheDir, "activity.mp3")
-                                if (!assetFile.exists()) {
-                                    context.assets.open("audio/activity.mp3").use { input ->
-                                        assetFile.outputStream().use { output -> input.copyTo(output) }
+                                audioPathToUse = withContext(Dispatchers.IO) {
+                                    val assetFile = File(context.cacheDir, "activity.mp3")
+                                    if (!assetFile.exists()) {
+                                        context.assets.open("audio/activity.mp3").use { input ->
+                                            assetFile.outputStream().use { output -> input.copyTo(output) }
+                                        }
                                     }
+                                    assetFile.absolutePath
                                 }
-                                audioPathToUse = assetFile.absolutePath
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         } else if (selectedAudioOption == "تلاوة هادئة") {
                             progressMessage = "جاري تحميل التلاوة..."
                             try {
-                                val recitationFile = File(context.cacheDir, "recitation_alafasy_255.mp3")
-                                if (!recitationFile.exists()) {
-                                    withContext(Dispatchers.IO) {
+                                audioPathToUse = withContext(Dispatchers.IO) {
+                                    val recitationFile = File(context.cacheDir, "recitation_alafasy_255.mp3")
+                                    if (!recitationFile.exists()) {
                                         java.net.URL("https://cdn.islamic.network/quran/audio/128/ar.alafasy/255.mp3")
                                             .openStream().use { input ->
                                                 recitationFile.outputStream().use { output ->
@@ -365,8 +367,8 @@ fun PhotoStudioScreen(
                                                 }
                                             }
                                     }
+                                    recitationFile.absolutePath
                                 }
-                                audioPathToUse = recitationFile.absolutePath
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }

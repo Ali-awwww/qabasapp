@@ -157,8 +157,6 @@ fun DataLoadingScreen(
         } catch (e: Exception) {
             Log.e("DataLoading", "Local init failed: ${e.message}")
         }
-        delay(400)
-
         // --- Step 2: Cloud & Auth ---
         currentStep = 1
         statusText = steps[1].title
@@ -172,8 +170,6 @@ fun DataLoadingScreen(
         } catch (e: Exception) {
             Log.e("DataLoading", "Cloud init failed: ${e.message}")
         }
-        delay(400)
-
         // --- Step 3: Projects & Data ---
         currentStep = 2
         statusText = steps[2].title
@@ -189,7 +185,6 @@ fun DataLoadingScreen(
         
         overallProgress = 1f
         statusText = "اكتملت جاهزية النظام بنجاح ⚡"
-        delay(600)
         finish()
     }
 
@@ -551,4 +546,3 @@ fun DataLoadingScreen(
         }
     }
 }
-
