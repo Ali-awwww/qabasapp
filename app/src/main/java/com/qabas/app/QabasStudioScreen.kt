@@ -10,6 +10,10 @@ package com.qabas.app
 import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -413,6 +417,7 @@ fun QabasStudioScreen(
                                             aspectRatio = selectedAspect,
                                             quality = selectedQuality,
                                             font = selectedFont,
+                                            fontSizeSp = fontSizeSp,
                                             align = selectedAlign,
                                             rotation = textRotation,
                                             ornament = designOrnamentById(ornamentId)
@@ -502,6 +507,7 @@ fun QabasStudioScreen(
                                         aspectRatio = selectedAspect,
                                         quality = selectedQuality,
                                         font = selectedFont,
+                                        fontSizeSp = fontSizeSp,
                                         align = selectedAlign,
                                         rotation = textRotation,
                                         ornament = designOrnamentById(ornamentId)
@@ -1427,6 +1433,7 @@ private fun saveHadithCardBitmapToStorage(
     aspectRatio: String,
     quality: String = "4K",
     font: DesignFont = DesignFont.AMIRI,
+    fontSizeSp: Int = 20,
     align: DesignAlign = DesignAlign.CENTER,
     rotation: Float = 0f,
     ornament: DesignOrnament = DesignOrnament.NONE
@@ -1539,50 +1546,54 @@ private fun saveHadithCardBitmapToStorage(
             canvas.drawText(narrator, width / 2f, 260f * scale, narratorPaint)
         }
 
-        // 7. Hadith Body text (Formatted, Wrapped, Aligned & Rotated)
+        // 7. Hadith Body text: StaticLayout performs Arabic shaping, bidi handling,
+        // and line breaking instead of drawing split words with raw Canvas.drawText.
         val bodyPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             typeface = designFontTypeface(context, font)
             color = android.graphics.Color.parseColor("#F8FAFC")
-            textSize = 34f * scale
-            textAlign = android.graphics.Paint.Align.LEFT
+            // The preview is rendered in dp/sp; export uses pixels. The 3x
+            // base scale keeps the selected preview size consistent at 1080px.
+            textSize = fontSizeSp * 3f * scale
         }
 
         val safeText = if (text.length > 350) text.take(345) + "..." else text
-        val words = safeText.split(" ")
-        val lines = mutableListOf<String>()
-        var currentLine = ""
         val maxLineWidth = width - (240f * scale)
-        for (w in words) {
-            val testLine = if (currentLine.isEmpty()) w else "$currentLine $w"
-            if (bodyPaint.measureText(testLine) < maxLineWidth) {
-                currentLine = testLine
-            } else {
-                if (currentLine.isNotEmpty()) lines.add(currentLine)
-                currentLine = w
-            }
-        }
-        if (currentLine.isNotEmpty()) lines.add(currentLine)
+        val bodyTextPaint = TextPaint(bodyPaint).apply { isSubpixelText = true }
+        val bodyLayout = StaticLayout.Builder
+            .obtain(safeText, 0, safeText.length, bodyTextPaint, maxLineWidth.toInt())
+            .setAlignment(
+                when (align) {
+                    DesignAlign.CENTER -> Layout.Alignment.ALIGN_CENTER
+                    DesignAlign.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+                    DesignAlign.LEFT -> Layout.Alignment.ALIGN_NORMAL
+                }
+            )
+            .setTextDirection(
+                if (safeText.any { it in '\u0600'..'\u06FF' }) {
+                    TextDirectionHeuristics.FIRSTSTRONG_RTL
+                } else {
+                    TextDirectionHeuristics.FIRSTSTRONG_LTR
+                }
+            )
+            .setIncludePad(false)
+            .setLineSpacing(0f, 1.65f)
+            .build()
 
-        val lineHeight = 56f * scale
         val centerX = width / 2f
         val centerY = height / 2f
-        val totalH = lines.size * lineHeight
-        var yPos = centerY - (totalH / 2f) + (20f * scale)
-        val rightEdge = width - (110f * scale)
         val leftEdge = (110f * scale)
+        val rightEdge = width - (110f * scale)
+        val layoutX = when (align) {
+            DesignAlign.CENTER -> centerX - (maxLineWidth / 2f)
+            DesignAlign.RIGHT -> rightEdge - maxLineWidth
+            DesignAlign.LEFT -> leftEdge
+        }
+        val layoutY = centerY - (bodyLayout.height / 2f)
         canvas.save()
         canvas.rotate(rotation, centerX, centerY)
-        for (line in lines) {
-            val lineW = bodyPaint.measureText(line)
-            val x = when (align) {
-                DesignAlign.CENTER -> centerX - (lineW / 2f)
-                DesignAlign.RIGHT -> rightEdge - lineW
-                DesignAlign.LEFT -> leftEdge
-            }
-            canvas.drawText(line, x, yPos, bodyPaint)
-            yPos += lineHeight
-        }
+        canvas.translate(layoutX, layoutY)
+        bodyLayout.draw(canvas)
         canvas.restore()
 
         // 8. Authenticity Badge Pill (Status)
