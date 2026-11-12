@@ -16,7 +16,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.security.KeyStore
-import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -129,15 +128,8 @@ object KeySyncService {
         }
     }
 
-    private fun getUserId(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString("user_id", null)
-            ?: prefs.getString("user_email", "anonymous")?.let { email ->
-                val digest = MessageDigest.getInstance("SHA-256").digest(email.toByteArray())
-                digest.take(16).joinToString("") { "%02x".format(it) }
-            }
-            ?: "anonymous"
-    }
+    /** Cloud key sync is strictly account-scoped; never derive ownership from email/device prefs. */
+    private fun getUserId(): String? = SupabaseServices.Auth.getCurrentUserId()
 
     fun pushToCloud(context: Context, onResult: ((Boolean, String) -> Unit)? = null) {
         if (!SupabaseConfig.isConfigured) {
@@ -148,7 +140,10 @@ object KeySyncService {
         scope.launch {
             try {
                 val keyPrefs = AgentPrefs.instance(context)
-                val userId = getUserId(context)
+                val userId = getUserId() ?: run {
+                    withContext(Dispatchers.Main) { onResult?.invoke(false, "سجّل الدخول أولاً لمزامنة المفاتيح بأمان") }
+                    return@launch
+                }
                 val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                     .format(java.util.Date())
 
@@ -205,7 +200,10 @@ object KeySyncService {
         scope.launch {
             try {
                 val keyPrefs = AgentPrefs.instance(context)
-                val userId = getUserId(context)
+                val userId = getUserId() ?: run {
+                    withContext(Dispatchers.Main) { onResult?.invoke(false, "سجّل الدخول أولاً لاستعادة المفاتيح بأمان") }
+                    return@launch
+                }
 
                 val result = SupabaseConfig.client.from(SYNC_TABLE).select {
                     filter { eq("user_id", userId) }

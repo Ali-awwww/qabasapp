@@ -51,6 +51,7 @@ object AgentPrefs {
         "pexels_key", "pixabay_key", "coverr_key",
         "leonardo_api_key",
         "supabase_anon_key", "api_server_key",
+        "user_api_key",
         GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO,
         ACTIVE_MISSION_JSON, TEAM_CONFIG_JSON
     )
