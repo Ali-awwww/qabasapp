@@ -1997,19 +1997,21 @@ object AppServices {
     }
 
     suspend fun generateAiImage(prompt: String): String? {
-        val hfImage = RealHuggingFaceService.generateImage(prompt)
+        val guardedPrompt = QabasIslamicContentPolicy.forVisualGeneration(prompt)
+
+        val hfImage = RealHuggingFaceService.generateImage(guardedPrompt)
         if (hfImage != null) return hfImage
 
         val pollinationsImage = PollinationsAiService.generateAndDownload(
             context = appContext,
-            prompt = prompt,
+            prompt = guardedPrompt,
             width = 1080,
             height = 1920,
             model = "flux"
         )
         if (pollinationsImage != null) return pollinationsImage
 
-        return fetchMedia(prompt, "image")
+        return fetchMedia(guardedPrompt, "image")
     }
 
     suspend fun fetchMedia(query: String, type: String = "video"): String {
