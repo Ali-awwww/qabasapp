@@ -220,6 +220,14 @@ fun AppNavigation(
                     val analyticsService = AppServices.getAnalyticsService(context)
                     analyticsService.logProjectCreated("new_project", "none", "0")
                 },
+                onNewProjectWithAudio = { initialText, audioPath ->
+                    viewModel.createProject(initialText ?: "")
+                    if (!audioPath.isNullOrBlank()) {
+                        viewModel.updateState { copy(voiceOver = audioPath) }
+                    }
+                    val analyticsService = AppServices.getAnalyticsService(context)
+                    analyticsService.logProjectCreated("new_project_audio", "none", "0")
+                },
                 onViewProjects = { viewModel.updateState { copy(appState = AppState.PROJECTS) } },
                 onViewSettings = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
                 onViewProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } },

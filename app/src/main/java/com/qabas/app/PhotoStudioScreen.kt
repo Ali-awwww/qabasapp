@@ -480,17 +480,25 @@ fun PhotoStudioScreen(
                     if (targetPath != null) {
                         val file = File(targetPath)
                         if (file.exists()) {
-                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                            val mime = if (exportType == "PHOTO") {
-                                if (outputFormat == "PNG") "image/png" else "image/jpeg"
-                            } else "video/mp4"
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = mime
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            try {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val mime = if (exportType == "PHOTO") {
+                                    if (outputFormat == "PNG") "image/png" else "image/jpeg"
+                                } else "video/mp4"
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = mime
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة الإبداع الدعوي"))
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر تجهيز الملف للمشاركة", Toast.LENGTH_LONG).show()
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "مشاركة الإبداع الدعوي"))
+                        } else {
+                            Toast.makeText(context, "ملف التصدير غير موجود أو تم حذفه", Toast.LENGTH_LONG).show()
                         }
+                    } else {
+                        Toast.makeText(context, "تعذر العثور على ملف التصدير", Toast.LENGTH_LONG).show()
                     }
                 },
                 onSaveProject = { path ->

@@ -279,7 +279,8 @@ fun UnifiedMasterStudioScreen(
 
             } catch (e: Exception) {
                 isGeneratingMasterpiece = false
-                Toast.makeText(context, "تم الإنتاج بنمط الأمان: ${e.message}", Toast.LENGTH_SHORT).show()
+                generationStage = "تعذر إكمال الإنتاج"
+                Toast.makeText(context, "تعذر إكمال الإنتاج، حاول مرة أخرى", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -332,7 +333,10 @@ fun UnifiedMasterStudioScreen(
                 },
                 actions = {
                     if (generatedScenes.isNotEmpty()) {
-                        IconButton(onClick = { launchMasterpieceGeneration() }) {
+                        IconButton(
+                            onClick = { launchMasterpieceGeneration() },
+                            enabled = !isGeneratingMasterpiece
+                        ) {
                             Icon(Icons.Default.Refresh, contentDescription = "إعادة التوليد", tint = primaryColor, modifier = Modifier.size(20.dp))
                         }
                     }
@@ -730,8 +734,13 @@ fun UnifiedMasterStudioScreen(
                                         .filter { it.isNotBlank() }
                                         .joinToString(". ")
                                 }
-                                voiceAudioPath = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
-                                Toast.makeText(context, "تم تحديث الصوت بنجاح ✓", Toast.LENGTH_SHORT).show()
+                                val regenerated = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
+                                voiceAudioPath = regenerated
+                                Toast.makeText(
+                                    context,
+                                    if (regenerated.isNullOrBlank()) "تعذر تحديث الصوت، حاول مرة أخرى" else "تم تحديث الصوت بنجاح ✓",
+                                    if (regenerated.isNullOrBlank()) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                                ).show()
                             }
                         },
                         primaryColor = primaryColor

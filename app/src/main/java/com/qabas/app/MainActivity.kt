@@ -1326,9 +1326,11 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             var previousStatus: ConnectivityObserver.Status? = null
             UserPreferencesManager.networkStatus.collect { status ->
-                if (previousStatus != null && previousStatus != status) {
+                if (previousStatus != status) {
                     if (status == ConnectivityObserver.Status.Available) {
-                        Toast.makeText(context, "تم استعادة الاتصال السحابي 🚀", Toast.LENGTH_SHORT).show()
+                        if (previousStatus != null) {
+                            Toast.makeText(context, "تم استعادة الاتصال السحابي 🚀", Toast.LENGTH_SHORT).show()
+                        }
                         projectService.syncPendingProjects()
                         loadProjects()
                     } else if (status == ConnectivityObserver.Status.Lost || status == ConnectivityObserver.Status.Unavailable) {
@@ -1423,6 +1425,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
                 currentProjectId = project.id,
                 projectTitle = project.title,
                 inputText = project.idea,
+                finalVideoPath = project.finalVideoPath,
                 appState = try {
                     AppState.valueOf(project.lastScreen)
                 } catch (_: Exception) {

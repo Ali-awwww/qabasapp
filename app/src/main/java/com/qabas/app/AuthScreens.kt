@@ -363,7 +363,7 @@ fun RegisterScreen(
                             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
+                                    contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور",
                                     tint = Color.White.copy(alpha = 0.4f),
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -391,7 +391,7 @@ fun RegisterScreen(
                             IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
                                 Icon(
                                     imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
+                                    contentDescription = if (isConfirmPasswordVisible) "إخفاء تأكيد كلمة المرور" else "إظهار تأكيد كلمة المرور",
                                     tint = Color.White.copy(alpha = 0.4f),
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -634,6 +634,8 @@ fun ForgotPasswordScreen(
     var isLoading by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    var isNewPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isResetComplete by remember { mutableStateOf(false) }
 
     val primaryColor = qabasPrimary()
@@ -750,7 +752,15 @@ fun ForgotPasswordScreen(
                             value = newPassword,
                             onValueChange = { newPassword = it },
                             label = { Text("كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
-                            visualTransformation = PasswordVisualTransformation(),
+                            visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { isNewPasswordVisible = !isNewPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (isNewPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = if (isNewPasswordVisible) "إخفاء كلمة المرور الجديدة" else "إظهار كلمة المرور الجديدة"
+                                    )
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = primaryColor,
@@ -763,7 +773,15 @@ fun ForgotPasswordScreen(
                             value = confirmPassword,
                             onValueChange = { confirmPassword = it },
                             label = { Text("تأكيد كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
-                            visualTransformation = PasswordVisualTransformation(),
+                            visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = if (isConfirmPasswordVisible) "إخفاء تأكيد كلمة المرور" else "إظهار تأكيد كلمة المرور"
+                                    )
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = primaryColor,

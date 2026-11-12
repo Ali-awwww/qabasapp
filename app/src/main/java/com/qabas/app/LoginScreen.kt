@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -674,7 +676,7 @@ fun LoginScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
+                                    contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور",
                                     tint = Color.White.copy(alpha = 0.4f),
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -700,7 +702,7 @@ fun LoginScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { rememberMe = !rememberMe },
+                            .toggleable(value = rememberMe, role = Role.Checkbox, onValueChange = { rememberMe = it }),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -920,7 +922,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "ENCRYPTION: AES-256 // SUPABASE_AUTH // IDENTITY_FEDERATION",
+                text = "AUTHENTICATED SESSION // SUPABASE",
                 color = primaryColor.copy(alpha = 0.35f),
                 fontFamily = RobotoMonoFont,
                 fontSize = 8.sp,

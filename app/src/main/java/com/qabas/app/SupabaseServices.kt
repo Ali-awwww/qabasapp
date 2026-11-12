@@ -721,7 +721,7 @@ object SupabaseServices {
             val client = client ?: return emptyList()
             val targetId = userId ?: Auth.getCurrentUserId()
             if (targetId.isNullOrBlank()) {
-                client.postgrest.from("projects").select().decodeList<ProjectRow>()
+                return@runCatching emptyList()
             } else {
                 client.postgrest.from("projects").select {
                     filter {

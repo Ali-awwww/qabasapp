@@ -58,26 +58,28 @@ class ProjectService(private val context: Context) {
 
                         val toUpsert = ArrayList<ProjectEntity>()
                         supabaseRows.forEach { row ->
-                            val meta = (row.metadata as? kotlinx.serialization.json.JsonObject)
-                            val ideaStr = meta?.get("idea")?.toString()?.trim('"') ?: (row.description ?: "")
-                            val scriptStr = meta?.get("script")?.toString()?.trim('"') ?: ""
+                            val meta = row.metadata
+                            val ideaStr = meta["idea"] ?: (row.description ?: "")
+                            val cloudTimestamp = row.createdAt?.let {
+                                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
+                            } ?: 0L
                             val proj = Project(
                                 id = row.id,
                                 title = row.title,
                                 idea = ideaStr,
-                                analysis = meta?.get("analysis")?.toString()?.trim('"') ?: "",
-                                resources = meta?.get("resources")?.toString()?.trim('"') ?: "",
-                                settings = meta?.get("settings")?.toString()?.trim('"') ?: "",
-                                script = scriptStr,
-                                finalVideoPath = meta?.get("finalVideoPath")?.toString()?.trim('"') ?: "",
+                                analysis = meta["analysis"] ?: "",
+                                resources = meta["resources"] ?: "",
+                                settings = meta["settings"] ?: "",
+                                script = meta["script"] ?: "",
+                                finalVideoPath = meta["finalVideoPath"] ?: "",
                                 cost = row.cost,
-                                createdAt = System.currentTimeMillis(),
-                                updatedAt = System.currentTimeMillis(),
+                                createdAt = cloudTimestamp,
+                                updatedAt = cloudTimestamp,
                                 status = row.status,
-                                lastScreen = meta?.get("lastScreen")?.toString()?.trim('"') ?: ""
+                                lastScreen = meta["lastScreen"] ?: ""
                             )
                             val existing = merged[proj.id]
-                            if (existing == null || proj.updatedAt >= existing.updatedAt) {
+                            if (existing == null || existing.synced && proj.updatedAt >= existing.updatedAt) {
                                 merged[proj.id] = proj
                                 toUpsert.add(proj.toEntity())
                             }

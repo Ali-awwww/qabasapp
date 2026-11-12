@@ -303,6 +303,7 @@ fun QabasStudioScreen(
 
     var selectedQuality by remember { mutableStateOf("4K") } // 4K (2160p), 2K (1440p), HD (1080p)
     var isExportingImage by rememberSaveable { mutableStateOf(false) }
+    var isExportingVideo by rememberSaveable { mutableStateOf(false) }
     var activeTab by rememberSaveable { mutableIntStateOf(0) } // 0: الحديث, 1: المظهر, 2: الخطوط, 3: الذكاء الاصطناعي
 
     val currentTheme = themes.firstOrNull { it.id == selectedThemeId } ?: themes[0]
@@ -466,15 +467,19 @@ fun QabasStudioScreen(
 
                     OutlinedButton(
                         onClick = {
-                            onExportAsVideo(inputText, selectedAspect)
-                            Toast.makeText(context, "🎥 جاري تجهيز ريلز متحرك ($selectedAspect)...", Toast.LENGTH_SHORT).show()
+                            if (!isExportingVideo) {
+                                isExportingVideo = true
+                                onExportAsVideo(inputText, selectedAspect)
+                                Toast.makeText(context, "🎥 جاري تجهيز ريلز متحرك ($selectedAspect)...", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         modifier = Modifier
                             .weight(1.1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
+                        enabled = !isExportingVideo
                     ) {
                         Icon(Icons.Default.Movie, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -1348,7 +1353,13 @@ fun QabasStudioScreen(
                 }
 
                 Button(
-                    onClick = { showShareDialog = true },
+                    onClick = {
+                        if (pendingShareImagePath.isNullOrBlank()) {
+                            Toast.makeText(context, "احفظ صورة البطاقة أولاً ثم شاركها", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showShareDialog = true
+                        }
+                    },
                     modifier = Modifier.weight(1.1f).height(40.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
@@ -1535,7 +1546,6 @@ private fun saveHadithCardBitmapToStorage(
             color = android.graphics.Color.parseColor("#F8FAFC")
             textSize = 34f * scale
             textAlign = android.graphics.Paint.Align.LEFT
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
 
         val safeText = if (text.length > 350) text.take(345) + "..." else text
@@ -1640,10 +1650,13 @@ private fun saveHadithCardBitmapToStorage(
             val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
             uri?.let {
                 val stream = context.contentResolver.openOutputStream(it)
-                stream?.use { out ->
+                val compressed = stream?.use { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                } ?: false
+                if (compressed) {
+                    return uri.toString()
                 }
-                return uri.toString()
+                context.contentResolver.delete(uri, null, null)
             }
         } else {
             val imagesDir = context.getExternalFilesDir(null)
