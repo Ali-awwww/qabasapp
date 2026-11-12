@@ -1444,7 +1444,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
     fun loadProjects() {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) {
-                projectService.getAllProjects()
+                projectService.getAllProjects(syncCloud = true)
             }
             _state.value = _state.value.copy(projects = list)
         }
@@ -1452,7 +1452,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
 
     suspend fun loadProjectsSuspend() {
         val list = withContext(Dispatchers.IO) {
-            projectService.getAllProjects()
+                projectService.getAllProjects(syncCloud = true)
         }
         _state.value = _state.value.copy(projects = list)
     }

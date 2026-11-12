@@ -439,7 +439,7 @@ fun QabasStudioScreen(
                                         }
                                         Toast.makeText(context, "📸 تم حفظ بطاقة الحديث في المعرض بدقة $selectedQuality الفائقة!", Toast.LENGTH_LONG).show()
                                     } else {
-                                        Toast.makeText(context, "📸 تم تصدير بطاقة الحديث بنجاح!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تعذر حفظ بطاقة الحديث في المعرض", Toast.LENGTH_LONG).show()
                                     }
                                 } finally {
                                     isExportingImage = false
@@ -1007,12 +1007,11 @@ fun QabasStudioScreen(
                                                             if (json.has("source")) hadithSource = json.getString("source")
                                                             Toast.makeText(context, "تم ضبط وتخريج الحديث بالذكاء الاصطناعي بنجاح! ✨", Toast.LENGTH_SHORT).show()
                                                         } catch (_: Exception) {
-                                                            inputText = response.take(300)
-                                                            Toast.makeText(context, "تم تحسين نص الحديث بنجاح! ✨", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, "تعذر قراءة نتيجة الذكاء الاصطناعي، حاول مرة أخرى", Toast.LENGTH_LONG).show()
                                                         }
                                                     }
                                                 } catch (_: Exception) {
-                                                    Toast.makeText(context, "تم التدقيق والتنسيق بنجاح ✨", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "تعذر التدقيق والتنسيق، تحقق من الاتصال وحاول مرة أخرى", Toast.LENGTH_LONG).show()
                                                 } finally {
                                                     isGeneratingAi = false
                                                 }

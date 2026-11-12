@@ -3,11 +3,13 @@ package com.qabas.app
 import android.content.Context
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -42,6 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import android.content.pm.PackageManager
 
 /**
  * 🎙️ استوديو استنساخ ودبلجة الأصوات السيبراني «VoiceStudio»
@@ -142,12 +145,32 @@ fun VoiceStudioScreen(
                     context.contentResolver.openInputStream(it)?.use { input ->
                         FileOutputStream(temp).use { output -> input.copyTo(output) }
                     }
-                    recordedSampleFile = temp
-                    Toast.makeText(context, "تم تحميل العينة الصوتية بنجاح بنسبة 100%", Toast.LENGTH_SHORT).show()
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(temp.absolutePath)
+                        val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                        if (temp.length() <= 0L || durationMs !in 5_000L..10_000L) {
+                            temp.delete()
+                            Toast.makeText(context, "يجب أن تكون العينة بين 5 و10 ثوانٍ وبصيغة صوتية صالحة", Toast.LENGTH_LONG).show()
+                        } else {
+                            recordedSampleFile = temp
+                            Toast.makeText(context, "تم تحميل العينة الصوتية بنجاح", Toast.LENGTH_SHORT).show()
+                        }
+                    } finally {
+                        retriever.release()
+                    }
                 } catch (e: Exception) {
                     Toast.makeText(context, "خطأ في قراءة الملف: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(context, "يجب السماح بالميكروفون لتسجيل عينة صوتية", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -298,11 +321,33 @@ fun VoiceStudioScreen(
                                                 mediaRecorder?.release()
                                                 mediaRecorder = null
                                                 isRecordingSample = false
-                                                Toast.makeText(context, "تم حفظ التسجيل كعينة بنجاح", Toast.LENGTH_SHORT).show()
+                                                val sample = recordedSampleFile
+                                                val retriever = MediaMetadataRetriever()
+                                                val durationMs = runCatching {
+                                                    retriever.setDataSource(sample?.absolutePath ?: "")
+                                                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                                                }.getOrDefault(0L)
+                                                retriever.release()
+                                                if (sample == null || sample.length() <= 0L || durationMs !in 5_000L..10_000L) {
+                                                    sample?.delete()
+                                                    recordedSampleFile = null
+                                                    Toast.makeText(context, "يجب أن تكون العينة بين 5 و10 ثوانٍ", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    Toast.makeText(context, "تم حفظ التسجيل كعينة بنجاح", Toast.LENGTH_SHORT).show()
+                                                }
                                             } catch (e: Exception) {
+                                                mediaRecorder?.runCatching { release() }
+                                                mediaRecorder = null
                                                 isRecordingSample = false
+                                                recordedSampleFile?.delete()
+                                                recordedSampleFile = null
+                                                Toast.makeText(context, "تعذر حفظ العينة الصوتية، حاول مرة أخرى", Toast.LENGTH_LONG).show()
                                             }
                                         } else {
+                                            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                                microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                                return@Button
+                                            }
                                             try {
                                                 val file = File(context.cacheDir, "rec_voice_${System.currentTimeMillis()}.mp3")
                                                 val recorder = MediaRecorder().apply {
@@ -375,10 +420,15 @@ fun VoiceStudioScreen(
                                         Toast.makeText(context, "الرجاء إدخال اسم للصوت المستنسخ", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
+                                    val sample = recordedSampleFile
+                                    if (sample == null || !sample.exists() || sample.length() <= 0L) {
+                                        Toast.makeText(context, "أضف عينة صوتية صالحة بين 5 و10 ثوانٍ أولاً", Toast.LENGTH_LONG).show()
+                                        return@Button
+                                    }
                                     val profile = ClonedVoiceProfile(
                                         name = newVoiceName,
                                         description = "صوت مستنسخ بواسطة VoiceStudio AI",
-                                        sampleAudioPath = recordedSampleFile?.absolutePath ?: "",
+                                        sampleAudioPath = sample.absolutePath,
                                         pitchShift = pitchSlider,
                                         speedRate = speedSlider
                                     )

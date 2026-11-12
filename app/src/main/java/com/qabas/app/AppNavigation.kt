@@ -140,14 +140,28 @@ fun AppNavigation(
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                     val isGuest = prefs.getBoolean("is_guest", false)
-                    val nextState = if (isLoggedIn || isGuest) AppState.HOME else AppState.LOGIN
+                    val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
+                    val nextState = if (!hasAcceptedCovenant) {
+                        AppState.ONBOARDING
+                    } else if (isLoggedIn || isGuest) {
+                        AppState.HOME
+                    } else {
+                        AppState.LOGIN
+                    }
                     viewModel.updateState { copy(appState = nextState) }
                 }
             )
         }
         AppState.ONBOARDING -> {
             OnboardingScreen(
-                onFinish = { viewModel.updateState { copy(appState = AppState.HOME) } }
+                onFinish = {
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                    val isGuest = prefs.getBoolean("is_guest", false)
+                    viewModel.updateState {
+                        copy(appState = if (isLoggedIn || isGuest) AppState.HOME else AppState.LOGIN)
+                    }
+                }
             )
         }
         AppState.LOGIN -> {

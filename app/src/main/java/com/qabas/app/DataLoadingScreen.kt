@@ -40,6 +40,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.CutCornerShape
@@ -111,6 +113,8 @@ fun DataLoadingScreen(
     var currentStep by remember { mutableIntStateOf(0) }
     var overallProgress by remember { mutableFloatStateOf(0f) }
     var statusText by remember { mutableStateOf("جاري تشغيل مصفوفة قبس...") }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var retryToken by remember { mutableIntStateOf(0) }
 
     // انيميشن النبض
     val infiniteTransition = rememberInfiniteTransition(label = "SplashPulse")
@@ -141,56 +145,65 @@ fun DataLoadingScreen(
         label = "progressAnim"
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(retryToken) {
+        loadError = null
         currentStep = 0
         statusText = steps[0].title
         overallProgress = 0.10f
         
         // --- Step 1: Local Services ---
         try {
-            AppServices.init(appContext)
-            AudioPlayerManager.init(appContext)
-            BillingManager.getInstance(appContext)
-            StyleBrain.init(appContext)
-            StyleManager.init(appContext)
+            withContext(Dispatchers.IO) {
+                AppServices.init(appContext)
+                AudioPlayerManager.init(appContext)
+                BillingManager.getInstance(appContext)
+                StyleBrain.init(appContext)
+                StyleManager.init(appContext)
+            }
             overallProgress = 0.40f
         } catch (e: Exception) {
             Log.e("DataLoading", "Local init failed: ${e.message}")
+            loadError = "تعذر تهيئة خدمات التطبيق المحلية. حاول مرة أخرى."
         }
         // --- Step 2: Cloud & Auth ---
         currentStep = 1
         statusText = steps[1].title
         try {
-            CloudServices.tryInitFromSavedConfig(appContext)
-            if (SupabaseServices.isSupabaseAvailable) {
-                CloudServices.syncAdminClaim(appContext)
-                SupabaseServices.Auth.refreshVerifiedRole()
+            withContext(Dispatchers.IO) {
+                CloudServices.tryInitFromSavedConfig(appContext)
+                if (SupabaseServices.isSupabaseAvailable) {
+                    CloudServices.syncAdminClaim(appContext)
+                    SupabaseServices.Auth.refreshVerifiedRole()
+                }
             }
             overallProgress = 0.75f
         } catch (e: Exception) {
             Log.e("DataLoading", "Cloud init failed: ${e.message}")
+            loadError = loadError ?: "تعذر مزامنة الخدمات السحابية. تحقق من الاتصال وحاول مرة أخرى."
         }
         // --- Step 3: Projects & Data ---
         currentStep = 2
         statusText = steps[2].title
         try {
-            onLoadProjects()
-            if (SupabaseServices.isSupabaseAvailable) {
-                SupabaseServices.Database.ping()
+            withContext(Dispatchers.IO) {
+                onLoadProjects()
+                if (SupabaseServices.isSupabaseAvailable) {
+                    SupabaseServices.Database.ping()
+                }
             }
             overallProgress = 0.98f
         } catch (e: Exception) {
             Log.e("DataLoading", "Data load failed: ${e.message}")
+            loadError = loadError ?: "تعذر تحميل المشاريع. حاول مرة أخرى."
         }
-        
-        overallProgress = 1f
-        statusText = "اكتملت جاهزية النظام بنجاح ⚡"
-        finish()
-    }
 
-    LaunchedEffect(Unit) {
-        delay(10000)
-        finish()
+        if (loadError == null) {
+            overallProgress = 1f
+            statusText = "اكتملت جاهزية النظام بنجاح ⚡"
+            finish()
+        } else {
+            statusText = "توقفت التهيئة وتحتاج إلى إعادة المحاولة"
+        }
     }
 
     Box(
@@ -445,7 +458,7 @@ fun DataLoadingScreen(
                     // قائمة الخطوات (Minimalist Tech List)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         steps.forEachIndexed { index, step ->
-                            val isDone = index < currentStep || overallProgress >= 1f
+                            val isDone = loadError == null && (index < currentStep || overallProgress >= 1f)
                             val isActive = index == currentStep && overallProgress < 1f
 
                             Row(
@@ -516,7 +529,7 @@ fun DataLoadingScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "KERN: 0x8F2 // MEM: 1.2GB",
+                            text = if (loadError == null) "LOCAL SERVICES // READY" else "INITIALIZATION // RETRY REQUIRED",
                             color = primaryColor.copy(alpha = 0.7f),
                             fontFamily = RobotoMonoFont,
                             fontSize = 8.sp,
@@ -530,6 +543,24 @@ fun DataLoadingScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+
+            if (loadError != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = loadError.orEmpty(),
+                    color = Color(0xFFFCA5A5),
+                    fontFamily = CairoFont,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = { retryToken++ },
+                    modifier = Modifier.padding(top = 8.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = primaryColor)
+                ) {
+                    Text("إعادة المحاولة", color = DeepSlate, fontFamily = CairoFont)
                 }
             }
 

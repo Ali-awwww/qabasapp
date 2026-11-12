@@ -73,7 +73,6 @@ fun UnifiedMasterStudioScreen(
     var selectedRatio by rememberSaveable { mutableStateOf("9:16") } // 9:16, 16:9, 1:1
     var selectedVoice by rememberSaveable { mutableStateOf("ar-SA-HamedNeural") }
     var selectedTone by rememberSaveable { mutableStateOf("خاشع ومؤثر") }
-    var selectedVisualModel by rememberSaveable { mutableStateOf("flux") } // flux, broll, hybrid
 
     // 2. حالة التوليد الموحد
     var isGeneratingMasterpiece by rememberSaveable { mutableStateOf(false) }
@@ -155,7 +154,7 @@ fun UnifiedMasterStudioScreen(
                                 Scene(
                                     title = o.optString("title", "مشهد ${i+1}"),
                                     description = o.optString("description", ""),
-                                    durationInSeconds = o.optInt("duration", 5),
+                                    durationInSeconds = o.optInt("duration", 5).coerceIn(1, 60),
                                     transitionType = o.optString("transitionType", "Fade")
                                 )
                             }
@@ -179,7 +178,11 @@ fun UnifiedMasterStudioScreen(
                 generationStage = "2/5 توليد التعليق الصوتي العصبي النقي (Edge-TTS)..."
 
                 // 2. توليد الصوت
-                val fullNarrativeText = scenes.joinToString(" ") { it.title }
+                val fullNarrativeText = scenes.joinToString(". ") { scene ->
+                    listOf(scene.title, scene.description)
+                        .filter { it.isNotBlank() }
+                        .joinToString(". ")
+                }
                 val audioFile = AppServices.generateVoiceover(fullNarrativeText, tone = "وثائقي", voiceId = selectedVoice)
                 voiceAudioPath = audioFile
 
@@ -192,7 +195,9 @@ fun UnifiedMasterStudioScreen(
                 if (selectedVisualEngine == "higgsfield") {
                     generationStage = "3/5 توليد لقطات الفيديو السينمائية بالذكاء الاصطناعي (Higgsfield AI)..."
                     val prompt = "Cinematic holy Islamic footage, $topicText, majestic ambient light, 8k, slow motion luxury aesthetic"
-                    val higgsfieldClip = if (isHiggsfieldConfigured) {
+                    val higgsfieldReady = HiggsfieldVideoService.isConfigured(context)
+                    isHiggsfieldConfigured = higgsfieldReady
+                    val higgsfieldClip = if (higgsfieldReady) {
                         HiggsfieldVideoService.generateTextToVideo(
                             context = context,
                             prompt = prompt,
@@ -720,7 +725,11 @@ fun UnifiedMasterStudioScreen(
                         onReSynthesize = { voice ->
                             scope.launch {
                                 selectedVoice = voice
-                                val fullText = generatedScenes.joinToString(" ") { it.title }
+                                val fullText = generatedScenes.joinToString(". ") { scene ->
+                                    listOf(scene.title, scene.description)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(". ")
+                                }
                                 voiceAudioPath = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
                                 Toast.makeText(context, "تم تحديث الصوت بنجاح ✓", Toast.LENGTH_SHORT).show()
                             }
