@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
 
 class ProjectService(private val context: Context) {
     @Immutable
@@ -110,6 +112,7 @@ class ProjectService(private val context: Context) {
         // حفظ سحابي أساسي في Supabase
         if (SupabaseServices.isSupabaseAvailable && UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available) {
             val result = runCatching {
+                val cloudWorkspaceJson = uploadWorkspaceRecording(project)
                 val metadata = mapOf(
                     "idea" to project.idea,
                     "analysis" to project.analysis,
@@ -118,7 +121,7 @@ class ProjectService(private val context: Context) {
                     "script" to project.script,
                     "finalVideoPath" to project.finalVideoPath,
                     "lastScreen" to project.lastScreen,
-                    ProjectWorkspaceCodec.METADATA_KEY to project.workspaceJson
+                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = project.id,
@@ -177,6 +180,7 @@ class ProjectService(private val context: Context) {
         val unsynced = repository.getAllProjectsOnce().filter { !it.synced }
         unsynced.forEach { entity ->
             val result = runCatching {
+                val cloudWorkspaceJson = uploadWorkspaceRecording(entity.toProject())
                 val metadata = mapOf(
                     "idea" to entity.idea,
                     "analysis" to entity.analysis,
@@ -185,7 +189,7 @@ class ProjectService(private val context: Context) {
                     "script" to entity.script,
                     "finalVideoPath" to entity.finalVideoPath,
                     "lastScreen" to entity.lastScreen,
-                    ProjectWorkspaceCodec.METADATA_KEY to ProjectWorkspaceCodec.decodeStored(entity.settings).orEmpty()
+                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = entity.id,
@@ -203,6 +207,25 @@ class ProjectService(private val context: Context) {
                 repository.update(entity.copy(synced = true))
             }
         }
+    }
+
+    private suspend fun uploadWorkspaceRecording(project: Project): String {
+        val workspaceJson = project.workspaceJson
+        val snapshot = ProjectWorkspaceCodec.decode(workspaceJson) ?: return workspaceJson
+        val voiceOver = snapshot.voiceOver.trim()
+        if (voiceOver.isBlank() || voiceOver.startsWith("storage://")) return workspaceJson
+
+        val localPath = if (voiceOver.startsWith("file://")) {
+            runCatching { android.net.Uri.parse(voiceOver).path }.getOrNull()
+        } else voiceOver
+        val recording = localPath?.let(::File)?.takeIf { it.exists() && it.length() > 0L } ?: return workspaceJson
+        val storagePath = SupabaseServices.Storage.uploadPrivateProjectRecording(project.id, recording)
+            ?: return workspaceJson
+        return runCatching {
+            JSONObject(workspaceJson)
+                .put("voiceOver", "storage://project-recordings/$storagePath")
+                .toString()
+        }.getOrDefault(workspaceJson)
     }
 
     private fun ProjectEntity.toProject() = Project(

@@ -2559,6 +2559,33 @@ object SupabaseServices {
             }.onFailure { Log.e(TAG, "private upload failed: ${it.message}", it) }.getOrDefault(false)
         }
 
+        /** Upload a project voice recording to the private, owner-scoped bucket. */
+        suspend fun uploadPrivateProjectRecording(
+            projectId: String,
+            file: File,
+            onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+        ): String? {
+            val uid = Auth.getCurrentUserId() ?: return null
+            val safeProjectId = projectId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80)
+            val extension = file.extension.lowercase().takeIf { it.matches(Regex("[a-z0-9]{2,5}")) } ?: "m4a"
+            val path = "$uid/$safeProjectId/voice_${file.nameWithoutExtension.take(48)}.$extension"
+            val contentType = when (extension) {
+                "wav" -> "audio/wav"
+                "mp3" -> "audio/mpeg"
+                "ogg" -> "audio/ogg"
+                "aac" -> "audio/aac"
+                else -> "audio/mp4"
+            }
+            val uploaded = uploadPrivateFileWithProgress(
+                bucketName = "project-recordings",
+                path = path,
+                file = file,
+                contentType = contentType,
+                onProgress = onProgress
+            )
+            return path.takeIf { uploaded }
+        }
+
         suspend fun uploadFileWithProgress(
             bucketName: String = "media-assets",
             path: String,
