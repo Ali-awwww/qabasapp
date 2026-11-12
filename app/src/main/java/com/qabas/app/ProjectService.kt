@@ -60,7 +60,7 @@ class ProjectService(private val context: Context) {
                         supabaseRows.forEach { row ->
                             val meta = row.metadata
                             val ideaStr = meta["idea"] ?: (row.description ?: "")
-                            val cloudTimestamp = row.createdAt?.let {
+                            val cloudTimestamp = (row.updatedAt ?: row.createdAt)?.let {
                                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
                             } ?: 0L
                             val proj = Project(
@@ -124,7 +124,9 @@ class ProjectService(private val context: Context) {
                     status = project.status.ifBlank { "draft" },
                     cost = project.cost,
                     tags = listOf("qabas_project"),
-                    metadata = metadata
+                    metadata = metadata,
+                    createdAt = java.time.Instant.ofEpochMilli(project.createdAt.coerceAtLeast(1L)).toString(),
+                    updatedAt = java.time.Instant.ofEpochMilli(project.updatedAt.coerceAtLeast(project.createdAt).coerceAtLeast(1L)).toString()
                 )
             }
             isSynced = result.isSuccess
@@ -150,9 +152,19 @@ class ProjectService(private val context: Context) {
     }
 
     suspend fun deleteProject(id: String) = withContext(Dispatchers.IO) {
-        repository.delete(id)
-        if (SupabaseServices.isSupabaseAvailable) {
-            runCatching { SupabaseServices.Database.deleteProject(id) }
+        val online = SupabaseServices.isSupabaseAvailable &&
+            UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available
+        if (online) {
+            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
+            if (deletedRemotely) {
+                repository.delete(id)
+            } else {
+                android.util.Log.w("ProjectService", "Keeping local project $id because cloud deletion failed")
+            }
+        } else {
+            // Without an outbox/tombstone, offline deletion is local-only and may
+            // reappear after the next cloud sync; this is documented until schema v2.
+            repository.delete(id)
         }
     }
 
@@ -178,7 +190,9 @@ class ProjectService(private val context: Context) {
                     status = entity.status.ifBlank { "draft" },
                     cost = entity.cost,
                     tags = listOf("qabas_project"),
-                    metadata = metadata
+                    metadata = metadata,
+                    createdAt = java.time.Instant.ofEpochMilli(entity.createdAt.coerceAtLeast(1L)).toString(),
+                    updatedAt = java.time.Instant.ofEpochMilli(entity.updatedAt.coerceAtLeast(entity.createdAt).coerceAtLeast(1L)).toString()
                 )
             }
             if (result.isSuccess) {

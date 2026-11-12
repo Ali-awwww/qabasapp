@@ -1414,6 +1414,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
                 inputText = initialText,
                 mediaResources = emptyList(),
                 libraryScenes = emptyList(),
+                finalVideoPath = "",
                 appState = AppState.INPUT
             )
         }

@@ -675,10 +675,11 @@ object SupabaseServices {
             metadata: Map<String, String>? = emptyMap()
         ): ProjectRow? = runCatching {
             val client = client ?: return null
+            val currentUserId = Auth.getCurrentUserId() ?: return null
             val row = ProjectRow(
-                id = UUID.randomUUID().toString(),
-                userId = Auth.getCurrentUserId(),
-                externalId = Auth.getCurrentUserId(),
+                id = id,
+                userId = currentUserId,
+                externalId = currentUserId,
                 title = title,
                 description = description,
                 status = status,
@@ -698,20 +699,24 @@ object SupabaseServices {
             cost: Double = 0.0,
             status: String = "draft",
             tags: List<String> = emptyList(),
-            metadata: Map<String, String> = emptyMap()
+            metadata: Map<String, String> = emptyMap(),
+            createdAt: String = java.time.Instant.now().toString(),
+            updatedAt: String = java.time.Instant.now().toString()
         ): Boolean = runCatching {
             val client = client ?: return false
+            val currentUserId = Auth.getCurrentUserId() ?: return false
             val row = ProjectRow(
                 id = id,
-                userId = Auth.getCurrentUserId(),
-                externalId = Auth.getCurrentUserId(),
+                userId = currentUserId,
+                externalId = currentUserId,
                 title = title,
                 description = description,
                 status = status,
                 cost = cost,
                 tags = tags,
                 metadata = metadata,
-                createdAt = java.time.Instant.now().toString()
+                createdAt = createdAt,
+                updatedAt = updatedAt
             )
             client.postgrest.from("projects").upsert(row)
             true
@@ -741,9 +746,11 @@ object SupabaseServices {
 
         suspend fun deleteProject(id: String): Boolean = runCatching {
             val client = client ?: return false
+            val currentUserId = Auth.getCurrentUserId() ?: return false
             client.postgrest.from("projects").delete {
                 filter {
                     eq("id", id)
+                    eq("user_id", currentUserId)
                 }
             }
             true
@@ -2817,7 +2824,8 @@ object SupabaseServices {
         val cost: Double = 0.0,
         val tags: List<String> = emptyList(),
         val metadata: Map<String, String> = emptyMap(),
-        @SerialName("created_at") val createdAt: String? = null
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("updated_at") val updatedAt: String? = null
     )
 
     @Serializable

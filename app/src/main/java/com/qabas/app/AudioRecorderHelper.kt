@@ -21,7 +21,8 @@ class AudioRecorderHelper(private val context: Context) {
     fun startRecording(): Boolean {
         return try {
             stopRecording()
-            val file = File(context.cacheDir, "tajweed_recitation_${System.currentTimeMillis()}.m4a")
+            val recordingsDir = File(context.filesDir, "recordings").apply { mkdirs() }
+            val file = File(recordingsDir, "tajweed_recitation_${System.currentTimeMillis()}.m4a")
             outputFile = file
 
             mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

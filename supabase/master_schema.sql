@@ -774,6 +774,27 @@ BEGIN
     END LOOP;
 END $;
 
+-- Projects contain private workspace metadata; override the legacy generic
+-- policies above with owner-only access for authenticated users.
+DROP POLICY IF EXISTS "Public select policy on projects" ON public.projects;
+DROP POLICY IF EXISTS "Public insert policy on projects" ON public.projects;
+DROP POLICY IF EXISTS "Public update policy on projects" ON public.projects;
+DROP POLICY IF EXISTS "Public delete policy on projects" ON public.projects;
+DROP POLICY IF EXISTS projects_select_own ON public.projects;
+DROP POLICY IF EXISTS projects_insert_own ON public.projects;
+DROP POLICY IF EXISTS projects_update_own ON public.projects;
+DROP POLICY IF EXISTS projects_delete_own ON public.projects;
+REVOKE ALL ON TABLE public.projects FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.projects TO authenticated;
+CREATE POLICY projects_select_own ON public.projects FOR SELECT TO authenticated
+    USING (user_id = auth.uid()::text);
+CREATE POLICY projects_insert_own ON public.projects FOR INSERT TO authenticated
+    WITH CHECK (user_id = auth.uid()::text);
+CREATE POLICY projects_update_own ON public.projects FOR UPDATE TO authenticated
+    USING (user_id = auth.uid()::text) WITH CHECK (user_id = auth.uid()::text);
+CREATE POLICY projects_delete_own ON public.projects FOR DELETE TO authenticated
+    USING (user_id = auth.uid()::text);
+
 -- Controlled app update tables: clients may read releases but cannot write them directly.
 ALTER TABLE public.app_updates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select policy on app_updates" ON public.app_updates;

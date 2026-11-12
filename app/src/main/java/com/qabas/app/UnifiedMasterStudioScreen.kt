@@ -42,6 +42,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import android.net.Uri
 import com.qabas.app.ui.components.GlassmorphicSurface
+import com.qabas.app.ui.components.ReelPlayer
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -780,6 +781,7 @@ private fun MasterFullPackageTab(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    var selectedPreviewIndex by rememberSaveable { mutableIntStateOf(0) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Master Live Preview Card
@@ -820,13 +822,27 @@ private fun MasterFullPackageTab(
                                 .clip(CutCornerShape(8.dp))
                                 .background(Color(0xFF0F172A))
                                 .border(1.dp, if (index == 0) primaryColor else Color(0xFF1E293B), CutCornerShape(8.dp))
+                                .clickable { selectedPreviewIndex = index }
                         ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context).data(scene.mediaUrl).crossfade(true).build(),
-                                contentDescription = scene.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            if (isVideoMediaUrl(scene.mediaUrl) && index == selectedPreviewIndex) {
+                                ReelPlayer(
+                                    videoUrl = scene.mediaUrl.orEmpty(),
+                                    isPlaying = true,
+                                    aspectRatio = "9:16",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (isVideoMediaUrl(scene.mediaUrl)) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.PlayCircle, contentDescription = "تشغيل معاينة الفيديو", tint = primaryColor, modifier = Modifier.size(36.dp))
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context).data(scene.mediaUrl).crossfade(true).build(),
+                                    contentDescription = scene.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1139,4 +1155,10 @@ private fun MasterViralSeoTab(
             }
         }
     }
+}
+
+private fun isVideoMediaUrl(url: String?): Boolean {
+    val value = url?.lowercase().orEmpty()
+    return value.endsWith(".mp4") || value.contains(".mp4?") ||
+        value.endsWith(".m4v") || value.endsWith(".webm") || value.contains("higgsfield")
 }
