@@ -675,7 +675,7 @@ fun HomeScreen(
                                                     if (path != null) {
                                                         Toast.makeText(context, "تم حفظ التسجيل! جاري بدء المشروع...", Toast.LENGTH_SHORT).show()
                                                         quickPromptText = ""
-                                                        onNewProjectWithAudio(null, path)
+                                                        onNewProjectWithAudio(null, path.absolutePath)
                                                     }
                                                 }
                                             } else {
