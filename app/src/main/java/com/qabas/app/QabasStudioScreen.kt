@@ -1421,6 +1421,13 @@ fun QabasStudioScreen(
 /**
  * Renders and exports a high-resolution Hadith card bitmap (up to 4K Ultra HD) with strict try-finally and recycle memory management.
  */
+private fun Color.toAndroidColor(alphaScale: Float = 1f): Int = android.graphics.Color.argb(
+    (alpha * alphaScale * 255f).coerceIn(0f, 255f).roundToInt(),
+    (red * 255f).coerceIn(0f, 255f).roundToInt(),
+    (green * 255f).coerceIn(0f, 255f).roundToInt(),
+    (blue * 255f).coerceIn(0f, 255f).roundToInt()
+)
+
 private fun saveHadithCardBitmapToStorage(
     context: Context,
     title: String,
@@ -1490,7 +1497,7 @@ private fun saveHadithCardBitmapToStorage(
         // 2. Decorative Outer Gold Inset Frame
         val framePaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#E8C547")
+            color = theme.accentColor.toAndroidColor()
             style = android.graphics.Paint.Style.STROKE
             strokeWidth = 6f * scale
         }
@@ -1500,7 +1507,7 @@ private fun saveHadithCardBitmapToStorage(
         // 3. Inner Card Area Surface
         val cardPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.argb(220, 21, 27, 43) // Deep Slate Card Surface #151B2B
+            color = theme.cardBg.toAndroidColor()
             style = android.graphics.Paint.Style.FILL
         }
         val cardInset = 64f * scale
@@ -1509,7 +1516,7 @@ private fun saveHadithCardBitmapToStorage(
         // Inner Card Border
         val cardBorderPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.argb(90, 232, 197, 71)
+            color = theme.accentColor.toAndroidColor(alphaScale = 0.4f)
             style = android.graphics.Paint.Style.STROKE
             strokeWidth = 2f * scale
         }
@@ -1518,7 +1525,7 @@ private fun saveHadithCardBitmapToStorage(
         // 4. Header / Brand Crest
         val headerPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#E8C547")
+            color = theme.accentColor.toAndroidColor()
             textSize = 28f * scale
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1528,7 +1535,7 @@ private fun saveHadithCardBitmapToStorage(
         // 5. Title & Status
         val titlePaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.WHITE
+            color = theme.textColor.toAndroidColor()
             textSize = 36f * scale
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1538,7 +1545,7 @@ private fun saveHadithCardBitmapToStorage(
         // 6. Narrator
         val narratorPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#F5D76E")
+            color = theme.textColor.toAndroidColor(alphaScale = 0.85f)
             textSize = 24f * scale
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -1551,7 +1558,7 @@ private fun saveHadithCardBitmapToStorage(
         val bodyPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             typeface = designFontTypeface(context, font)
-            color = android.graphics.Color.parseColor("#F8FAFC")
+            color = theme.textColor.toAndroidColor()
             // The preview is rendered in dp/sp; export uses pixels. The 3x
             // base scale keeps the selected preview size consistent at 1080px.
             textSize = fontSizeSp * 3f * scale
@@ -1601,14 +1608,14 @@ private fun saveHadithCardBitmapToStorage(
             val badgeText = "حكم المحدث: $status"
             val badgePaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#0B0F19")
+                color = theme.cardBg.toAndroidColor()
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
             val badgeBgPaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#E8C547")
+                color = theme.accentColor.toAndroidColor()
                 style = android.graphics.Paint.Style.FILL
             }
 
@@ -1628,7 +1635,7 @@ private fun saveHadithCardBitmapToStorage(
         // 9. Source Footer
         val footerPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#94A3B8")
+            color = theme.textColor.toAndroidColor(alphaScale = 0.75f)
             textSize = 20f * scale
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -1640,7 +1647,7 @@ private fun saveHadithCardBitmapToStorage(
         if (userHandle.isNotBlank()) {
             val handlePaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#E8C547")
+                color = theme.accentColor.toAndroidColor(alphaScale = 0.85f)
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
