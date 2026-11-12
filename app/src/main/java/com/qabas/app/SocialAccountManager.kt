@@ -127,7 +127,7 @@ object SocialAccountManager {
     private fun secureToken(context: Context, platformId: String): String {
         val secureKey = secureTokenKeys[platformId] ?: return ""
         val securePrefs = AgentPrefs.instance(context)
-        val existing = securePrefs.getString(secureKey)
+        val existing = securePrefs.getString(secureKey, "").orEmpty()
         if (existing.isNotBlank()) return existing
         val legacyKey = when (platformId) {
             "youtube" -> "yt_token"
