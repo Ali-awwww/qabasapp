@@ -27,6 +27,8 @@ ProjectWorkspaceCodecTest > workspace snapshot round trips scenes resources and 
 
 وبذلك أصبح الاختبار يستخدم نفس نمط الاختبارات الأخرى التي تتعامل مع Android و`org.json`.
 
+بعد إعادة الفحص ظهر خطأ Kotlin مستقل في قراءة قيمة التوكن المشفر؛ تم تحويل القراءة nullable إلى قيمة `String` آمنة باستخدام `orEmpty()`، ودُفع التصحيح في commit لاحق.
+
 ### 2. حماية توكنات منصات التواصل
 
 تم إصلاح تخزين توكنات YouTube وTikTok وInstagram وX وFacebook:
@@ -58,6 +60,8 @@ git diff --check
 كما تمت قراءة سجل GitHub Actions وتحديد أن الفشل الحالي كان اختبار وحدة واحدًا، وليس خطأ Kotlin compilation.
 
 بيئة Manus الحالية لا تحتوي Android SDK، لذلك تعذر تشغيل Gradle محليًا في هذه الجلسة. سيعاد تشغيل الاختبار تلقائيًا عبر GitHub Actions بعد دفع التغييرات.
+
+آخر حالة مرصودة بعد دفع التصحيح: فحص الأسرار ناجح، وBuild وCodeQL قيد التشغيل؛ لا يُعلن نجاح البناء قبل اكتمالهما.
 
 ## طلب الدمج
 
