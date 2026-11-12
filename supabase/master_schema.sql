@@ -1074,14 +1074,16 @@ DROP POLICY IF EXISTS "Users can read own api keys" ON public.user_api_keys;
 CREATE POLICY "Users can read own api keys"
     ON public.user_api_keys
     FOR SELECT
-    USING (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''));
+    TO authenticated
+    USING ((select auth.uid())::text = user_id);
 
 DROP POLICY IF EXISTS "Users can insert or update own api keys" ON public.user_api_keys;
 CREATE POLICY "Users can insert or update own api keys"
     ON public.user_api_keys
     FOR ALL
-    USING (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''))
-    WITH CHECK (auth.uid()::text = user_id OR user_id = coalesce(auth.jwt()->>'email', ''));
+    TO authenticated
+    USING ((select auth.uid())::text = user_id)
+    WITH CHECK ((select auth.uid())::text = user_id);
 
 -- Private project voice recordings. Objects are scoped to the authenticated UID.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.qabas-xdelta-token-admin]
 verify_jwt = false
+
+[functions.qabas-key-vault]
+verify_jwt = false
