@@ -21,6 +21,7 @@ class ProjectService(private val context: Context) {
         val updatedAt: Long = 0L,
         val status: String = "",
         val lastScreen: String = "",
+        val workspaceJson: String = "",
         val synced: Boolean = true
     )
 
@@ -76,7 +77,8 @@ class ProjectService(private val context: Context) {
                                 createdAt = cloudTimestamp,
                                 updatedAt = cloudTimestamp,
                                 status = row.status,
-                                lastScreen = meta["lastScreen"] ?: ""
+                                lastScreen = meta["lastScreen"] ?: "",
+                                workspaceJson = ProjectWorkspaceCodec.decodeStored(meta[ProjectWorkspaceCodec.METADATA_KEY]) ?: ""
                             )
                             val existing = merged[proj.id]
                             if (existing == null || existing.synced && proj.updatedAt >= existing.updatedAt) {
@@ -115,7 +117,8 @@ class ProjectService(private val context: Context) {
                     "settings" to project.settings,
                     "script" to project.script,
                     "finalVideoPath" to project.finalVideoPath,
-                    "lastScreen" to project.lastScreen
+                    "lastScreen" to project.lastScreen,
+                    ProjectWorkspaceCodec.METADATA_KEY to project.workspaceJson
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = project.id,
@@ -178,10 +181,11 @@ class ProjectService(private val context: Context) {
                     "idea" to entity.idea,
                     "analysis" to entity.analysis,
                     "resources" to entity.resources,
-                    "settings" to entity.settings,
+                    "settings" to (if (ProjectWorkspaceCodec.decodeStored(entity.settings) != null) "" else entity.settings),
                     "script" to entity.script,
                     "finalVideoPath" to entity.finalVideoPath,
-                    "lastScreen" to entity.lastScreen
+                    "lastScreen" to entity.lastScreen,
+                    ProjectWorkspaceCodec.METADATA_KEY to ProjectWorkspaceCodec.decodeStored(entity.settings).orEmpty()
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = entity.id,
@@ -207,12 +211,14 @@ class ProjectService(private val context: Context) {
         finalVideoPath = finalVideoPath, cost = cost,
         createdAt = createdAt, updatedAt = updatedAt,
         status = status, lastScreen = lastScreen,
+        workspaceJson = ProjectWorkspaceCodec.decodeStored(settings).orEmpty(),
         synced = synced
     )
 
     private fun Project.toEntity() = ProjectEntity(
         id = id, title = title, idea = idea, analysis = analysis,
-        resources = resources, settings = settings, script = script,
+        resources = resources, script = script,
+        settings = if (workspaceJson.isBlank()) settings else ProjectWorkspaceCodec.encodeForLocalStorage(workspaceJson),
         finalVideoPath = finalVideoPath, cost = cost,
         createdAt = createdAt, updatedAt = updatedAt,
         status = status, lastScreen = lastScreen,

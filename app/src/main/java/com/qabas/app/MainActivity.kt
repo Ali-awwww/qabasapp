@@ -1399,7 +1399,8 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
                     createdAt = System.currentTimeMillis(),
                     updatedAt = System.currentTimeMillis(),
                     status = status,
-                    lastScreen = s.appState.name
+                    lastScreen = s.appState.name,
+                    workspaceJson = ProjectWorkspaceCodec.encode(s)
                 )
             )
         }
@@ -1422,17 +1423,27 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
 
     fun openProject(project: ProjectService.Project) {
         updateState {
-            copy(
-                currentProjectId = project.id,
-                projectTitle = project.title,
-                inputText = project.idea,
-                finalVideoPath = project.finalVideoPath,
-                appState = try {
-                    AppState.valueOf(project.lastScreen)
-                } catch (_: Exception) {
-                    AppState.INPUT
-                }
-            )
+            val restored = ProjectWorkspaceCodec.decode(project.workspaceJson)
+            if (restored != null) {
+                restored.applyTo(this).copy(
+                    currentProjectId = project.id,
+                    projectTitle = project.title.ifBlank { restored.projectTitle },
+                    inputText = restored.inputText.ifBlank { project.idea },
+                    finalVideoPath = restored.finalVideoPath.ifBlank { project.finalVideoPath }
+                )
+            } else {
+                copy(
+                    currentProjectId = project.id,
+                    projectTitle = project.title,
+                    inputText = project.idea,
+                    finalVideoPath = project.finalVideoPath,
+                    appState = try {
+                        AppState.valueOf(project.lastScreen)
+                    } catch (_: Exception) {
+                        AppState.INPUT
+                    }
+                )
+            }
         }
     }
 
