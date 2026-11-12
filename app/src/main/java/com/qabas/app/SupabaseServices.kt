@@ -2693,6 +2693,53 @@ object SupabaseServices {
             }
         }
 
+        /** Download an owner-private project recording through a short-lived signed URL. */
+        suspend fun downloadPrivateProjectRecording(
+            reference: String,
+            destination: File,
+            maxBytes: Long = 25L * 1024L * 1024L
+        ): Boolean = withContext(Dispatchers.IO) {
+            runCatching {
+                val marker = "storage://project-recordings/"
+                if (!reference.startsWith(marker)) return@runCatching false
+                val path = reference.removePrefix(marker).trim('/').takeIf { it.isNotBlank() }
+                    ?: return@runCatching false
+                if (path.split('/').firstOrNull() != Auth.getCurrentUserId()) return@runCatching false
+                if (path.split('/').any { it.isBlank() || it == "." || it == ".." || it.contains('\\') }) {
+                    return@runCatching false
+                }
+
+                val signedUrl = createSignedUrl("project-recordings", path) ?: return@runCatching false
+                destination.parentFile?.mkdirs()
+                val temporary = File(destination.parentFile, ".${destination.name}.part")
+                rawHttpClient.newCall(Request.Builder().url(signedUrl).get().build()).execute().use { response ->
+                    if (!response.isSuccessful) return@runCatching false
+                    val body = response.body ?: return@runCatching false
+                    if (body.contentLength() > maxBytes) return@runCatching false
+                    body.byteStream().use { input ->
+                        temporary.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                total += read
+                                if (total > maxBytes) return@runCatching false
+                                output.write(buffer, 0, read)
+                            }
+                        }
+                    }
+                    if (!temporary.exists() || temporary.length() <= 0L) return@runCatching false
+                    if (destination.exists()) destination.delete()
+                    if (!temporary.renameTo(destination)) return@runCatching false
+                }
+                true
+            }.onFailure {
+                if (it is CancellationException) throw it
+                Log.e(TAG, "downloadPrivateProjectRecording failed: ${it.message}", it)
+            }.getOrDefault(false)
+        }
+
         fun getPublicUrl(bucketName: String, path: String): String? {
             val client = client ?: return null
             return client.storage.from(bucketName).publicUrl(path)

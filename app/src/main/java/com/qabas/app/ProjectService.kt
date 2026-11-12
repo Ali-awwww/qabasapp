@@ -66,6 +66,10 @@ class ProjectService(private val context: Context) {
                             val cloudTimestamp = (row.updatedAt ?: row.createdAt)?.let {
                                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
                             } ?: 0L
+                            val workspaceJson = hydrateWorkspaceRecording(
+                                ProjectWorkspaceCodec.decodeStored(meta[ProjectWorkspaceCodec.METADATA_KEY]).orEmpty(),
+                                row.id
+                            )
                             val proj = Project(
                                 id = row.id,
                                 title = row.title,
@@ -80,7 +84,7 @@ class ProjectService(private val context: Context) {
                                 updatedAt = cloudTimestamp,
                                 status = row.status,
                                 lastScreen = meta["lastScreen"] ?: "",
-                                workspaceJson = ProjectWorkspaceCodec.decodeStored(meta[ProjectWorkspaceCodec.METADATA_KEY]) ?: ""
+                                workspaceJson = workspaceJson
                             )
                             val existing = merged[proj.id]
                             if (existing == null || existing.synced && proj.updatedAt >= existing.updatedAt) {
@@ -225,6 +229,26 @@ class ProjectService(private val context: Context) {
             JSONObject(workspaceJson)
                 .put("voiceOver", "storage://project-recordings/$storagePath")
                 .toString()
+        }.getOrDefault(workspaceJson)
+    }
+
+    private suspend fun hydrateWorkspaceRecording(workspaceJson: String, projectId: String): String {
+        val snapshot = ProjectWorkspaceCodec.decode(workspaceJson) ?: return workspaceJson
+        val reference = snapshot.voiceOver.trim()
+        if (!reference.startsWith("storage://project-recordings/")) return workspaceJson
+
+        val safeProjectId = projectId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80)
+        val remoteFileName = reference.substringAfterLast('/')
+            .replace(Regex("[^A-Za-z0-9_.-]"), "_")
+            .take(90)
+            .ifBlank { "voice.m4a" }
+        val destination = File(context.filesDir, "recordings/cloud_${safeProjectId}_$remoteFileName")
+        if (!destination.exists()) {
+            val downloaded = SupabaseServices.Storage.downloadPrivateProjectRecording(reference, destination)
+            if (!downloaded) return workspaceJson
+        }
+        return runCatching {
+            JSONObject(workspaceJson).put("voiceOver", destination.absolutePath).toString()
         }.getOrDefault(workspaceJson)
     }
 
