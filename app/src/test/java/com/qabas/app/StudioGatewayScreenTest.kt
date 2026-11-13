@@ -4,8 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -22,7 +22,7 @@ class StudioGatewayScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun categoryTabsShowReadableLabelsAndSwitchContent() {
+    fun departmentCardsRemainDiscoverableAndSwitchContent() {
         var higgsfieldRouteOpened = false
         composeTestRule.setContent {
             MyApplicationTheme {
@@ -45,28 +45,29 @@ class StudioGatewayScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("🎬 الفيديو").assertIsDisplayed()
-        composeTestRule.onNodeWithText("🎨 الصور والتصميم").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Higgsfield — فيديو من نص أو صورة").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_department_video").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_department_images").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("🎬 الفيديو", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("🎨 الصور والتصميم", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("أداتان", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Higgsfield — فيديو من نص أو صورة").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("Higgsfield — فيديو من نص أو صورة").performClick()
         assertTrue(higgsfieldRouteOpened)
 
-        composeTestRule.onNodeWithText("🎨 الصور والتصميم").performClick()
+        composeTestRule.onNodeWithTag("studio_department_images").performScrollTo().performClick()
         composeTestRule
             .onNodeWithText("الصور والتصميم")
+            .performScrollTo()
             .assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("studio_category_row").performScrollToIndex(2)
-        composeTestRule.onNodeWithText("🎙️ الصوت").performClick()
-        composeTestRule.onNodeWithText("VoiceStudio — توليد صوت محلي").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_department_audio").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("VoiceStudio — توليد صوت محلي").performScrollTo().assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("studio_category_row").performScrollToIndex(3)
-        composeTestRule.onNodeWithText("🗂️ المكتبة").performClick()
-        composeTestRule.onNodeWithText("الصور والفيديو والصوت المحفوظ").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_department_library").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("الصور والفيديو والصوت المحفوظ").performScrollTo().assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("studio_category_row").performScrollToIndex(4)
-        composeTestRule.onNodeWithText("📣 النشر والتقارير").performClick()
-        composeTestRule.onNodeWithText("تجهيز محتوى يوتيوب").assertIsDisplayed()
-        composeTestRule.onNodeWithText("إحصاءات التواصل الاجتماعي").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_department_publishing").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("تجهيز محتوى يوتيوب").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("إحصاءات التواصل الاجتماعي").performScrollTo().assertIsDisplayed()
     }
 }
