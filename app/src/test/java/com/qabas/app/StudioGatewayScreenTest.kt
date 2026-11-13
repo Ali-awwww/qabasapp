@@ -49,7 +49,10 @@ class StudioGatewayScreenTest {
         composeTestRule.onNodeWithTag("studio_department_images").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("🎬 الفيديو", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("🎨 الصور والتصميم", useUnmergedTree = true).assertIsDisplayed()
-        composeTestRule.onNodeWithText("أداتان", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("أداتان", useUnmergedTree = true)
+            .performScrollTo()
+            .assertIsDisplayed()
         composeTestRule.onNodeWithText("Higgsfield — فيديو من نص أو صورة").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("Higgsfield — فيديو من نص أو صورة").performClick()
         assertTrue(higgsfieldRouteOpened)
