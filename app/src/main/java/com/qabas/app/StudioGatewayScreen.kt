@@ -997,6 +997,7 @@ private fun StudioDepartmentCard(
                 }
                 Text(
                     text = department.toolCountLabel,
+                    modifier = Modifier.testTag("studio_department_count_${department.key}"),
                     color = if (selected) primaryColor else Color(0xFF94A3B8),
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.SemiBold,
