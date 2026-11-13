@@ -35,8 +35,8 @@ object UpdateManager {
 
     // الفحص التلقائي: ساعتان كحد أدنى مطلق، والمدة قابلة للتخصيص من مركز التنزيلات.
     // لا يمكن لأي قيمة محفوظة أو واردة من الواجهة أن تنزل تحت الحد الأدنى.
-    const val MIN_AUTO_CHECK_INTERVAL_HOURS = 2
-    const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = 2
+    const val MIN_AUTO_CHECK_INTERVAL_HOURS = AutoUpdateIntervalPolicy.MIN_INTERVAL_HOURS
+    const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = AutoUpdateIntervalPolicy.DEFAULT_INTERVAL_HOURS
     private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
     private const val PREF_LAST_CHECK = "update_last_check_supabase"
     private const val PREF_DELTA_FAILURE_PREFIX = "delta_failure_"
@@ -45,15 +45,16 @@ object UpdateManager {
 
     fun getAutoCheckIntervalHours(context: Context): Int {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        return prefs.getInt(PREF_AUTO_CHECK_INTERVAL_HOURS, DEFAULT_AUTO_CHECK_INTERVAL_HOURS)
-            .coerceAtLeast(MIN_AUTO_CHECK_INTERVAL_HOURS)
+        return AutoUpdateIntervalPolicy.clampHours(
+            prefs.getInt(PREF_AUTO_CHECK_INTERVAL_HOURS, DEFAULT_AUTO_CHECK_INTERVAL_HOURS)
+        )
     }
 
     fun getAutoCheckIntervalMs(context: Context): Long =
-        getAutoCheckIntervalHours(context) * 60L * 60L * 1000L
+        AutoUpdateIntervalPolicy.hoursToMillis(getAutoCheckIntervalHours(context))
 
     fun setAutoCheckIntervalHours(context: Context, hours: Int): Int {
-        val clamped = hours.coerceAtLeast(MIN_AUTO_CHECK_INTERVAL_HOURS)
+        val clamped = AutoUpdateIntervalPolicy.clampHours(hours)
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             .edit()
             .putInt(PREF_AUTO_CHECK_INTERVAL_HOURS, clamped)
