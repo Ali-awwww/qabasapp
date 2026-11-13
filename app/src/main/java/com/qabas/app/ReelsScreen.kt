@@ -298,11 +298,17 @@ fun ReelsScreen(
     // دورة الحياة: إيقاف التشغيل عند خروج التطبيق للخلفية (ON_STOP) واستئنافه عند العودة —
     // لا يستمر صوت الفيديو في الخلفية أبداً (سلوك تيك توك/انستغرام)
     var isScreenActive by remember { mutableStateOf(true) }
+    var resumeRefreshTick by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> isScreenActive = true
+                Lifecycle.Event.ON_START -> {
+                    isScreenActive = true
+                    // إعادة قراءة التفاعلات بعد العودة من الخلفية؛ قد تكون الجلسة
+                    // استُعيدت أو اكتمل الطلب السحابي أثناء غياب الشاشة.
+                    resumeRefreshTick++
+                }
                 Lifecycle.Event.ON_STOP -> isScreenActive = false
                 else -> {}
             }
@@ -372,13 +378,19 @@ fun ReelsScreen(
         }
 
         // A null result means the request failed; an empty set is a valid cloud state
-        // and must clear stale local likes.
-        val cloudLikedIds = withTimeoutOrNull(7_000L) {
-            SupabaseServices.Profiles.getLikedReelIds(authId)
-        } ?: return
-
-        likedReelIds.clear()
-        cloudLikedIds.forEach { likedReelIds[it] = true }
+        // and must clear stale local likes. The timeout must exceed the auth-session
+        // restoration timeout used by getLikedReelIds (10 seconds).
+        repeat(3) { attempt ->
+            val cloudLikedIds = withTimeoutOrNull(15_000L) {
+                SupabaseServices.Profiles.getLikedReelIds(authId)
+            }
+            if (cloudLikedIds != null) {
+                likedReelIds.clear()
+                cloudLikedIds.forEach { likedReelIds[it] = true }
+                return
+            }
+            if (attempt < 2) delay(750L)
+        }
     }
 
     LaunchedEffect(accountAuthState) {
@@ -393,6 +405,12 @@ fun ReelsScreen(
         } else {
             // Prevent a previous account's state from surviving a sign-out.
             likedReelIds.clear()
+        }
+    }
+
+    LaunchedEffect(resumeRefreshTick, accountAuthState) {
+        if (resumeRefreshTick > 0 && accountAuthState is AuthState.Authenticated) {
+            refreshLikedReelsFromCloud()
         }
     }
 
