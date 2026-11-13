@@ -855,7 +855,7 @@ private fun DeveloperChatSection(context: Context) {
     LaunchedEffect(Unit) {
         refreshThreads()
         while (isActive) {
-            delay(8000)
+            delay(30_000)
             refreshThreads()
         }
     }
