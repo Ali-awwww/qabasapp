@@ -1336,14 +1336,21 @@ object UpdateManager {
                 return null
             }
 
-            val downloadedDelta = downloadFile(
-                update.deltaUrl!!, updatesDir,
-                "qabas-${update.versionName}-${update.versionCode}.delta", authToken, handle,
-                expectedSize = update.deltaSize
-            ) { bytes, total, speed ->
-                val pct = if (total > 0) (bytes * 100 / total).toInt().coerceIn(0, 100) else 0
-                onProgress(DownloadProgress(pct, bytes, total, Phase.DOWNLOADING_DELTA, speed))
-            } ?: run {
+            var downloadedDelta: File? = null
+            for (attempt in 0..1) {
+                downloadedDelta = downloadFile(
+                    update.deltaUrl!!, updatesDir,
+                    "qabas-${update.versionName}-${update.versionCode}.delta", authToken, handle,
+                    expectedSize = update.deltaSize
+                ) { bytes, total, speed ->
+                    val pct = if (total > 0) (bytes * 100 / total).toInt().coerceIn(0, 100) else 0
+                    onProgress(DownloadProgress(pct, bytes, total, Phase.DOWNLOADING_DELTA, speed))
+                }
+                if (downloadedDelta != null || handle.cancelled || attempt == 1) break
+                Log.w(TAG, "⚠️ Delta network download failed; retrying once")
+                delay(1_500L)
+            }
+            val completeDelta = downloadedDelta ?: run {
                 if (!handle.cancelled) {
                     UpdateTelemetryManager.recordFailure(
                         context = context,
@@ -1355,18 +1362,18 @@ object UpdateManager {
                 }
                 return null
             }
-            deltaFile = downloadedDelta
+            deltaFile = completeDelta
 
-            if (handle.cancelled) { downloadedDelta.delete(); return null }
-            if (downloadedDelta.length() < 100) {
+            if (handle.cancelled) { completeDelta.delete(); return null }
+            if (completeDelta.length() < 100) {
                 UpdateTelemetryManager.recordFailure(
                     context = context,
                     update = update,
                     phase = "VALIDATE_DELTA_FILE",
                     throwable = null,
-                    customMessage = "ملف الدلتا الذي تم تنزيله فارغ أو تالف (الحجم: ${downloadedDelta.length()} بايت)"
+                    customMessage = "ملف الدلتا الذي تم تنزيله فارغ أو تالف (الحجم: ${completeDelta.length()} بايت)"
                 )
-                downloadedDelta.delete()
+                completeDelta.delete()
                 return null
             }
 
@@ -1388,7 +1395,7 @@ object UpdateManager {
             onProgress(DownloadProgress(0, 0, update.deltaSize, Phase.APPLYING_PATCH, 0))
             
             // استخدام PatchManager لمعالجة الرقعة والتحقق من سلامتها
-            val patchSuccess = PatchManager.applyXdeltaPatch(context, update, downloadedDelta)
+            val patchSuccess = PatchManager.applyXdeltaPatch(context, update, completeDelta)
             
             if (handle.cancelled) return null
             onProgress(DownloadProgress(100, update.deltaSize, update.deltaSize, Phase.APPLYING_PATCH, 0))
