@@ -8,6 +8,10 @@ import org.json.JSONObject
 import java.io.File
 
 class ProjectService(private val context: Context) {
+    private companion object {
+        const val DELETE_TOMBSTONES_PREFS = "qabas_project_sync"
+        const val DELETE_TOMBSTONES_KEY = "deleted_project_ids"
+    }
     @Immutable
     data class Project(
         val id: String = "",
@@ -31,9 +35,30 @@ class ProjectService(private val context: Context) {
         ProjectRepository(AppDatabase.getDatabase(context).projectDao())
     }
 
+    private val syncPrefs by lazy {
+        context.getSharedPreferences(DELETE_TOMBSTONES_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private fun deletedProjectIds(): Set<String> =
+        syncPrefs.getStringSet(DELETE_TOMBSTONES_KEY, emptySet()).orEmpty()
+
+    private fun markProjectDeleted(id: String) {
+        val ids = deletedProjectIds().toMutableSet().apply { add(id) }
+        syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
+    }
+
+    private fun clearProjectDeletion(id: String) {
+        val ids = deletedProjectIds().toMutableSet()
+        if (ids.remove(id)) {
+            syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
+        }
+    }
+
     /** قائمة سريعة من Room فقط — لا شبكة */
     suspend fun getLocalProjects(): List<Project> = withContext(Dispatchers.IO) {
+        val deletedIds = deletedProjectIds()
         repository.getAllProjectsOnce()
+            .filterNot { it.id in deletedIds }
             .map { it.toProject() }
             .sortedByDescending { it.updatedAt }
     }
@@ -45,7 +70,10 @@ class ProjectService(private val context: Context) {
      */
     suspend fun getAllProjects(syncCloud: Boolean = false): List<Project> =
         withContext(Dispatchers.IO) {
-            val localProjects = repository.getAllProjectsOnce().map { it.toProject() }
+            val deletedIds = deletedProjectIds()
+            val localProjects = repository.getAllProjectsOnce()
+                .filterNot { it.id in deletedIds }
+                .map { it.toProject() }
 
             if (!syncCloud) {
                 return@withContext localProjects.sortedByDescending { it.updatedAt }
@@ -61,6 +89,7 @@ class ProjectService(private val context: Context) {
 
                         val toUpsert = ArrayList<ProjectEntity>()
                         supabaseRows.forEach { row ->
+                            if (row.id in deletedIds) return@forEach
                             val meta = row.metadata
                             val ideaStr = meta["idea"] ?: (row.description ?: "")
                             val cloudTimestamp = (row.updatedAt ?: row.createdAt)?.let {
@@ -167,20 +196,27 @@ class ProjectService(private val context: Context) {
         if (online) {
             val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
             if (deletedRemotely) {
+                clearProjectDeletion(id)
                 repository.delete(id)
             } else {
-                android.util.Log.w("ProjectService", "Keeping local project $id because cloud deletion failed")
+                markProjectDeleted(id)
+                repository.delete(id)
+                android.util.Log.w("ProjectService", "Queued cloud deletion for project $id")
             }
         } else {
-            // Without an outbox/tombstone, offline deletion is local-only and may
-            // reappear after the next cloud sync; this is documented until schema v2.
+            markProjectDeleted(id)
             repository.delete(id)
         }
     }
 
     suspend fun syncPendingProjects() = withContext(Dispatchers.IO) {
         if (!SupabaseServices.isSupabaseAvailable || UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available) return@withContext
-        
+
+        deletedProjectIds().toList().forEach { id ->
+            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
+            if (deletedRemotely) clearProjectDeletion(id)
+        }
+
         val unsynced = repository.getAllProjectsOnce().filter { !it.synced }
         unsynced.forEach { entity ->
             val result = runCatching {
