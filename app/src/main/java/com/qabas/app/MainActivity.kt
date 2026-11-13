@@ -767,7 +767,8 @@ class MainActivity : ComponentActivity() {
                     update = update,
                     downloadProgress = downloadProgress,
                     onDismiss = { UpdateManager.dismissUpdate() },
-                    onInstall = { UpdateDownloadService.start(context, update) }
+                    onInstallDelta = { UpdateDownloadService.start(context, update, forceFull = false) },
+                    onInstallFull = { UpdateDownloadService.start(context, update, forceFull = true) }
                 )
             }
 

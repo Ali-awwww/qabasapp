@@ -42,7 +42,8 @@ fun UpdateNotificationDialog(
     update: UpdateManager.UpdateInfo,
     downloadProgress: UpdateManager.DownloadProgress?,
     onDismiss: () -> Unit,
-    onInstall: () -> Unit
+    onInstallDelta: () -> Unit,
+    onInstallFull: () -> Unit
 ) {
     val patchState by PatchManager.patchState.collectAsState()
     val context = LocalContext.current
@@ -308,66 +309,77 @@ fun UpdateNotificationDialog(
                         onDismiss = onDismiss
                     )
                 } else {
-                    // Action Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Remind Me Later (Only if not force)
-                        if (canDismiss) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .border(1.dp, TextSecondary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                                    .clickable(onClick = onDismiss),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "تذكيري لاحقاً",
-                                    color = TextSecondary,
-                                    fontFamily = CairoFont,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                    // خياران مستقلان: الدلتا الصالحة أو APK الكامل.
+                    if (update.deltaUsable) {
+                        Text(
+                            "اختر طريقة تنزيل التحديث",
+                            color = TextPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Button(
+                            onClick = onInstallDelta,
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = DeepSlate)
+                            Spacer(Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("تنزيل xdelta — ${UpdateManager.formatSize(update.deltaSize)}", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Text("أصغر وأسرع", color = DeepSlate.copy(alpha = 0.75f), fontFamily = CairoFont, fontSize = 10.sp)
                             }
                         }
-
-                        // Update Now
-                        Box(
-                            modifier = Modifier
-                                .weight(1.5f)
-                                .height(50.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary)))
-                                .clickable(onClick = onInstall),
-                            contentAlignment = Alignment.Center
+                        OutlinedButton(
+                            onClick = onInstallFull,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha = 0.45f))
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Text("تنزيل APK الكامل — ${UpdateManager.formatSize(update.apkSize)}", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                        if (canDismiss) {
+                            TextButton(onClick = onDismiss) { Text("تذكيري لاحقاً", color = TextSecondary, fontFamily = CairoFont) }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (canDismiss) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(50.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .border(1.dp, TextSecondary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                        .clickable(onClick = onDismiss),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("تذكيري لاحقاً", color = TextSecondary, fontFamily = CairoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.5f)
+                                    .height(50.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary)))
+                                    .clickable(onClick = onInstallFull),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                    tint = DeepSlate,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    if (update.isForce) "تحديث الآن (إلزامي)" else "تحديث الآن",
-                                    color = DeepSlate,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(20.dp))
+                                    Text(if (update.isForce) "تحديث الآن (إلزامي)" else "تنزيل APK الكامل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
                             }
                         }
                     }
                 }
 
                 // Footer Size Info
-                val sizeText = if (update.deltaUrl != null) {
+                val sizeText = if (update.deltaUsable) {
                     "حجم التحديث: ${UpdateManager.formatSize(update.deltaSize)} (دلتا) / ${UpdateManager.formatSize(update.apkSize)} (كامل)"
                 } else {
                     "حجم التحديث: ${UpdateManager.formatSize(update.apkSize)}"
