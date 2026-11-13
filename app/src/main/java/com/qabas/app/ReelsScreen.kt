@@ -298,11 +298,17 @@ fun ReelsScreen(
     // دورة الحياة: إيقاف التشغيل عند خروج التطبيق للخلفية (ON_STOP) واستئنافه عند العودة —
     // لا يستمر صوت الفيديو في الخلفية أبداً (سلوك تيك توك/انستغرام)
     var isScreenActive by remember { mutableStateOf(true) }
+    var resumeRefreshTick by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> isScreenActive = true
+                Lifecycle.Event.ON_START -> {
+                    isScreenActive = true
+                    // إعادة قراءة التفاعلات بعد العودة من الخلفية؛ قد تكون الجلسة
+                    // استُعيدت أو اكتمل الطلب السحابي أثناء غياب الشاشة.
+                    resumeRefreshTick++
+                }
                 Lifecycle.Event.ON_STOP -> isScreenActive = false
                 else -> {}
             }
@@ -372,13 +378,19 @@ fun ReelsScreen(
         }
 
         // A null result means the request failed; an empty set is a valid cloud state
-        // and must clear stale local likes.
-        val cloudLikedIds = withTimeoutOrNull(7_000L) {
-            SupabaseServices.Profiles.getLikedReelIds(authId)
-        } ?: return
-
-        likedReelIds.clear()
-        cloudLikedIds.forEach { likedReelIds[it] = true }
+        // and must clear stale local likes. The timeout must exceed the auth-session
+        // restoration timeout used by getLikedReelIds (10 seconds).
+        repeat(3) { attempt ->
+            val cloudLikedIds = withTimeoutOrNull(15_000L) {
+                SupabaseServices.Profiles.getLikedReelIds(authId)
+            }
+            if (cloudLikedIds != null) {
+                likedReelIds.clear()
+                cloudLikedIds.forEach { likedReelIds[it] = true }
+                return
+            }
+            if (attempt < 2) delay(750L)
+        }
     }
 
     LaunchedEffect(accountAuthState) {
@@ -393,6 +405,12 @@ fun ReelsScreen(
         } else {
             // Prevent a previous account's state from surviving a sign-out.
             likedReelIds.clear()
+        }
+    }
+
+    LaunchedEffect(resumeRefreshTick, accountAuthState) {
+        if (resumeRefreshTick > 0 && accountAuthState is AuthState.Authenticated) {
+            refreshLikedReelsFromCloud()
         }
     }
 
@@ -2053,7 +2071,8 @@ fun ReelSpatialHUDOverlays(
                             icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             label = formatCount(likesCount),
                             tint = if (isLiked) Color(0xFFEF4444) else Color.White,
-                            onClick = onLike
+                            onClick = onLike,
+                            contentOverride = { QabasPulseIcon(isActive = isLiked) }
                         )
                         ReelRailButton(
                             icon = Icons.Default.Comment,
@@ -2216,7 +2235,8 @@ fun ReelRailButton(
     icon: ImageVector,
     label: String,
     tint: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    contentOverride: (@Composable () -> Unit)? = null
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2231,12 +2251,16 @@ fun ReelRailButton(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = tint,
-                modifier = Modifier.size(21.dp)
-            )
+            if (contentOverride != null) {
+                contentOverride()
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = tint,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
         }
         Text(
             text = label,
@@ -2246,6 +2270,50 @@ fun ReelRailButton(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 2.dp)
         )
+    }
+}
+
+/**
+ * أيقونة «نبضة قبس» — تبقى محصورة في نفس مساحة أيقونة القلب القديمة (21.dp).
+ * لا تستخدم حجماً أو padding خارجياً حتى لا تغيّر مساحة زر التفاعل أو موضع العداد.
+ */
+@Composable
+private fun QabasPulseIcon(isActive: Boolean) {
+    val pulseScale = remember { Animatable(1f) }
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            pulseScale.snapTo(0.82f)
+            pulseScale.animateTo(1.08f, animationSpec = tween(180, easing = FastOutSlowInEasing))
+            pulseScale.animateTo(1f, animationSpec = tween(160, easing = FastOutSlowInEasing))
+        } else {
+            pulseScale.snapTo(1f)
+        }
+    }
+
+    Canvas(
+        modifier = Modifier
+            .size(21.dp)
+            .scale(pulseScale.value)
+    ) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.34f
+        val glow = if (isActive) Color(0xFFFFD166) else Color.White
+        val stroke = Stroke(width = size.minDimension * 0.095f, cap = StrokeCap.Round)
+        val diamond = Path().apply {
+            moveTo(center.x, center.y - radius)
+            lineTo(center.x + radius, center.y)
+            lineTo(center.x, center.y + radius)
+            lineTo(center.x - radius, center.y)
+            close()
+        }
+        if (isActive) {
+            drawPath(diamond, color = glow.copy(alpha = 0.22f))
+            drawCircle(glow, radius = size.minDimension * 0.17f, center = center)
+            drawCircle(Color.White, radius = size.minDimension * 0.06f, center = center)
+        } else {
+            drawPath(diamond, color = glow, style = stroke)
+            drawCircle(glow, radius = size.minDimension * 0.07f, center = center)
+        }
     }
 }
 
