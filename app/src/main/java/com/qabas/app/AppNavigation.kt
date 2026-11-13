@@ -85,6 +85,9 @@ fun AppNavigation(
     var isDeveloperMode by remember { 
         mutableStateOf(accountService.isDeveloperOrAdmin) 
     }
+    var tasteProfileReturnToSettings by remember { mutableStateOf(false) }
+    var rulesReturnToSettings by remember { mutableStateOf(false) }
+    var updateHistoryReturnToSettings by remember { mutableStateOf(false) }
 
     val restrictedProductionStates = remember {
         setOf(
@@ -113,11 +116,32 @@ fun AppNavigation(
             AppState.AZKAR to AppState.HASANAT_HUB,
             AppState.PRAYER_TIMES to AppState.HASANAT_HUB,
             AppState.ISLAMIC_LIBRARY to AppState.HASANAT_HUB,
-            AppState.UPDATE_HISTORY to AppState.ABOUT_US
+            AppState.UPDATE_HISTORY to AppState.ABOUT_US,
+            AppState.ABOUT_US to AppState.SETTINGS,
+            AppState.PERMISSIONS_HUB to AppState.SETTINGS,
+            AppState.CRASH_LOGS_HUB to AppState.SETTINGS
         )
     }
     BackHandler(enabled = appState !in rootBackStates) {
-        val target = parentBackState[appState] ?: AppState.HOME
+        val target = if (appState == AppState.TASTE_PROFILE && tasteProfileReturnToSettings) {
+            tasteProfileReturnToSettings = false
+            AppState.SETTINGS
+        } else if (appState == AppState.RULES) {
+            val isLoggedIn = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_logged_in", false)
+            if (rulesReturnToSettings) {
+                rulesReturnToSettings = false
+                AppState.SETTINGS
+            } else if (isLoggedIn) {
+                AppState.HOME
+            } else {
+                AppState.LOGIN
+            }
+        } else if (appState == AppState.UPDATE_HISTORY && updateHistoryReturnToSettings) {
+            updateHistoryReturnToSettings = false
+            AppState.SETTINGS
+        } else {
+            parentBackState[appState] ?: AppState.HOME
+        }
         viewModel.updateState { copy(appState = target) }
     }
 
@@ -180,7 +204,10 @@ fun AppNavigation(
                 },
                 onNavigateToRegister = { viewModel.updateState { copy(appState = AppState.REGISTER) } },
                 onNavigateToForgotPassword = { viewModel.updateState { copy(appState = AppState.FORGOT_PASSWORD) } },
-                onNavigateToRules = { viewModel.updateState { copy(appState = AppState.RULES) } }
+                onNavigateToRules = {
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                }
             )
         }
         AppState.REGISTER -> {
@@ -198,7 +225,10 @@ fun AppNavigation(
                     }
                 },
                 onNavigateToLogin = { viewModel.updateState { copy(appState = AppState.LOGIN) } },
-                onNavigateToRules = { viewModel.updateState { copy(appState = AppState.RULES) } }
+                onNavigateToRules = {
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                }
             )
         }
         AppState.FORGOT_PASSWORD -> {
@@ -240,7 +270,10 @@ fun AppNavigation(
                 onYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
                 onDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
                 onLeaderboard = { viewModel.updateState { copy(appState = AppState.LEADERBOARD) } },
-                onNavigateToTasteProfile = { viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) } },
+                onNavigateToTasteProfile = {
+                    tasteProfileReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) }
+                },
                 onStudioGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
                 onPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
                 onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
@@ -261,7 +294,10 @@ fun AppNavigation(
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
-                onRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
+                onRules = {
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                },
                 onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 onViewDownloads = { viewModel.updateState { copy(appState = AppState.DOWNLOAD_MANAGER) } },
                 bottomBar = bottomNav
@@ -485,30 +521,54 @@ fun AppNavigation(
                     }
                 },
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onNavigateToTasteProfile = { viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) } },
+                onNavigateToTasteProfile = {
+                    tasteProfileReturnToSettings = true
+                    viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) }
+                },
                 onNavigateToPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
                 onNavigateToAboutUs = { viewModel.updateState { copy(appState = AppState.ABOUT_US) } },
-                onNavigateToRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
-                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
+                onNavigateToRules = {
+                    rulesReturnToSettings = true
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                },
+                onNavigateToHistory = {
+                    updateHistoryReturnToSettings = true
+                    viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) }
+                },
                 bottomBar = bottomNav
             )
         }
         AppState.ABOUT_US -> {
             AboutUsAndVersionScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
-                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
+                onNavigateToHistory = {
+                    updateHistoryReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) }
+                },
                 bottomBar = bottomNav
             )
         }
         AppState.UPDATE_HISTORY -> {
             UpdateHistoryScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.ABOUT_US) } }
+                onBack = {
+                    val destination = if (updateHistoryReturnToSettings) AppState.SETTINGS else AppState.ABOUT_US
+                    updateHistoryReturnToSettings = false
+                    viewModel.updateState { copy(appState = destination) }
+                }
             )
         }
         AppState.RULES -> {
             val isLoggedIn = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_logged_in", false)
             QabasRulesScreen(
-                onBack = { viewModel.updateState { copy(appState = if (isLoggedIn) AppState.SETTINGS else AppState.LOGIN) } }
+                onBack = {
+                    val destination = when {
+                        rulesReturnToSettings -> AppState.SETTINGS
+                        isLoggedIn -> AppState.HOME
+                        else -> AppState.LOGIN
+                    }
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = destination) }
+                }
             )
         }
         AppState.AI_STUDIO_AGENT -> {
@@ -1053,7 +1113,11 @@ fun AppNavigation(
         }
         AppState.TASTE_PROFILE -> {
             TasteProfileScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } }
+                onBack = {
+                    val destination = if (tasteProfileReturnToSettings) AppState.SETTINGS else AppState.HOME
+                    tasteProfileReturnToSettings = false
+                    viewModel.updateState { copy(appState = destination) }
+                }
             )
         }
         AppState.STYLE_SELECTION -> {
@@ -1405,7 +1469,10 @@ fun AppNavigation(
                 onYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
                 onDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
                 onLeaderboard = { viewModel.updateState { copy(appState = AppState.LEADERBOARD) } },
-                onNavigateToTasteProfile = { viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) } },
+                onNavigateToTasteProfile = {
+                    tasteProfileReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) }
+                },
                 onStudioGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
                 onPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
                 onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
@@ -1426,7 +1493,10 @@ fun AppNavigation(
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
-                onRules = { viewModel.updateState { copy(appState = AppState.RULES) } },
+                onRules = {
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                },
                 onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )

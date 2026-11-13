@@ -1978,6 +1978,18 @@ object SupabaseServices {
             lastInteractionError = msg
         }.getOrDefault(false)
 
+        suspend fun getReelLikesCount(reelId: String): Int? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("reels").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("likes_count")
+            ) {
+                filter { eq("id", reelId) }
+                limit(1)
+            }.decodeSingleOrNull<ReelLikesCountRow>()?.likesCount
+        }.onFailure { e ->
+            Log.e(TAG, "getReelLikesCount failed for reel $reelId: ${e.message}")
+        }.getOrNull()
+
         suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
             val client = client ?: return null
             client.postgrest.from("reel_comments").select {
@@ -3079,6 +3091,11 @@ object SupabaseServices {
     data class ReelBookmarkRow(
         @SerialName("reel_id") val reelId: String,
         @SerialName("user_id") val userId: String
+    )
+
+    @Serializable
+    data class ReelLikesCountRow(
+        @SerialName("likes_count") val likesCount: Int = 0
     )
 
     @Serializable
