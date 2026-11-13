@@ -6,6 +6,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.StatFs
 import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
@@ -38,6 +39,9 @@ object UpdateManager {
     const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = 2
     private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
     private const val PREF_LAST_CHECK = "update_last_check_supabase"
+    private const val PREF_DELTA_FAILURE_PREFIX = "delta_failure_"
+    private const val DELTA_FAILURE_TTL_MS = 24L * 60L * 60L * 1000L
+    private const val DELTA_SAFETY_MARGIN_BYTES = 128L * 1024L * 1024L
 
     fun getAutoCheckIntervalHours(context: Context): Int {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -117,6 +121,21 @@ object UpdateManager {
         isUpdateDismissedForSession = true
     }
     fun setPendingUpdate(update: UpdateInfo?) { _pendingUpdate.value = update }
+
+    private fun deltaFailureKey(update: UpdateInfo): String =
+        PREF_DELTA_FAILURE_PREFIX + (update.baseApkSha256 ?: "unknown") + "_" +
+            (update.apkSha256 ?: update.versionCode.toString())
+
+    private fun hasRecentDeltaFailure(context: Context, update: UpdateInfo): Boolean {
+        val timestamp = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getLong(deltaFailureKey(update), 0L)
+        return timestamp > 0L && System.currentTimeMillis() - timestamp < DELTA_FAILURE_TTL_MS
+    }
+
+    private fun rememberDeltaFailure(context: Context, update: UpdateInfo) {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit().putLong(deltaFailureKey(update), System.currentTimeMillis()).apply()
+    }
 
     /** هل تم تجاهل التحديث في هذه الجلسة؟ (تُصفر عند إعادة التشغيل) */
     @Volatile var isUpdateDismissedForSession: Boolean = false
@@ -1073,11 +1092,15 @@ object UpdateManager {
                 val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
-                val deltaCandidate = if (!forceFull && !update.deltaUsable) {
+                val deltaBlocked = !forceFull && !update.deltaUsable && hasRecentDeltaFailure(context, update)
+                var deltaAttempted = false
+                val deltaCandidate = if (!forceFull && !deltaBlocked && !update.deltaUsable) {
+                    deltaAttempted = true
                     requestOnDemandDelta(context, update, handle, emitProgress)
                 } else update
 
-                if (!forceFull && deltaCandidate != null && deltaCandidate.deltaUsable) {
+                if (!forceFull && !deltaBlocked && deltaCandidate != null && deltaCandidate.deltaUsable) {
+                    deltaAttempted = true
                     Log.d(TAG, "⚡ Trying delta (${formatSize(deltaCandidate.deltaSize)})…")
                     val patched = tryDeltaUpdate(context, deltaCandidate, updatesDir, resolvedAuthToken, handle, emitProgress)
                     if (patched != null && patched.exists() && patched.length() > 1_000_000) {
@@ -1106,7 +1129,13 @@ object UpdateManager {
                         runCatching { patched.delete() }
                     }
                     if (handle.cancelled) throw DownloadCancelledException()
+                    if (deltaAttempted) rememberDeltaFailure(context, update)
                     Log.w(TAG, "⚠️ Delta failed — full APK fallback")
+                }
+
+                if (deltaAttempted && deltaCandidate == null && !handle.cancelled) {
+                    rememberDeltaFailure(context, update)
+                    Log.w(TAG, "⚠️ On-demand delta unavailable — full APK fallback")
                 }
 
                 if (handle.cancelled) throw DownloadCancelledException()
@@ -1186,7 +1215,9 @@ object UpdateManager {
             if (requested.id.isBlank()) return@withContext null
 
             var job = requested
-            val deadline = System.currentTimeMillis() + 20L * 60L * 1000L
+            // لا نحتجز المستخدم في انتظار البناء السحابي؛ بعد ثلاث دقائق
+            // ينتقل المسار تلقائياً إلى APK الكامل مع استمرار تسجيل الوظيفة على الخادم.
+            val deadline = System.currentTimeMillis() + 3L * 60L * 1000L
             while (!handle.cancelled && job.status != "ready" && job.status != "failed" &&
                 System.currentTimeMillis() < deadline
             ) {
@@ -1250,6 +1281,7 @@ object UpdateManager {
         handle: DownloadHandle,
         onProgress: (DownloadProgress) -> Unit
     ): File? {
+        var deltaFile: File? = null
         return try {
             // Android 10+ blocks executing writable app-data binaries for modern targets.
             // On those devices only the JNI library packaged inside the APK is a valid engine.
@@ -1287,7 +1319,24 @@ object UpdateManager {
             }
             if (handle.cancelled) return null
 
-            val deltaFile = downloadFile(
+            val sourceApk = File(context.applicationInfo.sourceDir)
+            val requiredBytes = sourceApk.length() + update.deltaSize +
+                update.apkSize.coerceAtLeast(1L) + DELTA_SAFETY_MARGIN_BYTES
+            val availableBytes = StatFs(updatesDir.absolutePath).availableBytes
+            if (!sourceApk.isFile || availableBytes < requiredBytes) {
+                val reason = "مساحة التخزين غير كافية لتطبيق التحديث التفاضلي (المطلوب تقريباً ${formatSize(requiredBytes)}، المتاح ${formatSize(availableBytes)})"
+                Log.w(TAG, reason)
+                UpdateTelemetryManager.recordFailure(
+                    context = context,
+                    update = update,
+                    phase = "INSUFFICIENT_STORAGE",
+                    throwable = null,
+                    customMessage = reason
+                )
+                return null
+            }
+
+            val downloadedDelta = downloadFile(
                 update.deltaUrl!!, updatesDir,
                 "qabas-${update.versionName}-${update.versionCode}.delta", authToken, handle,
                 expectedSize = update.deltaSize
@@ -1306,21 +1355,21 @@ object UpdateManager {
                 }
                 return null
             }
+            deltaFile = downloadedDelta
 
-            if (handle.cancelled) { deltaFile.delete(); return null }
-            if (deltaFile.length() < 100) {
+            if (handle.cancelled) { downloadedDelta.delete(); return null }
+            if (downloadedDelta.length() < 100) {
                 UpdateTelemetryManager.recordFailure(
                     context = context,
                     update = update,
                     phase = "VALIDATE_DELTA_FILE",
                     throwable = null,
-                    customMessage = "ملف الدلتا الذي تم تنزيله فارغ أو تالف (الحجم: ${deltaFile.length()} بايت)"
+                    customMessage = "ملف الدلتا الذي تم تنزيله فارغ أو تالف (الحجم: ${downloadedDelta.length()} بايت)"
                 )
-                deltaFile.delete()
+                downloadedDelta.delete()
                 return null
             }
 
-            val sourceApk = File(context.applicationInfo.sourceDir)
             if (!sourceApk.exists()) {
                 Log.w(TAG, "⚠️ source APK missing")
                 UpdateTelemetryManager.recordFailure(
@@ -1339,7 +1388,7 @@ object UpdateManager {
             onProgress(DownloadProgress(0, 0, update.deltaSize, Phase.APPLYING_PATCH, 0))
             
             // استخدام PatchManager لمعالجة الرقعة والتحقق من سلامتها
-            val patchSuccess = PatchManager.applyXdeltaPatch(context, update, deltaFile)
+            val patchSuccess = PatchManager.applyXdeltaPatch(context, update, downloadedDelta)
             
             if (handle.cancelled) return null
             onProgress(DownloadProgress(100, update.deltaSize, update.deltaSize, Phase.APPLYING_PATCH, 0))
@@ -1366,6 +1415,17 @@ object UpdateManager {
                 customMessage = "استثناء غير معالج في مسار الدلتا: ${e.message}"
             )
             null
+        } finally {
+            // PatchManager يحذف الملف بعد نجاحه؛ هذا يغطي الإلغاء وفشل الشبكة
+            // وفشل JNI والاستثناءات غير المتوقعة أيضاً.
+            runCatching { deltaFile?.takeIf { it.exists() }?.delete() }
+            runCatching {
+                updatesDir.listFiles()?.filter { file ->
+                    file.name.startsWith("qabas-${update.versionName}-${update.versionCode}") &&
+                        (file.name.endsWith(".delta.part") || file.name.endsWith("-patched.tmp") ||
+                            file.name.endsWith("-patched.apk.part"))
+                }?.forEach { it.delete() }
+            }
         }
     }
     internal fun ensureXdeltaBinary(
