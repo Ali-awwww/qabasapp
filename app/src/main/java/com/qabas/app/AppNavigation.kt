@@ -113,7 +113,11 @@ fun AppNavigation(
             AppState.AZKAR to AppState.HASANAT_HUB,
             AppState.PRAYER_TIMES to AppState.HASANAT_HUB,
             AppState.ISLAMIC_LIBRARY to AppState.HASANAT_HUB,
-            AppState.UPDATE_HISTORY to AppState.ABOUT_US
+            AppState.UPDATE_HISTORY to AppState.ABOUT_US,
+            AppState.ABOUT_US to AppState.SETTINGS,
+            AppState.RULES to AppState.SETTINGS,
+            AppState.PERMISSIONS_HUB to AppState.SETTINGS,
+            AppState.CRASH_LOGS_HUB to AppState.SETTINGS
         )
     }
     BackHandler(enabled = appState !in rootBackStates) {

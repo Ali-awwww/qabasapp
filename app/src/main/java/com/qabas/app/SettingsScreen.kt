@@ -167,6 +167,7 @@ fun SettingsScreen(
     var selectedPresetAvatar by remember {
         mutableIntStateOf(prefs.getInt("user_preset_avatar", 0))
     }
+    var showAvatarPicker by remember { mutableStateOf(false) }
 
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
@@ -250,11 +251,9 @@ fun SettingsScreen(
     }
 
     // التحديثات والنظام
-    var showAboutAppDialog by remember { mutableStateOf(false) }
-    var showChangelogDialog by remember { mutableStateOf(false) }
-    var showPrivacyDialog by remember { mutableStateOf(false) }
     var updateState by remember { mutableStateOf<String?>(null) }
     var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
     var updateProgress by remember { mutableStateOf(0) }
     var updateDownloadedBytes by remember { mutableStateOf(0L) }
     var updateTotalBytes by remember { mutableStateOf(0L) }
@@ -275,7 +274,7 @@ fun SettingsScreen(
         }
     }
 
-    // خدمة تنزيل التحديثات في الخلفية
+    // خدمة تنزيل التحديثات في الخلفية — تعرض الحالة داخل حوار التحديث بدل تركها بلا واجهة.
     LaunchedEffect(Unit) {
         UpdateManager.downloadProgress.collect { p ->
             if (p != null && updateState == "downloading" && updateActiveKey != null) {
@@ -322,6 +321,7 @@ fun SettingsScreen(
                 if (info != null) {
                     updateInfo = info
                     updateState = "found"
+                    showUpdateDialog = true
                     prefs.edit().putString("last_release_notes", info.releaseNotes).apply()
                 } else {
                     updateState = null
@@ -332,11 +332,6 @@ fun SettingsScreen(
         }
     }
 
-    // Developer Mode
-    var devTapCount by remember { mutableIntStateOf(0) }
-    var showPassphraseDialog by remember { mutableStateOf(false) }
-    var passphraseInput by remember { mutableStateOf("") }
-    var passphraseError by remember { mutableStateOf(false) }
     val isDevMode = isDeveloperAccount
 
     // الحسابات الرسمية
@@ -607,6 +602,7 @@ fun SettingsScreen(
                             isGuest = isGuest,
                             isRelative = isRelative,
                             onUpgrade = onNavigateToPremiumUpgrade,
+                            onAvatarClick = { showAvatarPicker = true },
                             context = context
                         )
 
@@ -644,21 +640,26 @@ fun SettingsScreen(
                                     }
                                 },
                                 onCheckUpdate = {
-                                    coroutineScope.launch {
+                                    if (updateState != "checking..." && updateState != "downloading") {
                                         updateState = "checking..."
-                                        runCatching {
-                                            VersionManager.checkRemoteVersion(context, force = true)
-                                        }.onSuccess { info ->
-                                            updateState = if (info != null) "found" else null
-                                            if (info != null) {
-                                                updateInfo = info
-                                                Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "لا يوجد إصدار أحدث معتمد حاليًا.", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }.onFailure {
-                                            updateState = null
-                                            Toast.makeText(context, "تعذر فحص التحديثات. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                                        coroutineScope.launch {
+                                            runCatching { VersionManager.checkRemoteVersion(context, force = true) }
+                                                .onSuccess { info ->
+                                                    if (info != null) {
+                                                        updateInfo = info
+                                                        updateState = "found"
+                                                        showUpdateDialog = true
+                                                        prefs.edit().putString("last_release_notes", info.releaseNotes).apply()
+                                                        Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        updateState = null
+                                                        Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل ✅", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                                .onFailure {
+                                                    updateState = null
+                                                    Toast.makeText(context, "تعذر فحص التحديثات. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                                                }
                                         }
                                     }
                                 },
@@ -1041,144 +1042,91 @@ fun SettingsScreen(
         UserReportsDialog(onDismissRequest = { showUserReportsDialog = false })
     }
 
-    // Dialogs
-    if (showAboutAppDialog) {
+    // حوار التحديث: الفحص، عرض التفاصيل، بدء التنزيل، وإظهار التقدم كلها في مسار واحد.
+    if (showUpdateDialog && updateInfo != null) {
+        val info = updateInfo!!
         AlertDialog(
-            onDismissRequest = { showAboutAppDialog = false },
+            onDismissRequest = { if (updateState != "downloading") showUpdateDialog = false },
             containerColor = CardSurface,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(26.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("منظومة قبس (Qabas Studio)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "﴿ إِذْ رَأَىٰ نَارًا فَقَالَ لِأَهْلِهِ امْكُثُوا إِنِّي آنَسْتُ نَارًا لَّعَلِّي آتِيكُم مِّنْهَا بِقَبَسٍ ﴾",
-                        color = Color(0xFFF8FAFC),
-                        fontFamily = AmiriFont,
-                        fontSize = 15.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "قبس هو استوديو متكامل في جيبك لصناعة المحتوى الدعوي والإسلامي الهادف بالذكاء الاصطناعي، يجمع بين تلاوة وتدبر القرآن، الصحيحين، الإخراج، والتعليق الصوتي.",
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        lineHeight = 20.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showAboutAppDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
-                    Text("إغلاق", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
-
-    if (showChangelogDialog) {
-        AlertDialog(
-            onDismissRequest = { showChangelogDialog = false },
-            containerColor = CardSurface,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.History, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("سجل تحديثات قبس v${BuildConfig.VERSION_NAME}", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val savedNotes = prefs.getString("last_release_notes", "").orEmpty()
-                    Text(savedNotes.ifBlank { "تحديثات مستمرة في الأداء والمظهر والاستقرار." }, color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showChangelogDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
-                    Text("رائع ✦", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
-
-    if (showPrivacyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyDialog = false },
-            containerColor = CardSurface,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("الضوابط الشرعية وسياسة الخصوصية", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("ميثاق النزاهة والمحتوى الهادف:", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text("1. يلتزم تطبيق قبس بضمان خلو المحتوى من أي مخالفات شرعية.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                    Text("2. جميع التلاوات والأناشيد والمؤثرات الصوتية خالية من المعازف.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                    Text("3. مفاتيح الـ API والبيانات تحفظ محلياً ومشفرة.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showPrivacyDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
-                    Text("أوافق وملتزم", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
-
-    if (showPassphraseDialog) {
-        AlertDialog(
-            onDismissRequest = { showPassphraseDialog = false },
-            containerColor = Color(0xFF0D1117),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.DeveloperMode, contentDescription = null, tint = AiViolet, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("تفعيل وضع المطور", color = AiViolet, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
+            title = { Text("تحديث جديد متاح: ${info.versionName}", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("أدخل كلمة المرور السرية لتفعيل وضع المطور:", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
-                    OutlinedTextField(
-                        value = passphraseInput,
-                        onValueChange = { passphraseInput = it; passphraseError = false },
-                        placeholder = { Text("كلمة المرور", color = Color.Gray, fontFamily = CairoFont) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        when (updateState) {
+                            "downloading" -> "جاري تنزيل التحديث… $updateProgress٪"
+                            "done" -> updateDoneMessage.ifBlank { "اكتمل تنزيل التحديث. افتح إشعار النظام للتثبيت." }
+                            "error" -> updateDoneMessage.ifBlank { "تعذر تنزيل التحديث." }
+                            else -> info.releaseNotes.ifBlank { "يتضمن هذا الإصدار تحسينات في الأداء والاستقرار." }
+                        },
+                        color = TextSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        lineHeight = 19.sp
                     )
-                    if (passphraseError) {
-                        Text("كلمة المرور غير صحيحة", color = Color(0xFFF97316), fontFamily = CairoFont, fontSize = 11.sp)
+                    if (updateState == "downloading") {
+                        LinearProgressIndicator(progress = { updateProgress / 100f }, modifier = Modifier.fillMaxWidth(), color = GoldPrimary)
                     }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val isAllowed = AdminGuard.isDashboardAccessAllowed(context)
-                        showPassphraseDialog = false
-                        if (isAllowed) {
-                            Toast.makeText(context, "تم التحقق السحابي: حسابك مفعل برتبة مطور! 🛠️", Toast.LENGTH_LONG).show()
-                        } else {
-                            val currentRole = SupabaseServices.Auth.getUserRoleFromMetadata()
-                            Toast.makeText(context, "الرتبة السحابية الحالية ($currentRole): تفعيل لوحة المطور يتم حصرياً عبر Supabase.", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AiViolet)
-                ) {
-                    Text("فحص السحابة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                if (updateState != "downloading" && updateState != "done") {
+                    Button(
+                        onClick = { beginServiceDownload(info, forceFull = info.isForce) },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    ) { Text("تنزيل التحديث", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPassphraseDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                TextButton(onClick = { if (updateState != "downloading") showUpdateDialog = false }) {
+                    Text(if (updateState == "downloading") "التنزيل مستمر بالخلفية" else "إغلاق", color = Color.Gray, fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
+    if (showAvatarPicker) {
+        val avatarOptions = listOf(
+            0 to (Icons.Default.Person to "الشخصية الافتراضية"),
+            1 to (Icons.Default.AutoAwesome to "قبس الإبداع"),
+            2 to (Icons.Default.MovieFilter to "صانع المحتوى"),
+            3 to (Icons.Default.MenuBook to "القارئ"),
+            4 to (Icons.Default.Psychology to "الذكاء")
+        )
+        AlertDialog(
+            onDismissRequest = { showAvatarPicker = false },
+            containerColor = CardSurface,
+            title = { Text("اختيار الصورة الرمزية", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("اختر صورة افتراضية للملف الشخصي. سيتم استخدام هذا الاختيار بدلاً من الصورة المخصصة الحالية.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                    avatarOptions.forEach { (id, option) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedPresetAvatar == id) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                                .clickable {
+                                    prefs.edit().putInt("user_preset_avatar", id).remove("user_avatar_uri").apply()
+                                    selectedPresetAvatar = id
+                                    showAvatarPicker = false
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(option.first, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(option.second, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+                            if (selectedPresetAvatar == id) {
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarPicker = false }) {
+                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
                 }
             }
         )
@@ -3256,6 +3204,7 @@ fun ProfileSettingsCard(
     isGuest: Boolean,
     isRelative: Boolean,
     onUpgrade: () -> Unit,
+    onAvatarClick: () -> Unit,
     context: Context
 ) {
     Card(
@@ -3271,7 +3220,7 @@ fun ProfileSettingsCard(
             ) {
                 Box {
                     Surface(
-                        modifier = Modifier.size(58.dp),
+                        modifier = Modifier.size(58.dp).clickable(onClick = onAvatarClick),
                         shape = CircleShape,
                         color = Color(0xFF0F172A),
                         border = BorderStroke(2.dp, androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(GoldPrimary, Color(0xFF38BDF8))))
