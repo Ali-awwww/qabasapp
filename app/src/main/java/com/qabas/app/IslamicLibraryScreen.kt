@@ -698,11 +698,13 @@ fun InteractiveBookReaderDialog(
 
     // Initialize TTS
     DisposableEffect(Unit) {
+        var initializedEngine: TextToSpeech? = null
         val tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                ttsEngine?.language = Locale("ar")
+                initializedEngine?.language = Locale("ar")
             }
         }
+        initializedEngine = tts
         ttsEngine = tts
         onDispose {
             tts.stop()
@@ -1282,4 +1284,3 @@ fun IslamicBookCard(
         }
     }
 }
-
