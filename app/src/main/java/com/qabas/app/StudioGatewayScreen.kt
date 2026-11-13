@@ -1033,7 +1033,8 @@ private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 12.dp),
+            .padding(top = 10.dp, bottom = 12.dp)
+            .testTag("studio_section_${codeTag.lowercase()}"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1103,6 +1104,7 @@ private fun StudioFeatureCard(
 ) {
     GlassmorphicSurface(
         modifier = Modifier
+            .testTag("studio_feature_${badge.lowercase().replace(' ', '_')}")
             .fillMaxWidth()
             .clickable { onClick() },
         backgroundColor = Color(0xFF0B132B).copy(alpha = 0.45f),
