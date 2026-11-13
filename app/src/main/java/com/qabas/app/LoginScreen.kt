@@ -119,7 +119,7 @@ fun LoginScreen(
                     color = primaryColor.copy(alpha = 0.08f),
                     shape = CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp),
                     border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.padding(bottom = 6.dp)
+                    modifier = Modifier.padding(bottom = 16.dp)
                 ) {
                     Text(
                         text = "SECURE AUTH // بروتوكول الوصول الذكي",
