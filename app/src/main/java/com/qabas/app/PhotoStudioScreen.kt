@@ -72,15 +72,25 @@ data class PhotoTemplate(
 @Composable
 fun PhotoStudioScreen(
     onBack: () -> Unit,
+    initialImagePath: String? = null,
     onNavigateToAdvancedEdit: (String) -> Unit = {},
     onSaveProject: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var currentStep by remember { mutableStateOf(1) } // 1 = Select, 2 = Edit, 3 = Export
+    val initialImageUri = remember(initialImagePath) {
+        initialImagePath?.takeIf { it.isNotBlank() }?.let { path ->
+            if (path.startsWith("content://", ignoreCase = true) ||
+                path.startsWith("file://", ignoreCase = true) ||
+                path.startsWith("http://", ignoreCase = true) ||
+                path.startsWith("https://", ignoreCase = true)
+            ) Uri.parse(path) else Uri.fromFile(File(path))
+        }
+    }
+    var currentStep by remember(initialImageUri) { mutableStateOf(if (initialImageUri == null) 1 else 2) } // 1 = Select, 2 = Edit, 3 = Export
 
-    var selectedImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var selectedImageUris by remember(initialImageUri) { mutableStateOf(listOfNotNull(initialImageUri)) }
     var selectedTemplate by remember { mutableStateOf<PhotoTemplate?>(null) }
 
     // عدة التصميم

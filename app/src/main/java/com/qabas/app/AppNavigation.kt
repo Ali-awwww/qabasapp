@@ -83,6 +83,9 @@ fun AppNavigation(
             }
         }
     }
+    var mediaBrowserReturnState by remember { mutableStateOf(AppState.HOME) }
+    var photoStudioReturnState by remember { mutableStateOf(AppState.HOME) }
+    var photoStudioInitialImagePath by remember { mutableStateOf<String?>(null) }
 
     // Reactive Auth state observer broadcasting from SupabaseRepository
     ReactiveAuthNavigationObserver(
@@ -168,7 +171,7 @@ fun AppNavigation(
 
     val restrictedProductionStates = remember {
         setOf(
-            AppState.STUDIO_GATEWAY, AppState.INPUT, AppState.UNDERSTANDING, AppState.RESOURCES,
+            AppState.STUDIO_GATEWAY, AppState.HIGGSFIELD_STUDIO, AppState.INPUT, AppState.UNDERSTANDING, AppState.RESOURCES,
             AppState.PROCESSING, AppState.REVIEW, AppState.ADVANCED_EDIT, AppState.TRANSCRIPT_EDIT,
             AppState.PRO_EDITOR, AppState.MONEY_PRINTER_TURBO, AppState.VOICE_STUDIO,
             AppState.PHOTO_STUDIO, AppState.YOUTUBE_STUDIO, AppState.SMART_DIRECTOR,
@@ -359,7 +362,11 @@ fun AppNavigation(
                 onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
                 onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
-                onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
+                onPhotoStudio = {
+                    photoStudioReturnState = AppState.HOME
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
                 onStyleSelection = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
                 onIslamicLibrary = { viewModel.updateState { copy(appState = AppState.ISLAMIC_LIBRARY) } },
                 onAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
@@ -368,7 +375,10 @@ fun AppNavigation(
                 onProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
                 onMoneyPrinterTurbo = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
-                onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
+                onMediaBrowser = {
+                    mediaBrowserReturnState = AppState.HOME
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
@@ -382,8 +392,14 @@ fun AppNavigation(
         }
         AppState.PHOTO_STUDIO -> {
             PhotoStudioScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onBack = {
+                    val returnState = photoStudioReturnState
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = returnState) }
+                },
+                initialImagePath = photoStudioInitialImagePath,
                 onNavigateToAdvancedEdit = { videoPath ->
+                    photoStudioInitialImagePath = null
                     viewModel.updateState {
                         copy(
                             libraryScenes = listOf(Scene("فيديو استوديو الصور", "فيديو جاهز", 15, mediaUrl = videoPath)),
@@ -407,6 +423,7 @@ fun AppNavigation(
                     }
                 },
                 onSaveProject = { videoPath ->
+                    photoStudioInitialImagePath = null
                     viewModel.createProject("استوديو الصور - فيديو سريع")
                     viewModel.updateState {
                         copy(
@@ -483,12 +500,19 @@ fun AppNavigation(
         AppState.STUDIO_GATEWAY -> {
             StudioGatewayScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onNavigateToMasterStudio = { viewModel.updateState { copy(appState = AppState.UNIFIED_MASTER_STUDIO) } },
-                onNavigateToMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
+                onNavigateToHiggsfield = { viewModel.updateState { copy(appState = AppState.HIGGSFIELD_STUDIO) } },
+                onNavigateToMediaBrowser = {
+                    mediaBrowserReturnState = AppState.STUDIO_GATEWAY
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
                 onNavigateToAiStudio = { viewModel.updateState { copy(appState = AppState.INPUT) } },
                 onNavigateToProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
                 onNavigateToMoneyPrinter = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
-                onNavigateToPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
+                onNavigateToPhotoStudio = {
+                    photoStudioReturnState = AppState.STUDIO_GATEWAY
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
                 onNavigateToVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onNavigateToYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
                 onNavigateToTeleprompter = { viewModel.updateState { copy(appState = AppState.TELEPROMPTER) } },
@@ -497,6 +521,11 @@ fun AppNavigation(
                 onNavigateToStats = { viewModel.updateState { copy(appState = AppState.SOCIAL_STATS) } },
                 onNavigateToAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
+            )
+        }
+        AppState.HIGGSFIELD_STUDIO -> {
+            HiggsfieldStudioScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
             )
         }
         AppState.PRO_EDITOR -> {
@@ -1499,25 +1528,14 @@ fun AppNavigation(
         }
         AppState.MEDIA_BROWSER -> {
             CentralMediaBrowserScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                onSelectAssetForProject = { asset ->
-                    if (asset.type == CentralMediaType.AUDIO) {
-                        viewModel.updateState { copy(voiceOver = asset.displayUrl, appState = AppState.INPUT) }
-                    } else if (asset.type == CentralMediaType.VIDEO) {
-                        viewModel.updateState {
-                            copy(
-                                libraryScenes = listOf(Scene(asset.title, "فيديو من مستودع الوسائط", 15, mediaUrl = asset.displayUrl)),
-                                appState = AppState.ADVANCED_EDIT
-                            )
-                        }
-                    } else {
-                        viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
-                    }
-                },
+                onBack = { viewModel.updateState { copy(appState = mediaBrowserReturnState) } },
                 onOpenInPhotoStudio = { path ->
+                    photoStudioReturnState = AppState.MEDIA_BROWSER
+                    photoStudioInitialImagePath = path
                     viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
                 },
                 onOpenInVideoEditor = { path ->
+                    photoStudioInitialImagePath = null
                     viewModel.updateState {
                         copy(
                             libraryScenes = listOf(Scene("مقطع وسائط", "من مستودع الوسائط", 15, mediaUrl = path)),
@@ -1558,7 +1576,11 @@ fun AppNavigation(
                 onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
                 onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
-                onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
+                onPhotoStudio = {
+                    photoStudioReturnState = AppState.HOME
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
                 onStyleSelection = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
                 onIslamicLibrary = { viewModel.updateState { copy(appState = AppState.ISLAMIC_LIBRARY) } },
                 onAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
@@ -1567,7 +1589,10 @@ fun AppNavigation(
                 onProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
                 onMoneyPrinterTurbo = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
-                onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
+                onMediaBrowser = {
+                    mediaBrowserReturnState = AppState.HOME
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
