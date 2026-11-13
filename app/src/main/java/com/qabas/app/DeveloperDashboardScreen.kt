@@ -807,8 +807,8 @@ private fun DeveloperChatSection(context: Context) {
         else msgs.drop(lastDevIdx + 1).count { it.sender != "developer" }
     }
 
-    suspend fun refreshThreads() {
-        if (isRefreshing) return
+    suspend fun refreshThreads(): Boolean {
+        if (isRefreshing) return false
         isRefreshing = true
         try {
             val cloudThreads = SupabaseServices.Database.getAllChatThreads()
@@ -847,6 +847,9 @@ private fun DeveloperChatSection(context: Context) {
             if (selectedEmail == null || selectedEmail !in merged.keys) {
                 selectedEmail = merged.keys.firstOrNull()
             }
+            return true
+        } catch (_: Exception) {
+            return false
         } finally {
             isRefreshing = false
         }
@@ -854,9 +857,14 @@ private fun DeveloperChatSection(context: Context) {
 
     LaunchedEffect(Unit) {
         refreshThreads()
+        var pollDelayMs = 30_000L
         while (isActive) {
-            delay(30_000)
-            refreshThreads()
+            delay(pollDelayMs)
+            pollDelayMs = if (refreshThreads()) {
+                30_000L
+            } else {
+                (pollDelayMs * 2).coerceAtMost(5 * 60_000L)
+            }
         }
     }
 
