@@ -2,7 +2,10 @@ package com.qabas.app
 
 import android.content.Context
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -11,6 +14,8 @@ class ProjectService(private val context: Context) {
     private companion object {
         const val DELETE_TOMBSTONES_PREFS = "qabas_project_sync"
         const val DELETE_TOMBSTONES_KEY = "deleted_project_ids"
+        private val localMutationMutex = Mutex()
+        private val cloudSyncMutex = Mutex()
     }
     @Immutable
     data class Project(
@@ -39,19 +44,20 @@ class ProjectService(private val context: Context) {
         context.getSharedPreferences(DELETE_TOMBSTONES_PREFS, Context.MODE_PRIVATE)
     }
 
-    private fun deletedProjectIds(): Set<String> =
-        syncPrefs.getStringSet(DELETE_TOMBSTONES_KEY, emptySet()).orEmpty()
-
-    private fun markProjectDeleted(id: String) {
-        val ids = deletedProjectIds().toMutableSet().apply { add(id) }
-        syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
+    private fun deletedProjectIds(): Set<String> = synchronized(syncPrefs) {
+        syncPrefs.getStringSet(DELETE_TOMBSTONES_KEY, emptySet()).orEmpty().toSet()
     }
 
-    private fun clearProjectDeletion(id: String) {
+    private fun markProjectDeleted(id: String): Boolean = synchronized(syncPrefs) {
+        val ids = deletedProjectIds().toMutableSet().apply { add(id) }
+        syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).commit()
+    }
+
+    private fun clearProjectDeletion(id: String): Boolean = synchronized(syncPrefs) {
         val ids = deletedProjectIds().toMutableSet()
         if (ids.remove(id)) {
-            syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
-        }
+            syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).commit()
+        } else true
     }
 
     /** قائمة سريعة من Room فقط — لا شبكة */
@@ -84,10 +90,7 @@ class ProjectService(private val context: Context) {
                 try {
                     val supabaseRows = SupabaseServices.Database.getUserProjects()
                     if (supabaseRows.isNotEmpty()) {
-                        val merged = LinkedHashMap<String, Project>(localProjects.size + supabaseRows.size)
-                        localProjects.forEach { merged[it.id] = it }
-
-                        val toUpsert = ArrayList<ProjectEntity>()
+                        val cloudProjects = ArrayList<ProjectEntity>(supabaseRows.size)
                         supabaseRows.forEach { row ->
                             if (row.id in deletedIds) return@forEach
                             val meta = row.metadata
@@ -115,16 +118,15 @@ class ProjectService(private val context: Context) {
                                 lastScreen = meta["lastScreen"] ?: "",
                                 workspaceJson = workspaceJson
                             )
-                            val existing = merged[proj.id]
-                            if (existing == null || existing.synced && proj.updatedAt >= existing.updatedAt) {
-                                merged[proj.id] = proj
-                                toUpsert.add(proj.toEntity())
-                            }
+                            cloudProjects.add(proj.toEntity())
                         }
-                        if (toUpsert.isNotEmpty()) {
-                            repository.insertAll(toUpsert)
+                        if (cloudProjects.isNotEmpty()) {
+                            repository.mergeCloudProjects(cloudProjects)
                         }
-                        return@withContext merged.values.sortedByDescending { it.updatedAt }
+                        return@withContext repository.getAllProjectsOnce()
+                            .filterNot { it.id in deletedIds }
+                            .map { it.toProject() }
+                            .sortedByDescending { it.updatedAt }
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("ProjectService", "Supabase sync error: ${e.message}")
@@ -141,37 +143,19 @@ class ProjectService(private val context: Context) {
     }
 
     suspend fun saveProject(project: Project) = withContext(Dispatchers.IO) {
-        var isSynced = false
-        // حفظ سحابي أساسي في Supabase
-        if (SupabaseServices.isSupabaseAvailable && UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available) {
-            val result = runCatching {
-                val cloudWorkspaceJson = uploadWorkspaceRecording(project)
-                val metadata = mapOf(
-                    "idea" to project.idea,
-                    "analysis" to project.analysis,
-                    "resources" to project.resources,
-                    "settings" to project.settings,
-                    "script" to project.script,
-                    "finalVideoPath" to project.finalVideoPath,
-                    "lastScreen" to project.lastScreen,
-                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
-                )
-                SupabaseServices.Database.saveFullProject(
-                    id = project.id,
-                    title = project.title,
-                    description = project.idea.take(200),
-                    status = project.status.ifBlank { "draft" },
-                    cost = project.cost,
-                    tags = listOf("qabas_project"),
-                    metadata = metadata,
-                    createdAt = java.time.Instant.ofEpochMilli(project.createdAt.coerceAtLeast(1L)).toString(),
-                    updatedAt = java.time.Instant.ofEpochMilli(project.updatedAt.coerceAtLeast(project.createdAt).coerceAtLeast(1L)).toString()
-                )
-            }
-            isSynced = result.isSuccess
+        val (pending, deletionStateCleared) = localMutationMutex.withLock {
+            val localProject = repository.savePending(project.toEntity())
+            localProject to clearProjectDeletion(project.id)
         }
 
-        repository.insert(project.copy(synced = isSynced).toEntity())
+        // Room is the durable outbox: local success does not depend on network availability.
+        if (deletionStateCleared && SupabaseServices.isSupabaseAvailable &&
+            UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available
+        ) {
+            syncProject(pending.id)
+        } else if (!deletionStateCleared) {
+            android.util.Log.w("ProjectService", "Project sync deferred because delete state was not persisted")
+        }
 
         try {
             if (project.analysis.isNotEmpty()) {
@@ -191,61 +175,92 @@ class ProjectService(private val context: Context) {
     }
 
     suspend fun deleteProject(id: String) = withContext(Dispatchers.IO) {
-        val online = SupabaseServices.isSupabaseAvailable &&
-            UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available
-        if (online) {
-            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
-            if (deletedRemotely) {
-                clearProjectDeletion(id)
-                repository.delete(id)
-            } else {
-                markProjectDeleted(id)
-                repository.delete(id)
-                android.util.Log.w("ProjectService", "Queued cloud deletion for project $id")
-            }
-        } else {
-            markProjectDeleted(id)
+        val deletionStatePersisted = localMutationMutex.withLock {
+            if (!markProjectDeleted(id)) return@withLock false
             repository.delete(id)
+            true
         }
+        if (!deletionStatePersisted) {
+            android.util.Log.w("ProjectService", "Project delete deferred because its pending state was not persisted")
+            return@withContext
+        }
+        syncDeletedProject(id)
     }
 
     suspend fun syncPendingProjects() = withContext(Dispatchers.IO) {
         if (!SupabaseServices.isSupabaseAvailable || UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available) return@withContext
 
-        deletedProjectIds().toList().forEach { id ->
-            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
-            if (deletedRemotely) clearProjectDeletion(id)
+        deletedProjectIds().forEach { id ->
+            syncDeletedProject(id)
         }
 
-        val unsynced = repository.getAllProjectsOnce().filter { !it.synced }
-        unsynced.forEach { entity ->
-            val result = runCatching {
-                val cloudWorkspaceJson = uploadWorkspaceRecording(entity.toProject())
-                val metadata = mapOf(
-                    "idea" to entity.idea,
-                    "analysis" to entity.analysis,
-                    "resources" to entity.resources,
-                    "settings" to (if (ProjectWorkspaceCodec.decodeStored(entity.settings) != null) "" else entity.settings),
-                    "script" to entity.script,
-                    "finalVideoPath" to entity.finalVideoPath,
-                    "lastScreen" to entity.lastScreen,
-                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
-                )
-                SupabaseServices.Database.saveFullProject(
-                    id = entity.id,
-                    title = entity.title,
-                    description = entity.idea.take(200),
-                    status = entity.status.ifBlank { "draft" },
-                    cost = entity.cost,
-                    tags = listOf("qabas_project"),
-                    metadata = metadata,
-                    createdAt = java.time.Instant.ofEpochMilli(entity.createdAt.coerceAtLeast(1L)).toString(),
-                    updatedAt = java.time.Instant.ofEpochMilli(entity.updatedAt.coerceAtLeast(entity.createdAt).coerceAtLeast(1L)).toString()
-                )
-            }
-            if (result.isSuccess) {
-                repository.update(entity.copy(synced = true))
-            }
+        val pendingIds = repository.getAllProjectsOnce().filterNot { it.synced }.map { it.id }
+        pendingIds.forEach { id ->
+            syncProject(id)
+        }
+    }
+
+    /** Serializes cloud writes and always uploads the latest local revision for this project. */
+    private suspend fun syncProject(id: String): Boolean = cloudSyncMutex.withLock {
+        if (!SupabaseServices.isSupabaseAvailable ||
+            UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available
+        ) return@withLock false
+
+        val project = repository.getProject(id)?.toProject() ?: return@withLock false
+        if (project.synced) return@withLock true
+
+        try {
+            val cloudWorkspaceJson = uploadWorkspaceRecording(project)
+            val metadata = mapOf(
+                "idea" to project.idea,
+                "analysis" to project.analysis,
+                "resources" to project.resources,
+                "settings" to project.settings,
+                "script" to project.script,
+                "finalVideoPath" to project.finalVideoPath,
+                "lastScreen" to project.lastScreen,
+                ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
+            )
+            val cloudAccepted = SupabaseServices.Database.saveFullProject(
+                id = project.id,
+                title = project.title,
+                description = project.idea.take(200),
+                status = project.status.ifBlank { "draft" },
+                cost = project.cost,
+                tags = listOf("qabas_project"),
+                metadata = metadata,
+                createdAt = java.time.Instant.ofEpochMilli(project.createdAt.coerceAtLeast(1L)).toString(),
+                updatedAt = java.time.Instant.ofEpochMilli(
+                    project.updatedAt.coerceAtLeast(project.createdAt).coerceAtLeast(1L)
+                ).toString()
+            )
+            // Do not let a completed upload mark a newer local edit as synchronized.
+            val latestRevision = repository.getProject(project.id)?.updatedAt ?: return@withLock false
+            if (!shouldMarkProjectSynced(cloudAccepted, project.updatedAt, latestRevision)) return@withLock false
+            repository.markSyncedIfRevisionMatches(project.id, project.updatedAt) == 1
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            android.util.Log.w("ProjectService", "Project sync deferred (${error.javaClass.simpleName})")
+            false
+        }
+    }
+
+    /** A pending delete is retained until Supabase confirms it; serialized against project uploads. */
+    private suspend fun syncDeletedProject(id: String): Boolean = cloudSyncMutex.withLock {
+        if (id !in deletedProjectIds()) return@withLock true
+        if (!SupabaseServices.isSupabaseAvailable ||
+            UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available
+        ) return@withLock false
+
+        try {
+            val deleted = SupabaseServices.Database.deleteProject(id)
+            if (deleted) clearProjectDeletion(id) else false
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            android.util.Log.w("ProjectService", "Project deletion sync deferred (${error.javaClass.simpleName})")
+            false
         }
     }
 

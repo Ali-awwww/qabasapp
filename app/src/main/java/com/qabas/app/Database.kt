@@ -4,6 +4,20 @@ import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+internal fun nextProjectRevision(incomingUpdatedAt: Long, existingUpdatedAt: Long?, now: Long): Long {
+    val nextExistingRevision = existingUpdatedAt?.let { Math.addExact(it, 1L) } ?: Long.MIN_VALUE
+    return maxOf(incomingUpdatedAt, now, nextExistingRevision)
+}
+
+internal fun isCurrentProjectRevision(uploadedRevision: Long, latestRevision: Long): Boolean =
+    uploadedRevision == latestRevision
+
+internal fun shouldMarkProjectSynced(
+    cloudAccepted: Boolean,
+    uploadedRevision: Long,
+    latestRevision: Long
+): Boolean = cloudAccepted && isCurrentProjectRevision(uploadedRevision, latestRevision)
+
 @Entity(tableName = "projects")
 data class ProjectEntity(
     @PrimaryKey val id: String,
@@ -134,6 +148,37 @@ interface ProjectDao {
 
     @Update
     suspend fun updateProject(project: ProjectEntity)
+
+    @Transaction
+    suspend fun savePendingProject(project: ProjectEntity): ProjectEntity {
+        val existing = getProjectById(project.id)
+        val pending = project.copy(
+            createdAt = existing?.createdAt?.takeIf { it > 0L } ?: project.createdAt,
+            updatedAt = nextProjectRevision(
+                incomingUpdatedAt = project.updatedAt,
+                existingUpdatedAt = existing?.updatedAt,
+                now = System.currentTimeMillis()
+            ),
+            synced = false
+        )
+        insertProject(pending)
+        return pending
+    }
+
+    @Transaction
+    suspend fun mergeCloudProjects(projects: List<ProjectEntity>) {
+        projects.forEach { cloudProject ->
+            val localProject = getProjectById(cloudProject.id)
+            if (localProject == null ||
+                (localProject.synced && cloudProject.updatedAt >= localProject.updatedAt)
+            ) {
+                insertProject(cloudProject.copy(synced = true))
+            }
+        }
+    }
+
+    @Query("UPDATE projects SET synced = 1 WHERE id = :id AND updatedAt = :expectedUpdatedAt AND synced = 0")
+    suspend fun markSyncedIfRevisionMatches(id: String, expectedUpdatedAt: Long): Int
 
     @Query("DELETE FROM projects WHERE id = :id")
     suspend fun deleteProjectById(id: String)
@@ -431,6 +476,10 @@ class ProjectRepository(private val projectDao: ProjectDao) {
         projectDao.getRecentProjectsOnce(limit)
 
     suspend fun getProject(id: String) = projectDao.getProjectById(id)
+    suspend fun savePending(project: ProjectEntity) = projectDao.savePendingProject(project)
+    suspend fun mergeCloudProjects(projects: List<ProjectEntity>) = projectDao.mergeCloudProjects(projects)
+    suspend fun markSyncedIfRevisionMatches(id: String, expectedUpdatedAt: Long) =
+        projectDao.markSyncedIfRevisionMatches(id, expectedUpdatedAt)
     suspend fun insert(project: ProjectEntity) = projectDao.insertProject(project)
     suspend fun insertAll(projects: List<ProjectEntity>) {
         if (projects.isNotEmpty()) projectDao.insertProjects(projects)
@@ -608,4 +657,3 @@ class ChangelogRepository(private val changelogDao: ChangelogDao) {
         }
     }
 }
-
