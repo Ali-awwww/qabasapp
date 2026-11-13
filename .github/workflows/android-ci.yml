@@ -430,7 +430,7 @@ jobs:
             --arg github_release_url "$RELEASE_URL" \
             --arg release_tag "$RELEASE_TAG" \
             --arg asset_name "$ASSET_NAME" \
-            '{p_version_name:$version_name,p_version_code:$version_code,p_download_url:$download_url,p_release_notes:$release_notes,p_file_size_bytes:$file_size_bytes,p_sha256_hash:$sha256_hash,p_is_mandatory:false,p_github_release_url:$github_release_url,p_release_tag:$release_tag,p_asset_name:$asset_name}' \
+            '{p_version_name:$version_name,p_version_code:$version_code,p_download_url:$download_url,p_release_notes:$release_notes,p_file_size_bytes:$file_size_bytes,p_sha256_hash:$sha256_hash,p_is_mandatory:false,p_github_release_url:$github_release_url,p_release_tag:$release_tag,p_asset_name:$asset_name,p_delta_url:null,p_delta_size_bytes:0,p_delta_sha256_hash:null,p_base_version_code:null,p_base_sha256_hash:null}' \
             > "$RUNNER_TEMP/publish-update.json"
           curl --fail-with-body --silent --show-error \
             -X POST "$SUPABASE_URL/rest/v1/rpc/publish_qabas_app_update" \

@@ -30,12 +30,13 @@ Deno.serve(async req => {
   try {
     const body = await req.json();
     const jobId = body.job_id;
+    const targetTag = typeof body.target_tag === "string" ? body.target_tag.trim() : "";
     const baseSha = typeof body.expected_base_sha256 === "string" ? body.expected_base_sha256.toLowerCase() : "";
     const targetSha = typeof body.expected_target_sha256 === "string" ? body.expected_target_sha256.toLowerCase() : "";
     const status = body.status;
     const errorCode = typeof body.error_code === "string" ? body.error_code : null;
 
-    if (!validJobId(jobId) || !validSha(baseSha) || !validSha(targetSha) ||
+    if ((!validJobId(jobId) && !targetTag) || !validSha(baseSha) || !validSha(targetSha) ||
         !["ready", "failed"].includes(status)) {
       return json({ error: "invalid_callback_payload" }, 400);
     }
@@ -67,7 +68,7 @@ Deno.serve(async req => {
       base_sha256_hash: baseSha,
       target_sha256_hash: targetSha,
       status,
-      job_id: jobId,
+      job_id: validJobId(jobId) ? jobId : null,
       delta_url: status === "ready" ? update.delta_url : null,
       delta_size_bytes: status === "ready" ? update.delta_size_bytes : null,
       delta_sha256_hash: status === "ready" ? update.delta_sha256_hash : null,
@@ -78,15 +79,51 @@ Deno.serve(async req => {
     );
     if (cacheWriteError) throw cacheWriteError;
 
+    // The normal release workflow has no per-user job. Promote its verified
+    // patch metadata to the approved app_updates row so the next app check
+    // can use xdelta directly instead of dispatching a duplicate job.
+    if (status === "ready" && targetTag) {
+      const { data: target, error: targetError } = await admin.from("app_updates")
+        .select("id,version_code,sha256_hash")
+        .eq("release_tag", targetTag)
+        .maybeSingle();
+      if (targetError) throw targetError;
+      if (!target || String(target.sha256_hash || "").toLowerCase() !== targetSha) {
+        return json({ error: "target_release_not_found_or_digest_mismatch" }, 409);
+      }
+      const { data: base, error: baseError } = await admin.from("app_updates")
+        .select("version_code")
+        .eq("sha256_hash", baseSha)
+        .maybeSingle();
+      if (baseError) throw baseError;
+      if (!base || Number(base.version_code) >= Number(target.version_code)) {
+        return json({ error: "base_release_not_found_or_not_older" }, 409);
+      }
+      const { error: promoteError } = await admin.from("app_updates").update({
+        delta_url: update.delta_url,
+        delta_size_bytes: update.delta_size_bytes,
+        delta_sha256_hash: update.delta_sha256_hash,
+        base_version_code: base.version_code,
+        base_sha256_hash: baseSha,
+      }).eq("id", target.id);
+      if (promoteError) throw promoteError;
+    }
+
     // Complete every user job waiting for this exact shared digest pair.
-    const { data, error } = await admin.from("app_update_delta_jobs").update({
-      ...update,
-      expires_at: status === "ready" ? update.expires_at : null,
-    }).eq("base_sha256_hash", baseSha).eq("target_sha256_hash", targetSha)
-      .in("status", ["queued", "building"]).select("id,status");
-    if (error) throw error;
-    if (!data || data.length === 0) return json({ error: "jobs_not_found_or_already_finalized" }, 404);
-    return json({ jobs_updated: data.length, status });
+    let jobsUpdated = 0;
+    if (validJobId(jobId)) {
+      const { data, error } = await admin.from("app_update_delta_jobs").update({
+        ...update,
+        expires_at: status === "ready" ? update.expires_at : null,
+      }).eq("base_sha256_hash", baseSha).eq("target_sha256_hash", targetSha)
+        .in("status", ["queued", "building"]).select("id,status");
+      if (error) throw error;
+      jobsUpdated = data?.length ?? 0;
+      if (jobsUpdated === 0 && !targetTag) {
+        return json({ error: "jobs_not_found_or_already_finalized" }, 404);
+      }
+    }
+    return json({ jobs_updated: jobsUpdated, status, app_update_promoted: status === "ready" && !!targetTag });
   } catch (error) {
     console.error("XDelta callback failed", error instanceof Error ? error.message : "unknown_error");
     return json({ error: "callback_failed" }, 500);
