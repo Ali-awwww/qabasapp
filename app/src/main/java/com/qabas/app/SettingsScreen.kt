@@ -664,7 +664,8 @@ fun SettingsScreen(
                                     }
                                 },
                                 isSyncing = isSyncing,
-                                isCheckingUpdate = updateState == "checking..."
+                                isCheckingUpdate = updateState == "checking...",
+                                isDownloadingUpdate = updateState == "downloading"
                             )
                         }
 
@@ -1107,6 +1108,7 @@ fun SettingsScreen(
                                 .background(if (selectedPresetAvatar == id) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent)
                                 .clickable {
                                     prefs.edit().putInt("user_preset_avatar", id).remove("user_avatar_uri").apply()
+                                    avatarUriString = ""
                                     selectedPresetAvatar = id
                                     showAvatarPicker = false
                                 }
@@ -3129,7 +3131,8 @@ fun SettingsQuickActions(
     onSyncCloud: () -> Unit,
     onCheckUpdate: () -> Unit,
     isSyncing: Boolean,
-    isCheckingUpdate: Boolean
+    isCheckingUpdate: Boolean,
+    isDownloadingUpdate: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -3150,9 +3153,13 @@ fun SettingsQuickActions(
         )
         QuickActionItem(
             icon = Icons.Default.Update,
-            label = if (isCheckingUpdate) "جاري الفحص..." else "تحديثات",
+            label = when {
+                isCheckingUpdate -> "جاري الفحص..."
+                isDownloadingUpdate -> "جاري التنزيل..."
+                else -> "تحديثات"
+            },
             onClick = onCheckUpdate,
-            enabled = !isCheckingUpdate,
+            enabled = !isCheckingUpdate && !isDownloadingUpdate,
             modifier = Modifier.weight(1f)
         )
     }

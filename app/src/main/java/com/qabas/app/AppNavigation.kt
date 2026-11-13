@@ -87,6 +87,7 @@ fun AppNavigation(
     }
     var tasteProfileReturnToSettings by remember { mutableStateOf(false) }
     var rulesReturnToSettings by remember { mutableStateOf(false) }
+    var updateHistoryReturnToSettings by remember { mutableStateOf(false) }
 
     val restrictedProductionStates = remember {
         setOf(
@@ -135,6 +136,9 @@ fun AppNavigation(
             } else {
                 AppState.LOGIN
             }
+        } else if (appState == AppState.UPDATE_HISTORY && updateHistoryReturnToSettings) {
+            updateHistoryReturnToSettings = false
+            AppState.SETTINGS
         } else {
             parentBackState[appState] ?: AppState.HOME
         }
@@ -527,20 +531,30 @@ fun AppNavigation(
                     rulesReturnToSettings = true
                     viewModel.updateState { copy(appState = AppState.RULES) }
                 },
-                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
+                onNavigateToHistory = {
+                    updateHistoryReturnToSettings = true
+                    viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) }
+                },
                 bottomBar = bottomNav
             )
         }
         AppState.ABOUT_US -> {
             AboutUsAndVersionScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
-                onNavigateToHistory = { viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) } },
+                onNavigateToHistory = {
+                    updateHistoryReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) }
+                },
                 bottomBar = bottomNav
             )
         }
         AppState.UPDATE_HISTORY -> {
             UpdateHistoryScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.ABOUT_US) } }
+                onBack = {
+                    val destination = if (updateHistoryReturnToSettings) AppState.SETTINGS else AppState.ABOUT_US
+                    updateHistoryReturnToSettings = false
+                    viewModel.updateState { copy(appState = destination) }
+                }
             )
         }
         AppState.RULES -> {
