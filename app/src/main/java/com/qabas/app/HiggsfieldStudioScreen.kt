@@ -1,7 +1,7 @@
 package com.qabas.app
 
-import android.media.MediaController
 import android.net.Uri
+import android.widget.MediaController
 import android.widget.VideoView
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
