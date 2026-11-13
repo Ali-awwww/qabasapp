@@ -107,6 +107,25 @@ class SupabaseRepository(
         (it as? AuthState.Authenticated)?.userRow
     }.stateIn(repositoryScope, SharingStarted.Eagerly, null)
 
+    /**
+     * Authenticated events cannot navigate while interactive login/registration is being
+     * finalized. A rejected attempt keeps the gate closed until a later attempt succeeds.
+     */
+    private val _suppressAuthenticatedNavigation = MutableStateFlow(false)
+    val suppressAuthenticatedNavigation: StateFlow<Boolean> = _suppressAuthenticatedNavigation.asStateFlow()
+
+    fun beginInteractiveAuthFlow() {
+        blockAuthenticatedNavigation()
+    }
+
+    fun blockAuthenticatedNavigation() {
+        _suppressAuthenticatedNavigation.value = true
+    }
+
+    fun completeInteractiveAuthFlow(accepted: Boolean) {
+        if (accepted) _suppressAuthenticatedNavigation.value = false
+    }
+
     /** Checks whether Supabase credentials are configured and active. */
     val isAvailable: Boolean
         get() = SupabaseConfig.isConfigured
@@ -828,12 +847,17 @@ internal fun dispatchAuthNavigationState(
     state: AuthState,
     onAuthenticated: (isAdmin: Boolean) -> Unit,
     onUnauthenticated: () -> Unit,
-    onGuest: () -> Unit
+    onGuest: () -> Unit,
+    suppressAuthenticatedNavigation: Boolean = false
 ) {
     when (state) {
-        is AuthState.Authenticated -> onAuthenticated(state.isAdmin)
+        is AuthState.Authenticated -> {
+            if (!suppressAuthenticatedNavigation) onAuthenticated(state.isAdmin)
+        }
         is AuthState.Loading -> Unit
-        is AuthState.Error,
+        // A profile/network error is not proof that the Supabase session is invalid.
+        // Only an explicit unauthenticated state should force the user back to Login.
+        is AuthState.Error -> Unit
         is AuthState.Unauthenticated -> onUnauthenticated()
         is AuthState.Guest -> onGuest()
     }
@@ -847,13 +871,15 @@ fun ReactiveAuthNavigationObserver(
     onGuest: () -> Unit = {}
 ) {
     val authState by repository.authState.collectAsState()
+    val suppressAuthenticatedNavigation by repository.suppressAuthenticatedNavigation.collectAsState()
 
-    LaunchedEffect(authState) {
+    LaunchedEffect(authState, suppressAuthenticatedNavigation) {
         dispatchAuthNavigationState(
             state = authState,
             onAuthenticated = onAuthenticated,
             onUnauthenticated = onUnauthenticated,
-            onGuest = onGuest
+            onGuest = onGuest,
+            suppressAuthenticatedNavigation = repository.suppressAuthenticatedNavigation.value
         )
     }
 }

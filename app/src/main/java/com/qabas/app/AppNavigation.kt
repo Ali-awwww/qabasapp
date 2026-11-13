@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -37,15 +38,60 @@ fun AppNavigation(
 ) {
     val appState = state.appState
     var isLoggingOut by remember { mutableStateOf(false) }
+    val authScope = rememberCoroutineScope()
+    var isSessionVerificationInProgress by remember { mutableStateOf(false) }
+
+    val verifySessionBeforeNavigation: (AppState) -> Unit = { destination ->
+        if (!isSessionVerificationInProgress) {
+            isSessionVerificationInProgress = true
+            authScope.launch {
+                try {
+                    val userId = SupabaseRepository.getInstance().ensureAuthenticatedSession()
+                    val result = if (userId.isNullOrBlank()) {
+                        ActiveSessionClaimResult.UNAVAILABLE
+                    } else {
+                        ActiveSessionManager.claim(context, userId)
+                    }
+
+                    when (result) {
+                        ActiveSessionClaimResult.CLAIMED -> {
+                            SupabaseRepository.getInstance().completeInteractiveAuthFlow(accepted = true)
+                            viewModel.updateState { copy(appState = destination) }
+                        }
+                        ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        }
+                        ActiveSessionClaimResult.PROFILE_MISSING -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "ملف الحساب غير موجود في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        }
+                        ActiveSessionClaimResult.UNAVAILABLE -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "تعذر التحقق من جلستك. تحقق من الاتصال ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        }
+                    }
+                } finally {
+                    isSessionVerificationInProgress = false
+                }
+            }
+        }
+    }
 
     // Reactive Auth state observer broadcasting from SupabaseRepository
     ReactiveAuthNavigationObserver(
         onAuthenticated = { isAdmin ->
+            val currentRoute = viewModel.state.value.appState
             if (!PasswordRecoveryManager.isRecoveryInProgress.value &&
-                (appState == AppState.LOGIN || appState == AppState.REGISTER || appState == AppState.FORGOT_PASSWORD)
+                (currentRoute == AppState.LOGIN || currentRoute == AppState.REGISTER || currentRoute == AppState.FORGOT_PASSWORD)
             ) {
-                val nextState = AppState.HOME
-                viewModel.updateState { copy(appState = nextState) }
+                verifySessionBeforeNavigation(AppState.HOME)
             }
         },
         onUnauthenticated = {
@@ -59,17 +105,48 @@ fun AppNavigation(
         }
     )
 
-    // جلسة نشطة واحدة: نبضة دورية تحافظ على ملكية الجلسة وتُخرج عند استخدام الحساب على جهاز آخر
+    // تجديد الحجز دوريًا؛ لا نخلط فشل الشبكة بتعارض جهاز آخر، ونغلق الجلسة محليًا بعد 3 نبضات فاشلة.
     LaunchedEffect(Unit) {
+        var consecutiveUnavailableChecks = 0
         while (true) {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             if (prefs.getBoolean("is_logged_in", false)) {
                 val userId = ActiveSessionManager.currentUserId(context)
-                if (!userId.isNullOrBlank() && !ActiveSessionManager.claim(context, userId)) {
-                    withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                    Toast.makeText(context, "تم تسجيل الخروج: الحساب نشط على جهاز آخر.", Toast.LENGTH_LONG).show()
-                    viewModel.updateState { copy(appState = AppState.LOGIN) }
+                val result = if (userId.isNullOrBlank()) {
+                    ActiveSessionClaimResult.UNAVAILABLE
+                } else {
+                    ActiveSessionManager.claim(context, userId)
                 }
+
+                when (result) {
+                    ActiveSessionClaimResult.CLAIMED -> consecutiveUnavailableChecks = 0
+                    ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                        consecutiveUnavailableChecks = 0
+                        SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                        withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                        Toast.makeText(context, "تم تسجيل الخروج: الحساب نشط على جهاز آخر.", Toast.LENGTH_LONG).show()
+                        viewModel.updateState { copy(appState = AppState.LOGIN) }
+                    }
+                    ActiveSessionClaimResult.PROFILE_MISSING -> {
+                        consecutiveUnavailableChecks = 0
+                        SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                        withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                        Toast.makeText(context, "تم إيقاف الجلسة: ملف الحساب السحابي غير متاح.", Toast.LENGTH_LONG).show()
+                        viewModel.updateState { copy(appState = AppState.LOGIN) }
+                    }
+                    ActiveSessionClaimResult.UNAVAILABLE -> {
+                        consecutiveUnavailableChecks += 1
+                        if (consecutiveUnavailableChecks >= 3) {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "تعذر تجديد الجلسة بعد عدة محاولات. تحقق من الإنترنت ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                            consecutiveUnavailableChecks = 0
+                        }
+                    }
+                }
+            } else {
+                consecutiveUnavailableChecks = 0
             }
             delay(45_000)
         }
@@ -165,14 +242,12 @@ fun AppNavigation(
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                     val isGuest = prefs.getBoolean("is_guest", false)
                     val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
-                    val nextState = if (!hasAcceptedCovenant) {
-                        AppState.ONBOARDING
-                    } else if (isLoggedIn || isGuest) {
-                        AppState.HOME
-                    } else {
-                        AppState.LOGIN
+                    when {
+                        !hasAcceptedCovenant -> viewModel.updateState { copy(appState = AppState.ONBOARDING) }
+                        isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
+                        isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
+                        else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
                     }
-                    viewModel.updateState { copy(appState = nextState) }
                 }
             )
         }
@@ -182,8 +257,10 @@ fun AppNavigation(
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                     val isGuest = prefs.getBoolean("is_guest", false)
-                    viewModel.updateState {
-                        copy(appState = if (isLoggedIn || isGuest) AppState.HOME else AppState.LOGIN)
+                    when {
+                        isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
+                        isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
+                        else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
                     }
                 }
             )

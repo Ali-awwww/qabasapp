@@ -571,73 +571,45 @@ object SupabaseServices {
                     UserIdentifierManager.normalize(saved.customId) == targetCustomId)
         }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}", it) }.getOrDefault(false)
 
-        /**
-         * جلسة نشطة واحدة للحساب: تحجز الجلسة إن لم تكن هناك جلسة حيّة أخرى،
-         * وتعيد false إذا كان الحساب مستخدماً حالياً على جهاز آخر.
-         */
+        /** حجز/نبضة ذرّية من الخادم؛ تميّز صراحةً بين التعارض والملف المفقود وتعذر التحقق. */
         suspend fun claimActiveSession(
             userId: String,
-            sessionId: String,
-            ttlSeconds: Long = 150L
-        ): Boolean = runCatching {
-            if (!isSupabaseAvailable || userId.isBlank() || sessionId.isBlank()) return true
-            val client = client ?: return true
-            val now = java.time.Instant.now()
-
-            val current = client.postgrest.from("users").select {
-                filter {
-                    eq("id", userId)
-                }
-                limit(1)
-            }.decodeSingleOrNull<UserSessionRow>() ?: return true
-
-            val holder = current.activeSessionId?.takeIf { it.isNotBlank() }
-            val heartbeatFresh = current.sessionUpdatedAt?.let {
-                runCatching {
-                    java.time.Duration.between(java.time.Instant.parse(it), now).seconds <= ttlSeconds
-                }.getOrDefault(false)
-            } ?: false
-
-            if (holder != null && holder != sessionId && heartbeatFresh) return false
-
-            client.postgrest.from("users").update(
-                mapOf(
-                    "active_session_id" to sessionId,
-                    "session_updated_at" to now.toString()
-                )
-            ) {
-                filter {
-                    eq("id", userId)
-                }
+            sessionId: String
+        ): ActiveSessionClaimResult {
+            if (!isSupabaseAvailable || userId.isBlank() || sessionId.isBlank()) {
+                return ActiveSessionClaimResult.UNAVAILABLE
             }
+            val client = client ?: return ActiveSessionClaimResult.UNAVAILABLE
 
-            val after = client.postgrest.from("users").select {
-                filter {
-                    eq("id", userId)
+            return runCatching {
+                val params = buildJsonObject {
+                    put("p_session_id", sessionId)
                 }
-                limit(1)
-            }.decodeSingleOrNull<UserSessionRow>() ?: return true
-
-            after.activeSessionId == sessionId
-        }.onFailure { Log.w(TAG, "claimActiveSession failed: ${it.message}") }.getOrDefault(true)
+                val status = client.postgrest
+                    .rpc("claim_active_session", params)
+                    .decodeAs<String>()
+                parseActiveSessionClaimStatus(status)
+            }.onFailure {
+                Log.w(TAG, "claimActiveSession RPC failed (${it.javaClass.simpleName})")
+            }.getOrDefault(ActiveSessionClaimResult.UNAVAILABLE)
+        }
 
         /** تحرير الجلسة عند تسجيل الخروج (فقط إذا كانت الجلسة الحالية هي صاحبتها). */
-        suspend fun releaseActiveSession(userId: String, sessionId: String): Boolean = runCatching {
+        suspend fun releaseActiveSession(userId: String, sessionId: String): Boolean {
             if (!isSupabaseAvailable || userId.isBlank() || sessionId.isBlank()) return false
             val client = client ?: return false
-            client.postgrest.from("users").update(
-                mapOf(
-                    "active_session_id" to "",
-                    "session_updated_at" to java.time.Instant.now().toString()
-                )
-            ) {
-                filter {
-                    eq("id", userId)
-                    eq("active_session_id", sessionId)
+
+            return runCatching {
+                val params = buildJsonObject {
+                    put("p_session_id", sessionId)
                 }
-            }
-            true
-        }.onFailure { Log.w(TAG, "releaseActiveSession failed: ${it.message}") }.getOrDefault(false)
+                client.postgrest
+                    .rpc("release_active_session", params)
+                    .decodeAs<Boolean>()
+            }.onFailure {
+                Log.w(TAG, "releaseActiveSession RPC failed (${it.javaClass.simpleName})")
+            }.getOrDefault(false)
+        }
 
         suspend fun getAllUsers(): List<UserRow> = runCatching {
             val client = client ?: return emptyList()
@@ -2860,14 +2832,6 @@ object SupabaseServices {
         @SerialName("custom_id") val customId: String? = null,
         @SerialName("account_number") val accountNumber: String? = null,
         @SerialName("created_at") val createdAt: String? = null
-    )
-
-    /** أعمدة الجلسة فقط — منفصلة عن UserRow حتى لا تُكتب ضمن upsert المستخدم. */
-    @Serializable
-    data class UserSessionRow(
-        val id: String = "",
-        @SerialName("active_session_id") val activeSessionId: String? = null,
-        @SerialName("session_updated_at") val sessionUpdatedAt: String? = null
     )
 
     @Serializable

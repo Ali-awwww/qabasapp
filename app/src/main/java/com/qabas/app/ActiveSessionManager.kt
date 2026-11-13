@@ -3,11 +3,26 @@ package com.qabas.app
 import android.content.Context
 import java.util.UUID
 
+enum class ActiveSessionClaimResult {
+    CLAIMED,
+    ACTIVE_ELSEWHERE,
+    PROFILE_MISSING,
+    UNAVAILABLE
+}
+
+internal fun parseActiveSessionClaimStatus(status: String?): ActiveSessionClaimResult =
+    when (status?.trim()?.lowercase()) {
+        "claimed" -> ActiveSessionClaimResult.CLAIMED
+        "active_elsewhere" -> ActiveSessionClaimResult.ACTIVE_ELSEWHERE
+        "profile_missing" -> ActiveSessionClaimResult.PROFILE_MISSING
+        else -> ActiveSessionClaimResult.UNAVAILABLE
+    }
+
 /**
  * إدارة الجلسة النشطة للحساب: جلسة واحدة فقط لكل حساب على جميع الأجهزة.
  * - كل تثبيت يحصل على معرّف جلسة ثابت.
- * - عند الدخول نحجز الجلسة على السحابة (users.active_session_id).
- * - نبضة دورية تحافظ على ملكية الجلسة، وفقدانها يعني تسجيل خروج مُجبَر.
+ * - الحجز والنبضة الذرّية يُنفّذان في Supabase بساعة الخادم.
+ * - تعذّر التحقق حالة مستقلة ولا يُعامل كنجاح أو كتعرض لجهاز آخر.
  */
 object ActiveSessionManager {
     private const val PREFS_NAME = "qabas_prefs"
@@ -29,7 +44,7 @@ object ActiveSessionManager {
             ?.takeIf { it.isNotBlank() }
     }
 
-    suspend fun claim(context: Context, userId: String): Boolean =
+    suspend fun claim(context: Context, userId: String): ActiveSessionClaimResult =
         SupabaseServices.Database.claimActiveSession(userId, sessionId(context))
 
     suspend fun release(context: Context, userId: String) {

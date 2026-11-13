@@ -444,7 +444,10 @@ fun RegisterScreen(
                             }
 
                             isLoading = true
-                            coroutineScope.launch {
+                            val authRepository = SupabaseRepository.getInstance()
+                            authRepository.beginInteractiveAuthFlow()
+                            var authFlowAccepted = false
+                            val authJob = coroutineScope.launch {
                                 // 🔍 فحص جازم أخير قبل محاولة التسجيل الفعلي
                                 val finalCheck = if (SupabaseServices.isSupabaseAvailable && requestedCustomId != null) {
                                     SupabaseServices.Database.checkAccountAvailability(null, requestedCustomId).getOrNull()
@@ -512,11 +515,29 @@ fun RegisterScreen(
                                     UserIdentifierManager.saveAccountNumber(context, lowerEmail, accountNumber)
 
                                     // Active-session ownership is keyed by the immutable Auth UID.
-                                    if (!ActiveSessionManager.claim(context, authUid)) {
-                                        runCatching { SupabaseServices.Auth.logout() }
-                                        Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
-                                        isLoading = false
-                                        return@launch
+                                    when (ActiveSessionManager.claim(context, authUid)) {
+                                        ActiveSessionClaimResult.CLAIMED -> Unit
+                                        ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                                            onNavigateToLogin()
+                                            isLoading = false
+                                            return@launch
+                                        }
+                                        ActiveSessionClaimResult.PROFILE_MISSING -> {
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            Toast.makeText(context, "تعذر العثور على ملف الحساب السحابي. لم يكتمل الدخول؛ تواصل مع الدعم.", Toast.LENGTH_LONG).show()
+                                            onNavigateToLogin()
+                                            isLoading = false
+                                            return@launch
+                                        }
+                                        ActiveSessionClaimResult.UNAVAILABLE -> {
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            Toast.makeText(context, "تم إنشاء الحساب، لكن تعذر تأكيد الجلسة. انتقل لتسجيل الدخول وأعد المحاولة عند عودة الاتصال.", Toast.LENGTH_LONG).show()
+                                            onNavigateToLogin()
+                                            isLoading = false
+                                            return@launch
+                                        }
                                     }
 
                                     val nameWithAccount = UserIdentifierManager.formatDisplayNameWithAccount(effectiveManualName, accountNumber)
@@ -557,6 +578,7 @@ fun RegisterScreen(
                                         Toast.LENGTH_LONG
                                     ).show()
                                     onRegisterSuccess()
+                                    authFlowAccepted = true
                                 } else {
                                     val state = SupabaseRepository.getInstance().authState.value
                                     val errorText = (state as? AuthState.Error)?.message.orEmpty()
@@ -573,6 +595,9 @@ fun RegisterScreen(
                                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                 }
                                 isLoading = false
+                            }
+                            authJob.invokeOnCompletion {
+                                authRepository.completeInteractiveAuthFlow(accepted = authFlowAccepted)
                             }
                         },
                         enabled = !isLoading,

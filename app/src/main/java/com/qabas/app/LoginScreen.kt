@@ -322,7 +322,10 @@ fun LoginScreen(
                         authErrorMessage = null
                         authErrorIsNetwork = false
                         isLoading = true
-                        coroutineScope.launch {
+                        val authRepository = SupabaseRepository.getInstance()
+                        authRepository.beginInteractiveAuthFlow()
+                        var authFlowAccepted = false
+                        val authJob = coroutineScope.launch {
                             val emailMode = UserIdentifierManager.isEmail(trimmedInput)
                             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                             val isRelative = prefs.getBoolean("is_relative", false)
@@ -386,13 +389,32 @@ fun LoginScreen(
                                 UserIdentifierManager.saveCustomId(context, cloudCustomId, authEmail)
                                 UserIdentifierManager.saveAccountNumber(context, authEmail, accountNumber)
 
-                                if (!ActiveSessionManager.claim(context, authUid)) {
-                                    runCatching { SupabaseServices.Auth.logout() }
-                                    authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج من الجلسة الأخرى ثم حاول مجدداً."
-                                    authErrorIsNetwork = false
-                                    Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
-                                    isLoading = false
-                                    return@launch
+                                when (ActiveSessionManager.claim(context, authUid)) {
+                                    ActiveSessionClaimResult.CLAIMED -> Unit
+                                    ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة."
+                                        authErrorIsNetwork = false
+                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+                                    ActiveSessionClaimResult.PROFILE_MISSING -> {
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        authErrorMessage = "تعذر العثور على ملف حسابك في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم."
+                                        authErrorIsNetwork = false
+                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
+                                    ActiveSessionClaimResult.UNAVAILABLE -> {
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        authErrorMessage = "تعذر التحقق من جلستك الآن. تحقق من الإنترنت ثم أعد المحاولة."
+                                        authErrorIsNetwork = true
+                                        Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        return@launch
+                                    }
                                 }
 
                                 LocalAccountRegistry.registerOrUpdateAccount(
@@ -434,6 +456,7 @@ fun LoginScreen(
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 onLoginSuccess(finalIsAdmin)
+                                authFlowAccepted = true
                             } else {
                                 val rawError = diagnostic?.rawErrorMessage.orEmpty()
                                 val invalidCredentials = rawError.contains("Invalid login credentials", ignoreCase = true) ||
@@ -455,6 +478,9 @@ fun LoginScreen(
                                 }
                             }
                             isLoading = false
+                        }
+                        authJob.invokeOnCompletion {
+                            authRepository.completeInteractiveAuthFlow(accepted = authFlowAccepted)
                         }
                     }
 
