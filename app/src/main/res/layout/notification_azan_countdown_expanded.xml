@@ -29,7 +29,7 @@
             android:textColor="#00E5FF"
             android:textSize="14sp" />
 
-        <View
+        <FrameLayout
             android:layout_width="7dp"
             android:layout_height="7dp"
             android:background="@drawable/bg_azan_countdown_live_dot" />
