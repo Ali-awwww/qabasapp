@@ -985,6 +985,21 @@ fun ReelsScreen(
                                                     "تعذر تحديث الإعجاب سحابياً$suffix"
                                                 }
                                                 Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                // Re-read both sources of truth: the relation colors the heart,
+                                                // while the trigger-maintained counter colors the number.
+                                                likedReelIds[reel.id] = newLikedState
+                                                val cloudCount = withTimeoutOrNull(5_000L) {
+                                                    SupabaseServices.Profiles.getReelLikesCount(reel.id)
+                                                }
+                                                allReels = allReels.map {
+                                                    if (it.id == reel.id) {
+                                                        it.copy(likesCount = cloudCount ?: updatedCount)
+                                                    } else it
+                                                }
+                                                withTimeoutOrNull(7_000L) {
+                                                    refreshLikedReelsFromCloud(authId)
+                                                }
                                             }
                                             likeInFlight[reel.id] = false
                                         }
