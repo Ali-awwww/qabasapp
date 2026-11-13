@@ -596,6 +596,18 @@ fun AppNavigation(
                             videoDuration = "30 ثانية"
                         )
                     }
+                },
+                onCreateProjectFromScriptWithAudio = { scriptText, audioPath ->
+                    viewModel.createProject(scriptText)
+                    viewModel.updateState {
+                        copy(
+                            voiceOver = audioPath,
+                            appState = AppState.INPUT,
+                            selectedRatio = "9:16",
+                            contentType = "ريلز / شورتس",
+                            videoDuration = "30 ثانية"
+                        )
+                    }
                 }
             )
         }

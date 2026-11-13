@@ -71,7 +71,10 @@ data class AssistantSuggestionCategory(
 @Composable
 fun AIAssistantScreen(
     onBack: () -> Unit,
-    onCreateProjectFromScript: (String) -> Unit = {}
+    onCreateProjectFromScript: (String) -> Unit = {},
+    onCreateProjectFromScriptWithAudio: (String, String?) -> Unit = { script, _ ->
+        onCreateProjectFromScript(script)
+    }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -1004,7 +1007,7 @@ fun AIAssistantScreen(
                                     val file = recorderHelper.stopRecording()
                                     if (file != null && file.exists()) {
                                         Toast.makeText(context, "تم حفظ التسجيل! جاري بدء المشروع الصوتي...", Toast.LENGTH_SHORT).show()
-                                        onCreateProjectFromScript("تسجيل صوتي من المساعد")
+                                        onCreateProjectFromScriptWithAudio("تسجيل صوتي من المساعد", file.absolutePath)
                                     }
                                 } else {
                                     micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)

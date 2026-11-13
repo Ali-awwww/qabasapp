@@ -124,3 +124,6 @@ git diff --check
 
 
 أُصلحت رسالة حفظ النمط: عند فشل `registerOrUpdateStyleObject` لم تعد الواجهة تعرض نجاحًا أو تستدعي callback النجاح، بل تعرض فشلًا واضحًا يسمح بإعادة المحاولة.
+
+
+أُصلح مسار التسجيل الصوتي في `AIAssistantScreen`: أصبح التسجيل المتحقق منه يُمرر عبر callback مخصص إلى `ProjectState.voiceOver` داخل `AppNavigation` بدل إنشاء مشروع بنص عام وإسقاط الملف.
