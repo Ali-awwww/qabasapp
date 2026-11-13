@@ -9,8 +9,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -73,16 +72,49 @@ fun StudioGatewayScreen(
     val primaryColor = qabasPrimary()
 
     var showApiKeyDialog by remember { mutableStateOf(false) }
-
-    // كل أداة موضوعة تحت مسار واضح، والبطاقات لا تستخدم إجراءات افتراضية فارغة.
-    var selectedCategoryIndex by remember { mutableIntStateOf(0) }
+    var selectedCategoryKey by remember { mutableStateOf("video") }
     val categories = remember {
         listOf(
-            "🎬 الفيديو" to "video",
-            "🎨 الصور والتصميم" to "images",
-            "🎙️ الصوت" to "audio",
-            "🗂️ المكتبة" to "library",
-            "📣 النشر والتقارير" to "publishing"
+            StudioDepartment(
+                key = "video",
+                title = "🎬 الفيديو",
+                description = "التوليد والتحرير والتسجيل",
+                toolCount = 7,
+                icon = Icons.Default.MovieFilter,
+                accentColor = Color(0xFF00D4E8)
+            ),
+            StudioDepartment(
+                key = "images",
+                title = "🎨 الصور والتصميم",
+                description = "تصميم الصور والبطاقات",
+                toolCount = 2,
+                icon = Icons.Default.Image,
+                accentColor = Color(0xFFF5B942)
+            ),
+            StudioDepartment(
+                key = "audio",
+                title = "🎙️ الصوت",
+                description = "التعليق الصوتي والأدوات الصوتية",
+                toolCount = 1,
+                icon = Icons.Default.GraphicEq,
+                accentColor = Color(0xFFE879B9)
+            ),
+            StudioDepartment(
+                key = "library",
+                title = "🗂️ مكتبة الوسائط",
+                description = "صورك ومقاطعك وملفاتك الصوتية المحفوظة",
+                toolCount = 1,
+                icon = Icons.Default.PermMedia,
+                accentColor = Color(0xFF34D399)
+            ),
+            StudioDepartment(
+                key = "publishing",
+                title = "📣 النشر والتقارير",
+                description = "تجهيز المنصات ومراجعة الأداء",
+                toolCount = 2,
+                icon = Icons.Default.QueryStats,
+                accentColor = Color(0xFF60A5FA)
+            )
         )
     }
 
@@ -153,42 +185,36 @@ fun StudioGatewayScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // مسارات قابلة للتمرير حتى تبقى التسميات واضحة على الشاشات الصغيرة.
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().testTag("studio_category_row"),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 2.dp)
-            ) {
-                itemsIndexed(categories) { index, category ->
-                    val label = category.first
-                    val isSelected = selectedCategoryIndex == index
-                    Surface(
-                        onClick = { selectedCategoryIndex = index },
-                        modifier = Modifier.height(44.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) primaryColor else Color(0xFF1E293B).copy(alpha = 0.4f),
-                        border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B))
+            SectionHeader("الأقسام المتخصصة", "WORKSPACES", "✦")
+            Text(
+                text = "خمسة مسارات تنظّم أدوات الإنتاج والوسائط والنشر.",
+                color = Color(0xFF94A3B8),
+                fontFamily = CairoFont,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                categories.chunked(2).forEach { departmentRow ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = label,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 12.dp),
-                                color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp
+                        departmentRow.forEach { department ->
+                            StudioDepartmentCard(
+                                department = department,
+                                selected = selectedCategoryKey == department.key,
+                                modifier = Modifier.weight(if (departmentRow.size == 1) 2f else 1f),
+                                onClick = { selectedCategoryKey = department.key }
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            val currentFilter = categories[selectedCategoryIndex].second
+            val currentFilter = selectedCategoryKey
 
             // Render only the tools that belong to the selected route.
             when (currentFilter) {
@@ -912,6 +938,95 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
     }
 }
 
+private data class StudioDepartment(
+    val key: String,
+    val title: String,
+    val description: String,
+    val toolCount: Int,
+    val icon: ImageVector,
+    val accentColor: Color
+) {
+    val toolCountLabel: String
+        get() = when (toolCount) {
+            1 -> "أداة واحدة"
+            2 -> "أداتان"
+            else -> "$toolCount أدوات"
+        }
+}
+
+@Composable
+private fun StudioDepartmentCard(
+    department: StudioDepartment,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val primaryColor = qabasPrimary()
+    val accent = if (selected) primaryColor else department.accentColor
+
+    GlassmorphicSurface(
+        modifier = modifier
+            .testTag("studio_department_${department.key}")
+            .clickable(onClick = onClick),
+        backgroundColor = if (selected) Color(0xFF102335) else Color(0xFF0B132B).copy(alpha = 0.52f),
+        borderColor = if (selected) primaryColor.copy(alpha = 0.72f) else department.accentColor.copy(alpha = 0.24f),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = department.icon,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text(
+                    text = department.toolCountLabel,
+                    color = if (selected) primaryColor else Color(0xFF94A3B8),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 9.sp
+                )
+            }
+
+            Text(
+                text = department.title,
+                color = Color.White,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = department.description,
+                color = Color(0xFFB0BDCC),
+                fontFamily = CairoFont,
+                fontSize = 10.5.sp,
+                lineHeight = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 @Composable
 private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦") {
     val primaryColor = qabasPrimary()
@@ -934,11 +1049,12 @@ private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦")
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "STATUS // HUB_READY",
+                    text = codeTag,
                     color = primaryColor.copy(alpha = 0.5f),
                     fontFamily = RobotoMonoFont,
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
                 )
             }
         }
@@ -965,7 +1081,7 @@ private fun StudioOverviewCard(primaryColor: Color) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "اختر فئة العمل ثم افتح الأداة المناسبة؛ لكل خدمة مسارها المستقل.",
+                text = "اختر مجال العمل لعرض الأدوات ومساراتها بوضوح.",
                 color = Color(0xFF94A3B8),
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
@@ -1028,8 +1144,9 @@ private fun StudioFeatureCard(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        maxLines = 1,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -1038,11 +1155,27 @@ private fun StudioFeatureCard(
 
                 Text(
                     text = description,
-                    color = Color(0xFF64748B),
+                    color = Color(0xFFB0BDCC),
                     fontFamily = CairoFont,
-                    fontSize = 10.5.sp,
-                    lineHeight = 15.sp,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp,
                     maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = badge,
+                    modifier = Modifier
+                        .padding(top = 5.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(badgeColor.copy(alpha = 0.11f))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                    color = badgeColor,
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 8.sp,
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -1050,7 +1183,7 @@ private fun StudioFeatureCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.15f),
+                tint = Color.White.copy(alpha = 0.48f),
                 modifier = Modifier.size(16.dp)
             )
         }
