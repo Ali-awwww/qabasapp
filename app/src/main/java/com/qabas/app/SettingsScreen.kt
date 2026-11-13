@@ -169,6 +169,21 @@ fun SettingsScreen(
     }
     var showAvatarPicker by remember { mutableStateOf(false) }
 
+    LaunchedEffect(supabaseUserId) {
+        val userId = supabaseUserId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        val cloudAvatar = withContext(Dispatchers.IO) {
+            SupabaseServices.Profiles.getUserProfile(userId)?.avatarUrl?.trim()
+        }?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
+        if (!cloudAvatar.isNullOrBlank()) {
+            avatarUriString = cloudAvatar
+            selectedPresetAvatar = -1
+            prefs.edit()
+                .putString("user_avatar_uri", cloudAvatar)
+                .putInt("user_preset_avatar", -1)
+                .apply()
+        }
+    }
+
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
     val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
@@ -1111,6 +1126,16 @@ fun SettingsScreen(
                                     avatarUriString = ""
                                     selectedPresetAvatar = id
                                     showAvatarPicker = false
+                                    SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { userId ->
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            SupabaseServices.Profiles.syncUserProfile(
+                                                userId = userId,
+                                                displayName = savedDisplayName,
+                                                email = userEmail,
+                                                avatarUrl = ""
+                                            )
+                                        }
+                                    }
                                 }
                                 .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically

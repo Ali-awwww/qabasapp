@@ -306,12 +306,11 @@ fun ReelPlayer(
             }
 
             AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        useController = false
-                        resizeMode = com.qabas.app.UnifiedVideoPlayerSettings.resizeMode(ctx)
-                        setShutterBackgroundColor(android.graphics.Color.BLACK)
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            com.qabas.app.UnifiedVideoPlayerSettings.configure(this, ctx)
+                            setShutterBackgroundColor(android.graphics.Color.BLACK)
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -322,8 +321,8 @@ fun ReelPlayer(
                     if (view.player !== exoPlayer) {
                         view.player = exoPlayer
                     }
-                    // AndroidView is reused by Compose; always apply the latest ratio mode.
-                    view.resizeMode = com.qabas.app.UnifiedVideoPlayerSettings.resizeMode(view.context)
+                    // AndroidView is reused by Compose; always apply the latest shared player settings.
+                    com.qabas.app.UnifiedVideoPlayerSettings.configure(view, view.context)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

@@ -245,7 +245,7 @@ fun ProfileScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                // قراءة الصورة ونسخها محلياً — إذن content:// مؤقت ويُفقد بعد إعادة التشغيل
+                // نقرأ الصورة إلى ملف مؤقت فقط لرفعها؛ النسخة النهائية يجب أن تكون سحابية.
                 val bytes = withContext(Dispatchers.IO) {
                     runCatching {
                         context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -261,7 +261,7 @@ fun ProfileScreen(
                         val accountKey = MessageDigest.getInstance("SHA-256")
                             .digest(userEmail.trim().lowercase().toByteArray())
                             .joinToString("") { "%02x".format(it) }
-                        val f = File(context.filesDir, "user_avatar_$accountKey.jpg")
+                        val f = File.createTempFile("user_avatar_${accountKey}_", ".jpg", context.cacheDir)
                         FileOutputStream(f).use { it.write(bytes) }
                         f
                     }.getOrNull()
@@ -275,7 +275,7 @@ fun ProfileScreen(
                         withContext(Dispatchers.IO) {
                             SupabaseServices.Storage.uploadFileWithProgress(
                                 bucketName = "avatars",
-                                path = "user_avatars/$uploaderId/avatar_${System.currentTimeMillis()}.jpg",
+                                path = "user_avatars/$uploaderId/avatar.jpg",
                                 file = localFile,
                                 contentType = if (mime.startsWith("image/")) "image/jpeg" else mime
                             )
@@ -283,7 +283,14 @@ fun ProfileScreen(
                     }
                 } else null
 
-                // الأولوية للرابط السحابي، وإلا النسخة المحلية الدائمة، وإلا رابط النظام المؤقت
+                localFile?.delete()
+
+                // لا نحتفظ بصورة محلية كبديل صامت؛ الأفاتار المخصص يجب أن يكون سحابيًا.
+                if (cloudUrl.isNullOrBlank()) {
+                    Toast.makeText(context, "تعذر رفع الصورة إلى السحابة. لم يتم تغيير الأفاتار.", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
                 val profileMirrorSynced = if (!cloudUrl.isNullOrBlank()) {
                     val activeUid = SupabaseServices.Auth.getCurrentUserId()
                     if (activeUid.isNullOrBlank()) {
@@ -300,7 +307,7 @@ fun ProfileScreen(
                     }
                 } else false
 
-                val finalUri = cloudUrl ?: localFile?.toURI()?.toString() ?: uri.toString()
+                val finalUri = requireNotNull(cloudUrl)
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
                 profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
@@ -308,8 +315,6 @@ fun ProfileScreen(
                     Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي 📸", Toast.LENGTH_SHORT).show()
                 } else if (cloudUrl != null) {
                     Toast.makeText(context, "رُفعت الصورة، لكن تعذر مزامنة رابطها مع الملف السحابي", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(context, "تم تحديث الصورة الشخصية محلياً 📸", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -2698,6 +2703,16 @@ fun ProfileScreen(
                                         avatarUriString = ""
                                         profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
                                         showAvatarPickerSheet = false
+                                        SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { userId ->
+                                            coroutineScope.launch(Dispatchers.IO) {
+                                                SupabaseServices.Profiles.syncUserProfile(
+                                                    userId = userId,
+                                                    displayName = displayName,
+                                                    email = userEmail,
+                                                    avatarUrl = ""
+                                                )
+                                            }
+                                        }
                                         Toast.makeText(context, "تم تعيين الرمز الشخصي ✦", Toast.LENGTH_SHORT).show()
                                     },
                                 contentAlignment = Alignment.Center
