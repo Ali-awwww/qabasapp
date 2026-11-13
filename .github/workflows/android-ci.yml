@@ -398,6 +398,50 @@ jobs:
 
           echo "✅ APK successfully attached to release $VERSION"
 
+      - name: Publish release metadata to Supabase
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISH_JWT: ${{ secrets.SUPABASE_PUBLISH_JWT }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" || { echo "❌ SUPABASE_URL is not configured"; exit 1; }
+          test -n "$SUPABASE_PUBLISH_JWT" || {
+            echo "❌ SUPABASE_PUBLISH_JWT is not configured; release metadata was not published."
+            exit 1
+          }
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          ASSET_NAME=$(basename "$APK_FILE")
+          FILE_SIZE=$(stat -c '%s' "$APK_FILE")
+          SHA256=$(sha256sum "$APK_FILE" | awk '{print $1}')
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
+          RELEASE_NOTES=$(gh release view "$RELEASE_TAG" --json body --jq '.body')
+          jq -n \
+            --arg version_name "$VERSION_NAME" \
+            --argjson version_code "$VERSION_CODE" \
+            --arg download_url "$DOWNLOAD_URL" \
+            --arg release_notes "$RELEASE_NOTES" \
+            --argjson file_size_bytes "$FILE_SIZE" \
+            --arg sha256_hash "$SHA256" \
+            --arg github_release_url "$RELEASE_URL" \
+            --arg release_tag "$RELEASE_TAG" \
+            --arg asset_name "$ASSET_NAME" \
+            '{p_version_name:$version_name,p_version_code:$version_code,p_download_url:$download_url,p_release_notes:$release_notes,p_file_size_bytes:$file_size_bytes,p_sha256_hash:$sha256_hash,p_is_mandatory:false,p_github_release_url:$github_release_url,p_release_tag:$release_tag,p_asset_name:$asset_name,p_delta_url:null,p_delta_size_bytes:0,p_delta_sha256_hash:null,p_base_version_code:null,p_base_sha256_hash:null}' \
+            > "$RUNNER_TEMP/publish-update.json"
+          curl --fail-with-body --silent --show-error \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/publish_qabas_app_update" \
+            -H "apikey: $SUPABASE_PUBLISH_JWT" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISH_JWT" \
+            -H "Content-Type: application/json" \
+            --data-binary @"$RUNNER_TEMP/publish-update.json" \
+            > "$RUNNER_TEMP/publish-update-response.json"
+          jq -e --arg code "$VERSION_CODE" '.version_code == ($code|tonumber)' "$RUNNER_TEMP/publish-update-response.json" >/dev/null
+          echo "✅ Release metadata registered in Supabase: $RELEASE_TAG"
+
       - name: Trigger xdelta delta generation
         if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:

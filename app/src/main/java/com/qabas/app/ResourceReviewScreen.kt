@@ -44,6 +44,7 @@ import coil.compose.AsyncImage
 import com.qabas.app.ui.input.MediaPickerHelpers
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
@@ -128,7 +129,12 @@ fun ResourceReviewScreen(
     }
 
     LaunchedEffect(ideaText) {
-        if (ideaText.isBlank()) return@LaunchedEffect
+        if (ideaText.isBlank()) {
+            fetchedBRoll = emptyList()
+            acceptedIds = emptySet()
+            return@LaunchedEffect
+        }
+        delay(350L)
         isFetching = true
         fetchError = null
         try {

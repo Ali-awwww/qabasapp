@@ -767,7 +767,8 @@ class MainActivity : ComponentActivity() {
                     update = update,
                     downloadProgress = downloadProgress,
                     onDismiss = { UpdateManager.dismissUpdate() },
-                    onInstall = { UpdateDownloadService.start(context, update) }
+                    onInstallDelta = { UpdateDownloadService.start(context, update, forceFull = false) },
+                    onInstallFull = { UpdateDownloadService.start(context, update, forceFull = true) }
                 )
             }
 
@@ -1326,9 +1327,11 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             var previousStatus: ConnectivityObserver.Status? = null
             UserPreferencesManager.networkStatus.collect { status ->
-                if (previousStatus != null && previousStatus != status) {
+                if (previousStatus != status) {
                     if (status == ConnectivityObserver.Status.Available) {
-                        Toast.makeText(context, "تم استعادة الاتصال السحابي 🚀", Toast.LENGTH_SHORT).show()
+                        if (previousStatus != null) {
+                            Toast.makeText(context, "تم استعادة الاتصال السحابي 🚀", Toast.LENGTH_SHORT).show()
+                        }
                         projectService.syncPendingProjects()
                         loadProjects()
                     } else if (status == ConnectivityObserver.Status.Lost || status == ConnectivityObserver.Status.Unavailable) {
@@ -1397,7 +1400,8 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
                     createdAt = System.currentTimeMillis(),
                     updatedAt = System.currentTimeMillis(),
                     status = status,
-                    lastScreen = s.appState.name
+                    lastScreen = s.appState.name,
+                    workspaceJson = ProjectWorkspaceCodec.encode(s)
                 )
             )
         }
@@ -1412,6 +1416,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
                 inputText = initialText,
                 mediaResources = emptyList(),
                 libraryScenes = emptyList(),
+                finalVideoPath = "",
                 appState = AppState.INPUT
             )
         }
@@ -1419,16 +1424,27 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
 
     fun openProject(project: ProjectService.Project) {
         updateState {
-            copy(
-                currentProjectId = project.id,
-                projectTitle = project.title,
-                inputText = project.idea,
-                appState = try {
-                    AppState.valueOf(project.lastScreen)
-                } catch (_: Exception) {
-                    AppState.INPUT
-                }
-            )
+            val restored = ProjectWorkspaceCodec.decode(project.workspaceJson)
+            if (restored != null) {
+                restored.applyTo(this).copy(
+                    currentProjectId = project.id,
+                    projectTitle = project.title.ifBlank { restored.projectTitle },
+                    inputText = restored.inputText.ifBlank { project.idea },
+                    finalVideoPath = restored.finalVideoPath.ifBlank { project.finalVideoPath }
+                )
+            } else {
+                copy(
+                    currentProjectId = project.id,
+                    projectTitle = project.title,
+                    inputText = project.idea,
+                    finalVideoPath = project.finalVideoPath,
+                    appState = try {
+                        AppState.valueOf(project.lastScreen)
+                    } catch (_: Exception) {
+                        AppState.INPUT
+                    }
+                )
+            }
         }
     }
 
@@ -1444,7 +1460,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
     fun loadProjects() {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) {
-                projectService.getAllProjects()
+                projectService.getAllProjects(syncCloud = true)
             }
             _state.value = _state.value.copy(projects = list)
         }
@@ -1452,7 +1468,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
 
     suspend fun loadProjectsSuspend() {
         val list = withContext(Dispatchers.IO) {
-            projectService.getAllProjects()
+                projectService.getAllProjects(syncCloud = true)
         }
         _state.value = _state.value.copy(projects = list)
     }

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 /**
@@ -16,6 +17,7 @@ object AgentChatSessionManager {
 
     private const val PREFS_KEY = "agent_chat_sessions_v1"
     private const val ACTIVE_SESSION_ID_KEY = "active_agent_session_id"
+    private const val SESSION_FILES_DIR = "agent_sessions"
 
     data class SessionMeta(
         val id: String,
@@ -84,7 +86,6 @@ object AgentChatSessionManager {
     fun saveSessionMessages(context: Context, sessionId: String, messages: List<AgentChatMessage>) {
         if (sessionId.isBlank()) return
         val prefs = AgentPrefs.instance(context)
-        val key = "agent_session_messages_$sessionId"
         val arr = JSONArray()
         messages.forEach { msg ->
             val obj = JSONObject()
@@ -102,7 +103,10 @@ object AgentChatSessionManager {
             }
             arr.put(obj)
         }
-        prefs.edit().putString(key, arr.toString()).apply()
+        if (writeSessionFile(context, sessionId, arr.toString())) {
+            // إزالة النسخة القديمة بعد نجاح الكتابة إلى التخزين الداخلي.
+            prefs.edit().remove("agent_session_messages_$sessionId").apply()
+        }
 
         // تحديث عنوان الجلسة بناءً على أول رسالة للمستخدم
         val firstUserMsg = messages.firstOrNull { it.sender == AgentChatSender.USER }?.text?.take(30)
@@ -119,7 +123,16 @@ object AgentChatSessionManager {
     fun loadSessionMessages(context: Context, sessionId: String): List<AgentChatMessage> {
         val prefs = AgentPrefs.instance(context)
         val key = "agent_session_messages_$sessionId"
-        val raw = prefs.getString(key, null) ?: return emptyList()
+        val file = sessionFile(context, sessionId)
+        val legacyRaw = prefs.getString(key, null)
+        val raw = file.takeIf { it.isFile }?.runCatching { readText() }?.getOrNull()
+            ?: legacyRaw
+            ?: return emptyList()
+        if (!file.isFile && legacyRaw != null) {
+            if (writeSessionFile(context, sessionId, legacyRaw)) {
+                prefs.edit().remove(key).apply()
+            }
+        }
         val list = mutableListOf<AgentChatMessage>()
         try {
             val arr = JSONArray(raw)
@@ -152,6 +165,7 @@ object AgentChatSessionManager {
     fun deleteSession(context: Context, sessionId: String) {
         val prefs = AgentPrefs.instance(context)
         prefs.edit().remove("agent_session_messages_$sessionId").apply()
+        sessionFile(context, sessionId).delete()
         val updated = _sessions.value.filterNot { it.id == sessionId }
         saveSessionMetas(context, updated)
         if (_activeSessionId.value == sessionId) {
@@ -174,4 +188,22 @@ object AgentChatSessionManager {
         prefs.edit().putString(PREFS_KEY, arr.toString()).apply()
         _sessions.value = list.sortedByDescending { it.timestamp }
     }
+
+    private fun sessionFile(context: Context, sessionId: String): File {
+        val safeId = sessionId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        return File(File(context.filesDir, SESSION_FILES_DIR), "$safeId.json")
+    }
+
+    private fun writeSessionFile(context: Context, sessionId: String, raw: String): Boolean =
+        runCatching {
+            val target = sessionFile(context, sessionId)
+            target.parentFile?.mkdirs()
+            val temp = File(target.parentFile, ".${target.name}.tmp")
+            temp.writeText(raw, Charsets.UTF_8)
+            if (!temp.renameTo(target)) {
+                target.writeText(raw, Charsets.UTF_8)
+                temp.delete()
+            }
+            true
+        }.getOrDefault(false)
 }

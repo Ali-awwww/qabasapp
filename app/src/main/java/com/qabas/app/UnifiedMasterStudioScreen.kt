@@ -42,6 +42,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import android.net.Uri
 import com.qabas.app.ui.components.GlassmorphicSurface
+import com.qabas.app.ui.components.ReelPlayer
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -73,7 +74,6 @@ fun UnifiedMasterStudioScreen(
     var selectedRatio by rememberSaveable { mutableStateOf("9:16") } // 9:16, 16:9, 1:1
     var selectedVoice by rememberSaveable { mutableStateOf("ar-SA-HamedNeural") }
     var selectedTone by rememberSaveable { mutableStateOf("خاشع ومؤثر") }
-    var selectedVisualModel by rememberSaveable { mutableStateOf("flux") } // flux, broll, hybrid
 
     // 2. حالة التوليد الموحد
     var isGeneratingMasterpiece by rememberSaveable { mutableStateOf(false) }
@@ -155,7 +155,7 @@ fun UnifiedMasterStudioScreen(
                                 Scene(
                                     title = o.optString("title", "مشهد ${i+1}"),
                                     description = o.optString("description", ""),
-                                    durationInSeconds = o.optInt("duration", 5),
+                                    durationInSeconds = o.optInt("duration", 5).coerceIn(1, 60),
                                     transitionType = o.optString("transitionType", "Fade")
                                 )
                             }
@@ -179,7 +179,11 @@ fun UnifiedMasterStudioScreen(
                 generationStage = "2/5 توليد التعليق الصوتي العصبي النقي (Edge-TTS)..."
 
                 // 2. توليد الصوت
-                val fullNarrativeText = scenes.joinToString(" ") { it.title }
+                val fullNarrativeText = scenes.joinToString(". ") { scene ->
+                    listOf(scene.title, scene.description)
+                        .filter { it.isNotBlank() }
+                        .joinToString(". ")
+                }
                 val audioFile = AppServices.generateVoiceover(fullNarrativeText, tone = "وثائقي", voiceId = selectedVoice)
                 voiceAudioPath = audioFile
 
@@ -192,7 +196,9 @@ fun UnifiedMasterStudioScreen(
                 if (selectedVisualEngine == "higgsfield") {
                     generationStage = "3/5 توليد لقطات الفيديو السينمائية بالذكاء الاصطناعي (Higgsfield AI)..."
                     val prompt = "Cinematic holy Islamic footage, $topicText, majestic ambient light, 8k, slow motion luxury aesthetic"
-                    val higgsfieldClip = if (isHiggsfieldConfigured) {
+                    val higgsfieldReady = HiggsfieldVideoService.isConfigured(context)
+                    isHiggsfieldConfigured = higgsfieldReady
+                    val higgsfieldClip = if (higgsfieldReady) {
                         HiggsfieldVideoService.generateTextToVideo(
                             context = context,
                             prompt = prompt,
@@ -274,7 +280,8 @@ fun UnifiedMasterStudioScreen(
 
             } catch (e: Exception) {
                 isGeneratingMasterpiece = false
-                Toast.makeText(context, "تم الإنتاج بنمط الأمان: ${e.message}", Toast.LENGTH_SHORT).show()
+                generationStage = "تعذر إكمال الإنتاج"
+                Toast.makeText(context, "تعذر إكمال الإنتاج، حاول مرة أخرى", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -327,7 +334,10 @@ fun UnifiedMasterStudioScreen(
                 },
                 actions = {
                     if (generatedScenes.isNotEmpty()) {
-                        IconButton(onClick = { launchMasterpieceGeneration() }) {
+                        IconButton(
+                            onClick = { launchMasterpieceGeneration() },
+                            enabled = !isGeneratingMasterpiece
+                        ) {
                             Icon(Icons.Default.Refresh, contentDescription = "إعادة التوليد", tint = primaryColor, modifier = Modifier.size(20.dp))
                         }
                     }
@@ -720,9 +730,18 @@ fun UnifiedMasterStudioScreen(
                         onReSynthesize = { voice ->
                             scope.launch {
                                 selectedVoice = voice
-                                val fullText = generatedScenes.joinToString(" ") { it.title }
-                                voiceAudioPath = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
-                                Toast.makeText(context, "تم تحديث الصوت بنجاح ✓", Toast.LENGTH_SHORT).show()
+                                val fullText = generatedScenes.joinToString(". ") { scene ->
+                                    listOf(scene.title, scene.description)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(". ")
+                                }
+                                val regenerated = AppServices.generateVoiceover(fullText, tone = "وثائقي", voiceId = voice)
+                                voiceAudioPath = regenerated
+                                Toast.makeText(
+                                    context,
+                                    if (regenerated.isNullOrBlank()) "تعذر تحديث الصوت، حاول مرة أخرى" else "تم تحديث الصوت بنجاح ✓",
+                                    if (regenerated.isNullOrBlank()) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                                ).show()
                             }
                         },
                         primaryColor = primaryColor
@@ -762,6 +781,7 @@ private fun MasterFullPackageTab(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    var selectedPreviewIndex by rememberSaveable { mutableIntStateOf(0) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Master Live Preview Card
@@ -802,13 +822,27 @@ private fun MasterFullPackageTab(
                                 .clip(CutCornerShape(8.dp))
                                 .background(Color(0xFF0F172A))
                                 .border(1.dp, if (index == 0) primaryColor else Color(0xFF1E293B), CutCornerShape(8.dp))
+                                .clickable { selectedPreviewIndex = index }
                         ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context).data(scene.mediaUrl).crossfade(true).build(),
-                                contentDescription = scene.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            if (isVideoMediaUrl(scene.mediaUrl) && index == selectedPreviewIndex) {
+                                ReelPlayer(
+                                    videoUrl = scene.mediaUrl.orEmpty(),
+                                    isPlaying = true,
+                                    aspectRatio = "9:16",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (isVideoMediaUrl(scene.mediaUrl)) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.PlayCircle, contentDescription = "تشغيل معاينة الفيديو", tint = primaryColor, modifier = Modifier.size(36.dp))
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context).data(scene.mediaUrl).crossfade(true).build(),
+                                    contentDescription = scene.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1121,4 +1155,10 @@ private fun MasterViralSeoTab(
             }
         }
     }
+}
+
+private fun isVideoMediaUrl(url: String?): Boolean {
+    val value = url?.lowercase().orEmpty()
+    return value.endsWith(".mp4") || value.contains(".mp4?") ||
+        value.endsWith(".m4v") || value.endsWith(".webm") || value.contains("higgsfield")
 }

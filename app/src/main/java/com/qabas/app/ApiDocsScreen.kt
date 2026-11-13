@@ -77,7 +77,7 @@ fun ApiDocsScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember(context) { AgentPrefs.instance(context) }
 
     BackHandler(onBack = onBack)
 

@@ -803,8 +803,7 @@ fun CreateStyleObjectScreen(
                                 if (success) {
                                     showSuccessDialog = newStyleObject
                                 } else {
-                                    Toast.makeText(context, "تم حفظ النمط محلياً في عقل قبس", Toast.LENGTH_SHORT).show()
-                                    onStyleSaved(newStyleObject)
+                                    Toast.makeText(context, "تعذر حفظ النمط. تحقق من البيانات ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
                                 }
                             }
                         },

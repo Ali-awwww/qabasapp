@@ -140,14 +140,28 @@ fun AppNavigation(
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                     val isGuest = prefs.getBoolean("is_guest", false)
-                    val nextState = if (isLoggedIn || isGuest) AppState.HOME else AppState.LOGIN
+                    val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
+                    val nextState = if (!hasAcceptedCovenant) {
+                        AppState.ONBOARDING
+                    } else if (isLoggedIn || isGuest) {
+                        AppState.HOME
+                    } else {
+                        AppState.LOGIN
+                    }
                     viewModel.updateState { copy(appState = nextState) }
                 }
             )
         }
         AppState.ONBOARDING -> {
             OnboardingScreen(
-                onFinish = { viewModel.updateState { copy(appState = AppState.HOME) } }
+                onFinish = {
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                    val isGuest = prefs.getBoolean("is_guest", false)
+                    viewModel.updateState {
+                        copy(appState = if (isLoggedIn || isGuest) AppState.HOME else AppState.LOGIN)
+                    }
+                }
             )
         }
         AppState.LOGIN -> {
@@ -205,6 +219,14 @@ fun AppNavigation(
                     viewModel.createProject(initialText ?: "")
                     val analyticsService = AppServices.getAnalyticsService(context)
                     analyticsService.logProjectCreated("new_project", "none", "0")
+                },
+                onNewProjectWithAudio = { initialText, audioPath ->
+                    viewModel.createProject(initialText ?: "")
+                    if (!audioPath.isNullOrBlank()) {
+                        viewModel.updateState { copy(voiceOver = audioPath) }
+                    }
+                    val analyticsService = AppServices.getAnalyticsService(context)
+                    analyticsService.logProjectCreated("new_project_audio", "none", "0")
                 },
                 onViewProjects = { viewModel.updateState { copy(appState = AppState.PROJECTS) } },
                 onViewSettings = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
@@ -568,6 +590,18 @@ fun AppNavigation(
                     viewModel.createProject(scriptText)
                     viewModel.updateState {
                         copy(
+                            appState = AppState.INPUT,
+                            selectedRatio = "9:16",
+                            contentType = "ريلز / شورتس",
+                            videoDuration = "30 ثانية"
+                        )
+                    }
+                },
+                onCreateProjectFromScriptWithAudio = { scriptText, audioPath ->
+                    viewModel.createProject(scriptText)
+                    viewModel.updateState {
+                        copy(
+                            voiceOver = audioPath.orEmpty(),
                             appState = AppState.INPUT,
                             selectedRatio = "9:16",
                             contentType = "ريلز / شورتس",

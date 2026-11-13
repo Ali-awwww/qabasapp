@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 fun HomeScreen(
     recentProjects: List<ProjectService.Project>,
     onNewProject: (String?) -> Unit,
+    onNewProjectWithAudio: (String?, String?) -> Unit = { text, _ -> onNewProject(text) },
     onViewProjects: () -> Unit,
     onViewSettings: () -> Unit,
     onViewProfile: () -> Unit = {},
@@ -105,6 +106,7 @@ fun HomeScreen(
         SpatialCommandHomeScreen(
             recentProjects = recentProjects,
             onNewProject = onNewProject,
+            onNewProjectWithAudio = onNewProjectWithAudio,
             onViewProjects = onViewProjects,
             onViewSettings = onViewSettings,
             onViewProfile = onViewProfile,
@@ -172,13 +174,12 @@ fun HomeScreen(
     // Quick prompt & voice input states
     var quickPromptText by remember { mutableStateOf("") }
     var isRecordingVoice by remember { mutableStateOf(false) }
-    var isAnalyzingVoice by remember { mutableStateOf(false) }
     val recorderHelper = remember { AudioRecorderHelper(context) }
 
     // Sector Selection (0: Studios, 1: Islamic Suite, 2: AI Engines, 3: Projects)
     var selectedSector by remember { mutableIntStateOf(0) }
 
-    val activeAiEngine = remember { AiModelLatencyRouter.getEffectiveEngine() }
+    val activeAiEngine by AiModelLatencyRouter.activeEngine.collectAsState()
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -673,7 +674,8 @@ fun HomeScreen(
                                                     val path = recorderHelper.stopRecording()
                                                     if (path != null) {
                                                         Toast.makeText(context, "تم حفظ التسجيل! جاري بدء المشروع...", Toast.LENGTH_SHORT).show()
-                                                        onNewProject(null)
+                                                        quickPromptText = ""
+                                                        onNewProjectWithAudio(null, path.absolutePath)
                                                     }
                                                 }
                                             } else {
@@ -698,7 +700,13 @@ fun HomeScreen(
                                     // Launch Button
                                     Button(
                                         onClick = {
-                                            onNewProject(quickPromptText.ifBlank { null })
+                                            if (isRecordingVoice) {
+                                                Toast.makeText(context, "أوقف التسجيل أولاً قبل بدء المشروع", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val prompt = quickPromptText.ifBlank { null }
+                                                quickPromptText = ""
+                                                onNewProject(prompt)
+                                            }
                                         },
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
@@ -2211,4 +2219,3 @@ private fun QabasDrawerSectionHeader(title: String, icon: ImageVector? = null) {
         )
     }
 }
-

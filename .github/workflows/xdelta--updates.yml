@@ -335,8 +335,8 @@ jobs:
           fi
 
 
-      - name: Report On-Demand Delta Job Result
-        if: always() && inputs.job_id != ''
+      - name: Report Delta Result to Supabase
+        if: always() && (inputs.job_id != '' || (steps.compute-delta.outputs.delta_created == 'true' && steps.attach-release.outcome == 'success'))
         env:
           JOB_ID: ${{ inputs.job_id }}
           EXPECTED_BASE_SHA256: ${{ inputs.expected_base_sha256 }}
@@ -371,6 +371,7 @@ jobs:
 
           PAYLOAD=$(jq -n \
             --arg job_id "$JOB_ID" \
+            --arg target_tag "$TARGET_TAG" \
             --arg expected_base_sha256 "$EXPECTED_BASE_SHA256" \
             --arg expected_target_sha256 "$EXPECTED_TARGET_SHA256" \
             --arg status "$STATUS" \
@@ -378,7 +379,7 @@ jobs:
             --arg delta_url "$DELTA_URL" \
             --argjson delta_size_bytes "$DELTA_SIZE" \
             --arg delta_sha256_hash "$DELTA_SHA256" \
-            '{job_id:$job_id,expected_base_sha256:$expected_base_sha256,expected_target_sha256:$expected_target_sha256,status:$status,error_code:$error_code,delta_url:$delta_url,delta_size_bytes:$delta_size_bytes,delta_sha256_hash:$delta_sha256_hash}')
+            '{job_id:$job_id,target_tag:$target_tag,expected_base_sha256:$expected_base_sha256,expected_target_sha256:$expected_target_sha256,status:$status,error_code:$error_code,delta_url:$delta_url,delta_size_bytes:$delta_size_bytes,delta_sha256_hash:$delta_sha256_hash}')
 
           curl --fail-with-body --silent --show-error \
             -X POST "$SUPABASE_URL/functions/v1/qabas-xdelta-callback" \

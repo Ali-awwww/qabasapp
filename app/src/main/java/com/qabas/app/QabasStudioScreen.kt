@@ -10,6 +10,10 @@ package com.qabas.app
 import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -303,6 +307,7 @@ fun QabasStudioScreen(
 
     var selectedQuality by remember { mutableStateOf("4K") } // 4K (2160p), 2K (1440p), HD (1080p)
     var isExportingImage by rememberSaveable { mutableStateOf(false) }
+    var isExportingVideo by rememberSaveable { mutableStateOf(false) }
     var activeTab by rememberSaveable { mutableIntStateOf(0) } // 0: الحديث, 1: المظهر, 2: الخطوط, 3: الذكاء الاصطناعي
 
     val currentTheme = themes.firstOrNull { it.id == selectedThemeId } ?: themes[0]
@@ -412,6 +417,7 @@ fun QabasStudioScreen(
                                             aspectRatio = selectedAspect,
                                             quality = selectedQuality,
                                             font = selectedFont,
+                                            fontSizeSp = fontSizeSp,
                                             align = selectedAlign,
                                             rotation = textRotation,
                                             ornament = designOrnamentById(ornamentId)
@@ -439,7 +445,7 @@ fun QabasStudioScreen(
                                         }
                                         Toast.makeText(context, "📸 تم حفظ بطاقة الحديث في المعرض بدقة $selectedQuality الفائقة!", Toast.LENGTH_LONG).show()
                                     } else {
-                                        Toast.makeText(context, "📸 تم تصدير بطاقة الحديث بنجاح!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تعذر حفظ بطاقة الحديث في المعرض", Toast.LENGTH_LONG).show()
                                     }
                                 } finally {
                                     isExportingImage = false
@@ -466,15 +472,19 @@ fun QabasStudioScreen(
 
                     OutlinedButton(
                         onClick = {
-                            onExportAsVideo(inputText, selectedAspect)
-                            Toast.makeText(context, "🎥 جاري تجهيز ريلز متحرك ($selectedAspect)...", Toast.LENGTH_SHORT).show()
+                            if (!isExportingVideo) {
+                                isExportingVideo = true
+                                onExportAsVideo(inputText, selectedAspect)
+                                Toast.makeText(context, "🎥 جاري تجهيز ريلز متحرك ($selectedAspect)...", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         modifier = Modifier
                             .weight(1.1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
+                        enabled = !isExportingVideo
                     ) {
                         Icon(Icons.Default.Movie, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -497,6 +507,7 @@ fun QabasStudioScreen(
                                         aspectRatio = selectedAspect,
                                         quality = selectedQuality,
                                         font = selectedFont,
+                                        fontSizeSp = fontSizeSp,
                                         align = selectedAlign,
                                         rotation = textRotation,
                                         ornament = designOrnamentById(ornamentId)
@@ -1007,12 +1018,11 @@ fun QabasStudioScreen(
                                                             if (json.has("source")) hadithSource = json.getString("source")
                                                             Toast.makeText(context, "تم ضبط وتخريج الحديث بالذكاء الاصطناعي بنجاح! ✨", Toast.LENGTH_SHORT).show()
                                                         } catch (_: Exception) {
-                                                            inputText = response.take(300)
-                                                            Toast.makeText(context, "تم تحسين نص الحديث بنجاح! ✨", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, "تعذر قراءة نتيجة الذكاء الاصطناعي، حاول مرة أخرى", Toast.LENGTH_LONG).show()
                                                         }
                                                     }
                                                 } catch (_: Exception) {
-                                                    Toast.makeText(context, "تم التدقيق والتنسيق بنجاح ✨", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "تعذر التدقيق والتنسيق، تحقق من الاتصال وحاول مرة أخرى", Toast.LENGTH_LONG).show()
                                                 } finally {
                                                     isGeneratingAi = false
                                                 }
@@ -1349,7 +1359,13 @@ fun QabasStudioScreen(
                 }
 
                 Button(
-                    onClick = { showShareDialog = true },
+                    onClick = {
+                        if (pendingShareImagePath.isNullOrBlank()) {
+                            Toast.makeText(context, "احفظ صورة البطاقة أولاً ثم شاركها", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showShareDialog = true
+                        }
+                    },
                     modifier = Modifier.weight(1.1f).height(40.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
@@ -1405,6 +1421,13 @@ fun QabasStudioScreen(
 /**
  * Renders and exports a high-resolution Hadith card bitmap (up to 4K Ultra HD) with strict try-finally and recycle memory management.
  */
+private fun Color.toAndroidColor(alphaScale: Float = 1f): Int = android.graphics.Color.argb(
+    (alpha * alphaScale * 255f).coerceIn(0f, 255f).roundToInt(),
+    (red * 255f).coerceIn(0f, 255f).roundToInt(),
+    (green * 255f).coerceIn(0f, 255f).roundToInt(),
+    (blue * 255f).coerceIn(0f, 255f).roundToInt()
+)
+
 private fun saveHadithCardBitmapToStorage(
     context: Context,
     title: String,
@@ -1417,6 +1440,7 @@ private fun saveHadithCardBitmapToStorage(
     aspectRatio: String,
     quality: String = "4K",
     font: DesignFont = DesignFont.AMIRI,
+    fontSizeSp: Int = 20,
     align: DesignAlign = DesignAlign.CENTER,
     rotation: Float = 0f,
     ornament: DesignOrnament = DesignOrnament.NONE
@@ -1473,7 +1497,7 @@ private fun saveHadithCardBitmapToStorage(
         // 2. Decorative Outer Gold Inset Frame
         val framePaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#E8C547")
+            color = theme.accentColor.toAndroidColor()
             style = android.graphics.Paint.Style.STROKE
             strokeWidth = 6f * scale
         }
@@ -1483,7 +1507,7 @@ private fun saveHadithCardBitmapToStorage(
         // 3. Inner Card Area Surface
         val cardPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.argb(220, 21, 27, 43) // Deep Slate Card Surface #151B2B
+            color = theme.cardBg.toAndroidColor()
             style = android.graphics.Paint.Style.FILL
         }
         val cardInset = 64f * scale
@@ -1492,7 +1516,7 @@ private fun saveHadithCardBitmapToStorage(
         // Inner Card Border
         val cardBorderPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.argb(90, 232, 197, 71)
+            color = theme.accentColor.toAndroidColor(alphaScale = 0.4f)
             style = android.graphics.Paint.Style.STROKE
             strokeWidth = 2f * scale
         }
@@ -1501,7 +1525,7 @@ private fun saveHadithCardBitmapToStorage(
         // 4. Header / Brand Crest
         val headerPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#E8C547")
+            color = theme.accentColor.toAndroidColor()
             textSize = 28f * scale
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1511,7 +1535,7 @@ private fun saveHadithCardBitmapToStorage(
         // 5. Title & Status
         val titlePaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.WHITE
+            color = theme.textColor.toAndroidColor()
             textSize = 36f * scale
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1521,7 +1545,7 @@ private fun saveHadithCardBitmapToStorage(
         // 6. Narrator
         val narratorPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#F5D76E")
+            color = theme.textColor.toAndroidColor(alphaScale = 0.85f)
             textSize = 24f * scale
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -1529,51 +1553,54 @@ private fun saveHadithCardBitmapToStorage(
             canvas.drawText(narrator, width / 2f, 260f * scale, narratorPaint)
         }
 
-        // 7. Hadith Body text (Formatted, Wrapped, Aligned & Rotated)
+        // 7. Hadith Body text: StaticLayout performs Arabic shaping, bidi handling,
+        // and line breaking instead of drawing split words with raw Canvas.drawText.
         val bodyPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             typeface = designFontTypeface(context, font)
-            color = android.graphics.Color.parseColor("#F8FAFC")
-            textSize = 34f * scale
-            textAlign = android.graphics.Paint.Align.LEFT
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            color = theme.textColor.toAndroidColor()
+            // The preview is rendered in dp/sp; export uses pixels. The 3x
+            // base scale keeps the selected preview size consistent at 1080px.
+            textSize = fontSizeSp * 3f * scale
         }
 
         val safeText = if (text.length > 350) text.take(345) + "..." else text
-        val words = safeText.split(" ")
-        val lines = mutableListOf<String>()
-        var currentLine = ""
         val maxLineWidth = width - (240f * scale)
-        for (w in words) {
-            val testLine = if (currentLine.isEmpty()) w else "$currentLine $w"
-            if (bodyPaint.measureText(testLine) < maxLineWidth) {
-                currentLine = testLine
-            } else {
-                if (currentLine.isNotEmpty()) lines.add(currentLine)
-                currentLine = w
-            }
-        }
-        if (currentLine.isNotEmpty()) lines.add(currentLine)
+        val bodyTextPaint = TextPaint(bodyPaint).apply { isSubpixelText = true }
+        val bodyLayout = StaticLayout.Builder
+            .obtain(safeText, 0, safeText.length, bodyTextPaint, maxLineWidth.toInt())
+            .setAlignment(
+                when (align) {
+                    DesignAlign.CENTER -> Layout.Alignment.ALIGN_CENTER
+                    DesignAlign.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+                    DesignAlign.LEFT -> Layout.Alignment.ALIGN_NORMAL
+                }
+            )
+            .setTextDirection(
+                if (safeText.any { it in '\u0600'..'\u06FF' }) {
+                    TextDirectionHeuristics.FIRSTSTRONG_RTL
+                } else {
+                    TextDirectionHeuristics.FIRSTSTRONG_LTR
+                }
+            )
+            .setIncludePad(false)
+            .setLineSpacing(0f, 1.65f)
+            .build()
 
-        val lineHeight = 56f * scale
         val centerX = width / 2f
         val centerY = height / 2f
-        val totalH = lines.size * lineHeight
-        var yPos = centerY - (totalH / 2f) + (20f * scale)
-        val rightEdge = width - (110f * scale)
         val leftEdge = (110f * scale)
+        val rightEdge = width - (110f * scale)
+        val layoutX = when (align) {
+            DesignAlign.CENTER -> centerX - (maxLineWidth / 2f)
+            DesignAlign.RIGHT -> rightEdge - maxLineWidth
+            DesignAlign.LEFT -> leftEdge
+        }
+        val layoutY = centerY - (bodyLayout.height / 2f)
         canvas.save()
         canvas.rotate(rotation, centerX, centerY)
-        for (line in lines) {
-            val lineW = bodyPaint.measureText(line)
-            val x = when (align) {
-                DesignAlign.CENTER -> centerX - (lineW / 2f)
-                DesignAlign.RIGHT -> rightEdge - lineW
-                DesignAlign.LEFT -> leftEdge
-            }
-            canvas.drawText(line, x, yPos, bodyPaint)
-            yPos += lineHeight
-        }
+        canvas.translate(layoutX, layoutY)
+        bodyLayout.draw(canvas)
         canvas.restore()
 
         // 8. Authenticity Badge Pill (Status)
@@ -1581,14 +1608,14 @@ private fun saveHadithCardBitmapToStorage(
             val badgeText = "حكم المحدث: $status"
             val badgePaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#0B0F19")
+                color = theme.cardBg.toAndroidColor()
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
             val badgeBgPaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#E8C547")
+                color = theme.accentColor.toAndroidColor()
                 style = android.graphics.Paint.Style.FILL
             }
 
@@ -1608,7 +1635,7 @@ private fun saveHadithCardBitmapToStorage(
         // 9. Source Footer
         val footerPaint = android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.parseColor("#94A3B8")
+            color = theme.textColor.toAndroidColor(alphaScale = 0.75f)
             textSize = 20f * scale
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -1620,7 +1647,7 @@ private fun saveHadithCardBitmapToStorage(
         if (userHandle.isNotBlank()) {
             val handlePaint = android.graphics.Paint().apply {
                 isAntiAlias = true
-                color = android.graphics.Color.parseColor("#E8C547")
+                color = theme.accentColor.toAndroidColor(alphaScale = 0.85f)
                 textSize = 20f * scale
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1641,10 +1668,13 @@ private fun saveHadithCardBitmapToStorage(
             val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
             uri?.let {
                 val stream = context.contentResolver.openOutputStream(it)
-                stream?.use { out ->
+                val compressed = stream?.use { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                } ?: false
+                if (compressed) {
+                    return uri.toString()
                 }
-                return uri.toString()
+                context.contentResolver.delete(uri, null, null)
             }
         } else {
             val imagesDir = context.getExternalFilesDir(null)

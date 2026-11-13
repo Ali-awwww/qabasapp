@@ -115,6 +115,37 @@ object SocialAccountManager {
         else -> id
     }
 
+    private val secureTokenKeys = mapOf(
+        "youtube" to "social_yt_token",
+        "tiktok" to "social_tiktok_token",
+        "instagram" to "social_insta_token",
+        "twitter" to "social_twitter_token",
+        "facebook" to "social_fb_token"
+    )
+
+    /** One-time migration from the legacy social SharedPreferences file. */
+    private fun secureToken(context: Context, platformId: String): String {
+        val secureKey = secureTokenKeys[platformId] ?: return ""
+        val securePrefs = AgentPrefs.instance(context)
+        val existing = securePrefs.getString(secureKey, "").orEmpty()
+        if (existing.isNotBlank()) return existing
+        val legacyKey = when (platformId) {
+            "youtube" -> "yt_token"
+            "tiktok" -> "tiktok_token"
+            "instagram" -> "insta_token"
+            "twitter" -> "twitter_token"
+            "facebook" -> "fb_token"
+            else -> return ""
+        }
+        val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val legacy = legacyPrefs.getString(legacyKey, "").orEmpty()
+        if (legacy.isNotBlank()) {
+            AgentPrefs.putString(context, secureKey, legacy)
+            legacyPrefs.edit().remove(legacyKey).apply()
+        }
+        return legacy
+    }
+
     /** تحديث رابط/معرّف قناة ثابتة (للمطور فقط عبر الواجهة). */
     fun updateOfficialChannel(context: Context, id: String, handle: String, url: String) {
         val p = officialKeyPrefix(id)
@@ -474,46 +505,39 @@ object SocialAccountManager {
     fun toggleConnection(context: Context, platformId: String, isConnected: Boolean, handle: String = "", apiToken: String = "") {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val editor = prefs.edit()
+        secureTokenKeys[platformId]?.let { secureKey ->
+            when {
+                apiToken.isNotBlank() -> AgentPrefs.putString(context, secureKey, apiToken.trim())
+                !isConnected -> AgentPrefs.remove(context, secureKey)
+            }
+        }
         when (platformId) {
             "youtube" -> {
                 editor.putBoolean("yt_connected", isConnected)
                 if (handle.isNotBlank()) editor.putString("yt_handle", handle)
-                if (apiToken.isNotBlank()) editor.putString("yt_token", apiToken)
             }
             "tiktok" -> {
                 editor.putBoolean("tiktok_connected", isConnected)
                 if (handle.isNotBlank()) editor.putString("tiktok_handle", handle)
-                if (apiToken.isNotBlank()) editor.putString("tiktok_token", apiToken)
             }
             "instagram" -> {
                 editor.putBoolean("insta_connected", isConnected)
                 if (handle.isNotBlank()) editor.putString("insta_handle", handle)
-                if (apiToken.isNotBlank()) editor.putString("insta_token", apiToken)
             }
             "twitter" -> {
                 editor.putBoolean("twitter_connected", isConnected)
                 if (handle.isNotBlank()) editor.putString("twitter_handle", handle)
-                if (apiToken.isNotBlank()) editor.putString("twitter_token", apiToken)
             }
             "facebook" -> {
                 editor.putBoolean("fb_connected", isConnected)
                 if (handle.isNotBlank()) editor.putString("fb_handle", handle)
-                if (apiToken.isNotBlank()) editor.putString("fb_token", apiToken)
             }
         }
         editor.apply()
     }
 
     fun getAccessToken(context: Context, platformId: String): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return when (platformId) {
-            "youtube" -> prefs.getString("yt_token", "") ?: ""
-            "tiktok" -> prefs.getString("tiktok_token", "") ?: ""
-            "instagram" -> prefs.getString("insta_token", "") ?: ""
-            "twitter" -> prefs.getString("twitter_token", "") ?: ""
-            "facebook" -> prefs.getString("fb_token", "") ?: ""
-            else -> ""
-        }
+        return secureToken(context, platformId)
     }
 
     /** تحديث وقت المزامنة فقط — لا أرقام وهمية. الإحصائيات تتزايد فقط من النشر الفعلي. */
@@ -1160,4 +1184,3 @@ class PublishScheduleBootReceiver : BroadcastReceiver() {
         } catch (_: Exception) { }
     }
 }
-

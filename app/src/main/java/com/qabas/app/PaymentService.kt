@@ -42,6 +42,7 @@ class RealPaymentService(private val context: Context) : PaymentService {
     }
 
     override suspend fun createPaymentIntent(amount: Int, currency: String): String = withContext(Dispatchers.IO) {
+        require(amount > 0) { "Payment amount must be greater than zero" }
         // Normally calls backend to get client_secret. Here we simulate a real backend response.
         delay(1000)
         return@withContext "pi_test_123_secret_${System.currentTimeMillis()}"
@@ -54,6 +55,7 @@ class RealPaymentService(private val context: Context) : PaymentService {
     }
 
     override suspend fun processPayment(amount: Int): Boolean = withContext(Dispatchers.IO) {
+        if (amount <= 0) return@withContext false
         delay(1000)
         if (userBalance >= amount) {
             userBalance -= amount
@@ -63,6 +65,7 @@ class RealPaymentService(private val context: Context) : PaymentService {
     }
 
     override suspend fun recharge(amount: Int) = withContext(Dispatchers.IO) {
+        require(amount > 0) { "Recharge amount must be greater than zero" }
         // In reality, this is called after successful confirmPayment
         userBalance += amount
     }
@@ -86,4 +89,3 @@ class RealPaymentService(private val context: Context) : PaymentService {
         return@withContext file.absolutePath
     }
 }
-

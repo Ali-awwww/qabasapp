@@ -356,18 +356,9 @@ fun PrayerTimesScreen(
         PrayerSectionEntry("القبلة والخشوع", "اتجاه القبلة وفقه الخشوع", Icons.Default.Explore, GeoColor.Qibla)
     )
 
-    // Live clock ticker
-    var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTimeMillis = System.currentTimeMillis()
-            delay(1000L)
-        }
-    }
-
-    // Recalculate prayer times dynamically
-    val prayerTimes = remember(currentCity, selectedMethod, currentTimeMillis) {
-        val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
+    // مواقيت الصلاة تتغير عند تغير المدينة أو طريقة الحساب، لا كل ثانية.
+    val prayerTimes = remember(currentCity, selectedMethod) {
+        val cal = Calendar.getInstance()
         PrayerCalculationHelper.calculatePrayerTimes(cal, currentCity, selectedMethod)
     }
 

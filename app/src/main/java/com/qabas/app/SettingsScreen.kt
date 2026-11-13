@@ -44,6 +44,27 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val VIDEO_CACHE_DIRECTORY = "qabas_video_cache"
+
+private fun cacheBytes(context: Context): Long = sequenceOf(context.cacheDir, context.externalCacheDir)
+    .filterNotNull()
+    .distinctBy { it.absolutePath }
+    .sumOf { root ->
+        root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
+
+private fun clearTemporaryCache(context: Context) {
+    sequenceOf(context.cacheDir, context.externalCacheDir)
+        .filterNotNull()
+        .distinctBy { it.absolutePath }
+        .forEach { root ->
+            root.listFiles()?.forEach { child ->
+                if (child.name != VIDEO_CACHE_DIRECTORY) child.deleteRecursively()
+            }
+            root.mkdirs()
+        }
+}
+
 /**
  * شاشات الإعدادات الفرعية المستقلة (Dedicated Sub-Screens Architecture)
  */
@@ -249,9 +270,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         cacheSizeBytes = withContext(Dispatchers.IO) {
             runCatching {
-                var total = 0L
-                context.cacheDir.walkTopDown().forEach { f -> if (f.isFile) total += f.length() }
-                total
+                cacheBytes(context)
             }.getOrNull()
         }
     }
@@ -602,8 +621,8 @@ fun SettingsScreen(
                             SettingsQuickActions(
                                 onClearCache = {
                                     coroutineScope.launch {
-                                        withContext(Dispatchers.IO) { context.cacheDir.deleteRecursively() }
-                                        cacheSizeBytes = 0L
+                                        withContext(Dispatchers.IO) { clearTemporaryCache(context) }
+                                        cacheSizeBytes = withContext(Dispatchers.IO) { cacheBytes(context) }
                                         Toast.makeText(context, "تم تنظيف الملفات المؤقتة بنجاح 🧹", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -626,13 +645,20 @@ fun SettingsScreen(
                                 },
                                 onCheckUpdate = {
                                     coroutineScope.launch {
-                                        val info = VersionManager.checkRemoteVersion(context)
-                                        if (info != null) {
-                                            updateInfo = info
-                                            updateState = "found"
-                                            Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل ✅", Toast.LENGTH_SHORT).show()
+                                        updateState = "checking..."
+                                        runCatching {
+                                            VersionManager.checkRemoteVersion(context, force = true)
+                                        }.onSuccess { info ->
+                                            updateState = if (info != null) "found" else null
+                                            if (info != null) {
+                                                updateInfo = info
+                                                Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "لا يوجد إصدار أحدث معتمد حاليًا.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }.onFailure {
+                                            updateState = null
+                                            Toast.makeText(context, "تعذر فحص التحديثات. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
@@ -847,11 +873,8 @@ fun SettingsScreen(
                                     isDeveloper = isAdmin || isDevMode,
                                     onClearCache = {
                                         coroutineScope.launch {
-                                            withContext(Dispatchers.IO) {
-                                                context.cacheDir.deleteRecursively()
-                                                context.cacheDir.mkdirs()
-                                            }
-                                            cacheSizeBytes = 0L
+                                            withContext(Dispatchers.IO) { clearTemporaryCache(context) }
+                                            cacheSizeBytes = withContext(Dispatchers.IO) { cacheBytes(context) }
                                             Toast.makeText(context, "تم تنظيف الملفات المؤقتة بنجاح 🧹", Toast.LENGTH_SHORT).show()
                                         }
                                     }

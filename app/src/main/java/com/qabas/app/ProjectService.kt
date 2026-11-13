@@ -4,8 +4,14 @@ import android.content.Context
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
 
 class ProjectService(private val context: Context) {
+    private companion object {
+        const val DELETE_TOMBSTONES_PREFS = "qabas_project_sync"
+        const val DELETE_TOMBSTONES_KEY = "deleted_project_ids"
+    }
     @Immutable
     data class Project(
         val id: String = "",
@@ -21,6 +27,7 @@ class ProjectService(private val context: Context) {
         val updatedAt: Long = 0L,
         val status: String = "",
         val lastScreen: String = "",
+        val workspaceJson: String = "",
         val synced: Boolean = true
     )
 
@@ -28,9 +35,30 @@ class ProjectService(private val context: Context) {
         ProjectRepository(AppDatabase.getDatabase(context).projectDao())
     }
 
+    private val syncPrefs by lazy {
+        context.getSharedPreferences(DELETE_TOMBSTONES_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private fun deletedProjectIds(): Set<String> =
+        syncPrefs.getStringSet(DELETE_TOMBSTONES_KEY, emptySet()).orEmpty()
+
+    private fun markProjectDeleted(id: String) {
+        val ids = deletedProjectIds().toMutableSet().apply { add(id) }
+        syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
+    }
+
+    private fun clearProjectDeletion(id: String) {
+        val ids = deletedProjectIds().toMutableSet()
+        if (ids.remove(id)) {
+            syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).apply()
+        }
+    }
+
     /** قائمة سريعة من Room فقط — لا شبكة */
     suspend fun getLocalProjects(): List<Project> = withContext(Dispatchers.IO) {
+        val deletedIds = deletedProjectIds()
         repository.getAllProjectsOnce()
+            .filterNot { it.id in deletedIds }
             .map { it.toProject() }
             .sortedByDescending { it.updatedAt }
     }
@@ -42,7 +70,10 @@ class ProjectService(private val context: Context) {
      */
     suspend fun getAllProjects(syncCloud: Boolean = false): List<Project> =
         withContext(Dispatchers.IO) {
-            val localProjects = repository.getAllProjectsOnce().map { it.toProject() }
+            val deletedIds = deletedProjectIds()
+            val localProjects = repository.getAllProjectsOnce()
+                .filterNot { it.id in deletedIds }
+                .map { it.toProject() }
 
             if (!syncCloud) {
                 return@withContext localProjects.sortedByDescending { it.updatedAt }
@@ -58,26 +89,34 @@ class ProjectService(private val context: Context) {
 
                         val toUpsert = ArrayList<ProjectEntity>()
                         supabaseRows.forEach { row ->
-                            val meta = (row.metadata as? kotlinx.serialization.json.JsonObject)
-                            val ideaStr = meta?.get("idea")?.toString()?.trim('"') ?: (row.description ?: "")
-                            val scriptStr = meta?.get("script")?.toString()?.trim('"') ?: ""
+                            if (row.id in deletedIds) return@forEach
+                            val meta = row.metadata
+                            val ideaStr = meta["idea"] ?: (row.description ?: "")
+                            val cloudTimestamp = (row.updatedAt ?: row.createdAt)?.let {
+                                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
+                            } ?: 0L
+                            val workspaceJson = hydrateWorkspaceRecording(
+                                ProjectWorkspaceCodec.decodeStored(meta[ProjectWorkspaceCodec.METADATA_KEY]).orEmpty(),
+                                row.id
+                            )
                             val proj = Project(
                                 id = row.id,
                                 title = row.title,
                                 idea = ideaStr,
-                                analysis = meta?.get("analysis")?.toString()?.trim('"') ?: "",
-                                resources = meta?.get("resources")?.toString()?.trim('"') ?: "",
-                                settings = meta?.get("settings")?.toString()?.trim('"') ?: "",
-                                script = scriptStr,
-                                finalVideoPath = meta?.get("finalVideoPath")?.toString()?.trim('"') ?: "",
+                                analysis = meta["analysis"] ?: "",
+                                resources = meta["resources"] ?: "",
+                                settings = meta["settings"] ?: "",
+                                script = meta["script"] ?: "",
+                                finalVideoPath = meta["finalVideoPath"] ?: "",
                                 cost = row.cost,
-                                createdAt = System.currentTimeMillis(),
-                                updatedAt = System.currentTimeMillis(),
+                                createdAt = cloudTimestamp,
+                                updatedAt = cloudTimestamp,
                                 status = row.status,
-                                lastScreen = meta?.get("lastScreen")?.toString()?.trim('"') ?: ""
+                                lastScreen = meta["lastScreen"] ?: "",
+                                workspaceJson = workspaceJson
                             )
                             val existing = merged[proj.id]
-                            if (existing == null || proj.updatedAt >= existing.updatedAt) {
+                            if (existing == null || existing.synced && proj.updatedAt >= existing.updatedAt) {
                                 merged[proj.id] = proj
                                 toUpsert.add(proj.toEntity())
                             }
@@ -106,6 +145,7 @@ class ProjectService(private val context: Context) {
         // حفظ سحابي أساسي في Supabase
         if (SupabaseServices.isSupabaseAvailable && UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available) {
             val result = runCatching {
+                val cloudWorkspaceJson = uploadWorkspaceRecording(project)
                 val metadata = mapOf(
                     "idea" to project.idea,
                     "analysis" to project.analysis,
@@ -113,7 +153,8 @@ class ProjectService(private val context: Context) {
                     "settings" to project.settings,
                     "script" to project.script,
                     "finalVideoPath" to project.finalVideoPath,
-                    "lastScreen" to project.lastScreen
+                    "lastScreen" to project.lastScreen,
+                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = project.id,
@@ -122,7 +163,9 @@ class ProjectService(private val context: Context) {
                     status = project.status.ifBlank { "draft" },
                     cost = project.cost,
                     tags = listOf("qabas_project"),
-                    metadata = metadata
+                    metadata = metadata,
+                    createdAt = java.time.Instant.ofEpochMilli(project.createdAt.coerceAtLeast(1L)).toString(),
+                    updatedAt = java.time.Instant.ofEpochMilli(project.updatedAt.coerceAtLeast(project.createdAt).coerceAtLeast(1L)).toString()
                 )
             }
             isSynced = result.isSuccess
@@ -148,26 +191,45 @@ class ProjectService(private val context: Context) {
     }
 
     suspend fun deleteProject(id: String) = withContext(Dispatchers.IO) {
-        repository.delete(id)
-        if (SupabaseServices.isSupabaseAvailable) {
-            runCatching { SupabaseServices.Database.deleteProject(id) }
+        val online = SupabaseServices.isSupabaseAvailable &&
+            UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available
+        if (online) {
+            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
+            if (deletedRemotely) {
+                clearProjectDeletion(id)
+                repository.delete(id)
+            } else {
+                markProjectDeleted(id)
+                repository.delete(id)
+                android.util.Log.w("ProjectService", "Queued cloud deletion for project $id")
+            }
+        } else {
+            markProjectDeleted(id)
+            repository.delete(id)
         }
     }
 
     suspend fun syncPendingProjects() = withContext(Dispatchers.IO) {
         if (!SupabaseServices.isSupabaseAvailable || UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available) return@withContext
-        
+
+        deletedProjectIds().toList().forEach { id ->
+            val deletedRemotely = runCatching { SupabaseServices.Database.deleteProject(id) }.getOrDefault(false)
+            if (deletedRemotely) clearProjectDeletion(id)
+        }
+
         val unsynced = repository.getAllProjectsOnce().filter { !it.synced }
         unsynced.forEach { entity ->
             val result = runCatching {
+                val cloudWorkspaceJson = uploadWorkspaceRecording(entity.toProject())
                 val metadata = mapOf(
                     "idea" to entity.idea,
                     "analysis" to entity.analysis,
                     "resources" to entity.resources,
-                    "settings" to entity.settings,
+                    "settings" to (if (ProjectWorkspaceCodec.decodeStored(entity.settings) != null) "" else entity.settings),
                     "script" to entity.script,
                     "finalVideoPath" to entity.finalVideoPath,
-                    "lastScreen" to entity.lastScreen
+                    "lastScreen" to entity.lastScreen,
+                    ProjectWorkspaceCodec.METADATA_KEY to cloudWorkspaceJson
                 )
                 SupabaseServices.Database.saveFullProject(
                     id = entity.id,
@@ -176,7 +238,9 @@ class ProjectService(private val context: Context) {
                     status = entity.status.ifBlank { "draft" },
                     cost = entity.cost,
                     tags = listOf("qabas_project"),
-                    metadata = metadata
+                    metadata = metadata,
+                    createdAt = java.time.Instant.ofEpochMilli(entity.createdAt.coerceAtLeast(1L)).toString(),
+                    updatedAt = java.time.Instant.ofEpochMilli(entity.updatedAt.coerceAtLeast(entity.createdAt).coerceAtLeast(1L)).toString()
                 )
             }
             if (result.isSuccess) {
@@ -185,18 +249,59 @@ class ProjectService(private val context: Context) {
         }
     }
 
+    private suspend fun uploadWorkspaceRecording(project: Project): String {
+        val workspaceJson = project.workspaceJson
+        val snapshot = ProjectWorkspaceCodec.decode(workspaceJson) ?: return workspaceJson
+        val voiceOver = snapshot.voiceOver.trim()
+        if (voiceOver.isBlank() || voiceOver.startsWith("storage://")) return workspaceJson
+
+        val localPath = if (voiceOver.startsWith("file://")) {
+            runCatching { android.net.Uri.parse(voiceOver).path }.getOrNull()
+        } else voiceOver
+        val recording = localPath?.let(::File)?.takeIf { it.exists() && it.length() > 0L } ?: return workspaceJson
+        val storagePath = SupabaseServices.Storage.uploadPrivateProjectRecording(project.id, recording)
+            ?: return workspaceJson
+        return runCatching {
+            JSONObject(workspaceJson)
+                .put("voiceOver", "storage://project-recordings/$storagePath")
+                .toString()
+        }.getOrDefault(workspaceJson)
+    }
+
+    private suspend fun hydrateWorkspaceRecording(workspaceJson: String, projectId: String): String {
+        val snapshot = ProjectWorkspaceCodec.decode(workspaceJson) ?: return workspaceJson
+        val reference = snapshot.voiceOver.trim()
+        if (!reference.startsWith("storage://project-recordings/")) return workspaceJson
+
+        val safeProjectId = projectId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80)
+        val remoteFileName = reference.substringAfterLast('/')
+            .replace(Regex("[^A-Za-z0-9_.-]"), "_")
+            .take(90)
+            .ifBlank { "voice.m4a" }
+        val destination = File(context.filesDir, "recordings/cloud_${safeProjectId}_$remoteFileName")
+        if (!destination.exists()) {
+            val downloaded = SupabaseServices.Storage.downloadPrivateProjectRecording(reference, destination)
+            if (!downloaded) return workspaceJson
+        }
+        return runCatching {
+            JSONObject(workspaceJson).put("voiceOver", destination.absolutePath).toString()
+        }.getOrDefault(workspaceJson)
+    }
+
     private fun ProjectEntity.toProject() = Project(
         id = id, title = title, idea = idea, analysis = analysis,
         resources = resources, settings = settings, script = script,
         finalVideoPath = finalVideoPath, cost = cost,
         createdAt = createdAt, updatedAt = updatedAt,
         status = status, lastScreen = lastScreen,
+        workspaceJson = ProjectWorkspaceCodec.decodeStored(settings).orEmpty(),
         synced = synced
     )
 
     private fun Project.toEntity() = ProjectEntity(
         id = id, title = title, idea = idea, analysis = analysis,
-        resources = resources, settings = settings, script = script,
+        resources = resources, script = script,
+        settings = if (workspaceJson.isBlank()) settings else ProjectWorkspaceCodec.encodeForLocalStorage(workspaceJson),
         finalVideoPath = finalVideoPath, cost = cost,
         createdAt = createdAt, updatedAt = updatedAt,
         status = status, lastScreen = lastScreen,

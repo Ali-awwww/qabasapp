@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -308,6 +310,7 @@ fun LoginScreen(
 
                     // محاولة الدخول الموحّدة: يستدعيها زر الإدخال وزر «إعادة المحاولة» في بطاقة الخطأ
                     val submitLogin: () -> Unit = submitLogin@{
+                        if (isLoading) return@submitLogin
                         val trimmedInput = accountInput.trim()
                         if (trimmedInput.isBlank() || password.isBlank()) {
                             authErrorMessage = "الرجاء إدخال البريد أو اليوزر أو رقم الحساب وكلمة المرور"
@@ -673,7 +676,7 @@ fun LoginScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
+                                    contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور",
                                     tint = Color.White.copy(alpha = 0.4f),
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -699,7 +702,7 @@ fun LoginScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { rememberMe = !rememberMe },
+                            .toggleable(value = rememberMe, role = Role.Checkbox, onValueChange = { rememberMe = it }),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -726,6 +729,7 @@ fun LoginScreen(
                     // Submit Button (Compact Geometric Solid)
                     Button(
                         onClick = submitLogin,
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(46.dp)
@@ -781,9 +785,6 @@ fun LoginScreen(
                         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                         if (UserIdentifierManager.isEmail(currentTyped)) {
                             prefs.edit().putString("draft_register_email", currentTyped).apply()
-                        }
-                        if (password.isNotBlank()) {
-                            prefs.edit().putString("draft_register_password", password).apply()
                         }
                         onNavigateToRegister() 
                     }
@@ -852,9 +853,6 @@ fun LoginScreen(
                         if (UserIdentifierManager.isEmail(currentTyped)) {
                             prefs.edit().putString("draft_register_email", currentTyped).apply()
                         }
-                        if (password.isNotBlank()) {
-                            prefs.edit().putString("draft_register_password", password).apply()
-                        }
                         onNavigateToRegister()
                     },
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
@@ -880,6 +878,10 @@ fun LoginScreen(
                         putBoolean("is_guest", true)
                         putBoolean("is_admin", false)
                         putBoolean("is_developer", false)
+                        remove("user_id")
+                        remove("saved_login_email")
+                        remove("user_account_number")
+                        remove("user_name_with_account")
                         putString("user_email", "guest@qabas.studio")
                         putString("user_name", "ضيف قبس")
                         putString("user_display_name", "زائر مؤقت")
@@ -920,7 +922,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "ENCRYPTION: AES-256 // SUPABASE_AUTH // IDENTITY_FEDERATION",
+                text = "AUTHENTICATED SESSION // SUPABASE",
                 color = primaryColor.copy(alpha = 0.35f),
                 fontFamily = RobotoMonoFont,
                 fontSize = 8.sp,

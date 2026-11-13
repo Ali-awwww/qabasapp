@@ -45,7 +45,9 @@ import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ui.theme.TextPrimary
 import com.qabas.app.ui.theme.TextSecondary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
@@ -969,9 +971,13 @@ fun DownloadsHubScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val freed = DownloadsHubManager.clearTempCache(context)
-                        showClearCacheDialog = false
-                        Toast.makeText(context, "تم تحرير ${StorageMetrics.formatBytes(freed)} من الذاكرة بنجاح! ✨", Toast.LENGTH_LONG).show()
+                        scope.launch {
+                            val freed = withContext(Dispatchers.IO) {
+                                DownloadsHubManager.clearTempCache(context)
+                            }
+                            showClearCacheDialog = false
+                            Toast.makeText(context, "تم تحرير ${StorageMetrics.formatBytes(freed)} من الذاكرة بنجاح! ✨", Toast.LENGTH_LONG).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
                 ) {

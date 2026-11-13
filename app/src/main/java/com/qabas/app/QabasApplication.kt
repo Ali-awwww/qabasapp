@@ -19,6 +19,7 @@ class QabasApplication : Application() {
         QabasCrashGuard.install(this)
         QabasCrashGuard.markStartupStage(this, "QabasApplication.onCreate")
         QabasCrashGuard.schedulePendingUploads(this)
+        runCatching { UpdateCheckWorker.schedule(this) }
 
         // عدّاد الإقلاعات لصحة الإصدار (انهيارات / إقلاعات)
         runCatching {

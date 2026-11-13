@@ -329,8 +329,20 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 }
             }
 
+            if (!isAgreed) {
+                Text(
+                    text = "حدد مربع الإقرار للمتابعة",
+                    color = TextSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
-

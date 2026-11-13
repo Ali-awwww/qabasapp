@@ -673,12 +673,13 @@ object SupabaseServices {
             cost: Double = 0.0,
             tags: List<String> = emptyList(),
             metadata: Map<String, String>? = emptyMap()
-        ): ProjectRow? = runCatching {
-            val client = client ?: return null
-            val row = ProjectRow(
-                id = UUID.randomUUID().toString(),
-                userId = Auth.getCurrentUserId(),
-                externalId = Auth.getCurrentUserId(),
+	        ): ProjectRow? = runCatching {
+	            val client = client ?: return null
+	            val currentUserId = Auth.getCurrentUserId() ?: return null
+	            val row = ProjectRow(
+	                id = UUID.randomUUID().toString(),
+	                userId = currentUserId,
+	                externalId = currentUserId,
                 title = title,
                 description = description,
                 status = status,
@@ -698,20 +699,24 @@ object SupabaseServices {
             cost: Double = 0.0,
             status: String = "draft",
             tags: List<String> = emptyList(),
-            metadata: Map<String, String> = emptyMap()
+            metadata: Map<String, String> = emptyMap(),
+            createdAt: String = java.time.Instant.now().toString(),
+            updatedAt: String = java.time.Instant.now().toString()
         ): Boolean = runCatching {
             val client = client ?: return false
+            val currentUserId = Auth.getCurrentUserId() ?: return false
             val row = ProjectRow(
                 id = id,
-                userId = Auth.getCurrentUserId(),
-                externalId = Auth.getCurrentUserId(),
+                userId = currentUserId,
+                externalId = currentUserId,
                 title = title,
                 description = description,
                 status = status,
                 cost = cost,
                 tags = tags,
                 metadata = metadata,
-                createdAt = java.time.Instant.now().toString()
+                createdAt = createdAt,
+                updatedAt = updatedAt
             )
             client.postgrest.from("projects").upsert(row)
             true
@@ -721,7 +726,7 @@ object SupabaseServices {
             val client = client ?: return emptyList()
             val targetId = userId ?: Auth.getCurrentUserId()
             if (targetId.isNullOrBlank()) {
-                client.postgrest.from("projects").select().decodeList<ProjectRow>()
+                return@runCatching emptyList()
             } else {
                 client.postgrest.from("projects").select {
                     filter {
@@ -741,9 +746,11 @@ object SupabaseServices {
 
         suspend fun deleteProject(id: String): Boolean = runCatching {
             val client = client ?: return false
+            val currentUserId = Auth.getCurrentUserId() ?: return false
             client.postgrest.from("projects").delete {
                 filter {
                     eq("id", id)
+                    eq("user_id", currentUserId)
                 }
             }
             true
@@ -2552,6 +2559,33 @@ object SupabaseServices {
             }.onFailure { Log.e(TAG, "private upload failed: ${it.message}", it) }.getOrDefault(false)
         }
 
+        /** Upload a project voice recording to the private, owner-scoped bucket. */
+        suspend fun uploadPrivateProjectRecording(
+            projectId: String,
+            file: File,
+            onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+        ): String? {
+            val uid = Auth.getCurrentUserId() ?: return null
+            val safeProjectId = projectId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80)
+            val extension = file.extension.lowercase().takeIf { it.matches(Regex("[a-z0-9]{2,5}")) } ?: "m4a"
+            val path = "$uid/$safeProjectId/voice_${file.nameWithoutExtension.take(48)}.$extension"
+            val contentType = when (extension) {
+                "wav" -> "audio/wav"
+                "mp3" -> "audio/mpeg"
+                "ogg" -> "audio/ogg"
+                "aac" -> "audio/aac"
+                else -> "audio/mp4"
+            }
+            val uploaded = uploadPrivateFileWithProgress(
+                bucketName = "project-recordings",
+                path = path,
+                file = file,
+                contentType = contentType,
+                onProgress = onProgress
+            )
+            return path.takeIf { uploaded }
+        }
+
         suspend fun uploadFileWithProgress(
             bucketName: String = "media-assets",
             path: String,
@@ -2657,6 +2691,53 @@ object SupabaseServices {
                 Log.e(TAG, "createSignedUrl failed for $bucketName: ${error.message}")
                 null
             }
+        }
+
+        /** Download an owner-private project recording through a short-lived signed URL. */
+        suspend fun downloadPrivateProjectRecording(
+            reference: String,
+            destination: File,
+            maxBytes: Long = 25L * 1024L * 1024L
+        ): Boolean = withContext(Dispatchers.IO) {
+            runCatching {
+                val marker = "storage://project-recordings/"
+                if (!reference.startsWith(marker)) return@runCatching false
+                val path = reference.removePrefix(marker).trim('/').takeIf { it.isNotBlank() }
+                    ?: return@runCatching false
+                if (path.split('/').firstOrNull() != Auth.getCurrentUserId()) return@runCatching false
+                if (path.split('/').any { it.isBlank() || it == "." || it == ".." || it.contains('\\') }) {
+                    return@runCatching false
+                }
+
+                val signedUrl = createSignedUrl("project-recordings", path) ?: return@runCatching false
+                destination.parentFile?.mkdirs()
+                val temporary = File(destination.parentFile, ".${destination.name}.part")
+                rawHttpClient.newCall(Request.Builder().url(signedUrl).get().build()).execute().use { response ->
+                    if (!response.isSuccessful) return@runCatching false
+                    val body = response.body ?: return@runCatching false
+                    if (body.contentLength() > maxBytes) return@runCatching false
+                    body.byteStream().use { input ->
+                        temporary.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                total += read
+                                if (total > maxBytes) return@runCatching false
+                                output.write(buffer, 0, read)
+                            }
+                        }
+                    }
+                    if (!temporary.exists() || temporary.length() <= 0L) return@runCatching false
+                    if (destination.exists()) destination.delete()
+                    if (!temporary.renameTo(destination)) return@runCatching false
+                }
+                true
+            }.onFailure {
+                if (it is CancellationException) throw it
+                Log.e(TAG, "downloadPrivateProjectRecording failed: ${it.message}", it)
+            }.getOrDefault(false)
         }
 
         fun getPublicUrl(bucketName: String, path: String): String? {
@@ -2817,7 +2898,8 @@ object SupabaseServices {
         val cost: Double = 0.0,
         val tags: List<String> = emptyList(),
         val metadata: Map<String, String> = emptyMap(),
-        @SerialName("created_at") val createdAt: String? = null
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("updated_at") val updatedAt: String? = null
     )
 
     @Serializable

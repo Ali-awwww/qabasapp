@@ -342,22 +342,24 @@ fun PhotoStudioScreen(
                         if (selectedAudioOption == "مؤثرات طبيعية") {
                             progressMessage = "جاري تحميل المؤثرات..."
                             try {
-                                val assetFile = File(context.cacheDir, "activity.mp3")
-                                if (!assetFile.exists()) {
-                                    context.assets.open("audio/activity.mp3").use { input ->
-                                        assetFile.outputStream().use { output -> input.copyTo(output) }
+                                audioPathToUse = withContext(Dispatchers.IO) {
+                                    val assetFile = File(context.cacheDir, "activity.mp3")
+                                    if (!assetFile.exists()) {
+                                        context.assets.open("audio/activity.mp3").use { input ->
+                                            assetFile.outputStream().use { output -> input.copyTo(output) }
+                                        }
                                     }
+                                    assetFile.absolutePath
                                 }
-                                audioPathToUse = assetFile.absolutePath
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         } else if (selectedAudioOption == "تلاوة هادئة") {
                             progressMessage = "جاري تحميل التلاوة..."
                             try {
-                                val recitationFile = File(context.cacheDir, "recitation_alafasy_255.mp3")
-                                if (!recitationFile.exists()) {
-                                    withContext(Dispatchers.IO) {
+                                audioPathToUse = withContext(Dispatchers.IO) {
+                                    val recitationFile = File(context.cacheDir, "recitation_alafasy_255.mp3")
+                                    if (!recitationFile.exists()) {
                                         java.net.URL("https://cdn.islamic.network/quran/audio/128/ar.alafasy/255.mp3")
                                             .openStream().use { input ->
                                                 recitationFile.outputStream().use { output ->
@@ -365,8 +367,8 @@ fun PhotoStudioScreen(
                                                 }
                                             }
                                     }
+                                    recitationFile.absolutePath
                                 }
-                                audioPathToUse = recitationFile.absolutePath
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
@@ -478,17 +480,25 @@ fun PhotoStudioScreen(
                     if (targetPath != null) {
                         val file = File(targetPath)
                         if (file.exists()) {
-                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                            val mime = if (exportType == "PHOTO") {
-                                if (outputFormat == "PNG") "image/png" else "image/jpeg"
-                            } else "video/mp4"
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = mime
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            try {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val mime = if (exportType == "PHOTO") {
+                                    if (outputFormat == "PNG") "image/png" else "image/jpeg"
+                                } else "video/mp4"
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = mime
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة الإبداع الدعوي"))
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر تجهيز الملف للمشاركة", Toast.LENGTH_LONG).show()
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "مشاركة الإبداع الدعوي"))
+                        } else {
+                            Toast.makeText(context, "ملف التصدير غير موجود أو تم حذفه", Toast.LENGTH_LONG).show()
                         }
+                    } else {
+                        Toast.makeText(context, "تعذر العثور على ملف التصدير", Toast.LENGTH_LONG).show()
                     }
                 },
                 onSaveProject = { path ->

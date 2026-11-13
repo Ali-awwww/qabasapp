@@ -50,6 +50,7 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -334,8 +335,9 @@ fun AiStudioAgentScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
+    LaunchedEffect(currentMission) {
+        if (currentMission == null) return@LaunchedEffect
+        while (isActive) {
             delay(30000)
             saveMissionState()
         }
@@ -2871,4 +2873,3 @@ private fun AgentCyberSettingsBottomSheet(
         }
     }
 }
-

@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.*
 import kotlin.math.sin
 
@@ -64,6 +66,7 @@ import kotlin.math.sin
 fun SpatialCommandHomeScreen(
     recentProjects: List<ProjectService.Project>,
     onNewProject: (String?) -> Unit,
+    onNewProjectWithAudio: (String?, String?) -> Unit = { text, _ -> onNewProject(text) },
     onViewProjects: () -> Unit,
     onViewSettings: () -> Unit,
     onViewProfile: () -> Unit = {},
@@ -146,7 +149,9 @@ fun SpatialCommandHomeScreen(
                     context, android.Manifest.permission.ACCESS_FINE_LOCATION
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             val detectedCity = runCatching {
-                PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
+                withContext(Dispatchers.IO) {
+                    PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
+                }
             }.getOrNull()
             if (detectedCity != null) {
                 selectedCity = detectedCity
@@ -536,13 +541,15 @@ fun SpatialCommandHomeScreen(
                         onStopVoice = {
                             isRecordingVoice = false
                             val file = recorderHelper.stopRecording()
-                            if (file != null && file.exists()) {
+                            if (file != null && file.exists() && file.length() > 0L) {
                                 Toast.makeText(context, Translator.tr("تم التقاط التسجيل بنجاح! جاري بدء المشروع... ✨"), Toast.LENGTH_SHORT).show()
-                                onNewProject(null)
+                                onNewProjectWithAudio(null, file.absolutePath)
                             }
                         },
                         onIgnite = {
-                            if (quickPromptText.isNotBlank()) {
+                            if (isRecordingVoice) {
+                                Toast.makeText(context, Translator.tr("أوقف التسجيل أولاً قبل بدء المشروع"), Toast.LENGTH_SHORT).show()
+                            } else if (quickPromptText.isNotBlank()) {
                                 onNewProject(quickPromptText.trim())
                             } else {
                                 onStudioGateway()

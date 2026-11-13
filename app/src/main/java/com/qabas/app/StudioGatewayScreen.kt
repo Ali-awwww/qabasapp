@@ -113,7 +113,7 @@ fun StudioGatewayScreen(
                                 fontSize = 16.sp
                             )
                             Text(
-                                "UNIFIED STUDIO HUB // BYOK_ACTIVE",
+                                "UNIFIED STUDIO HUB // BYOK_CONFIGURABLE",
                                 color = primaryColor.copy(alpha = 0.6f),
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
@@ -349,7 +349,11 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            } else {
+                Toast.makeText(context, "لا يوجد متصفح متاح لفتح الرابط", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Toast.makeText(context, "تعذر فتح المتصفح: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -541,8 +545,13 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 onClick = {
                                     coroutineScope.launch {
                                         isTestingLeonardo = true
-                                        leonardoTestResult = LeonardoImageService.testConnection(context, leonardoKey)
-                                        isTestingLeonardo = false
+                                        try {
+                                            leonardoTestResult = LeonardoImageService.testConnection(context, leonardoKey)
+                                        } catch (_: Exception) {
+                                            leonardoTestResult = false to "تعذر فحص الاتصال، حاول مرة أخرى"
+                                        } finally {
+                                            isTestingLeonardo = false
+                                        }
                                     }
                                 },
                                 enabled = !isTestingLeonardo && leonardoKey.isNotBlank(),
@@ -716,8 +725,13 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 onClick = {
                                     coroutineScope.launch {
                                         isTestingHiggsfield = true
-                                        higgsfieldTestResult = HiggsfieldVideoService.testConnection(context)
-                                        isTestingHiggsfield = false
+                                        try {
+                                            higgsfieldTestResult = HiggsfieldVideoService.testConnection(context)
+                                        } catch (_: Exception) {
+                                            higgsfieldTestResult = false to "تعذر فحص تسجيل البوابة، حاول مرة أخرى"
+                                        } finally {
+                                            isTestingHiggsfield = false
+                                        }
                                     }
                                 },
                                 enabled = !isTestingHiggsfield && !isSavingHiggsfield,

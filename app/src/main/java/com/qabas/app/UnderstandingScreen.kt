@@ -54,7 +54,10 @@ fun UnderstandingScreen(
     val analyticsContext = LocalContext.current
     LaunchedEffect(Unit) { AppServices.getAnalyticsService(analyticsContext).logScreenView("Understanding") }
     // جلب تنبؤي: يبدأ أثناء قراءة الفهم فيخفي زمن الشبكة عن مسار الإنتاج
-    LaunchedEffect(inputText) { try { BrollPrefetch.prefetch(analyticsContext, inputText) } catch (_: Exception) {} }
+    LaunchedEffect(inputText) {
+        delay(350L)
+        try { BrollPrefetch.prefetch(analyticsContext, inputText) } catch (_: Exception) {}
+    }
 
     var hasViolation by remember { mutableStateOf(false) }
     var strikeMessage by remember { mutableStateOf("") }
