@@ -740,7 +740,16 @@ fun SettingsScreen(
                             onClick = { currentSubScreen = SettingsSubScreen.CYBER_HUD_PREVIEW }
                         )
 
-                        // 1.2 لغة التطبيق
+                        // 1.2 الخط العام للواجهة
+                        SettingsActionCard(
+                            title = "الخط العام للواجهة",
+                            subtitle = "غيّر شكل النصوص في التطبيق مع معاينة مباشرة",
+                            icon = Icons.Default.TextFields,
+                            accentColor = Color(0xFF38BDF8),
+                            content = { FontSelectionSection() }
+                        )
+
+                        // 1.3 لغة التطبيق
                         SettingsActionCard(
                             title = "لغة التطبيق (Interface Language)",
                             subtitle = "التبديل بين العربية والإنجليزية",
@@ -1920,6 +1929,72 @@ fun LanguageSelectionSection() {
                     Text(langName, color = if (isSelected) primaryColor else Color.White, fontFamily = CairoFont, fontSize = 13.sp)
                 }
                 if (isSelected) Icon(Icons.Default.CheckCircle, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun FontSelectionSection() {
+    val context = LocalContext.current
+    val selectedFont = FontManager.current
+    val primaryColor = qabasPrimary()
+
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text(
+            "اختر الخط الذي يناسب استخدامك. سيتغير شكل واجهة التطبيق فورًا ويُحفظ الاختيار تلقائيًا.",
+            color = TextSecondary,
+            fontFamily = selectedFont.family,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
+        )
+        AppFontChoice.entries.forEach { choice ->
+            val isSelected = choice == selectedFont
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isSelected) primaryColor.copy(alpha = 0.13f) else Color(0xFF0B172E))
+                    .border(1.dp, if (isSelected) primaryColor else Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .clickable {
+                        FontManager.apply(context, choice)
+                        AppSoundManager.playSuccess()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        choice.title,
+                        color = if (isSelected) primaryColor else Color.White,
+                        fontFamily = choice.family,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        choice.description,
+                        color = TextSecondary,
+                        fontFamily = choice.family,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "قبس — الإعدادات الحسابية والفنية",
+                        color = Color.White.copy(alpha = 0.82f),
+                        fontFamily = choice.family,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isSelected) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "محدد",
+                        tint = primaryColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

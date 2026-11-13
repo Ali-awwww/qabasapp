@@ -100,6 +100,7 @@ object ThemeManager {
         private set
 
     fun init(context: Context) {
+        FontManager.init(context)
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val savedPresetId = prefs.getString("app_theme_preset", null)
         val preset = if (savedPresetId != null) {
