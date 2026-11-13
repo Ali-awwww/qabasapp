@@ -44,7 +44,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -716,8 +718,15 @@ fun AzkarScreen(
     val prayerCompleted = prayerList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
     val mosqueCompleted = mosqueList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
 
-    val todayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    var todayKey by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            delay(60_000L)
+        }
+    }
 
     // 🌟 Auto-sync Azkar completion to daily spiritual progress keys
     LaunchedEffect(morningCompleted, morningList.size) {

@@ -645,13 +645,20 @@ fun SettingsScreen(
                                 },
                                 onCheckUpdate = {
                                     coroutineScope.launch {
-                                        val info = VersionManager.checkRemoteVersion(context)
-                                        if (info != null) {
-                                            updateInfo = info
-                                            updateState = "found"
-                                            Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل ✅", Toast.LENGTH_SHORT).show()
+                                        updateState = "checking..."
+                                        runCatching {
+                                            VersionManager.checkRemoteVersion(context, force = true)
+                                        }.onSuccess { info ->
+                                            updateState = if (info != null) "found" else null
+                                            if (info != null) {
+                                                updateInfo = info
+                                                Toast.makeText(context, "تم العثور على تحديث جديد! 🚀", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "لا يوجد إصدار أحدث معتمد حاليًا.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }.onFailure {
+                                            updateState = null
+                                            Toast.makeText(context, "تعذر فحص التحديثات. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
