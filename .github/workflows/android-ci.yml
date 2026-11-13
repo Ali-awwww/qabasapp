@@ -390,6 +390,14 @@ jobs:
             echo "::error::Supabase rejected the newly issued publisher access token (HTTP $AUTH_HTTP_STATUS)."
             exit 1
           fi
+          JWT_ROLE=$(printf '%s' "$SUPABASE_PUBLISH_JWT" | python3 -c 'import base64,json,sys; token=sys.stdin.read(); parts=token.split("."); claims=json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4))); print(str(claims.get("app_metadata", {}).get("role", "")).strip().lower())')
+          case "$JWT_ROLE" in
+            developer|admin|owner|مطور|مكور) ;;
+            *)
+              echo "::error::The signed-in Supabase user has no authorized app_metadata.role. Set it to developer, admin, or owner before publishing."
+              exit 1
+              ;;
+          esac
 
       - name: Distribute APK to Firebase App Distribution
         if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
