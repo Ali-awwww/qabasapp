@@ -2297,22 +2297,29 @@ private fun QabasPulseIcon(isActive: Boolean) {
     ) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = size.minDimension * 0.34f
-        val glow = if (isActive) Color(0xFFFFD166) else Color.White
+        val glow = if (isActive) Color(0xFFFFD166) else Color.White.copy(alpha = 0.42f)
         val stroke = Stroke(width = size.minDimension * 0.095f, cap = StrokeCap.Round)
-        val diamond = Path().apply {
-            moveTo(center.x, center.y - radius)
-            lineTo(center.x + radius, center.y)
-            lineTo(center.x, center.y + radius)
-            lineTo(center.x - radius, center.y)
+        val crescent = Path().apply {
+            moveTo(center.x + radius * 0.25f, center.y - radius)
+            cubicTo(
+                center.x - radius * 1.05f, center.y - radius * 0.8f,
+                center.x - radius * 1.05f, center.y + radius * 0.8f,
+                center.x + radius * 0.25f, center.y + radius
+            )
+            cubicTo(
+                center.x - radius * 0.18f, center.y + radius * 0.55f,
+                center.x - radius * 0.18f, center.y - radius * 0.55f,
+                center.x + radius * 0.25f, center.y - radius
+            )
             close()
         }
         if (isActive) {
-            drawPath(diamond, color = glow.copy(alpha = 0.22f))
-            drawCircle(glow, radius = size.minDimension * 0.17f, center = center)
+            drawPath(crescent, color = glow)
+            drawCircle(glow, radius = size.minDimension * 0.08f, center = Offset(center.x + radius * 1.25f, center.y - radius * 0.72f))
             drawCircle(Color.White, radius = size.minDimension * 0.06f, center = center)
         } else {
-            drawPath(diamond, color = glow, style = stroke)
-            drawCircle(glow, radius = size.minDimension * 0.07f, center = center)
+            drawPath(crescent, color = glow, style = stroke)
+            drawCircle(glow, radius = size.minDimension * 0.055f, center = Offset(center.x + radius * 1.25f, center.y - radius * 0.72f))
         }
     }
 }
