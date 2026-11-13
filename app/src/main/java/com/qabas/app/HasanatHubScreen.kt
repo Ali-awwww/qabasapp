@@ -89,6 +89,7 @@ fun HasanatHubScreen(
     var isTtsReady by remember { mutableStateOf(false) }
     // وضع الاستماع: عند تفعيله لمسُ أي نص ينطقه صوتياً لمن لا يحسن القراءة
     var listenMode by remember { mutableStateOf(false) }
+    var hasShownTtsInstallPrompt by remember { mutableStateOf(false) }
     var showVoicePicker by remember { mutableStateOf(false) }
     val voicePrefs = remember { context.getSharedPreferences("mishkat_voice_prefs", android.content.Context.MODE_PRIVATE) }
 
@@ -109,14 +110,19 @@ fun HasanatHubScreen(
         if (text.isBlank()) return
         applySavedVoice()
         if (!isTtsReady || tts == null) {
-            try {
-                context.startActivity(
-                    Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                Toast.makeText(context, "ثبّت الصوت العربي من النافذة ثم عُد والمس النص مجدداً 🔊", Toast.LENGTH_LONG).show()
-            } catch (_: Exception) {
-                Toast.makeText(context, "محرك الصوت غير متوفر في جهازك", Toast.LENGTH_SHORT).show()
+            if (!hasShownTtsInstallPrompt) {
+                hasShownTtsInstallPrompt = true
+                try {
+                    context.startActivity(
+                        Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    Toast.makeText(context, "ثبّت الصوت العربي من النافذة ثم عُد والمس النص مجدداً 🔊", Toast.LENGTH_LONG).show()
+                } catch (_: Exception) {
+                    Toast.makeText(context, "محرك الصوت غير متوفر في جهازك", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, "ثبّت محرك الصوت العربي أولاً ثم أعد المحاولة.", Toast.LENGTH_SHORT).show()
             }
             return
         }
@@ -141,7 +147,10 @@ fun HasanatHubScreen(
 
     // تطبيق الصوت المحفوظ فور جهوزية المحرك
     LaunchedEffect(isTtsReady) {
-        if (isTtsReady) applySavedVoice()
+        if (isTtsReady) {
+            hasShownTtsInstallPrompt = false
+            applySavedVoice()
+        }
     }
 
     var isSearchExpanded by remember { mutableStateOf(false) }
