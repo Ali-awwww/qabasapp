@@ -56,6 +56,7 @@ class StudioGatewayScreenTest {
 
         composeTestRule.onNodeWithTag("studio_department_images").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("studio_section_images").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("studio_feature_photo_studio").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("استوديو الصور", useUnmergedTree = true).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("studio_department_audio").performScrollTo().performClick()
