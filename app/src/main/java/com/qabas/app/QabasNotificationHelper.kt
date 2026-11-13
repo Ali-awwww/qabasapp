@@ -49,6 +49,7 @@ object QabasNotificationHelper {
     private const val SUMMARY_NOTIF_ID = 990_010
 
     private const val EVENT_PREFS = "qabas_notification_events"
+    private const val KEY_LAST_UPDATE_NOTIFIED = "last_update_notified_code"
     private const val KEY_AZAN_PREFIX = "last_azan_"
     private const val KEY_ALERT_COUNT = "grouped_count"
     private const val KEY_ALERT_WINDOW = "grouped_window_start"
@@ -521,6 +522,39 @@ object QabasNotificationHelper {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+    }
+
+    /** إشعار مرة واحدة عند اكتشاف إصدار أحدث في قناة التحديث المعتمدة. */
+    fun showUpdateAvailable(
+        context: Context,
+        versionName: String,
+        versionCode: Int,
+        releaseNotes: String
+    ) {
+        if (versionCode <= 0) return
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
+        if (prefs.getInt(KEY_LAST_UPDATE_NOTIFIED, 0) >= versionCode) return
+        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val message = releaseNotes.lineSequence().firstOrNull { it.isNotBlank() }
+            ?.take(140)
+            ?.ifBlank { null }
+            ?: "إصدار جديد متاح للتحميل والتثبيت."
+        val builder = createBaseBuilder(
+            appContext,
+            CHANNEL_GENERAL,
+            "تحديث جديد متاح في قبس — v$versionName",
+            message
+        ) ?: return
+        val notificationId = 880_000 + (versionCode % 10_000)
+        manager.notify(notificationId, builder.build())
+        prefs.edit().putInt(KEY_LAST_UPDATE_NOTIFIED, versionCode).apply()
+        AppNotificationService.recordNotification(
+            appContext,
+            "تحديث جديد متاح — v$versionName",
+            message,
+            AppNotificationService.CATEGORY_SYSTEM
+        )
     }
 
     /**

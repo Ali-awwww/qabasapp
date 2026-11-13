@@ -800,6 +800,12 @@ object DownloadsHubManager {
                         UpdateManager.setPendingUpdate(update)
                     }
                 }
+                QabasNotificationHelper.showUpdateAvailable(
+                    context,
+                    update.versionName,
+                    update.versionCode,
+                    update.releaseNotes
+                )
 
                 if (!update.isForce) {
                     Log.d(TAG, "ℹ️ تحديث اختياري: بانتظار اختيار المستخدم")
