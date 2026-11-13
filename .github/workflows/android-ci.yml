@@ -336,6 +336,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Sign in Supabase publisher
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHER_EMAIL: ${{ secrets.SUPABASE_PUBLISHER_EMAIL }}
+          SUPABASE_PUBLISHER_PASSWORD: ${{ secrets.SUPABASE_PUBLISHER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" || { echo "❌ SUPABASE_URL is not configured"; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || {
+            echo "❌ SUPABASE_ANON_KEY is not configured; set it to this project's anon/publishable API key."
+            exit 1
+          }
+          test -n "$SUPABASE_PUBLISHER_EMAIL" || {
+            echo "❌ SUPABASE_PUBLISHER_EMAIL is not configured."
+            exit 1
+          }
+          test -n "$SUPABASE_PUBLISHER_PASSWORD" || {
+            echo "❌ SUPABASE_PUBLISHER_PASSWORD is not configured."
+            exit 1
+          }
+          jq -n --arg email "$SUPABASE_PUBLISHER_EMAIL" --arg password "$SUPABASE_PUBLISHER_PASSWORD" \
+            '{email: $email, password: $password}' > "$RUNNER_TEMP/supabase-login-request.json"
+          LOGIN_HTTP_STATUS=$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/supabase-login-response.json" \
+            --write-out "%{http_code}" \
+            -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @"$RUNNER_TEMP/supabase-login-request.json")
+          if [[ "$LOGIN_HTTP_STATUS" != 2* ]]; then
+            echo "::error::Supabase publisher sign-in failed (HTTP $LOGIN_HTTP_STATUS). Check credentials, project URL, and email confirmation."
+            if jq -e 'type == "object"' "$RUNNER_TEMP/supabase-login-response.json" >/dev/null 2>&1; then
+              jq -r '[.error_code // .code // .error // "unknown", .msg // .message // .error_description // "no message"] | map(tostring) | join(": ")' \
+                "$RUNNER_TEMP/supabase-login-response.json"
+            fi
+            exit 1
+          fi
+          if ! SUPABASE_PUBLISH_JWT=$(jq -er '.access_token | select(type == "string" and length > 0)' \
+            "$RUNNER_TEMP/supabase-login-response.json"); then
+            echo "::error::Supabase sign-in succeeded but returned no access token."
+            exit 1
+          fi
+          echo "::add-mask::$SUPABASE_PUBLISH_JWT"
+          printf 'SUPABASE_PUBLISH_JWT=%s\n' "$SUPABASE_PUBLISH_JWT" >> "$GITHUB_ENV"
+          AUTH_HTTP_STATUS=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            "$SUPABASE_URL/auth/v1/user" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISH_JWT")
+          if [[ "$AUTH_HTTP_STATUS" != "200" ]]; then
+            echo "::error::Supabase rejected the newly issued publisher access token (HTTP $AUTH_HTTP_STATUS)."
+            exit 1
+          fi
+          JWT_ROLE=$(printf '%s' "$SUPABASE_PUBLISH_JWT" | python3 -c 'import base64,json,sys; token=sys.stdin.read(); parts=token.split("."); claims=json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4))); print(str(claims.get("app_metadata", {}).get("role", "")).strip().lower())')
+          case "$JWT_ROLE" in
+            developer|admin|owner|مطور|مكور) ;;
+            *)
+              echo "::error::The signed-in Supabase user has no authorized app_metadata.role. Set it to developer, admin, or owner before publishing."
+              exit 1
+              ;;
+          esac
+
       - name: Distribute APK to Firebase App Distribution
         if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
@@ -411,17 +474,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISH_JWT: ${{ secrets.SUPABASE_PUBLISH_JWT }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
           VERSION_NAME: ${{ env.VERSION_NAME }}
           VERSION_CODE: ${{ env.VERSION_CODE }}
         run: |
           set -euo pipefail
           test -n "$SUPABASE_URL" || { echo "❌ SUPABASE_URL is not configured"; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || {
+            echo "❌ SUPABASE_ANON_KEY is not configured; set it to this project's anon/publishable API key."
+            exit 1
+          }
           test -n "$SUPABASE_PUBLISH_JWT" || {
             echo "❌ SUPABASE_PUBLISH_JWT is not configured; release metadata was not published."
             exit 1
           }
+          AUTH_HTTP_STATUS=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            "$SUPABASE_URL/auth/v1/user" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISH_JWT")
+          if [[ "$AUTH_HTTP_STATUS" != "200" ]]; then
+            echo "::error::Supabase rejected SUPABASE_PUBLISH_JWT (HTTP $AUTH_HTTP_STATUS). Use a current user access JWT from this same project."
+            exit 1
+          fi
           APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -1)
           ASSET_NAME=$(basename "$APK_FILE")
           FILE_SIZE=$(stat -c '%s' "$APK_FILE")
@@ -441,13 +516,22 @@ jobs:
             --arg asset_name "$ASSET_NAME" \
             '{p_version_name:$version_name,p_version_code:$version_code,p_download_url:$download_url,p_release_notes:$release_notes,p_file_size_bytes:$file_size_bytes,p_sha256_hash:$sha256_hash,p_is_mandatory:false,p_github_release_url:$github_release_url,p_release_tag:$release_tag,p_asset_name:$asset_name,p_delta_url:null,p_delta_size_bytes:0,p_delta_sha256_hash:null,p_base_version_code:null,p_base_sha256_hash:null}' \
             > "$RUNNER_TEMP/publish-update.json"
-          curl --fail-with-body --silent --show-error \
+          HTTP_STATUS=$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/publish-update-response.json" \
+            --write-out "%{http_code}" \
             -X POST "$SUPABASE_URL/rest/v1/rpc/publish_qabas_app_update" \
-            -H "apikey: $SUPABASE_PUBLISH_JWT" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_PUBLISH_JWT" \
             -H "Content-Type: application/json" \
-            --data-binary @"$RUNNER_TEMP/publish-update.json" \
-            > "$RUNNER_TEMP/publish-update-response.json"
+            --data-binary @"$RUNNER_TEMP/publish-update.json")
+          if [[ "$HTTP_STATUS" != 2* ]]; then
+            echo "::error::Supabase publish RPC failed with HTTP $HTTP_STATUS. Check that the JWT user's app_metadata.role is developer, admin, or owner."
+            if jq -e 'type == "object"' "$RUNNER_TEMP/publish-update-response.json" >/dev/null 2>&1; then
+              jq -r '"Supabase error: code=" + (.code // "unknown") + ", message=" + (.message // "unavailable")' \
+                "$RUNNER_TEMP/publish-update-response.json"
+            fi
+            exit 1
+          fi
           jq -e --arg code "$VERSION_CODE" '.version_code == ($code|tonumber)' "$RUNNER_TEMP/publish-update-response.json" >/dev/null
           echo "✅ Release metadata registered in Supabase: $RELEASE_TAG"
 
