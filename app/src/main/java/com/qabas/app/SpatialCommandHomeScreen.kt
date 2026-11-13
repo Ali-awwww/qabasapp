@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.*
 import kotlin.math.sin
 
@@ -147,7 +149,9 @@ fun SpatialCommandHomeScreen(
                     context, android.Manifest.permission.ACCESS_FINE_LOCATION
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             val detectedCity = runCatching {
-                PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
+                withContext(Dispatchers.IO) {
+                    PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
+                }
             }.getOrNull()
             if (detectedCity != null) {
                 selectedCity = detectedCity
