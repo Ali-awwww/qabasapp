@@ -553,7 +553,7 @@ object QabasNotificationHelper {
             appContext,
             "تحديث جديد متاح — v$versionName",
             message,
-            AppNotificationService.CATEGORY_SYSTEM
+            category = AppNotificationService.CATEGORY_SYSTEM
         )
     }
 
