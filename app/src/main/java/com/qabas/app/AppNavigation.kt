@@ -601,7 +601,7 @@ fun AppNavigation(
                     viewModel.createProject(scriptText)
                     viewModel.updateState {
                         copy(
-                            voiceOver = audioPath,
+                            voiceOver = audioPath.orEmpty(),
                             appState = AppState.INPUT,
                             selectedRatio = "9:16",
                             contentType = "ريلز / شورتس",
