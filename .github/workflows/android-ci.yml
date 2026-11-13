@@ -250,6 +250,32 @@ jobs:
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "✅ Release tag: $RELEASE_TAG (versionName=$VERSION_NAME, versionCode=$NEW_CODE)"
 
+      - name: Validate Supabase publishing credentials
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISH_JWT: ${{ secrets.SUPABASE_PUBLISH_JWT }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" || { echo "❌ SUPABASE_URL is not configured"; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || {
+            echo "❌ SUPABASE_ANON_KEY is not configured; set it to this project's anon/publishable API key."
+            exit 1
+          }
+          test -n "$SUPABASE_PUBLISH_JWT" || {
+            echo "❌ SUPABASE_PUBLISH_JWT is not configured."
+            exit 1
+          }
+          AUTH_HTTP_STATUS=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            "$SUPABASE_URL/auth/v1/user" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISH_JWT")
+          if [[ "$AUTH_HTTP_STATUS" != "200" ]]; then
+            echo "::error::Supabase rejected SUPABASE_PUBLISH_JWT (HTTP $AUTH_HTTP_STATUS). Use a current user access JWT from this same project."
+            exit 1
+          fi
+
       - name: Run Debug Unit Tests
         env:
           BUILD_NUMBER: ${{ github.run_number }}
