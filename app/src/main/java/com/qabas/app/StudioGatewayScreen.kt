@@ -10,7 +10,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,44 +45,44 @@ import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 
 /**
- * 🛸 استوديو قبس الموحّد لصناعة المحتوى (Unified Creative Production Studio)
- * تم تنظيم الاستوديو في 3 فئات رئيسية: فيديوهات، صور، صوت.
- * مع دعم نظام Bring-Your-Own-Key (BYOK) للمنصات الخارجية.
+ * استوديو قبس الإبداعي، منظم في فئات متخصصة للفيديو والصور والصوت والمكتبة والنشر.
+ * تُدار مفاتيح الخدمات الخارجية من نافذة الإعدادات المخصصة.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudioGatewayScreen(
     onBack: () -> Unit,
-    onNavigateToMasterStudio: () -> Unit = {},
-    onNavigateToMediaBrowser: () -> Unit = {},
+    onNavigateToHiggsfield: () -> Unit,
+    onNavigateToMediaBrowser: () -> Unit,
     onNavigateToAiStudio: () -> Unit,
     onNavigateToProEditor: () -> Unit,
-    onNavigateToMoneyPrinter: () -> Unit = {},
-    onNavigateToPhotoStudio: () -> Unit = {},
-    onNavigateToVoiceStudio: () -> Unit = {},
-    onNavigateToYouTubeStudio: () -> Unit = {},
-    onNavigateToTeleprompter: () -> Unit = {},
-    onNavigateToStyleCloner: () -> Unit = {},
-    onNavigateToHadithStudio: () -> Unit = {},
+    onNavigateToMoneyPrinter: () -> Unit,
+    onNavigateToPhotoStudio: () -> Unit,
+    onNavigateToVoiceStudio: () -> Unit,
+    onNavigateToYouTubeStudio: () -> Unit,
+    onNavigateToTeleprompter: () -> Unit,
+    onNavigateToStyleCloner: () -> Unit,
+    onNavigateToHadithStudio: () -> Unit,
     onNavigateToStats: () -> Unit,
-    onNavigateToAiStudioAgent: () -> Unit = {},
+    onNavigateToAiStudioAgent: () -> Unit,
     bottomBar: @Composable () -> Unit = {}
 ) {
     BackHandler { onBack() }
 
     val context = LocalContext.current
     val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
 
     var showApiKeyDialog by remember { mutableStateOf(false) }
 
-    // فئات الاستوديو الموحدة (3 فئات)
+    // كل أداة موضوعة تحت مسار واضح، والبطاقات لا تستخدم إجراءات افتراضية فارغة.
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
     val categories = remember {
         listOf(
-            "🎬 الفيديوهات (Higgsfield)" to "video",
-            "🎨 الصور (Leonardo)" to "images",
-            "🎙️ الصوت (VoiceStudio)" to "audio"
+            "🎬 الفيديو" to "video",
+            "🎨 الصور والتصميم" to "images",
+            "🎙️ الصوت" to "audio",
+            "🗂️ المكتبة" to "library",
+            "📣 النشر والتقارير" to "publishing"
         )
     }
 
@@ -106,14 +106,14 @@ fun StudioGatewayScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                "استوديو قبس الموحّد",
+                                "استوديو قبس الإبداعي",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                "UNIFIED STUDIO HUB // BYOK_CONFIGURABLE",
+                                "CREATIVE STUDIO // SERVICE HUB",
                                 color = primaryColor.copy(alpha = 0.6f),
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
@@ -149,38 +149,33 @@ fun StudioGatewayScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            // Hero Banner
-            UnifiedHeroStudioCard(
-                onMasterStudio = onNavigateToMasterStudio,
-                onQuickVideo = onNavigateToAiStudio,
-                onMoneyPrinter = onNavigateToMoneyPrinter,
-                primaryColor = primaryColor,
-                accentColor = accentColor
-            )
+            StudioOverviewCard(primaryColor = primaryColor)
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Category Selector (3 Main Hubs)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // مسارات قابلة للتمرير حتى تبقى التسميات واضحة على الشاشات الصغيرة.
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().testTag("studio_category_row"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp)
             ) {
-                categories.forEachIndexed { index, (label, _) ->
+                itemsIndexed(categories) { index, category ->
+                    val label = category.first
                     val isSelected = selectedCategoryIndex == index
                     Surface(
                         onClick = { selectedCategoryIndex = index },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.height(44.dp),
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) primaryColor else Color(0xFF1E293B).copy(alpha = 0.4f),
                         border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = label.substringBefore(" ("),
+                                text = label,
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 4.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp),
                                 color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
@@ -195,23 +190,31 @@ fun StudioGatewayScreen(
 
             val currentFilter = categories[selectedCategoryIndex].second
 
-            // Render Content based on Hub
+            // Render only the tools that belong to the selected route.
             when (currentFilter) {
                 "video" -> {
-                    SectionHeader("صناعة ومونتاج الفيديو (Higgsfield AI)", "VIDEO_HUB", "🎬")
-                    
+                    SectionHeader("إنتاج الفيديو", "VIDEO", "🎬")
                     StudioFeatureCard(
-                        title = "توليد وتحريك الفيديو (Higgsfield AI) 🛸",
-                        description = "حوّل نصوصك وصورك إلى مقاطع سينمائية دعوية بلمسة احترافية.",
-                        badge = "CINEMATIC AI",
+                        title = "Higgsfield — فيديو من نص أو صورة",
+                        description = "مساحة مستقلة لـKling 4.0. تتطلب ربط مفتاح API، ويُطلب تأكيد قبل التوليد.",
+                        badge = "HIGGSFIELD",
                         badgeColor = Color(0xFF00F2FE),
                         icon = Icons.Default.MovieFilter,
+                        onClick = onNavigateToHiggsfield
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "مشروع فيديو متكامل",
+                        description = "ابدأ من الفكرة والملخص ثم تابع مسار الإنتاج المعتاد؛ اختيار Higgsfield يتم لاحقًا إن كان متاحًا.",
+                        badge = "PROJECT FLOW",
+                        badgeColor = primaryColor,
+                        icon = Icons.Default.EditNote,
                         onClick = onNavigateToAiStudio
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "MoneyPrinter Turbo ⚡",
-                        description = "أتمتة إنتاج الريلز والشورتس بضغطة زر واحدة (سكربت + صوت + لقطات).",
+                        title = "إنتاج ريلز آلي — MoneyPrinter",
+                        description = "مسار آلي لإعداد الريلز؛ تختلف خيارات المتابعة حسب نجاح المحرك المحلي أو الخادم.",
                         badge = "AUTOMATION",
                         badgeColor = Color(0xFF10B981),
                         icon = Icons.Default.Bolt,
@@ -220,7 +223,7 @@ fun StudioGatewayScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
                         title = "المحرر الاحترافي (Pro Editor) ✂️",
-                        description = "تحكم كامل في التايم لاين، المونتاج، وإضافة التأثيرات السينمائية.",
+                        description = "مونتاج وتحرير المشاهد والمسارات على الخط الزمني.",
                         badge = "PRO TOOLS",
                         badgeColor = Color(0xFF38BDF8),
                         icon = Icons.Default.ContentCut,
@@ -228,63 +231,92 @@ fun StudioGatewayScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "استوديو يوتيوب والانتشار 📺",
-                        description = "إدارة السلاسل، عناوين SEO، وإحصائيات الوصول لجمهورك.",
-                        badge = "GROWTH",
-                        badgeColor = Color(0xFFEF4444),
-                        icon = Icons.Default.SmartDisplay,
-                        onClick = onNavigateToYouTubeStudio
+                        title = "التصوير والملقّن",
+                        description = "قراءة النص أثناء التسجيل ثم الانتقال إلى تحرير الفيديو.",
+                        badge = "RECORD",
+                        badgeColor = Color(0xFF10B981),
+                        icon = Icons.Default.Videocam,
+                        onClick = onNavigateToTeleprompter
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "تحليل أسلوب الفيديو",
+                        description = "حلّل مرجعًا بصريًا لبناء وصف أسلوب لمشروعك.",
+                        badge = "STYLE",
+                        badgeColor = Color(0xFFF59E0B),
+                        icon = Icons.Default.AutoAwesome,
+                        onClick = onNavigateToStyleCloner
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StudioFeatureCard(
+                        title = "مساعد إنتاج المحتوى",
+                        description = "افتح مساعد الذكاء الاصطناعي لمتابعة مهام الإنتاج.",
+                        badge = "AI ASSISTANT",
+                        badgeColor = Color(0xFF38BDF8),
+                        icon = Icons.Default.SmartToy,
+                        onClick = onNavigateToAiStudioAgent
                     )
                 }
                 "images" -> {
-                    SectionHeader("استوديو الصور والتصاميم (Leonardo.ai)", "IMAGE_HUB", "🎨")
-                    
+                    SectionHeader("الصور والتصميم", "IMAGES", "🎨")
                     StudioFeatureCard(
-                        title = "توليد الصور الاحترافية (Leonardo.ai) 🖼️",
-                        description = "توليد صور فائقة الجودة وبوسترات دعوية باستخدام محرك Leonardo Vision.",
-                        badge = "LEONARDO VISION",
+                        title = "استوديو الصور",
+                        description = "تصميم وتحرير الصور؛ يمكن اختيار Leonardo لخلفيات AI عند توفر المفتاح.",
+                        badge = "PHOTO STUDIO",
                         badgeColor = Color(0xFFF59E0B),
                         icon = Icons.Default.Image,
                         onClick = onNavigateToPhotoStudio
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "استوديو بطاقات الآيات والأحاديث 📜",
-                        description = "تصميم بطاقات فخمة وجاهزة للنشر للآيات والأحاديث النبوية.",
-                        badge = "HADITH ART",
+                        title = "بطاقات القرآن والحديث",
+                        description = "افتح استوديو بطاقات الآيات والأحاديث لصناعة تصميم قابل للحفظ.",
+                        badge = "QABAS CARDS",
                         badgeColor = primaryColor,
                         icon = Icons.Default.MenuBook,
                         onClick = onNavigateToHadithStudio
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                "audio" -> {
+                    SectionHeader("الصوت", "AUDIO", "🎙️")
                     StudioFeatureCard(
-                        title = "مستودع الوسائط المركزي 📦",
-                        description = "إدارة وعرض جميع الصور والفيديوهات المولدة والمحفوظة.",
-                        badge = "STORAGE",
+                        title = "VoiceStudio — توليد صوت محلي",
+                        description = "يستخدم أصوات Edge مع معالجة سرعة وطبقة؛ الاستنساخ والخادم غير موصولين بمسار التوليد الحالي.",
+                        badge = "LOCAL TTS",
+                        badgeColor = Color(0xFFEC4899),
+                        icon = Icons.Default.GraphicEq,
+                        onClick = onNavigateToVoiceStudio
+                    )
+                }
+                "library" -> {
+                    SectionHeader("مكتبة الوسائط", "LIBRARY", "🗂️")
+                    StudioFeatureCard(
+                        title = "الصور والفيديو والصوت المحفوظ",
+                        description = "استعرض الوسائط واختر ملفًا لمسارات التحرير المتاحة.",
+                        badge = "MEDIA LIBRARY",
                         badgeColor = Color(0xFF10B981),
                         icon = Icons.Default.PermMedia,
                         onClick = onNavigateToMediaBrowser
                     )
                 }
-                "audio" -> {
-                    SectionHeader("هندسة الصوت والتعليق (VoiceStudio)", "AUDIO_HUB", "🎙️")
-                    
+                "publishing" -> {
+                    SectionHeader("التجهيز والنشر والتقارير", "PUBLISHING", "📣")
                     StudioFeatureCard(
-                        title = "استوديو الأصوات والدبلجة (VoiceStudio) 🎙️",
-                        description = "توليد تعليق صوتي فخم واستنساخ النبرات بدقة عالية.",
-                        badge = "VOICE ENGINE",
-                        badgeColor = Color(0xFFEC4899),
-                        icon = Icons.Default.GraphicEq,
-                        onClick = onNavigateToVoiceStudio
+                        title = "تجهيز محتوى يوتيوب",
+                        description = "أدوات تجهيز الفيديو والبيانات الوصفية؛ لا تدّعي هذه الشاشة ربط قناة أو نشرًا مباشرًا.",
+                        badge = "YOUTUBE TOOLS",
+                        badgeColor = Color(0xFFEF4444),
+                        icon = Icons.Default.SmartDisplay,
+                        onClick = onNavigateToYouTubeStudio
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "ملقن الكاميرا الذكي (Teleprompter) 📹",
-                        description = "تصوير فيديوهاتك مع قراءة النصوص المتزامنة تلقائياً.",
-                        badge = "VIDEO PRODUCTION",
-                        badgeColor = Color(0xFF10B981),
-                        icon = Icons.Default.Videocam,
-                        onClick = onNavigateToTeleprompter
+                        title = "إحصاءات التواصل الاجتماعي",
+                        description = "افتح شاشة التقارير الاجتماعية المتاحة في التطبيق.",
+                        badge = "REPORTS",
+                        badgeColor = Color(0xFF38BDF8),
+                        icon = Icons.Default.QueryStats,
+                        onClick = onNavigateToStats
                     )
                 }
             }
@@ -914,13 +946,7 @@ private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦")
 }
 
 @Composable
-private fun UnifiedHeroStudioCard(
-    onMasterStudio: () -> Unit = {},
-    onQuickVideo: () -> Unit,
-    onMoneyPrinter: () -> Unit,
-    primaryColor: Color,
-    accentColor: Color
-) {
+private fun StudioOverviewCard(primaryColor: Color) {
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         backgroundColor = Color(0xFF030712).copy(alpha = 0.85f),
@@ -929,7 +955,7 @@ private fun UnifiedHeroStudioCard(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "صناعة عمل دعوي متقن وشامل ✦",
+                text = "مساحات الإبداع في قبس ✦",
                 color = Color.White,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.ExtraBold,
@@ -939,31 +965,13 @@ private fun UnifiedHeroStudioCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "نظام متكامل لإنتاج المحتوى الدعوي بضغطة زر واحدة (سيناريو + صوت + صور + SEO).",
+                text = "اختر فئة العمل ثم افتح الأداة المناسبة؛ لكل خدمة مسارها المستقل.",
                 color = Color(0xFF94A3B8),
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = onMasterStudio,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = CutCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
-            ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "إطلاق قمرة الإنتاج المتقن الشامل",
-                    color = DeepSlate,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-            }
         }
     }
 }

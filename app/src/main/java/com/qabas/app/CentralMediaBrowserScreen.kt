@@ -56,9 +56,8 @@ import java.io.File
 @Composable
 fun CentralMediaBrowserScreen(
     onBack: () -> Unit,
-    onSelectAssetForProject: (CentralMediaAsset) -> Unit = {},
-    onOpenInPhotoStudio: (String) -> Unit = {},
-    onOpenInVideoEditor: (String) -> Unit = {},
+    onOpenInPhotoStudio: (String) -> Unit,
+    onOpenInVideoEditor: (String) -> Unit,
     bottomBar: @Composable () -> Unit = {}
 ) {
     BackHandler { onBack() }
