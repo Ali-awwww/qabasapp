@@ -373,8 +373,16 @@ jobs:
             exit 1
           fi
 
+          COMMIT_MESSAGE="$(git show -s --format=%B "$GITHUB_SHA")"
+          if [ -z "$COMMIT_MESSAGE" ]; then
+            COMMIT_MESSAGE="تعذر جلب رسالة commit لهذا البناء."
+          fi
+
           {
-            echo "🚀 Automated build from commit ${{ github.sha }}"
+            echo "📝 رسالة commit التي بُني منها هذا التحديث:"
+            printf '%s\n' "$COMMIT_MESSAGE"
+            echo ""
+            echo "🚀 Automated build from commit $GITHUB_SHA"
             echo ""
             echo "📦 APK Details:"
             echo "- Build Number: ${{ github.run_number }}"

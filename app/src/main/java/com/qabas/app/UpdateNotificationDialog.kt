@@ -198,9 +198,7 @@ fun UpdateNotificationDialog(
                             color = TextPrimary,
                             fontSize = 11.sp,
                             lineHeight = 16.sp,
-                            fontFamily = CairoFont,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis
+                            fontFamily = CairoFont
                         )
                     }
                 }
