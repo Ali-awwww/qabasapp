@@ -1014,21 +1014,32 @@ fun GithubXdeltaHubScreen(
                             val updateInfoObj = remember(info) {
                                 UpdateManager.UpdateInfo(
                                     versionName = info.tagName.removePrefix("v").substringBefore("+"),
-                                    versionCode = 999999, // forcing execution
+                                    versionCode = UpdateManager.parseReleaseVersionCode(info.tagName),
                                     deltaUrl = info.deltaUrl,
                                     apkUrl = info.apkUrl,
                                     releaseNotes = info.releaseNotes,
                                     deltaSize = info.deltaSize,
                                     apkSize = info.apkSize,
-                                    xdeltaUrls = info.xdeltaUrls
+                                    xdeltaUrls = info.xdeltaUrls,
+                                    checksum = info.deltaSha256,
+                                    baseApkSha256 = info.baseApkSha256,
+                                    apkSha256 = info.apkSha256
                                 )
                             }
+                            val deltaMatchesInstalled = info.deltaAsset?.let {
+                                UpdateManager.isDeltaCompatibleWithInstalledBuild(
+                                    deltaName = it,
+                                    currentVersionName = BuildConfig.VERSION_NAME,
+                                    currentVersionCode = BuildConfig.VERSION_CODE,
+                                    targetVersionCode = updateInfoObj.versionCode
+                                )
+                            } == true
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (updateInfoObj.deltaUsable) {
+                                if (updateInfoObj.deltaUsable && deltaMatchesInstalled) {
                                     Button(
                                         onClick = {
                                             isDownloading = true

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
@@ -73,6 +76,37 @@ private val contactCategories = listOf(
     ContactCategory("account_issue", "مشكلة الحساب")
 )
 
+@Composable
+private fun ContactAvatar(
+    name: String,
+    avatarUrl: String?,
+    accent: Color
+) {
+    Surface(
+        modifier = Modifier.size(38.dp),
+        shape = CircleShape,
+        color = accent.copy(alpha = 0.18f)
+    ) {
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = name,
+                modifier = Modifier.size(38.dp)
+            )
+        } else {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = name.trim().firstOrNull()?.uppercase() ?: "؟",
+                    color = accent,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperContactScreen(
@@ -81,16 +115,26 @@ fun DeveloperContactScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val authEmail by SupabaseServices.Auth.currentUser.collectAsState()
+    val accountIdentity by AccountIdentityManager.identity.collectAsState()
     val unreadReplies by DevChatRealtimeManager.unreadReplies.collectAsState()
-    val userEmail = authEmail?.email?.takeIf { it.isNotBlank() }
-        ?: prefs.getString("user_email", "").orEmpty()
+    val userEmail = accountIdentity.email.ifBlank { authEmail?.email.orEmpty() }
+    val localDisplayName = accountIdentity.displayName
+    val localAvatarUrl = accountIdentity.avatarUrl
+    val developerDisplayName = if (accountIdentity.isDeveloper) accountIdentity.displayName else "المطور"
+    val developerAvatarUrl = if (accountIdentity.isDeveloper) accountIdentity.avatarUrl else null
+    val isDeveloper = accountIdentity.isDeveloper
+    var identityLoading by remember { mutableStateOf(true) }
+    var threads by remember { mutableStateOf<Map<String, List<DevChatRepository.DevChatMessage>>>(emptyMap()) }
+    var selectedThreadEmail by remember { mutableStateOf(userEmail) }
     val listState = rememberLazyListState()
     var messages by remember { mutableStateOf<List<DevChatRepository.DevChatMessage>>(emptyList()) }
     var input by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(contactCategories.first()) }
     var isSending by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var developerFilter by remember { mutableStateOf(0) }
+    var threadProfiles by remember { mutableStateOf<Map<String, AccountIdentity>>(emptyMap()) }
 
     BackHandler { onBack() }
 
@@ -99,14 +143,93 @@ fun DeveloperContactScreen(
         onDispose { DevChatRealtimeManager.setChatOpen(false) }
     }
 
-    LaunchedEffect(userEmail) {
-        if (userEmail.isBlank()) return@LaunchedEffect
-        messages = DevChatRepository.getLocalMessages(context, userEmail)
-        messages = DevChatRepository.syncMessages(context, userEmail)
+    LaunchedEffect(authEmail?.id, userEmail) {
+        runCatching { AccountIdentityManager.refresh(context) }
+        identityLoading = false
+    }
+
+    LaunchedEffect(accountIdentity.isDeveloper, userEmail) {
+        if (isDeveloper) {
+            threads = DevChatRepository.getAllThreads(context)
+            selectedThreadEmail = threads.keys.firstOrNull() ?: ""
+            messages = threads[selectedThreadEmail].orEmpty()
+        } else if (userEmail.isNotBlank()) {
+            selectedThreadEmail = userEmail
+            messages = DevChatRepository.getLocalMessages(context, userEmail)
+            messages = DevChatRepository.syncMessages(context, userEmail)
+        }
+    }
+
+    LaunchedEffect(selectedThreadEmail, isDeveloper) {
+        if (isDeveloper && selectedThreadEmail.isNotBlank()) {
+            messages = threads[selectedThreadEmail].orEmpty()
+            messages = DevChatRepository.getLocalMessages(context, selectedThreadEmail)
+        }
+    }
+
+    LaunchedEffect(isDeveloper, selectedThreadEmail, messages.size) {
+        if (isDeveloper && messages.isNotEmpty()) {
+            val userIds = messages.filter { it.sender.equals("user", ignoreCase = true) }
+                .mapNotNull { it.userId }
+                .distinct()
+            if (userIds.isNotEmpty()) {
+                val profiles = userIds.mapNotNull { id ->
+                    SupabaseServices.Database.getUserProfile(id)?.let { id to it }
+                }.toMap()
+                if (profiles.isNotEmpty()) {
+                    messages = messages.map { message ->
+                        val profile = profiles[message.userId]
+                        if (profile != null) message.copy(
+                            senderDisplayName = profile.fullName?.takeIf { it.isNotBlank() }
+                                ?: message.senderDisplayName,
+                            senderAvatarUrl = profile.avatarUrl ?: message.senderAvatarUrl
+                        ) else message
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(isDeveloper, threads.keys.toList()) {
+        if (isDeveloper) {
+            val profileMap = mutableMapOf<String, AccountIdentity>()
+            threads.forEach { (email, thread) ->
+                val firstUserMessage = thread.firstOrNull { it.sender.equals("user", ignoreCase = true) }
+                val profile = firstUserMessage?.userId?.let { SupabaseServices.Database.getUserProfile(it) }
+                profileMap[email] = AccountIdentity(
+                    userId = firstUserMessage?.userId,
+                    email = email,
+                    displayName = profile?.fullName?.takeIf { it.isNotBlank() }
+                        ?: email.substringBefore("@").ifBlank { "المستخدم" },
+                    avatarUrl = profile?.avatarUrl
+                )
+            }
+            threadProfiles = profileMap
+        }
     }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+
+    val visibleThreadEmails = threads.keys.filter { email ->
+        val thread = threads[email].orEmpty()
+        when (developerFilter) {
+            1 -> thread.withIndex().any { indexed ->
+                indexed.value.sender.equals("user", ignoreCase = true) &&
+                    thread.drop(indexed.index + 1).none { it.sender.equals("developer", ignoreCase = true) }
+            }
+            2 -> thread.any { it.category.equals("bug", ignoreCase = true) }
+            3 -> thread.any { it.category == "content_report" }
+            else -> true
+        }
+    }
+
+    if (identityLoading) {
+        Box(modifier = Modifier.fillMaxSize().background(DeepSlate), contentAlignment = Alignment.Center) {
+            Text("جارٍ التحقق من هوية الحساب...", color = TextSecondary, fontFamily = CairoFont, fontSize = 13.sp)
+        }
+        return
     }
 
     Scaffold(
@@ -117,7 +240,8 @@ fun DeveloperContactScreen(
                     Column {
                         Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 17.sp)
                         Text(
-                            if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
+                            if (isDeveloper) "لوحة المحادثات — ${threads.size} محادثة"
+                            else if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
                             fontFamily = CairoFont,
                             color = if (unreadReplies > 0) GoldPrimary else TextSecondary,
                             fontSize = 10.sp
@@ -127,6 +251,25 @@ fun DeveloperContactScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                    }
+                },
+                actions = {
+                    IconButton(
+                        enabled = !isRefreshing,
+                        onClick = {
+                            scope.launch {
+                                isRefreshing = true
+                                if (isDeveloper) {
+                                    threads = DevChatRepository.getAllThreads(context)
+                                    messages = threads[selectedThreadEmail].orEmpty()
+                                } else if (userEmail.isNotBlank()) {
+                                    messages = DevChatRepository.syncMessages(context, userEmail)
+                                }
+                                isRefreshing = false
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث المحادثة", tint = GoldPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
@@ -147,7 +290,8 @@ fun DeveloperContactScreen(
                     Icon(Icons.Default.Chat, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "اختر تصنيف الرسالة ثم اكتب ملاحظتك. ستظهر رسالتك في لوحة المطور للمراجعة والرد.",
+                        if (isDeveloper) "اختر محادثة للرد عليها، وستظهر رسالتك للمستخدم مباشرة."
+                        else "اختر تصنيف الرسالة ثم اكتب ملاحظتك. ستظهر رسالتك في لوحة المطور للمراجعة والرد.",
                         color = Color.White.copy(alpha = 0.85f),
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
@@ -156,21 +300,65 @@ fun DeveloperContactScreen(
                 }
             }
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(contactCategories) { category ->
-                    Surface(
-                        onClick = { selectedCategory = category },
-                        color = if (selectedCategory.key == category.key) GoldPrimary else Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
-                        Text(
-                            category.label,
-                            color = if (selectedCategory.key == category.key) DeepSlate else Color.White.copy(alpha = 0.85f),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            fontWeight = if (selectedCategory.key == category.key) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+            if (isDeveloper && threads.isNotEmpty()) {
+                Text("المحادثات", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    items(visibleThreadEmails) { email ->
+                        val selected = email.equals(selectedThreadEmail, ignoreCase = true)
+                        Surface(
+                            onClick = { selectedThreadEmail = email },
+                            color = if (selected) GoldPrimary else Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Text(
+                                text = threadProfiles[email]?.displayName
+                                    ?: email.substringBefore("@").ifBlank { email },
+                                color = if (selected) DeepSlate else Color.White.copy(alpha = 0.85f),
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    listOf("الكل", "بانتظار الرد", "أعطال", "بلاغات محتوى").forEachIndexed { index, label ->
+                        val selected = developerFilter == index
+                        Surface(
+                            onClick = { developerFilter = index },
+                            color = if (selected) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text(
+                                label,
+                                color = if (selected) DeepSlate else Color.White.copy(alpha = 0.85f),
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!isDeveloper) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    items(contactCategories) { category ->
+                        Surface(
+                            onClick = { selectedCategory = category },
+                            color = if (selectedCategory.key == category.key) GoldPrimary else Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Text(
+                                category.label,
+                                color = if (selectedCategory.key == category.key) DeepSlate else Color.White.copy(alpha = 0.85f),
+                                fontFamily = CairoFont,
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedCategory.key == category.key) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -187,28 +375,58 @@ fun DeveloperContactScreen(
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
-                        val isUser = message.sender.equals("user", ignoreCase = true)
+                        val isUserMessage = message.sender.equals("user", ignoreCase = true)
+                        val isMine = if (isDeveloper) !isUserMessage else isUserMessage
+                        val senderName = when {
+                            isDeveloper && isUserMessage -> message.senderDisplayName ?: message.userEmail.ifBlank { "المستخدم" }
+                            isUserMessage -> localDisplayName
+                            else -> developerDisplayName
+                        }
+                        val senderAvatar = when {
+                            isDeveloper && isUserMessage -> message.senderAvatarUrl
+                            isUserMessage -> localAvatarUrl
+                            else -> developerAvatarUrl
+                        }
                         val hasReplyAfter = messages.drop(index + 1).any { it.sender.equals("developer", ignoreCase = true) }
                         val statusLabel = when {
-                            !isUser -> ""
+                            !isUserMessage -> ""
                             hasReplyAfter -> "✓✓ تم الرد"
                             message.status == "pending" -> "⏳ بانتظار الاتصال"
                             else -> "✓ مرسلة"
                         }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.Start else Arrangement.End) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            if (!isMine) {
+                                ContactAvatar(senderName, senderAvatar, Color(0xFF7DD3FC))
+                                Spacer(Modifier.width(6.dp))
+                            }
                             Surface(
-                                color = if (isUser) Color(0xFF1C3B45) else Color(0xFF263449),
+                                color = if (isMine) Color(0xFF1C3B45) else Color(0xFF263449),
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth(0.88f)
+                                modifier = Modifier.fillMaxWidth(0.78f)
                             ) {
                                 Column(modifier = Modifier.padding(11.dp)) {
-                                    Text(
-                                        if (isUser) "أنت • ${message.category}" else "المطور",
-                                        color = if (isUser) GoldPrimary else Color(0xFF7DD3FC),
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            if (isMine) "أنت" else senderName,
+                                            color = if (isMine) GoldPrimary else Color(0xFF7DD3FC),
+                                            fontFamily = CairoFont,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isUserMessage && message.category.isNotBlank()) {
+                                            Text(
+                                                message.category,
+                                                color = TextSecondary,
+                                                fontFamily = CairoFont,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text(message.message, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp, lineHeight = 19.sp)
                                     Spacer(Modifier.height(3.dp))
@@ -218,7 +436,25 @@ fun DeveloperContactScreen(
                                         fontFamily = CairoFont,
                                         fontSize = 9.sp
                                     )
+                                    if (isMine && message.status == "pending") {
+                                        TextButton(
+                                            onClick = {
+                                                scope.launch {
+                                                    val updated = DevChatRepository.retryPendingMessage(context, message)
+                                                    messages = messages.map { if (it.id == updated.id) updated else it }
+                                                    if (isDeveloper) threads = DevChatRepository.getAllThreads(context)
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                                        ) {
+                                            Text("إعادة الإرسال", color = Color(0xFFFBBF24), fontFamily = CairoFont, fontSize = 10.sp)
+                                        }
+                                    }
                                 }
+                            }
+                            if (isMine) {
+                                Spacer(Modifier.width(6.dp))
+                                ContactAvatar(senderName, senderAvatar, GoldPrimary)
                             }
                         }
                     }
@@ -246,29 +482,43 @@ fun DeveloperContactScreen(
                 Button(
                     onClick = {
                         val text = input.trim()
-                        if (text.isBlank() || isSending || userEmail.isBlank()) return@Button
+                        val conversationEmail = if (isDeveloper) selectedThreadEmail else userEmail
+                        val targetUserId = messages.firstOrNull { it.sender.equals("user", ignoreCase = true) }?.userId
+                        if (text.isBlank() || isSending || conversationEmail.isBlank()) return@Button
                         isSending = true
                         scope.launch {
                             runCatching {
                                 DevChatRepository.sendMessage(
                                     context = context,
-                                    userEmail = userEmail,
+                                    userEmail = conversationEmail,
                                     text = text,
-                                    sender = "user",
+                                    sender = if (isDeveloper) "developer" else "user",
+                                    targetUserId = if (isDeveloper) targetUserId else null,
                                     category = selectedCategory.key,
-                                    isUrgent = selectedCategory.key == "content_report"
+                                    isUrgent = !isDeveloper && selectedCategory.key == "content_report"
                                 )
                             }.onSuccess {
                                 input = ""
-                                messages = DevChatRepository.getLocalMessages(context, userEmail)
-                                Toast.makeText(context, "تم إرسال رسالتك إلى المطور", Toast.LENGTH_SHORT).show()
+                                messages = DevChatRepository.getLocalMessages(context, conversationEmail)
+                                if (isDeveloper) {
+                                    threads = DevChatRepository.getAllThreads(context)
+                                }
+                                Toast.makeText(
+                                    context,
+                                    if (isDeveloper) "تم إرسال الرد إلى المستخدم" else "تم إرسال رسالتك إلى المطور",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }.onFailure {
-                                Toast.makeText(context, "تم حفظ الرسالة محليًا، وسنحاول مزامنتها عند عودة الاتصال", Toast.LENGTH_LONG).show()
+                                Toast.makeText(
+                                    context,
+                                    if (isDeveloper) "تعذر إرسال الرد إلى السحابة" else "تم حفظ الرسالة محليًا، وسنحاول مزامنتها عند عودة الاتصال",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                             isSending = false
                         }
                     },
-                    enabled = input.isNotBlank() && !isSending && userEmail.isNotBlank(),
+                    enabled = input.isNotBlank() && !isSending && (if (isDeveloper) selectedThreadEmail.isNotBlank() else userEmail.isNotBlank()),
                     shape = CircleShape,
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.size(52.dp),

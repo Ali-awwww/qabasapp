@@ -68,7 +68,6 @@ enum class DashboardSection {
     MAIN,
     CLOUD_API_HUB,
     HEALTH_DIAGNOSTICS_HUB,
-    BUG_REPORTS,
     USERS_COMMUNITY_HUB,
     BUSINESS_REVENUE_HUB,
     SYSTEM_IDENTITY_HUB,
@@ -77,7 +76,7 @@ enum class DashboardSection {
     ACCOUNT_SETTINGS, MONEY_CENTER, DEV_STUDIO_SIGNATURE,
     STYLE_BRAIN,
     API_KEYS, AUDIT_LOG, BACKUP, PRODUCTION_PIPELINE, HEALTH_CENTER, CONNECTORS,
-    CRASH_LOGS, CRASH_TELEMETRY, DEV_CHAT, MISHKAT_REMINDER, AUDIO_LIBRARY_MANAGEMENT
+    CRASH_LOGS, CRASH_TELEMETRY, MISHKAT_REMINDER, AUDIO_LIBRARY_MANAGEMENT
 }
 
 data class DevUser(
@@ -335,8 +334,6 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onBusinessRevenueHub = { currentSection = DashboardSection.BUSINESS_REVENUE_HUB },
                         onSystemIdentityHub = { currentSection = DashboardSection.SYSTEM_IDENTITY_HUB },
                         onAiModelSwitcher = { currentSection = DashboardSection.AI_MODEL_SWITCHER },
-                        onBugReports = { currentSection = DashboardSection.BUG_REPORTS },
-                        onDevChat = { currentSection = DashboardSection.DEV_CHAT },
                         onMishkatReminder = { currentSection = DashboardSection.MISHKAT_REMINDER },
                         onAudioLibraryManagement = { currentSection = DashboardSection.AUDIO_LIBRARY_MANAGEMENT },
                         userCount = devUsers.size
@@ -362,13 +359,12 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 }
 
                 // 3. مركز الصحة والتشخيص الشامل
-                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.CRASH_TELEMETRY, DashboardSection.BUG_REPORTS, DashboardSection.PRODUCTION_PIPELINE, DashboardSection.AUDIT_LOG -> {
+                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.CRASH_TELEMETRY, DashboardSection.PRODUCTION_PIPELINE, DashboardSection.AUDIT_LOG -> {
                     val initialTab = when (currentSection) {
                         DashboardSection.CRASH_LOGS -> 2
-                        DashboardSection.BUG_REPORTS -> 3
-                        DashboardSection.PRODUCTION_PIPELINE -> 5
-                        DashboardSection.AUDIT_LOG -> 6
-                        DashboardSection.CRASH_TELEMETRY -> 8
+                        DashboardSection.PRODUCTION_PIPELINE -> 4
+                        DashboardSection.AUDIT_LOG -> 5
+                        DashboardSection.CRASH_TELEMETRY -> 7
                         else -> 0
                     }
                     HealthDiagnosticsHubScreen(
@@ -381,10 +377,9 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 }
 
                 // 4. إدارة المستخدمين والمجتمع
-                DashboardSection.USERS_COMMUNITY_HUB, DashboardSection.USERS, DashboardSection.NOTIFICATIONS, DashboardSection.DEV_CHAT -> {
+                DashboardSection.USERS_COMMUNITY_HUB, DashboardSection.USERS, DashboardSection.NOTIFICATIONS -> {
                     val initialTab = when (currentSection) {
                         DashboardSection.NOTIFICATIONS -> 1
-                        DashboardSection.DEV_CHAT -> 2
                         else -> 0
                     }
                     UsersCommunityHubScreen(
@@ -683,7 +678,7 @@ fun HealthDiagnosticsHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات المحلية", "🐞 البلاغات اليدوية", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق", "📦 إدارة التحديثات", "☁️ الأعطال التلقائية")
+    val tabs = listOf("🩺 صحة الأنظمة", "🛡️ HUD التشخيص", "🐛 الانهيارات المحلية", "⚙️ معلومات البناء", "🚀 الـ Pipeline", "📜 التدقيق", "📦 إدارة التحديثات", "☁️ الأعطال التلقائية")
 
     DevHubScaffold(
         title = "مركز الصحة والتشخيص الشامل",
@@ -706,12 +701,11 @@ fun HealthDiagnosticsHubScreen(
                 onNavigateToKeys = { onNavigateSection(DashboardSection.CLOUD_API_HUB) }
             )
             2 -> CrashLogsHubScreen(onBack = { selectedTab = 0 })
-            3 -> BugReportsSection()
-            4 -> BuildDiagnosticSection()
-            5 -> ProductionPipelineSection()
-            6 -> AuditLogSection(context = context)
-            7 -> UpdateManagementSection()
-            8 -> CrashTelemetryCloudScreen()
+            3 -> BuildDiagnosticSection()
+            4 -> ProductionPipelineSection()
+            5 -> AuditLogSection(context = context)
+            6 -> UpdateManagementSection()
+            7 -> CrashTelemetryCloudScreen()
         }
     }
 }
@@ -725,7 +719,7 @@ fun UsersCommunityHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("👥 المستخدمون والرتب", "📢 إرسال الإشعارات الجماعية", "💬 محادثات المستخدمين")
+    val tabs = listOf("👥 المستخدمون والرتب", "📢 إرسال الإشعارات الجماعية")
 
     DevHubScaffold(
         title = "إدارة المستخدمين والمجتمع",
@@ -742,595 +736,7 @@ fun UsersCommunityHubScreen(
         when (selectedTab) {
             0 -> EnhancedUsersSection(context = context, devUsers = devUsers)
             1 -> NotificationsSection(context = context)
-            2 -> DeveloperChatSection(context = context)
         }
-    }
-}
-
-@Composable
-private fun DeveloperChatSection(context: Context) {
-    val scope = rememberCoroutineScope()
-    var threads by remember { mutableStateOf<Map<String, List<SupabaseServices.ChatMessageRow>>>(emptyMap()) }
-    var selectedEmail by remember { mutableStateOf<String?>(null) }
-    var input by remember { mutableStateOf("") }
-    var isSending by remember { mutableStateOf(false) }
-    var isRefreshing by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
-    // 0=الكل 1=عاجل 2=أخطاء 3=بلاغات ريلز
-    var filterMode by remember { mutableIntStateOf(0) }
-    // الملف الشخصي للمرسل (يُفتح بالضغط على صورته كواتساب)
-    var profileEmail by remember { mutableStateOf<String?>(null) }
-    var profileUser by remember { mutableStateOf<SupabaseServices.UserRow?>(null) }
-    var profileAvatar by remember { mutableStateOf<String?>(null) }
-    var profileLoading by remember { mutableStateOf(false) }
-
-    fun openSenderProfile(email: String) {
-        profileEmail = email
-        profileUser = null
-        profileAvatar = null
-        profileLoading = true
-        scope.launch {
-            val user = SupabaseServices.Database.getUserByEmail(email)
-            profileUser = user
-            val uid = user?.id?.takeIf { it.isNotBlank() }
-                ?: threads[email]?.firstOrNull()?.userId?.takeIf { it?.isNotBlank() == true }
-            if (!uid.isNullOrBlank()) {
-                profileAvatar = runCatching { SupabaseServices.Profiles.getUserProfile(uid)?.avatarUrl }.getOrNull()
-            }
-            profileLoading = false
-        }
-    }
-
-    fun msgTime(m: SupabaseServices.ChatMessageRow): String = m.createdAt.orEmpty()
-    fun isUrgentMsg(m: SupabaseServices.ChatMessageRow): Boolean {
-        val t = m.message
-        return t.contains("[URGENT]") || t.contains("عاجل") || t.contains("🚨") || t.contains("بلاغ عاجل")
-    }
-    fun isBugMsg(m: SupabaseServices.ChatMessageRow): Boolean {
-        val t = m.message
-        return t.contains("[TELEMETRY]") || t.contains("خلل") || t.contains("خطأ") ||
-            t.contains("مشكلة") || t.contains("تهنيج") || t.contains("تعذر") || t.contains("فشل")
-    }
-    fun isReelReport(m: SupabaseServices.ChatMessageRow): Boolean = m.message.contains("معرّف المقطع:")
-    fun isSeedOnly(msgs: List<SupabaseServices.ChatMessageRow>): Boolean {
-        if (msgs.isEmpty()) return true
-        return msgs.all { it.id.startsWith("welcome_") }
-    }
-    fun shortTime(iso: String?): String {
-        if (iso.isNullOrBlank()) return ""
-        // ISO "2026-10-16T14:05:42" -> "14:05"
-        return if (iso.length >= 16) iso.substring(11, 16) else iso.take(5)
-    }
-    fun unreadCount(msgs: List<SupabaseServices.ChatMessageRow>): Int {
-        val lastDevIdx = msgs.indexOfLast { it.sender == "developer" }
-        return if (lastDevIdx == -1) msgs.count { it.sender != "developer" }
-        else msgs.drop(lastDevIdx + 1).count { it.sender != "developer" }
-    }
-
-    suspend fun refreshThreads(): Boolean {
-        if (isRefreshing) return false
-        isRefreshing = true
-        try {
-            val cloudThreads = SupabaseServices.Database.getAllChatThreads()
-            val localThreads = DevChatRepository.getAllThreads(context)
-            val merged = mutableMapOf<String, MutableList<SupabaseServices.ChatMessageRow>>()
-
-            cloudThreads.forEach { (email, msgs) ->
-                merged[email.trim().lowercase()] = msgs.toMutableList()
-            }
-            localThreads.forEach { (email, msgs) ->
-                val key = email.trim().lowercase()
-                val existing = merged[key] ?: mutableListOf()
-                val existingIds = existing.map { it.id }.toSet()
-                msgs.forEach { m ->
-                    if (m.id !in existingIds) {
-                        existing.add(
-                            SupabaseServices.ChatMessageRow(
-                                id = m.id,
-                                userId = m.userId,
-                                userEmail = key,
-                                sender = m.sender,
-                                message = m.message,
-                                createdAt = java.text.SimpleDateFormat(
-                                    "yyyy-MM-dd'T'HH:mm:ss",
-                                    java.util.Locale.US
-                                ).format(java.util.Date(m.createdAt))
-                            )
-                        )
-                    }
-                }
-                merged[key] = existing
-            }
-            // فرز الرسائل زمنياً داخل كل محادثة
-            merged.forEach { (k, v) -> merged[k] = v.sortedBy { msgTime(it) }.toMutableList() }
-            threads = merged
-            if (selectedEmail == null || selectedEmail !in merged.keys) {
-                selectedEmail = merged.keys.firstOrNull()
-            }
-            return true
-        } catch (_: Exception) {
-            return false
-        } finally {
-            isRefreshing = false
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        refreshThreads()
-        var pollDelayMs = 30_000L
-        while (isActive) {
-            delay(pollDelayMs)
-            pollDelayMs = if (refreshThreads()) {
-                30_000L
-            } else {
-                (pollDelayMs * 2).coerceAtMost(5 * 60_000L)
-            }
-        }
-    }
-
-    // ترتيب المحادثات: الأحدث أولاً، والترحيبية فقط في الأسفل
-    val orderedEmails = remember(threads) {
-        threads.entries.sortedWith(
-            compareByDescending<Map.Entry<String, List<SupabaseServices.ChatMessageRow>>> { !isSeedOnly(it.value) }
-                .thenByDescending { it.value.lastOrNull()?.let { m -> msgTime(m) }.orEmpty() }
-        ).map { it.key }
-    }
-    val visibleEmails = orderedEmails.filter { email ->
-        val msgs = threads[email].orEmpty()
-        val q = searchQuery.trim().lowercase()
-        val matchSearch = q.isBlank() || email.contains(q) || msgs.any { it.message.lowercase().contains(q) }
-        if (!matchSearch) return@filter false
-        when (filterMode) {
-            1 -> msgs.any { isUrgentMsg(it) }
-            2 -> msgs.any { isBugMsg(it) }
-            3 -> msgs.any { isReelReport(it) }
-            else -> true
-        }
-    }
-
-    val selectedMessages = selectedEmail?.let { threads[it].orEmpty() }.orEmpty()
-    val selectedUserId = selectedMessages.firstOrNull { !it.userId.isNullOrBlank() }?.userId
-    val chatFilterLabel = when (filterMode) {
-        1 -> "العاجل"
-        2 -> "الأخطاء"
-        3 -> "بلاغات الريلز"
-        else -> "كل المحادثات"
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "محادثات المستخدمين",
-                    color = GoldPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
-                Text(
-                    "الأحدث أولاً • $chatFilterLabel (${visibleEmails.size})",
-                    color = TextSecondary,
-                    fontFamily = CairoFont,
-                    fontSize = 11.sp
-                )
-            }
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        AppSoundManager.playClick()
-                        refreshThreads()
-                        Toast.makeText(context, "تم تحديث المحادثات 🔄", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(Color.White.copy(alpha = 0.08f), CircleShape)
-                    .border(1.dp, GoldPrimary.copy(alpha = 0.35f), CircleShape)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary, modifier = Modifier.size(18.dp))
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // بحث + فلاتر
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("بحث بالبريد أو نص الرسالة...", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = TextSecondary, modifier = Modifier.size(16.dp)) },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = GoldPrimary,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            )
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("الكل 💬", "عاجل 🚨", "أخطاء 🐞", "بلاغات 🎬").forEachIndexed { idx, label ->
-                FilterChip(
-                    selected = filterMode == idx,
-                    onClick = { filterMode = idx },
-                    label = { Text(label, fontFamily = CairoFont, fontSize = 10.sp) }
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (threads.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    if (isRefreshing) "جاري تحميل المحادثات..." else "لا توجد رسائل مستخدمين حتى الآن.",
-                    color = TextSecondary,
-                    fontFamily = CairoFont,
-                    fontSize = 13.sp
-                )
-            }
-            return@Column
-        }
-
-        if (visibleEmails.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("لا نتائج مطابقة للبحث أو الفلتر.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-            }
-            return@Column
-        }
-
-        Row(modifier = Modifier.fillMaxSize()) {
-            // قائمة المحادثات بنمط واتساب
-            LazyColumn(
-                modifier = Modifier.widthIn(min = 135.dp, max = 190.dp).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(visibleEmails) { email ->
-                    val thread = threads[email].orEmpty()
-                    val last = thread.lastOrNull()
-                    val unread = unreadCount(thread)
-                    val urgent = thread.any { isUrgentMsg(it) }
-                    val bug = thread.any { isBugMsg(it) }
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedEmail = email },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (email == selectedEmail) GoldPrimary.copy(alpha = 0.18f) else CardSurface,
-                        border = BorderStroke(
-                            1.dp,
-                            when {
-                                urgent -> Color(0xFFEF4444)
-                                email == selectedEmail -> GoldPrimary
-                                else -> Color.White.copy(alpha = 0.08f)
-                            }
-                        )
-                    ) {
-                        Row(modifier = Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .background(
-                                        if (urgent) Color(0xFFEF4444).copy(alpha = 0.25f)
-                                        else GoldPrimary.copy(alpha = 0.2f),
-                                        CircleShape
-                                    )
-                                    .clickable { openSenderProfile(email) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    email.firstOrNull()?.uppercase() ?: "?",
-                                    color = if (urgent) Color(0xFFEF4444) else GoldPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        email,
-                                        color = Color.White,
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (unread > 0) {
-                                        Surface(color = Color(0xFF25D366), shape = CircleShape) {
-                                            Text(
-                                                "$unread",
-                                                color = Color.White,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (urgent) Text("🚨 ", fontSize = 9.sp)
-                                    else if (bug) Text("🐞 ", fontSize = 9.sp)
-                                    Text(
-                                        last?.message.orEmpty().replace("\n", " "),
-                                        color = TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                Text(
-                                    shortTime(last?.createdAt),
-                                    color = TextSecondary.copy(alpha = 0.7f),
-                                    fontSize = 9.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable(
-                        enabled = selectedEmail != null,
-                        onClick = { selectedEmail?.let { openSenderProfile(it) } }
-                    )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            selectedEmail?.firstOrNull()?.uppercase() ?: "?",
-                            color = GoldPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            selectedEmail ?: "اختر مستخدمًا",
-                            color = GoldPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            "${selectedMessages.size} رسالة • اضغط لعرض الملف",
-                            color = TextSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    reverseLayout = true
-                ) {
-                    items(selectedMessages.reversed()) { msg ->
-                        val mine = msg.sender == "developer"
-                        val urgent = isUrgentMsg(msg)
-                        val bug = isBugMsg(msg)
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                            horizontalArrangement = if (mine) Arrangement.Start else Arrangement.End
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = when {
-                                    mine -> GoldPrimary
-                                    urgent -> Color(0xFF7F1D1D)
-                                    else -> Color.White.copy(alpha = 0.08f)
-                                },
-                                border = if (urgent && !mine) BorderStroke(1.dp, Color(0xFFEF4444)) else null,
-                                modifier = Modifier.widthIn(max = 320.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                    if (urgent || bug || isReelReport(msg)) {
-                                        Text(
-                                            if (urgent) "🚨 عاجل" else if (isReelReport(msg)) "🎬 بلاغ مقطع" else "🐞 خطأ مبلغ",
-                                            color = if (mine) DeepSlate else Color(0xFFFCA5A5),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = CairoFont
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                    }
-                                    Text(
-                                        msg.message,
-                                        color = if (mine) DeepSlate else Color.White,
-                                        fontFamily = CairoFont,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        shortTime(msg.createdAt),
-                                        color = (if (mine) DeepSlate else Color.White).copy(alpha = 0.6f),
-                                        fontSize = 9.sp,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    if (!mine && msg.message.contains("معرّف المقطع:")) {
-                                        val reelId = msg.message.substringAfter("معرّف المقطع:").substringBefore("\n").substringBefore(" ").trim()
-                                        if (reelId.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Button(
-                                                onClick = {
-                                                    scope.launch {
-                                                        val ok = SupabaseServices.Profiles.deleteReel(reelId)
-                                                        if (ok) {
-                                                            Toast.makeText(context, "تم حذف المقطع المبلغ عنه [$reelId] بنجاح 🗑️", Toast.LENGTH_LONG).show()
-                                                        } else {
-                                                            Toast.makeText(context, "فشل حذف المقطع، قد يكون محذوفاً بالفعل", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Icon(Icons.Default.DeleteForever, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("حذف هذا المقطع فوراً 🗑️", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { if (it.length <= 1000) input = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("اكتب رد المطور...", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp) },
-                        maxLines = 3,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
-                    )
-                    IconButton(
-                        enabled = !isSending && input.isNotBlank() && selectedEmail != null,
-                        onClick = {
-                            val email = selectedEmail ?: return@IconButton
-                            val targetId = selectedUserId
-                            val text = input.trim()
-                            if (text.isBlank()) return@IconButton
-                            if (targetId.isNullOrBlank()) {
-                                Toast.makeText(
-                                    context,
-                                    "لا يمكن إرسال رد سحابي لهذه المحادثة قبل تحديد معرّف صاحبها",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                return@IconButton
-                            }
-                            isSending = true
-                            scope.launch {
-                                DevChatRepository.sendMessage(
-                                    context = context,
-                                    userEmail = email,
-                                    text = text,
-                                    sender = "developer",
-                                    targetUserId = targetId
-                                )
-                                isSending = false
-                                input = ""
-                                AppSoundManager.playSuccess()
-                                refreshThreads()
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.Send, contentDescription = "إرسال الرد", tint = GoldPrimary)
-                    }
-                }
-            }
-        }
-    }
-
-    // ── نافذة الملف الشخصي للمرسل (كواتساب: ضغط على الصورة) ──
-    if (profileEmail != null) {
-        val email = profileEmail!!
-        val msgCount = threads[email]?.size ?: 0
-        AlertDialog(
-            onDismissRequest = { profileEmail = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    profileEmail = null
-                    selectedEmail = email
-                }) { Text("فتح المحادثة 💬", fontFamily = CairoFont) }
-            },
-            dismissButton = {
-                TextButton(onClick = { profileEmail = null }) { Text("إغلاق", fontFamily = CairoFont) }
-            },
-            title = { Text("الملف الشخصي للمرسل", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
-            text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (!profileAvatar.isNullOrBlank()) {
-                        AsyncImage(
-                            model = profileAvatar,
-                            contentDescription = "صورة المرسل",
-                            modifier = Modifier.size(72.dp).clip(CircleShape)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier.size(72.dp).background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(email.firstOrNull()?.uppercase() ?: "?", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 26.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (profileLoading) {
-                        CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(22.dp))
-                        Text("جاري جلب البيانات...", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                    } else {
-                        val u = profileUser
-                        Text(
-                            u?.name?.takeIf { it.isNotBlank() } ?: "بدون اسم مسجل",
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(email, color = TextSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (u == null) {
-                            Text("لا يوجد ملف مسجل لهذا البريد في قاعدة البيانات.", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                        } else {
-                            SenderProfileRow("رقم الحساب", u.accountNumber ?: "—")
-                            SenderProfileRow("المعرف المخصص", u.customId ?: "—")
-                            SenderProfileRow("نوع الاشتراك", u.type)
-                            SenderProfileRow("الحالة", u.status)
-                            SenderProfileRow("الإنذارات", "${u.strikes}")
-                            SenderProfileRow("عضو منذ", u.createdAt?.take(10) ?: "—")
-                            SenderProfileRow("رسائل المحادثة", "$msgCount")
-                        }
-                    }
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun SenderProfileRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(value, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(label, color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
     }
 }
 
@@ -1421,8 +827,6 @@ fun DashboardMainGrid(
     onUsersCommunityHub: () -> Unit = {},
     onBusinessRevenueHub: () -> Unit = {},
     onSystemIdentityHub: () -> Unit = {},
-    onBugReports: () -> Unit = onHealthDiagnosticsHub,
-    onDevChat: () -> Unit = onUsersCommunityHub,
     onMishkatReminder: () -> Unit = onSystemIdentityHub,
     onAudioLibraryManagement: () -> Unit = onSystemIdentityHub,
     // توافقية كاملة مع الروابط السابقة
@@ -1968,83 +1372,6 @@ fun DashboardMainGrid(
                                         }
                                     }
                                 )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Live Feedback & Direct Developer Radar (البلاغات والرسائل الحية) ──
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val reportsList by BugReportRepository.reports.collectAsState()
-                    val openReports = reportsList.count { it.status == "open" }
-                    val totalReports = reportsList.size
-
-                    // 1. زر البلاغات المباشر مع عداد حي
-                    Surface(
-                        onClick = onBugReports,
-                        modifier = Modifier.weight(1f).height(62.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF1E1420),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFEF4444).copy(alpha = 0.18f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("بلاغات الأعطال", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1, softWrap = false)
-                                Text(
-                                    if (openReports > 0) "$openReports جديد 🚨" else "الكل مستقر ($totalReports)",
-                                    color = if (openReports > 0) Color(0xFFEF4444) else Color(0xFF10B981),
-                                    fontFamily = CairoFont,
-                                    fontSize = 10.sp,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-                    }
-
-                    // 2. زر محادثات المستخدمين المباشر
-                    Surface(
-                        onClick = onDevChat,
-                        modifier = Modifier.weight(1f).height(62.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF102027),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF38BDF8).copy(alpha = 0.18f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Forum, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("محادثات المستخدمين", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1, softWrap = false)
-                                Text("فتح قناة DevChat 💬", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }

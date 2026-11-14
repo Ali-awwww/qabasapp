@@ -395,6 +395,7 @@ fun ProfileScreen(
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
                 profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
+                AccountIdentityManager.refresh(context)
                 if (profileMirrorSynced) {
                     Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي 📸", Toast.LENGTH_SHORT).show()
                 } else {
@@ -2707,6 +2708,7 @@ fun ProfileScreen(
                                         .putString("user_account_number", cloudUser.accountNumber)
                                         .apply()
                                     profilePrefs.edit().putString("user_bio", userBio).apply()
+                                    AccountIdentityManager.refresh(context)
 
                                     isCheckingTag = false
                                     showEditProfileDialog = false
@@ -2808,6 +2810,7 @@ fun ProfileScreen(
                                                     email = userEmail,
                                                     avatarUrl = ""
                                                 )
+                                                AccountIdentityManager.refresh(context)
                                             }
                                         }
                                         Toast.makeText(context, "تم تعيين الرمز الشخصي ✦", Toast.LENGTH_SHORT).show()

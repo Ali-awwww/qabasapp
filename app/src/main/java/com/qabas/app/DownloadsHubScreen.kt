@@ -106,10 +106,10 @@ private enum class DownloadCategory(
     val accent: Color,
     val tabWeight: Float
 ) {
-    Models(0, "نماذج GGUF", Icons.Default.Memory, Color(0xFF00E5FF), 1f),
+    Models(0, "نماذج الذكاء", Icons.Default.Memory, Color(0xFF00E5FF), 1f),
     Updates(1, "تحديثات التطبيق", Icons.Default.SystemUpdate, Color(0xFF10B981), 1.15f),
     Reels(2, "الريلز", Icons.Default.SlowMotionVideo, Color(0xFFA855F7), 0.9f),
-    Media(3, "صوتيات", Icons.Default.Audiotrack, GoldPrimary, 0.85f)
+    Media(3, "الأصوات والوسائط", Icons.Default.Audiotrack, GoldPrimary, 0.85f)
 }
 
 private data class ActiveDownloadEntry(
@@ -172,7 +172,7 @@ private fun SpatialControlDeck(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "لوحة التحكم المركزية",
+                        text = "التنزيلات والتخزين",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.5.sp,
@@ -181,9 +181,9 @@ private fun SpatialControlDeck(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "CONTROL DECK // STORAGE · ENGINE · CHANNELS",
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 8.5.sp,
+                        text = "كل ملفاتك وتنزيلاتك في مكان واحد",
+                        fontFamily = CairoFont,
+                        fontSize = 10.sp,
                         color = TextSecondary,
                         maxLines = 1,
                         softWrap = false,
@@ -268,7 +268,7 @@ private fun SpatialControlDeck(
                     SpatialDeckDivider()
 
                     Text(
-                        text = "قنوات التنزيل",
+                        text = "الملفات المحفوظة",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -334,7 +334,7 @@ private fun ActiveDownloadsPanel(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "التنزيلات النشطة",
+                text = "التنزيلات الجارية",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
@@ -350,10 +350,17 @@ private fun ActiveDownloadsPanel(
         }
 
         entries.forEach { entry ->
+            val animatedProgress by animateFloatAsState(
+                targetValue = entry.progress.coerceIn(0f, 1f),
+                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+                label = "download_progress_${entry.id}"
+            )
+            val percent = (entry.progress.coerceIn(0f, 1f) * 100).toInt()
+            val stateColor = if (entry.statusText.contains("فشل")) Color(0xFFEF4444) else entry.category.accent
             Surface(
-                color = entry.category.accent.copy(alpha = 0.07f),
+                color = stateColor.copy(alpha = 0.08f),
                 shape = SpatialInsetShape,
-                border = BorderStroke(0.8.dp, entry.category.accent.copy(alpha = 0.32f)),
+                border = BorderStroke(0.8.dp, stateColor.copy(alpha = 0.38f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenCategory(entry.category.tabIndex) }
@@ -399,15 +406,24 @@ private fun ActiveDownloadsPanel(
                                 )
                             }
                         }
+                        Text(
+                            text = "$percent٪",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = stateColor,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
 
                     LinearProgressIndicator(
-                        progress = { entry.progress.coerceIn(0f, 1f) },
+                        progress = { animatedProgress },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(CutCornerShape(2.dp)),
-                        color = entry.category.accent,
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = stateColor,
                         trackColor = Color.White.copy(alpha = 0.1f)
                     )
 
@@ -419,8 +435,9 @@ private fun ActiveDownloadsPanel(
                         Text(
                             text = entry.statusText,
                             fontFamily = CairoFont,
-                            fontSize = 9.5.sp,
-                            color = entry.category.accent,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.5.sp,
+                            color = stateColor,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -442,8 +459,7 @@ private fun ActiveDownloadsPanel(
 }
 
 /**
- * شاشة مركز التنزيلات وإدارة نماذج الذكاء الاصطناعي الأوفلاين (GGUF) وفيديوهات الريلز والوسائط
- * مصممة وفق أسلوب: Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)
+ * شاشة التنزيلات والتخزين: واجهة موحدة وبسيطة للملفات المحفوظة والتنزيلات الجارية.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -668,7 +684,7 @@ fun DownloadsHubScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "مركز التنزيلات والنماذج",
+                                    text = "التنزيلات والتخزين",
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 17.sp,
@@ -692,18 +708,18 @@ fun DownloadsHubScreen(
                                     )
                                 } else {
                                     StrictBadge(
-                                        text = "SPATIAL HUD ✦",
+                                        text = "مركز موحد",
                                         color = Color(0xFF00E5FF)
                                     )
                                 }
                             }
                             Text(
                                 text = if (appUpdateDownload?.isDownloading == true)
-                                    "AUTO UPDATE // GITHUB RELEASES // ${appUpdateDownload?.versionName}"
+                                    "تحديث التطبيق ${appUpdateDownload?.versionName} جاهز للمتابعة"
                                 else
-                                    "OFFLINE LLM & MEDIA ENGINE // GGUF",
-                                fontFamily = RobotoMonoFont,
-                                fontSize = 9.sp,
+                                    "إدارة الملفات والتنزيلات بسهولة",
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp,
                                 color = if (appUpdateDownload?.isDownloading == true) Color(0xFF00E5FF) else TextSecondary,
                                 maxLines = 1,
                                 softWrap = false
@@ -784,7 +800,7 @@ fun DownloadsHubScreen(
                 item(key = "empty_all_downloads") {
                     EmptyDownloadsPlaceholder(
                         title = "لا توجد تنزيلات أو تحديثات حالياً",
-                        subtitle = "ابدأ بتنزيل نموذج GGUF أو ريل، وستظهر تصنيفاتك هنا تلقائياً مع حالة كل عنصر.",
+                        subtitle = "ابدأ بتنزيل نموذج ذكاء أو ريل، وستظهر ملفاتك هنا تلقائياً مع حالة كل عنصر.",
                         actionText = "فتح الوكيل الذكي 🤖",
                         onAction = onOpenAiAssistant
                     )
@@ -800,7 +816,7 @@ fun DownloadsHubScreen(
                                     subtitle = if (activeModel != null) {
                                         "تابع تقدم التنزيل وإجراءاته من لوحة التنزيلات النشطة أعلاه؛ سيظهر النموذج هنا فور اكتماله."
                                     } else {
-                                        "نزّل نماذج GGUF من شاشة الوكيل الذكي، وستظهر هنا فوراً للتشغيل بدون إنترنت."
+                                        "نزّل نماذج الذكاء من شاشة الوكيل الذكي، وستظهر هنا للتشغيل بدون إنترنت."
                                     },
                                     actionText = "فتح الوكيل الذكي 🤖",
                                     onAction = onOpenAiAssistant
@@ -1162,7 +1178,7 @@ fun DownloadsHubScreen(
             },
             text = {
                 Text(
-                    "سيتم حذف حزمة الـ APK المنزّلة لتحرير مساحة الذاكرة في الهاتف. يمكنك فحص وتنزيل التحديث مجدداً في أي وقت.",
+                    "سيتم حذف ملف التحديث المنزّل لتحرير مساحة الهاتف. يمكنك فحص التحديث وتنزيله مجدداً في أي وقت.",
                     fontFamily = CairoFont,
                     color = TextSecondary,
                     fontSize = 13.sp
@@ -1250,7 +1266,7 @@ private fun SpatialStorageIndicatorWidget(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "تنظيف الكاش",
+                        text = "تنظيف الملفات المؤقتة",
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         color = Color(0xFF00E5FF),
@@ -1286,7 +1302,7 @@ private fun SpatialStorageIndicatorWidget(
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 StorageStatPill(
-                    label = "نماذج GGUF",
+                    label = "نماذج الذكاء",
                     value = metrics.llmModelsFormatted,
                     color = Color(0xFF00E5FF),
                     modifier = Modifier.weight(1f)
@@ -1835,7 +1851,7 @@ private fun AppUpdatesHubSection(
                     }
 
                     StrictBadge(
-                        text = "GITHUB OTA",
+                        text = "المصدر الرسمي",
                         color = Color(0xFF00E5FF)
                     )
                 }

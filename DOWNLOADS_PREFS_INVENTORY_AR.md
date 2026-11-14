@@ -1,0 +1,2361 @@
+# جرد SharedPreferences ومسارات التنزيل — قبس
+تاريخ الجرد: 2026-11-14. هذا التقرير **قراءة فقط**؛ لم تُحذف أو تُنقل أي مفاتيح أو ملفات. الهدف هو تجهيز توحيد مدير التنزيلات مع الحفاظ على منطق «صلاة مباشر» خارج نطاق التعديل.
+## الخلاصة التنفيذية
+- لا يوجد استخدام فعلي لـ `android.app.DownloadManager.Request` في كود التطبيق؛ الاستيراد الوحيد موجود في `AudioDownloadHelper.kt` ولا يُستخدم للتنزيل الفعلي.
+- التنزيلات الحالية موزعة بين `DownloadsHubManager` (ريلز ووسائط/أصوات أذان)، `UpdateManager`/`UpdateDownloadService` (APK وxdelta)، و`OnDeviceModelManager`/`ModelDownloadService` (نماذج الجهاز).
+- `AudioDownloadHelper` مسار مستقل يستخدم `HttpURLConnection` و`MediaStore.Downloads`، وليس `DownloadsHubManager`.
+- توجد ثلاث مساحات تفضيلات مرتبطة مباشرة بهذه المنطقة: `qabas_downloads_hub_prefs`، `qabas_prefs`، ومفاتيح التحديث داخل `qabas_prefs`/المساحة العامة التي يمررها `UpdateManager`.
+- التوصية: توحيد **طبقة التنزيل فقط** أولًا، مع إبقاء التخزين الوظيفي (قوائم الريلز، أصوات الأذان، التحديثات، النماذج) كطبقات بيانات فوقها. لا ينبغي دمجها في مفتاح JSON واحد.
+## 1. مسارات التنزيل الحالية
+| المجال | نقطة الدخول | التخزين | الحالة/التقدم | الإلغاء |
+|---|---|---|---|---|
+| تحديث التطبيق | `UpdateDownloadService` → `UpdateManager.downloadAndInstall` | `cacheDir/updates` | `UpdateManager.downloadProgress` و`downloadResult` | `UpdateManager.cancelDownload` |
+| ريلز | `DownloadsHubManager.downloadReel` | `filesDir/downloads/reels` مع `.tmp` | `activeReelDownloads` | `cancelReelDownload` |
+| وسائط/صوت أذان سحابي | `AzanVoiceResolver` → `DownloadsHubManager.downloadMedia` | `filesDir/downloads/media` مع `.tmp` | `activeMediaDownloads` | `cancelMediaDownload` (حاليًا يزيل الحالة فقط) |
+| صوتيات عامة | `AudioDownloadHelper.downloadAudioWithProgress` | `MediaStore.Downloads` على Android Q+، أو مجلد Downloads العام قبل ذلك | callback محلي `DownloadProgress` | إلغاء coroutine فقط |
+| نماذج الجهاز | `ModelDownloadService` → `OnDeviceModelManager.downloadModel` | مسار نماذج الجهاز، مع استئناف عبر prefs | `downloadState` | `OnDeviceModelManager.cancelDownload` |
+| فيديو/ملفات مؤقتة أخرى | خدمات متعددة تستخدم `cacheDir` و`filesDir` | مجلدات تخصصية متعددة | غالبًا callbacks محلية | تختلف حسب الخدمة |
+## 2. مفاتيح SharedPreferences المرتبطة بالتنزيلات
+| مساحة التفضيلات | المفتاح | الاستخدام | الملف/الموضع | قرار التوحيد المقترح |
+|---|---|---|---|---|
+| `qabas_downloads_hub_prefs` | `downloaded_reels_json` | فهرس الريلز المحفوظة | `DownloadsHubManager.kt:156-450` | يُنقل لاحقًا إلى repository للفهرس، وليس إلى محرك التنزيل نفسه |
+| `qabas_downloads_hub_prefs` | `downloaded_media_json` | فهرس الوسائط/أصوات الأذان المحفوظة | `DownloadsHubManager.kt:157,407-833` | يُنقل لاحقًا إلى repository للفهرس |
+| `qabas_prefs` | `model_selected_id`* | النموذج المختار | `OnDeviceModelManager.kt` | يبقى إعدادًا وظيفيًا |
+| `qabas_prefs` | `offline_mode_active`* | تفعيل نمط العمل دون اتصال | `OnDeviceModelManager.kt` | يبقى إعدادًا وظيفيًا |
+| `qabas_prefs` | `model_resume_<id>` | بايتات استئناف تنزيل النموذج | `OnDeviceModelManager.kt:279-407` | ينقل إلى سجل مهمة تنزيل موحد أو يُحافظ عليه عبر migration |
+| `qabas_prefs` | `model_total_<id>` | الحجم المتوقع للنموذج | `OnDeviceModelManager.kt:280-407` | ينقل مع مفتاح الاستئناف |
+| تفضيلات التحديث | `update_check_interval_hours` | فترة فحص التحديث | `UpdateManager.kt:40-60` | يبقى إعداد فحص، لا يخلط مع سجل التنزيل |
+| تفضيلات التحديث | `update_last_check_supabase` | آخر فحص | `UpdateManager.kt:41,68-76` | يبقى telemetry/freshness |
+| تفضيلات التحديث | `update_last_check` | آخر فحص GitHub/تحديث | `UpdateManager.kt:564,697,709` | دمجه لاحقًا مع سجل الفحص بعد تحديد المصدر |
+| تفضيلات التحديث | `update_last_version_code` | آخر إصدار تمت معالجته | `UpdateManager.kt:439,710` | يبقى metadata للتحديث |
+| تفضيلات التحديث | `delta_failure_<base>_<target>` | منع تكرار delta الفاشلة | `UpdateManager.kt:132-138` | ينقل إلى سجل فشل موحد مع TTL |
+| تفضيلات التثبيت | `pending_install_version_name` | إصدار APK الجاهز للتثبيت | `UpdateManager.kt:176-199` | يبقى state للتثبيت، أو يُضم إلى مهمة التحديث |
+| تفضيلات التثبيت | `pending_install_version_code` | رقم بناء APK الجاهز | `UpdateManager.kt:177-193` | كما سبق |
+| تفضيلات التثبيت | `pending_install_apk_size` | حجم APK الجاهز | `UpdateManager.kt:178-198` | كما سبق |
+| تفضيلات التثبيت | `pending_install_presented` | هل عُرض إشعار التثبيت | `UpdateManager.kt:179-199` | كما سبق |
+| صوت الأذان | لا يوجد مفتاح تقدم/مهمة تنزيل مستقل | الفهرس في `qabas_downloads_hub_prefs`، واختيار الصوت في `qabas_muezzin_prefs` | `AzanVoiceResolver`, `MuezzinVoiceManager` | توحيد المهمة فقط، لا حذف مفاتيح الصوت |
+| خلفية الأذان | `background_type`, `background_value`* | إعداد الخلفية وليس تنزيلًا شبكيًا | `AdhanBackgroundPreferences.kt` | خارج مدير التنزيل |
+
+`*` الأسماء الفعلية معرفة كثوابت `KEY_*` في الملف؛ يجب استخدام أسماء الثوابت أثناء الترحيل بدل إعادة كتابة السلاسل.
+## 3. Android DownloadManager
+- `AudioDownloadHelper.kt:3` يستورد `android.app.DownloadManager`، لكن البحث عن `DownloadManager.Request` أو استدعاء `enqueue()` لم يجد استخدامًا فعليًا.
+- التنزيل الصوتي الحالي يدوي عبر `HttpURLConnection` ثم `MediaStore.Downloads`; وهذا يفسر وجود «مسارين» ظاهريًا رغم عدم استخدام Android DownloadManager فعليًا.
+- لا ينبغي بناء مدير مركزي جديد فوق Android DownloadManager مباشرة قبل تحديد الحاجة إلى تنزيلات تستمر بعد قتل العملية؛ حاليًا التحديثات والنماذج تستخدم Foreground Services، بينما الريلز والأذان يعملان عبر coroutines داخل مدير مركزي.
+## 4. ملفات ومكونات يجب مراجعتها في مرحلة التوحيد
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt`
+- `app/src/main/java/com/qabas/app/DownloadsHubScreen.kt`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt`
+- `app/src/main/java/com/qabas/app/UpdateDownloadService.kt`
+- `app/src/main/java/com/qabas/app/AudioDownloadHelper.kt`
+- `app/src/main/java/com/qabas/app/AzanVoiceResolver.kt`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt`
+- `app/src/main/java/com/qabas/app/ModelDownloadService.kt`
+- `app/src/main/java/com/qabas/app/VersionManager.kt`
+- `app/src/main/java/com/qabas/app/UpdateNotificationDialog.kt`
+- `app/src/main/java/com/qabas/app/UpdateManagementSection.kt`
+- `app/src/main/java/com/qabas/app/UpdateDiagnosticsPanel.kt`
+## 5. خطة التوحيد الآمنة المقترحة
+1. إنشاء `DownloadCoordinator`/`DownloadTask` موحدين للتسجيل، التقدم، إعادة المحاولة، الإلغاء، والتحقق من الملفات.
+2. إبقاء ثلاثة adapters: تحديثات APK/xdelta، وسائط الريلز/الأذان، ونماذج الجهاز؛ لا نخلط قواعد التحقق الخاصة بكل نوع.
+3. نقل منطق الملفات المؤقتة إلى مكان واحد مع أسماء مؤقتة ذرية ثم rename بعد النجاح، مع TTL للتنظيف.
+4. إضافة migration غير هدّامة لمفاتيح الاستئناف والفهارس؛ لا حذف للمفاتيح القديمة قبل إصدار واحد على الأقل.
+5. توحيد واجهة مركز التنزيلات لتعرض كل المهام، مع إبقاء إشعارات Foreground الخاصة بالتحديثات والنماذج.
+6. اختبار حالات انقطاع الشبكة، إيقاف التطبيق، امتلاء المساحة، تلف الملف، وتعارض مهمتين لنفس المعرّف.
+7. عدم تعديل `AzanCountdownService` أو `SpiritualNotificationReceiver` أو منطق «صلاة مباشر».
+## 6. فهرس كامل لمواضع SharedPreferences
+عدد المواضع النصية المطابقة في ملفات Kotlin: **2295**. أدرجت أدناه كل المواضع للمراجعة قبل أي حذف/ترحيل.
+- `app/src/main/java/com/qabas/app/AIAssistantScreen.kt:179` — `val k = AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY)`
+- `app/src/main/java/com/qabas/app/AIAssistantScreen.kt:278` — `val orKey = AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY)`
+- `app/src/main/java/com/qabas/app/AboutUsAndVersionScreen.kt:89` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AboutUsAndVersionScreen.kt:112` — `var customPrivacyUrl by remember { mutableStateOf(prefs.getString("custom_privacy_url", "") ?: "") }`
+- `app/src/main/java/com/qabas/app/AboutUsAndVersionScreen.kt:1211` — `prefs.edit().remove("custom_privacy_url").apply()`
+- `app/src/main/java/com/qabas/app/AboutUsAndVersionScreen.kt:1227` — `prefs.edit().putString("custom_privacy_url", trimmed).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:9` — `private val prefs = context.getSharedPreferences("account_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:30` — `val hasGemini = !AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).isNullOrBlank()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:31` — `val hasSettingsGemini = !context.getSharedPreferences("qabas_settings", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:32` — `.getString("gemini_key", "").isNullOrBlank()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:37` — `get() = prefs.getBoolean("is_premium", false) || isDeveloperOrAdmin || hasCustomKeys`
+- `app/src/main/java/com/qabas/app/AccountService.kt:39` — `prefs.edit().putBoolean("is_premium", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:44` — `get() = prefs.getInt("wallet_balance", 0)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:46` — `prefs.edit().putInt("wallet_balance", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:51` — `val lastDate = prefs.getString("last_video_date", "")`
+- `app/src/main/java/com/qabas/app/AccountService.kt:53` — `prefs.getInt("daily_video_count", 0)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:59` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:60` — `.putInt("daily_video_count", value)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:61` — `.putString("last_video_date", getCurrentDateStr())`
+- `app/src/main/java/com/qabas/app/AccountService.kt:67` — `val lastDate = prefs.getString("last_image_date", "")`
+- `app/src/main/java/com/qabas/app/AccountService.kt:69` — `prefs.getInt("daily_image_count", 0)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:75` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:76` — `.putInt("daily_image_count", value)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:77` — `.putString("last_image_date", getCurrentDateStr())`
+- `app/src/main/java/com/qabas/app/AccountService.kt:83` — `get() = prefs.getString("last_checkin_date", "") ?: ""`
+- `app/src/main/java/com/qabas/app/AccountService.kt:85` — `prefs.edit().putString("last_checkin_date", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:91` — `val lastDate = prefs.getString("last_strike_date", "")`
+- `app/src/main/java/com/qabas/app/AccountService.kt:93` — `prefs.getInt("strike_count", 0)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:99` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:100` — `.putInt("strike_count", value)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:101` — `.putString("last_strike_date", getCurrentDateStr())`
+- `app/src/main/java/com/qabas/app/AccountService.kt:113` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:114` — `return qabasPrefs.getBoolean("dev_watermark_enabled", false)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:117` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:118` — `qabasPrefs.edit().putBoolean("dev_watermark_enabled", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:123` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:124` — `return qabasPrefs.getString("dev_watermark_text", "✦ قبس | Qabas.Official ✦")`
+- `app/src/main/java/com/qabas/app/AccountService.kt:128` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:129` — `qabasPrefs.edit().putString("dev_watermark_text", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:134` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:135` — `return qabasPrefs.getString("dev_watermark_style", "ختم ذهبي سفلي (Golden Master Bar)")`
+- `app/src/main/java/com/qabas/app/AccountService.kt:139` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:140` — `qabasPrefs.edit().putString("dev_watermark_style", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountService.kt:145` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:146` — `return qabasPrefs.getBoolean("dev_exclusive_studio_enabled", false)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:149` — `val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AccountService.kt:150` — `qabasPrefs.edit().putBoolean("dev_exclusive_studio_enabled", value).apply()`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:31` — `* Password is stored only as salted SHA-256 hash in SharedPreferences.`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:35` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:37` — `mutableStateOf(prefs.getString("user_email", "") ?: "")`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:43` — `var is2FAEnabled by remember { mutableStateOf(prefs.getBoolean("dev_2fa_enabled", true)) }`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:45` — `mutableStateOf(prefs.getBoolean("dev_transaction_notifications", false))`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:204` — `prefs.edit().putBoolean("dev_2fa_enabled", it).apply()`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:225` — `prefs.edit().putBoolean("dev_transaction_notifications", it).apply()`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:305` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:306` — `.putString("dev_password_salt", salt)`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:307` — `.putString("dev_password_hash", hashHex)`
+- `app/src/main/java/com/qabas/app/AccountSettingsSection.kt:313` — `prefs.edit().putString("user_email", emailTrim).apply()`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:28` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:29` — `private const val KEY_SESSION_ID = "active_device_session_id"`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:32` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:33` — `val existing = prefs.getString(KEY_SESSION_ID, null)`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:36` — `prefs.edit().putString(KEY_SESSION_ID, generated).apply()`
+- `app/src/main/java/com/qabas/app/ActiveSessionManager.kt:59` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:12` — `private const val KEY_TYPE = "type"`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:13` — `private const val KEY_VALUE = "value"`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:14` — `private const val KEY_DIM = "dim"`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:33` — `val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:35` — `type = prefs.getString(KEY_TYPE, TYPE_PRESET) ?: TYPE_PRESET,`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:36` — `value = prefs.getString(KEY_VALUE, DEFAULT_PRESET) ?: DEFAULT_PRESET,`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:37` — `dim = prefs.getFloat(KEY_DIM, 0.35f).coerceIn(0f, 0.8f)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:42` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:43` — `.putString(KEY_TYPE, TYPE_PRESET)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:44` — `.putString(KEY_VALUE, preset)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:79` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:80` — `.putString(KEY_TYPE, type)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:81` — `.putString(KEY_VALUE, destination.absolutePath)`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:95` — `val duration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: return false`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:96` — `val width = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: return false`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:97` — `val height = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: return false`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:122` — `durationMs = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:140` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AdhanBackgroundPreferences.kt:141` — `.putFloat(KEY_DIM, dim.coerceIn(0f, 0.8f))`
+- `app/src/main/java/com/qabas/app/AdminGuard.kt:58` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AdminGuard.kt:59` — `prefs.getString("dev_display_name", null) ?: "local_device"`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:45` — `private const val CLIENTS_PREFS_KEY = "agency_clients_json"`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:57` — `private fun loadClientsPrefs(prefs: android.content.SharedPreferences): List<ClientRetainer> {`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:58` — `val raw = prefs.getString(CLIENTS_PREFS_KEY, null) ?: return emptyList()`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:91` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:440` — `prefs.edit().putString(CLIENTS_PREFS_KEY, encodeClientsPrefs(updated)).apply()`
+- `app/src/main/java/com/qabas/app/AgencyMonetizationHub.kt:480` — `prefs.edit().putString(CLIENTS_PREFS_KEY, encodeClientsPrefs(updated)).apply()`
+- `app/src/main/java/com/qabas/app/AgentBrain.kt:455` — `sb.append(part.getString("text"))`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:18` — `private const val PREFS_KEY = "agent_chat_sessions_v1"`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:41` — `val raw = prefs.getString(PREFS_KEY, null)`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:50` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:51` — `title = obj.getString("title"),`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:60` — `_activeSessionId.value = prefs.getString(ACTIVE_SESSION_ID_KEY, null)`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:76` — `prefs.edit().putString(ACTIVE_SESSION_ID_KEY, newId).apply()`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:83` — `prefs.edit().putString(ACTIVE_SESSION_ID_KEY, sessionId).apply()`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:108` — `prefs.edit().remove("agent_session_messages_$sessionId").apply()`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:127` — `val legacyRaw = prefs.getString(key, null)`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:133` — `prefs.edit().remove(key).apply()`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:144` — `filePath = dObj.getString("file"),`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:147` — `diffText = dObj.getString("diff")`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:154` — `sender = AgentChatSender.valueOf(obj.getString("sender")),`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:155` — `text = obj.getString("text"),`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:167` — `prefs.edit().remove("agent_session_messages_$sessionId").apply()`
+- `app/src/main/java/com/qabas/app/AgentChatSessionManager.kt:188` — `prefs.edit().putString(PREFS_KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:18` — `KEY_VAULT("التخزين المحلي (Prefs)", Color(0xFF10B981)),`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:66` — `val geminiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:68` — `return Triple(DetectedProvider.GEMINI, geminiPrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:71` — `val openrouterPrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENROUTER_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:73` — `return Triple(DetectedProvider.OPENROUTER, openrouterPrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:76` — `val groqPrefs = clean(AgentPrefs.getString(context, AgentPrefs.GROQ_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:78` — `return Triple(DetectedProvider.GROQ, groqPrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:81` — `val openaiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENAI_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:83` — `return Triple(DetectedProvider.OPENAI, openaiPrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:86` — `val anthropicPrefs = clean(AgentPrefs.getString(context, AgentPrefs.ANTHROPIC_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:88` — `return Triple(DetectedProvider.ANTHROPIC, anthropicPrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:91` — `val huggingfacePrefs = clean(AgentPrefs.getString(context, AgentPrefs.HUGGINGFACE_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:93` — `return Triple(DetectedProvider.HUGGINGFACE, huggingfacePrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:96` — `val opencodePrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENCODE_KEY, ""))`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:98` — `return Triple(DetectedProvider.OPENCODE, opencodePrefs, KeySource.KEY_VAULT)`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:490` — `keySource = if (token.isNotBlank()) KeySource.KEY_VAULT else KeySource.NONE,`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:506` — `keySource = if (token.isNotBlank()) KeySource.KEY_VAULT else KeySource.NONE,`
+- `app/src/main/java/com/qabas/app/AgentConnectivityEngine.kt:533` — `keySource: KeySource = KeySource.KEY_VAULT`
+- `app/src/main/java/com/qabas/app/AgentDialogs.kt:5` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:5` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:765` — `id = stepsList.getString(idx),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:774` — `userPrompt = obj.getString("userPrompt"),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:775` — `specialization = AgentSpecialization.valueOf(obj.getString("specialization")),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:780` — `(0 until arr.length()).map { arr.getString(it) }`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:782` — `buildTriggered = obj.getBoolean("buildTriggered"),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:783` — `apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:784` — `timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:808` — `AgentPrefs.putString(context, AgentPrefs.ACTIVE_MISSION_JSON, json.toString())`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:821` — `id = stepsList.getString(idx),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:831` — `userPrompt = obj.getString("userPrompt"),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:832` — `specialization = AgentSpecialization.valueOf(obj.getString("specialization")),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:837` — `(0 until arr.length()).map { arr.getString(it) }`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:839` — `buildTriggered = obj.getBoolean("buildTriggered"),`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:840` — `apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,`
+- `app/src/main/java/com/qabas/app/AgentMission.kt:841` — `timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()`
+- `app/src/main/java/com/qabas/app/AgentMissionCards.kt:5` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:8` — `import androidx.security.crypto.EncryptedSharedPreferences`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:13` — `* كل مفاتيح API ورموز GitHub PAT تُخزّن مشفرة عبر EncryptedSharedPreferences.`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:23` — `const val PREFS_NAME = "qabas_agent_encrypted"`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:24` — `private const val LEGACY_PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:60` — `private var prefs: SharedPreferences? = null`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:78` — `EncryptedSharedPreferences.create(`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:79` — `PREFS_NAME,`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:82` — `EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:83` — `EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:89` — `appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:94` — `appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:98` — `/** الوصول إلى كائن SharedPreferences المشفر (بعد التهيئة). آمن للاستخدام كبديل مباشر. */`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:99` — `fun instance(context: Context): SharedPreferences {`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:108` — `val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:112` — `val value = legacy.getString(key, null)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:114` — `editor.putString(key, value)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:123` — `fun putString(context: Context, key: String, value: String) {`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:124` — `instance(context).edit().putString(key, value).apply()`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:128` — `fun getString(context: Context, key: String, default: String = ""): String =`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:129` — `instance(context).getString(key, default) ?: default`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:136` — `fun putBoolean(context: Context, key: String, value: Boolean) {`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:137` — `instance(context).edit().putBoolean(key, value).apply()`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:140` — `fun getBoolean(context: Context, key: String, default: Boolean): Boolean =`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:141` — `instance(context).getBoolean(key, default)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:143` — `fun putInt(context: Context, key: String, value: Int) {`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:144` — `instance(context).edit().putInt(key, value).apply()`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:147` — `fun getInt(context: Context, key: String, default: Int): Int =`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:148` — `instance(context).getInt(key, default)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:159` — `getBoolean(context, toolKey(name), true)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:162` — `getInt(context, MAX_TURNS, 6).coerceIn(1, 10)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:165` — `getBoolean(context, AUTO_FIX, true)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:168` — `getBoolean(context, PLANNING_MODE, false)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:171` — `putBoolean(context, PLANNING_MODE, enabled)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:175` — `getInt(context, ACTIVE_PLANNING_TASKS_COUNT, 0).coerceAtLeast(0)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:178` — `putInt(context, ACTIVE_PLANNING_TASKS_COUNT, count.coerceAtLeast(0))`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:182` — `getString(context, MODEL).takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:185` — `if (model.isNullOrBlank()) remove(context, MODEL) else putString(context, MODEL, model)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:189` — `putInt(context, MAX_TURNS, turns)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:193` — `putBoolean(context, AUTO_FIX, enabled)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:198` — `putString(context, GITHUB_PAT, token)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:201` — `fun getGitHubPat(context: Context): String = getString(context, GITHUB_PAT)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:204` — `putString(context, GITHUB_OWNER, owner)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:205` — `putString(context, GITHUB_REPO, repo)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:208` — `fun getGitHubOwner(context: Context): String = getString(context, GITHUB_OWNER)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:209` — `fun getGitHubRepo(context: Context): String = getString(context, GITHUB_REPO)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:212` — `putString(context, TEAM_CONFIG_JSON, json)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:215` — `fun loadTeamConfig(context: Context): String = getString(context, TEAM_CONFIG_JSON)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:218` — `putString(context, ACTIVE_MISSION_JSON, json)`
+- `app/src/main/java/com/qabas/app/AgentPrefs.kt:221` — `fun loadActiveMission(context: Context): String = getString(context, ACTIVE_MISSION_JSON)`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:41` — `val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:42` — `val arr = JSONArray(prefs.getString(KEY, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:52` — `prefs.edit().putString(KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:86` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:106` — `val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:107` — `val arr = JSONArray(prefs.getString(KEY, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:119` — `prefs.edit().putString(KEY, newArr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AgentRunLog.kt:126` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()`
+- `app/src/main/java/com/qabas/app/AgentStreaming.kt:90` — `if (p.has("text")) append(p.getString("text"))`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:35` — `private const val PREFS_NAME = "qabas_ai_router_prefs"`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:36` — `private const val KEY_AUTO_FASTEST = "auto_fastest_enabled"`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:37` — `private const val KEY_MANUAL_ENGINE = "manual_selected_engine"`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:38` — `private const val KEY_LAST_BENCHMARK_TIME = "last_benchmark_timestamp"`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:58` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:59` — `_isAutoFastest.value = prefs.getBoolean(KEY_AUTO_FASTEST, true)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:60` — `val savedEngine = prefs.getString(KEY_MANUAL_ENGINE, "Groq") ?: "Groq"`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:62` — `_lastBenchmarkTime.value = prefs.getLong(KEY_LAST_BENCHMARK_TIME, 0L)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:67` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:69` — `.putBoolean(KEY_AUTO_FASTEST, enabled)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:85` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:87` — `.putBoolean(KEY_AUTO_FASTEST, false)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:88` — `.putString(KEY_MANUAL_ENGINE, engineName)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:149` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelLatencyRouter.kt:151` — `.putLong(KEY_LAST_BENCHMARK_TIME, now)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:105` — `private const val PREFS_NAME = "qabas_ai_registry_prefs"`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:106` — `private const val KEY_MODELS = "registered_models_v2"`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:107` — `private const val KEY_ACTIVE_MODEL_ID = "active_ai_model_id"`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:176` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:177` — `val raw = prefs.getString(KEY_MODELS, null)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:205` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:218` — `prefs.edit().putString(KEY_MODELS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:227` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:231` — `prefs.edit().putString(KEY_MODELS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:240` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:241` — `return prefs.getString(KEY_ACTIVE_MODEL_ID, PRESET_MODELS.first().id) ?: PRESET_MODELS.first().id`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:252` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AiModelRegistry.kt:253` — `prefs.edit().putString(KEY_ACTIVE_MODEL_ID, modelId).apply()`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:172` — `prefs.edit().putString("active_mission_json", json.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:177` — `val json = prefs.getString("active_mission_json", null)`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:184` — `id = stepsList.getString(idx),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:192` — `id = obj.getString("missionId"),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:193` — `userPrompt = obj.getString("userPrompt"),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:194` — `specialization = AgentSpecialization.valueOf(obj.getString("specialization")),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:199` — `(0 until arr.length()).map { arr.getString(it) }`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:201` — `buildTriggered = obj.getBoolean("buildTriggered"),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:202` — `apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:203` — `timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:207` — `prefs.edit().remove("active_mission_json").apply()`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:237` — `id = stepsList.getString(idx),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:246` — `userPrompt = obj.getString("userPrompt"),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:247` — `specialization = AgentSpecialization.valueOf(obj.getString("specialization")),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:252` — `(0 until arr.length()).map { arr.getString(it) }`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:254` — `buildTriggered = obj.getBoolean("buildTriggered"),`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:255` — `apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:256` — `timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:1885` — `onImportMission = { val json = prefs.getString("active_mission_json", "") ?: ""; if (json.isNotBlank()) importMissionFromJson(json) },`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:2305` — `mutableStateOf(AgentPrefs.getBoolean(context, "agent_autonomous_mode", true))`
+- `app/src/main/java/com/qabas/app/AiStudioAgentScreen.kt:2714` — `AgentPrefs.putBoolean(context, "agent_autonomous_mode", it)`
+- `app/src/main/java/com/qabas/app/AnalyticsService.kt:19` — `private val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AnalyticsService.kt:22` — `prefs.edit().putBoolean("analytics_enabled", enabled).apply()`
+- `app/src/main/java/com/qabas/app/AnalyticsService.kt:27` — `val isEnabled = prefs.getBoolean("analytics_enabled", true)`
+- `app/src/main/java/com/qabas/app/AnalyticsService.kt:33` — `val isEnabled = prefs.getBoolean("analytics_enabled", true)`
+- `app/src/main/java/com/qabas/app/ApiDocsScreen.kt:85` — `mutableStateOf(prefs.getString("user_api_key", null) ?: "")`
+- `app/src/main/java/com/qabas/app/ApiDocsScreen.kt:464` — `prefs.edit().putString("user_api_key", newKey).apply()`
+- `app/src/main/java/com/qabas/app/ApiKeyManager.kt:4` — `import androidx.security.crypto.EncryptedSharedPreferences`
+- `app/src/main/java/com/qabas/app/ApiKeyManager.kt:13` — `AgentPrefs.putString(context, "leonardo_api_key", key)`
+- `app/src/main/java/com/qabas/app/ApiKeyManager.kt:17` — `return AgentPrefs.getString(context, "leonardo_api_key")`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:7` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:92` — `private val KEY_PATTERNS: Map<String, Regex> = mapOf(`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:106` — `KEY_PATTERNS.forEach { (service, regex) ->`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:117` — `private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:142` — `return ORDERED_SINGLE_KEY_PATTERNS.firstOrNull { (_, rx) -> rx.matches(key) }?.first`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:147` — `prefs: SharedPreferences,`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:170` — `val v = currentKeys[k] ?: prefs.getString(k, "") ?: ""`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:182` — `prefs: SharedPreferences`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:261` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:263` — `editor.putString(k, v.trim())`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:446` — `svc.prefsKey to (prefs.getString(svc.prefsKey, "") ?: "")`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:451` — `mutableStateOf(prefs.getString("azure_speech_region", "") ?: "")`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:493` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:512` — `editor.putString(prefKey, key)`
+- `app/src/main/java/com/qabas/app/ApiKeysScreen.kt:1123` — `prefs.edit().putString("azure_speech_region", it.trim()).apply()`
+- `app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt:24` — `var serverPort by remember { mutableIntStateOf(AgentPrefs.getInt(context, "api_server_port", 8080)) }`
+- `app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt:25` — `var apiKey by remember { mutableStateOf(AgentPrefs.getString(context, "api_server_key", generateApiKey()).takeIf{it.isNotBlank()} ?: generateApiKey()) }`
+- `app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt:29` — `val server = remember { LocalApiServer(context) { AgentPrefs.getString(context, "api_server_key") } }`
+- `app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt:63` — `AgentPrefs.putString(context, "api_server_key", it)`
+- `app/src/main/java/com/qabas/app/ApiServerSettingsSection.kt:77` — `AgentPrefs.putInt(context, "api_server_port", port)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:67` — `val sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:68` — `val rawStats = sp.getString(USAGE_JSON_KEY, null)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:69` — `?: sp.getString("api_usage_tracker_json_v2", null)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:95` — `val rawLogs = sp.getString(LOGS_JSON_KEY, null)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:160` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:162` — `.putString(USAGE_JSON_KEY, arr.toString())`
+- `app/src/main/java/com/qabas/app/ApiUsageTracker.kt:163` — `.putString(LOGS_JSON_KEY, logsArr.toString())`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:133` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:134` — `val savedAnimId = prefs.getString(PREF_ANIM_KEY, AppTransitionAnimation.SPATIAL_WARP.id)`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:135` — `val savedSpeedId = prefs.getString(PREF_SPEED_KEY, AnimationSpeedOption.NORMAL.id)`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:148` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:149` — `prefs.edit().putString(PREF_ANIM_KEY, anim.id).apply()`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:155` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppAnimationManager.kt:156` — `prefs.edit().putString(PREF_SPEED_KEY, speed.id).apply()`
+- `app/src/main/java/com/qabas/app/AppDiagnostics.kt:301` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppDiagnostics.kt:317` — `val keyVal = prefs.getString(key, "") ?: ""`
+- `app/src/main/java/com/qabas/app/AppDiagnostics.kt:387` — `val tableName = cursor.getString(0)`
+- `app/src/main/java/com/qabas/app/AppDiagnostics.kt:391` — `val count = countCursor.getLong(0)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:112` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:113` — `if (prefs.getBoolean("is_logged_in", false)) {`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:207` — `val isLoggedIn = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:241` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:242` — `val isLoggedIn = prefs.getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:243` — `val isGuest = prefs.getBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:244` — `val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:257` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:258` — `val isLoggedIn = prefs.getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:259` — `val isGuest = prefs.getBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:638` — `val isLoggedIn = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:666` — `viewModel.updateState { copy(appState = AppState.DEVELOPER_KEY_STATUS_HUB) }`
+- `app/src/main/java/com/qabas/app/AppNavigation.kt:1388` — `AppState.DEVELOPER_KEY_STATUS_HUB -> {`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:10` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:39` — `private const val PREFS_NAME = "qabas_notifications"`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:40` — `private const val KEY_NOTIFICATIONS = "notifications"`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:42` — `private const val KEY_DAILY_HADITH_HOUR = "notif_daily_hadith_hour"`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:43` — `private const val KEY_DAILY_HADITH_MINUTE = "notif_daily_hadith_minute"`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:49` — `private var boundPrefs: SharedPreferences? = null`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:51` — `private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:52` — `if (key == KEY_NOTIFICATIONS) {`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:120` — `val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:122` — `prefs.getInt(KEY_DAILY_HADITH_HOUR, 9),`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:123` — `prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:128` — `context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:130` — `.putInt(KEY_DAILY_HADITH_HOUR, hour)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:131` — `.putInt(KEY_DAILY_HADITH_MINUTE, minute)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:301` — `val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:309` — `prefs.registerOnSharedPreferenceChangeListener(prefsListener)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:330` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:331` — `val json = prefs.getString(KEY_NOTIFICATIONS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:339` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:340` — `title = obj.getString("title"),`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:341` — `message = obj.getString("message"),`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:343` — `timestamp = obj.getLong("timestamp"),`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:368` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppNotificationService.kt:369` — `.edit().putString(KEY_NOTIFICATIONS, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:56` — `val authPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:57` — `val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:62` — `val prefs = remember { context.getSharedPreferences("qabas_permissions_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:63` — `var hasRequestedInitially by remember { mutableStateOf(prefs.getBoolean("initial_permissions_requested", false)) }`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:101` — `prefs.edit().putBoolean("initial_permissions_requested", true).apply()`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:133` — `if (anyVitalMissing && !prefs.getBoolean("bg_permission_dismissed", false)) {`
+- `app/src/main/java/com/qabas/app/AppPermissionLauncher.kt:149` — `prefs.edit().putBoolean("bg_permission_dismissed", true).apply()`
+- `app/src/main/java/com/qabas/app/AppPermissionsLauncher.kt:45` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AppPermissionsLauncher.kt:47` — `mutableStateOf(prefs.getBoolean("has_prompted_all_permissions_v1", false))`
+- `app/src/main/java/com/qabas/app/AppPermissionsLauncher.kt:64` — `prefs.edit().putBoolean("has_prompted_all_permissions_v1", true).apply()`
+- `app/src/main/java/com/qabas/app/AppPermissionsLauncher.kt:77` — `prefs.edit().putBoolean("has_prompted_all_permissions_v1", true).apply()`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:22` — `const val KEY_MAINTENANCE = "sys_maintenance_mode"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:23` — `const val KEY_ACCEPT_REQUESTS = "sys_accept_requests"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:24` — `const val KEY_AUTO_AI_REPLY = "sys_auto_ai_reply"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:25` — `const val KEY_MAINTENANCE_MESSAGE = "sys_maintenance_message"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:26` — `const val KEY_MIN_VERSION = "sys_min_version_code"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:27` — `const val KEY_LAST_SYNC = "sys_config_last_sync"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:48` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:50` — `maintenanceMode = prefs.getBoolean(KEY_MAINTENANCE, false),`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:51` — `acceptRequests = prefs.getBoolean(KEY_ACCEPT_REQUESTS, true),`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:52` — `autoAiReply = prefs.getBoolean(KEY_AUTO_AI_REPLY, true),`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:53` — `maintenanceMessage = prefs.getString(KEY_MAINTENANCE_MESSAGE, ConfigData.DEFAULT_MESSAGE)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:55` — `minVersionCode = prefs.getInt(KEY_MIN_VERSION, 0),`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:56` — `lastSyncMs = prefs.getLong(KEY_LAST_SYNC, 0L)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:63` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:64` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:65` — `.putBoolean(KEY_MAINTENANCE, data.maintenanceMode)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:66` — `.putBoolean(KEY_ACCEPT_REQUESTS, data.acceptRequests)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:67` — `.putBoolean(KEY_AUTO_AI_REPLY, data.autoAiReply)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:68` — `.putString(KEY_MAINTENANCE_MESSAGE, data.maintenanceMessage)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:69` — `.putInt(KEY_MIN_VERSION, data.minVersionCode)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:70` — `.putLong(KEY_LAST_SYNC, data.lastSyncMs)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:102` — `val key: String = KEY_MAINTENANCE,`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:119` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:120` — `var id = prefs.getString("device_stable_id", null)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:123` — `prefs.edit().putString("device_stable_id", id).apply()`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:129` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:135` — `prefs.getBoolean("is_premium", false) -> "premium"`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:180` — `KEY_MAINTENANCE -> it.maintenanceMode`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:181` — `KEY_ACCEPT_REQUESTS -> it.acceptRequests`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:182` — `KEY_AUTO_AI_REPLY -> it.autoAiReply`
+- `app/src/main/java/com/qabas/app/AppRemoteConfig.kt:191` — `KEY_MAINTENANCE_MESSAGE -> current(context).maintenanceMessage`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:189` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:244` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:245` — `prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:523` — `val prefs = context.getSharedPreferences("doctor_notify_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:524` — `val lastSig = prefs.getString("last_critical_sig", null)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:525` — `val lastTime = prefs.getLong("last_critical_time", 0L)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:534` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:535` — `.putString("last_critical_sig", signature)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:536` — `.putLong("last_critical_time", now)`
+- `app/src/main/java/com/qabas/app/AppSelfDoctor.kt:586` — `suggestedFixCode = if (o.has("suggestedFixCode") && !o.isNull("suggestedFixCode")) o.getString("suggestedFixCode") else null,`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:149` — `val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:150` — `_masterEnabled.value = prefs.getBoolean(PREF_SFX_MASTER, true)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:151` — `val presetId = prefs.getString(PREF_SFX_PRESET, AppSoundPreset.CYBER_TECH.id)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:153` — `_volume.value = prefs.getFloat(PREF_SFX_VOLUME, 0.85f)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:154` — `_clickEnabled.value = prefs.getBoolean(PREF_CLICK_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:155` — `_animEnabled.value = prefs.getBoolean(PREF_ANIM_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:156` — `_dhikrEnabled.value = prefs.getBoolean(PREF_DHIKR_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:157` — `_hapticEnabled.value = prefs.getBoolean(PREF_HAPTIC_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:250` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:251` — `.edit().putBoolean(PREF_SFX_MASTER, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:256` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:257` — `.edit().putString(PREF_SFX_PRESET, preset.id).apply()`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:262` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:268` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:269` — `.edit().putBoolean(PREF_CLICK_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:274` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:275` — `.edit().putBoolean(PREF_ANIM_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:280` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:281` — `.edit().putBoolean(PREF_DHIKR_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:286` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AppSoundManager.kt:287` — `.edit().putBoolean(PREF_HAPTIC_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AudioDownloadHelper.kt:144` — `val displayName = cursor.getString(nameColumn)`
+- `app/src/main/java/com/qabas/app/AudioLibraryScreen.kt:444` — `mutableStateOf(context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioLibraryScreen.kt:445` — `.getStringSet("favorite_audio_ids", emptySet())?.toSet().orEmpty())`
+- `app/src/main/java/com/qabas/app/AudioLibraryScreen.kt:904` — `context.getSharedPreferences("qabas_audio_favorites", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioLibraryScreen.kt:905` — `.edit().putStringSet("favorite_audio_ids", nextFavorites.toMutableSet()).apply()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:290` — `getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:291` — `.putString("last_track_id", track.id)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:338` — `val playbackPrefs = getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:339` — `val resumePosition = if (playbackPrefs.getString("last_track_id", null) == track.id) {`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:340` — `playbackPrefs.getLong("position_ms", 0L).coerceIn(0L, totalDuration - 1L)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:358` — `getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:359` — `.putString("last_track_id", track.id)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:360` — `.putLong("position_ms", 0L)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:430` — `getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:431` — `.putString("last_track_id", trackId)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:432` — `.putLong("position_ms", mediaPlayer?.currentPosition?.toLong() ?: AudioPlaybackManager.currentPositionMs.value)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:456` — `getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:457` — `.putString("last_track_id", trackId)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:458` — `.putLong("position_ms", positionMs)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:486` — `getSharedPreferences("qabas_audio_playback", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:487` — `.putString("last_track_id", trackId)`
+- `app/src/main/java/com/qabas/app/AudioPlaybackManager.kt:488` — `.putLong("position_ms", pos)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:21` — `private const val PREFS_NAME = "qabas_audio_prefs"`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:22` — `private const val KEY_STARTUP_AUDIO_ENABLED = "startup_audio_enabled"`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:23` — `private const val KEY_HAS_PLAYED_FIRST_TIME = "has_played_first_time"`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:39` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:40` — `_isStartupAudioEnabled.value = prefs.getBoolean(KEY_STARTUP_AUDIO_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:44` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:45` — `prefs.edit().putBoolean(KEY_STARTUP_AUDIO_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:58` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:59` — `val isEnabled = prefs.getBoolean(KEY_STARTUP_AUDIO_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:60` — `val hasPlayedFirstTime = prefs.getBoolean(KEY_HAS_PLAYED_FIRST_TIME, false)`
+- `app/src/main/java/com/qabas/app/AudioPlayerManager.kt:94` — `prefs.edit().putBoolean(KEY_HAS_PLAYED_FIRST_TIME, true).apply()`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:21` — `private const val PREFS_KEY = "audit_log_entries"`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:70` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:71` — `val arr = JSONArray(prefs.getString(PREFS_KEY, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:83` — `prefs.edit().putString(PREFS_KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:89` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:90` — `val arr = JSONArray(prefs.getString(PREFS_KEY, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:114` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AuditLogger.kt:115` — `val arr = JSONArray(prefs.getString(PREFS_KEY, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:54` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:55` — `val draftEmail = remember { prefs.getString("draft_register_email", "") ?: "" }`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:70` — `// A password must never be persisted in SharedPreferences.`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:71` — `prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:558` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:559` — `prefs.edit().apply {`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:560` — `putBoolean("is_logged_in", true)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:561` — `putBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:562` — `putBoolean("is_admin", isAdmin)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:563` — `putBoolean("is_developer", isDeveloper)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:564` — `putString("user_id", authUid)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:565` — `putString("user_email", lowerEmail)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:566` — `putString("user_name", effectiveManualName)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:567` — `putString("user_display_name", effectiveManualName)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:568` — `putString("user_custom_id", cloudCustomId)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:569` — `putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:570` — `putString("user_account_number", accountNumber)`
+- `app/src/main/java/com/qabas/app/AuthScreens.kt:571` — `putString("user_name_with_account", nameWithAccount)`
+- `app/src/main/java/com/qabas/app/AzanCountdownService.kt:236` — `val savedPresetId = getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AzanCountdownService.kt:237` — `.getString("app_theme_preset", AppThemePreset.CYBER_HUD_BLUE.id)`
+- `app/src/main/java/com/qabas/app/AzanCountdownService.kt:269` — `val prefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AzanCountdownService.kt:270` — `if (!prefs.getBoolean("prayer_notifications_enabled", true)) return null`
+- `app/src/main/java/com/qabas/app/AzanCountdownService.kt:298` — `if (!prefs.getBoolean("notify_${definition.key}", true)) continue`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:75` — `private val prefs = application.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:152` — `val count = prefs.getInt("azkar_count_${todayKey}_$id", 0)`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:185` — `prefs.edit().putInt("azkar_count_${todayKey}_$id", next).apply()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:190` — `prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:194` — `prefs.edit().putBoolean("daily_evening_azkar_$todayKey", true).apply()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:201` — `prefs.edit().remove("azkar_count_${todayKey}_$id").apply()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:208` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:224` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:722` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:734` — `prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()`
+- `app/src/main/java/com/qabas/app/AzkarScreen.kt:740` — `prefs.edit().putBoolean("daily_evening_azkar_$todayKey", true).apply()`
+- `app/src/main/java/com/qabas/app/BrainDecisionHistoryLog.kt:170` — `sfxList.add(sfxArr.getString(i))`
+- `app/src/main/java/com/qabas/app/BrainDecisionHistoryLog.kt:201` — `for (i in 0 until arr.length()) tagsList.add(arr.getString(i))`
+- `app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt:83` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt:86` — `val isPremium = prefs.getBoolean("is_premium", false)`
+- `app/src/main/java/com/qabas/app/BugCameraSettingsScreen.kt:583` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/BugReportRepository.kt:247` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/BugReportRepository.kt:249` — `?: prefs.getString("user_email", null)?.takeIf { it.isNotBlank() && it.contains("@") }`
+- `app/src/main/java/com/qabas/app/BugReportRepository.kt:251` — `val userName = prefs.getString("user_name", "")?.takeIf { it.isNotBlank() } ?: userEmail.substringBefore('@')`
+- `app/src/main/java/com/qabas/app/CinematicExportScreen.kt:75` — `val saved = analyticsContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CinematicExportScreen.kt:76` — `.getString("defaultQuality", "1080p") ?: "1080p"`
+- `app/src/main/java/com/qabas/app/ClientRepoTemplates.kt:230` — `gh secret set ANDROID_KEY_ALIAS --repo "${'$'}GITHUB_REPOSITORY" --app actions --body client`
+- `app/src/main/java/com/qabas/app/ClientRepoTemplates.kt:231` — `gh secret set ANDROID_KEY_PASSWORD --repo "${'$'}GITHUB_REPOSITORY" --app actions --body android`
+- `app/src/main/java/com/qabas/app/CloudIntegrationMonitorPanel.kt:71` — `val dbId = runCatching { context.getString(R.string.firestore_database_id) }.getOrDefault("")`
+- `app/src/main/java/com/qabas/app/CloudServices.kt:125` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/CloudServices.kt:126` — `.putBoolean("is_developer", isDeveloper)`
+- `app/src/main/java/com/qabas/app/CloudServices.kt:127` — `.putBoolean("is_admin", isAdmin)`
+- `app/src/main/java/com/qabas/app/CommunityReviewsSection.kt:701` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/CommunityReviewsSection.kt:704` — `prefs.getString("user_display_name", null)`
+- `app/src/main/java/com/qabas/app/ConnectorsSection.kt:533` — `val dbId = runCatching { context.getString(R.string.firestore_database_id) }.getOrNull()`
+- `app/src/main/java/com/qabas/app/CrashBreadcrumbs.kt:186` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CrashBreadcrumbs.kt:187` — `val launches = prefs.getInt("app_launch_count", 0)`
+- `app/src/main/java/com/qabas/app/CrashTelemetry.kt:59` — `val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CrashTelemetry.kt:71` — `val startupStage = prefs.getString(stageKey, "unknown") ?: "unknown"`
+- `app/src/main/java/com/qabas/app/CrashTelemetry.kt:72` — `val startupStageTimestamp = prefs.getLong(stageTimestampKey, 0L)`
+- `app/src/main/java/com/qabas/app/CrashTelemetry.kt:150` — `val eventId = record.getString("id")`
+- `app/src/main/java/com/qabas/app/CrashTelemetry.kt:208` — `put("id", record.getString("id"))`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:205` — `val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:208` — `val storedEmail = appPrefs.getString("user_email", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:209` — `val displayName = appPrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:210` — `?: appPrefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:213` — `val avatar = appPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:236` — `val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:237` — `return appPrefs.getStringSet(key, emptySet()).orEmpty()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:254` — `val raw = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:255` — `.getString(key, null) ?: return followedIdsForUser(context, userId).map {`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:286` — `context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:287` — `.edit().putString(key, payload).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:292` — `return context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:293` — `.getString(key, null)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:298` — `context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:299` — `.edit().putString(key, state).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:353` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:354` — `.edit().putStringSet(followedIdsKey, synced.map { it.id }.toSet()).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:388` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:389` — `.edit().putStringSet(followedIdsKey, synced.map { it.id }.toSet()).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:412` — `val appPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:413` — `val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:419` — `appPrefs.edit().putStringSet(followedIdsKey, nextIds).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:420` — `legacy.edit().putBoolean(legacyFollowKey, follow).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:567` — `val appPrefs = context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:573` — `appPrefs.edit().putStringSet(followedIdsKey, nextIds).apply()`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:574` — `context.applicationContext.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/CreatorFollowManager.kt:575` — `.edit().putBoolean(legacyFollowKey, remoteFollowing).apply()`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:59` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:72` — `mutableStateOf(prefs.getBoolean("pref_hud_grid", true))`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:75` — `mutableStateOf(prefs.getBoolean("pref_hud_corners", true))`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:79` — `mutableStateOf(prefs.getBoolean("pref_oled_contrast", false))`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:583` — `prefs.edit().putBoolean("pref_hud_grid", it).apply()`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:601` — `prefs.edit().putBoolean("pref_hud_corners", it).apply()`
+- `app/src/main/java/com/qabas/app/CyberHudSettingsSampleScreen.kt:619` — `prefs.edit().putBoolean("pref_oled_contrast", it).apply()`
+- `app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt:62` — `dayId = item.getInt("dayId"),`
+- `app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt:63` — `text = item.getString("text"),`
+- `app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt:64` — `narrator = item.getString("narrator"),`
+- `app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt:65` — `benefit = item.getString("benefit"),`
+- `app/src/main/java/com/qabas/app/DailyHadithAiGenerator.kt:66` — `book = item.getString("book")`
+- `app/src/main/java/com/qabas/app/DailyHadithRepository.kt:28` — `dayId = doc.getLong("dayId")?.toInt() ?: dayId,`
+- `app/src/main/java/com/qabas/app/DailyHadithRepository.kt:29` — `text = doc.getString("text") ?: "",`
+- `app/src/main/java/com/qabas/app/DailyHadithRepository.kt:30` — `narrator = doc.getString("narrator") ?: "",`
+- `app/src/main/java/com/qabas/app/DailyHadithRepository.kt:31` — `benefit = doc.getString("benefit") ?: "",`
+- `app/src/main/java/com/qabas/app/DailyHadithRepository.kt:32` — `book = doc.getString("book") ?: ""`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:89` — `if (counts.configOk) Text("✅ إعدادات النظام (${AppRemoteConfig.KEY_MAINTENANCE} …)", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:260` — `private const val KEY_ENABLED = "auto_backup_enabled"`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:261` — `private const val KEY_LAST = "auto_backup_last_ms"`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:266` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:269` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_LAST, 0L)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:272` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:333` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:334` — `.putLong(KEY_LAST, System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:395` — `maintenanceMode = c.optBoolean(AppRemoteConfig.KEY_MAINTENANCE, false),`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:396` — `acceptRequests = c.optBoolean(AppRemoteConfig.KEY_ACCEPT_REQUESTS, true),`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:397` — `autoAiReply = c.optBoolean(AppRemoteConfig.KEY_AUTO_AI_REPLY, true),`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:398` — `maintenanceMessage = c.optString(AppRemoteConfig.KEY_MAINTENANCE_MESSAGE, AppRemoteConfig.ConfigData.DEFAULT_MESSAGE)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:473` — `put(AppRemoteConfig.KEY_MAINTENANCE, config.maintenanceMode)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:474` — `put(AppRemoteConfig.KEY_ACCEPT_REQUESTS, config.acceptRequests)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:475` — `put(AppRemoteConfig.KEY_AUTO_AI_REPLY, config.autoAiReply)`
+- `app/src/main/java/com/qabas/app/DashboardBackup.kt:476` — `put(AppRemoteConfig.KEY_MAINTENANCE_MESSAGE, config.maintenanceMessage)`
+- `app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt:28` — `private const val KEY_NOTIFIED_PREFIX = "notified_"`
+- `app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt:99` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt:100` — `.getBoolean(KEY_NOTIFIED_PREFIX + messageId, false)`
+- `app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt:103` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt:104` — `.edit().putBoolean(KEY_NOTIFIED_PREFIX + messageId, true).apply()`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:22` — `private const val PREFS_NAME = "qabas_dev_chat_store"`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:23` — `private const val KEY_MESSAGES_PREFIX = "chat_msgs_"`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:24` — `private const val KEY_ALL_EMAILS = "chat_all_emails"`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:54` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:55` — `val json = prefs.getString(KEY_MESSAGES_PREFIX + cleanEmail, null) ?: return getWelcomeSeedMessages(cleanEmail)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:70` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:75` — `prefs.edit().putString(KEY_MESSAGES_PREFIX + cleanEmail, json).apply()`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:78` — `val existingEmails = HashSet(prefs.getStringSet(KEY_ALL_EMAILS, emptySet()) ?: emptySet())`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:80` — `prefs.edit().putStringSet(KEY_ALL_EMAILS, existingEmails).apply()`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:217` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:218` — `prefs.edit().remove(KEY_MESSAGES_PREFIX + cleanEmail).apply()`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:223` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:227` — `prefs.getStringSet(KEY_ALL_EMAILS, emptySet())?.let { allEmails.addAll(it) }`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:230` — `prefs.all.keys.filter { it.startsWith(KEY_MESSAGES_PREFIX) }.forEach {`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:231` — `val email = it.removePrefix(KEY_MESSAGES_PREFIX).trim().lowercase()`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:237` — `val currentAppEmail = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevChatRepository.kt:238` — `.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/DevHonestLabels.kt:9` — `const val KEY_STATUS_ONLY = "حالة المفتاح فقط — ليس استهلاك استخدام حقيقي"`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:81` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:82` — `val owner = prefs.getString("build_center_owner", "").orEmpty().trim()`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:83` — `val repo = prefs.getString("build_center_repo", "").orEmpty().trim()`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:94` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:95` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:96` — `.putString("build_center_owner", config.owner)`
+- `app/src/main/java/com/qabas/app/DevRepoSync.kt:97` — `.putString("build_center_repo", config.repo)`
+- `app/src/main/java/com/qabas/app/DeveloperContactScreen.kt:84` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/DeveloperContactScreen.kt:88` — `?: prefs.getString("user_email", "").orEmpty()`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:76` — `LIVE_KEY_STATUS_HUB, REQUESTS, SYSTEM_CONTROLS, NOTIFICATIONS, USERS, STATS,`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:144` — `val target = gateContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:145` — `.getString("dev_dash_target", null)`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:148` — `gateContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:349` — `DashboardSection.CLOUD_API_HUB, DashboardSection.API_KEYS, DashboardSection.LIVE_KEY_STATUS_HUB, DashboardSection.CONNECTORS, DashboardSection.AI_MODEL_SWITCHER -> {`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:351` — `DashboardSection.LIVE_KEY_STATUS_HUB -> 1`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3030` — `var selKey by remember { mutableStateOf(AppRemoteConfig.KEY_MAINTENANCE) }`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3047` — `AppRemoteConfig.KEY_MAINTENANCE to "وضع الصيانة",`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3048` — `AppRemoteConfig.KEY_ACCEPT_REQUESTS to "استقبال الطلبات",`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3049` — `AppRemoteConfig.KEY_AUTO_AI_REPLY to "الرد الآلي",`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3050` — `AppRemoteConfig.KEY_MAINTENANCE_MESSAGE to "رسالة الصيانة"`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3062` — `if (selKey == AppRemoteConfig.KEY_MAINTENANCE_MESSAGE) {`
+- `app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt:3916` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt:274` — `// جلب القيمة الحقيقية للمفتاح من SharedPreferences أولاً ثم من متغيرات البيئة`
+- `app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt:277` — `val fromSp = sp.getString(spec.preferenceKey, "")?.trim() ?: ""`
+- `app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt:1100` — `.putString(spec.preferenceKey, trimmed)`
+- `app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt:1198` — `val v = sp.getString(spec.preferenceKey, "")?.trim() ?: ""`
+- `app/src/main/java/com/qabas/app/DeveloperKeyStatusHub.kt:1277` — `editor.putString(k, v)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:18` — `val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:20` — `p.getString(PULSE_KEY, "green") ?: "green",`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:21` — `p.getLong(PULSE_TIME_KEY, 0L),`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:22` — `p.getString(PULSE_MSG_KEY, "") ?: ""`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:27` — `val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:28` — `val last = p.getLong(LAST_RUN_KEY, 0L)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:36` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:57` — `val cachedTime = prefs.getLong("cached_scenes_time", 0L)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:58` — `if (prefs.contains("cached_scenes") && System.currentTimeMillis() - cachedTime > 24 * 3_600_000L) {`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:59` — `prefs.edit().remove("cached_scenes").remove("cached_scenes_time").apply()`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:81` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:82` — `.putString(PULSE_KEY, pulse)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:83` — `.putLong(PULSE_TIME_KEY, System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:84` — `.putString(PULSE_MSG_KEY, msg)`
+- `app/src/main/java/com/qabas/app/DoctorMonitor.kt:85` — `.putLong(LAST_RUN_KEY, System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:155` — `private const val PREFS_NAME = "qabas_downloads_hub_prefs"`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:156` — `private const val KEY_DOWNLOADED_REELS = "downloaded_reels_json"`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:157` — `private const val KEY_DOWNLOADED_MEDIA = "downloaded_media_json"`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:373` — `* تحميل التنزيلات المحفوظة من SharedPreferences`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:376` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:379` — `val reelsRaw = prefs.getString(KEY_DOWNLOADED_REELS, null)`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:387` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:388` — `title = obj.getString("title"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:390` — `videoUrl = obj.getString("videoUrl"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:391` — `localFilePath = obj.getString("localFilePath"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:407` — `val mediaRaw = prefs.getString(KEY_DOWNLOADED_MEDIA, null)`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:415` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:416` — `title = obj.getString("title"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:418` — `localFilePath = obj.getString("localFilePath"),`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:435` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:450` — `prefs.edit().putString(KEY_DOWNLOADED_REELS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:819` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/DownloadsHubManager.kt:833` — `prefs.edit().putString(KEY_DOWNLOADED_MEDIA, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:299` — `val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:300` — `val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:301` — `val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:302` — `val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:303` — `val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:320` — `val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:323` — `retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) != "yes"`
+- `app/src/main/java/com/qabas/app/EditorExportRenderer.kt:328` — `val audioFlag = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)`
+- `app/src/main/java/com/qabas/app/FirebaseAiService.kt:211` — `for (i in 0 until themesArr.length()) themesList.add(themesArr.getString(i))`
+- `app/src/main/java/com/qabas/app/FirebaseAppCheckHelper.kt:27` — `val prefs = context.getSharedPreferences(`
+- `app/src/main/java/com/qabas/app/FirebaseAppCheckHelper.kt:31` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/FirebaseAppCheckHelper.kt:32` — `.putString(DEBUG_SECRET_KEY, debugToken)`
+- `app/src/main/java/com/qabas/app/FirebaseManager.kt:20` — `context.getString(R.string.firestore_database_id)`
+- `app/src/main/java/com/qabas/app/FirebaseManager.kt:48` — `context.getString(R.string.firestore_database_id).isNotBlank()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:25` — `* ثم تُخزن نسخة محلية مختصرة في SharedPreferences لتجنّب رحلات شبكة إضافية`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:29` — `private val prefs = context.getSharedPreferences("gift_manager_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:89` — `* - يحتفظ بنسخة محلية مختصرة في SharedPreferences كاحتياط.`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:105` — `val customPromos = prefs.getStringSet("custom_promos", mutableSetOf())?.toMutableSet() ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:107` — `prefs.edit().putStringSet("custom_promos", customPromos).apply()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:131` — `val customGifts = prefs.getStringSet("custom_gifts", mutableSetOf())?.toMutableSet() ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:133` — `prefs.edit().putStringSet("custom_gifts", customGifts).apply()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:139` — `val customPromos = prefs.getStringSet("custom_promos", mutableSetOf()) ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:151` — `val customGifts = prefs.getStringSet("custom_gifts", mutableSetOf()) ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:163` — `get() = prefs.getLong("promo_expiry_time", 0L)`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:173` — `prefs.edit().putLong("promo_expiry_time", 0L).apply()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:212` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:213` — `.putLong("promo_expiry_time", newExpiry)`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:236` — `val usedCodes = prefs.getStringSet("used_codes", mutableSetOf()) ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:252` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:253` — `.putLong("promo_expiry_time", newExpiry)`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:254` — `.putStringSet("used_codes", newUsedCodes)`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:270` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/GiftManager.kt:271` — `.putStringSet("used_codes", newUsedCodes)`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:118` — `val prefs = context.getSharedPreferences("qabas_github_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:119` — `prefs.edit().putString("github_oauth_token", token).apply()`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:126` — `val prefs = context.getSharedPreferences("qabas_github_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:127` — `return prefs.getString("github_oauth_token", null)`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:134` — `val prefs = context.getSharedPreferences("qabas_github_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GitHubAuthManager.kt:135` — `prefs.edit().remove("github_oauth_token").apply()`
+- `app/src/main/java/com/qabas/app/GithubXdeltaHubScreen.kt:87` — `mutableStateOf(prefs.getString("build_center_owner", "Ali-awwww")?.ifBlank { "Ali-awwww" } ?: "Ali-awwww")`
+- `app/src/main/java/com/qabas/app/GithubXdeltaHubScreen.kt:90` — `mutableStateOf(prefs.getString("build_center_repo", "qabasapp")?.ifBlank { "qabasapp" } ?: "qabasapp")`
+- `app/src/main/java/com/qabas/app/GithubXdeltaHubScreen.kt:97` — `prefs.edit().remove("build_center_token").apply()`
+- `app/src/main/java/com/qabas/app/GithubXdeltaHubScreen.kt:98` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GoogleAuthHelper.kt:28` — `private const val PREF_KEY_WEB_CLIENT_ID = "google_web_client_id"`
+- `app/src/main/java/com/qabas/app/GoogleAuthHelper.kt:37` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GoogleAuthHelper.kt:38` — `val saved = prefs.getString(PREF_KEY_WEB_CLIENT_ID, "")?.trim() ?: ""`
+- `app/src/main/java/com/qabas/app/GoogleAuthHelper.kt:58` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GoogleAuthHelper.kt:59` — `prefs.edit().putString(PREF_KEY_WEB_CLIENT_ID, clientId.trim()).apply()`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:18` — `private const val KEY_COUNT = "streak_count"`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:19` — `private const val KEY_LAST = "streak_last_date"`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:20` — `private const val KEY_FREEZES = "streak_freezes"`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:25` — `val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:26` — `val last = p.getString(KEY_LAST, "") ?: ""`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:27` — `val count = p.getInt(KEY_COUNT, 0)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:32` — `val freezes = p.getInt(KEY_FREEZES, 1)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:34` — `p.edit().putInt(KEY_FREEZES, freezes - 1).putString(KEY_LAST, yesterday).apply()`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:40` — `val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:41` — `val last = p.getString(KEY_LAST, "") ?: ""`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:42` — `var count = p.getInt(KEY_COUNT, 0)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:47` — `var freezes = p.getInt(KEY_FREEZES, 1)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:49` — `p.edit().putInt(KEY_COUNT, count).putString(KEY_LAST, day()).putInt(KEY_FREEZES, freezes).apply()`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:54` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_FREEZES, 1)`
+- `app/src/main/java/com/qabas/app/GrowthUpgrades.kt:85` — `val hooks = (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }.filter { it.isNotBlank() }.take(3)`
+- `app/src/main/java/com/qabas/app/HasanatHubScreen.kt:94` — `val voicePrefs = remember { context.getSharedPreferences("mishkat_voice_prefs", android.content.Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/HasanatHubScreen.kt:102` — `val savedName = voicePrefs.getString("voice_name", null)`
+- `app/src/main/java/com/qabas/app/HasanatHubScreen.kt:652` — `val selected = voicePrefs.getString("voice_name", null) == voice.name`
+- `app/src/main/java/com/qabas/app/HasanatHubScreen.kt:655` — `voicePrefs.edit().putString("voice_name", voice.name).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:72` — `private val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:84` — `if (prefs.getString("mishkat_tasbeeh_date", todayKey) != todayKey) {`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:85` — `prefs.edit().putInt("mishkat_tasbeeh_count", 0).putString("mishkat_tasbeeh_date", todayKey).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:87` — `} else prefs.getInt("mishkat_tasbeeh_count", 0)`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:91` — `private val _vibrateEvery33 = MutableStateFlow(prefs.getBoolean("mishkat_vibrate_33", true))`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:98` — `private val _isWirdDone = MutableStateFlow(prefs.getBoolean("daily_wird_$todayKey", false))`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:101` — `private val _isMorningAzkarDone = MutableStateFlow(prefs.getBoolean("daily_morning_azkar_$todayKey", false))`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:104` — `private val _isEveningAzkarDone = MutableStateFlow(prefs.getBoolean("daily_evening_azkar_$todayKey", false))`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:153` — `prefs.edit().putBoolean("daily_wird_$todayKey", newVal).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:159` — `prefs.edit().putBoolean("daily_morning_azkar_$todayKey", newVal).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:165` — `prefs.edit().putBoolean("daily_evening_azkar_$todayKey", newVal).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:171` — `prefs.edit().putBoolean("mishkat_vibrate_33", newVal).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:457` — `_isWirdDone.value = prefs.getBoolean("daily_wird_$currentDateKey", false)`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:458` — `_isMorningAzkarDone.value = prefs.getBoolean("daily_morning_azkar_$currentDateKey", false)`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:459` — `_isEveningAzkarDone.value = prefs.getBoolean("daily_evening_azkar_$currentDateKey", false)`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:461` — `prefs.edit().putInt("mishkat_tasbeeh_count", 0).putString("mishkat_tasbeeh_date", currentDateKey).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:541` — `prefs.edit().putInt("mishkat_tasbeeh_count", newCount).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:546` — `prefs.edit().putInt("mishkat_tasbeeh_count", 0).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:552` — `prefs.edit().putInt("mishkat_tasbeeh_count", 0).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:555` — `prefs.edit().putInt("mishkat_tasbeeh_count", 33).apply()`
+- `app/src/main/java/com/qabas/app/HasanatHubViewModel.kt:562` — `prefs.edit().putInt("mishkat_tasbeeh_count", safe).apply()`
+- `app/src/main/java/com/qabas/app/HomeScreenStyleManager.kt:48` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/HomeScreenStyleManager.kt:49` — `val savedId = prefs.getString(PREF_KEY, HomeScreenStyle.SPATIAL_CYBER_HUD.id)`
+- `app/src/main/java/com/qabas/app/HomeScreenStyleManager.kt:56` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/HomeScreenStyleManager.kt:57` — `prefs.edit().putString(PREF_KEY, style.id).apply()`
+- `app/src/main/java/com/qabas/app/InputScreen.kt:89` — `val name = cursor.getString(nameIndex)`
+- `app/src/main/java/com/qabas/app/InputScreen.kt:93` — `val size = cursor.getLong(sizeIndex)`
+- `app/src/main/java/com/qabas/app/InputScreen.kt:111` — `val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/InputScreen.kt:152` — `val name = cursor.getString(nameIndex)`
+- `app/src/main/java/com/qabas/app/InputScreen.kt:161` — `val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/KeyDeepLinkHandler.kt:87` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/KeyDeepLinkHandler.kt:90` — `editor.putString(field, value)`
+- `app/src/main/java/com/qabas/app/KeyLatencyTracker.kt:17` — `AppServices.appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/KeyLatencyTracker.kt:24` — `val raw = p.getString(prefsKey + SUFFIX, "{}") ?: "{}"`
+- `app/src/main/java/com/qabas/app/KeyLatencyTracker.kt:31` — `p.edit().putString(prefsKey + SUFFIX, obj.toString()).apply()`
+- `app/src/main/java/com/qabas/app/KeyLatencyTracker.kt:37` — `val obj = JSONObject(prefs().getString(prefsKey + SUFFIX, "{}") ?: "{}")`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:69` — `prefs().edit().putString(prefsKey, sorted.first()).apply()`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:74` — `val raw = p.getString(prefsKey + POOL_SUFFIX, null)`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:82` — `val legacy = p.getString(prefsKey, "").orEmpty().trim()`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:93` — `return prefs().getInt(prefsKey + ACTIVE_SUFFIX, 0).coerceIn(0, keys.size - 1)`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:107` — `p.edit().putString(prefsKey, clean).apply()`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:145` — `p.edit().putString(prefsKey, keys[active.coerceIn(keys.indices)]).apply()`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:154` — `prefs().edit().putString(prefsKey, keys[index]).apply()`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:200` — `.putString(prefsKey + POOL_SUFFIX, arr.toString())`
+- `app/src/main/java/com/qabas/app/KeyPoolManager.kt:201` — `.putInt(prefsKey + ACTIVE_SUFFIX, activeIdx.coerceAtLeast(0))`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:38` — `private val KEY_FIELDS = listOf(`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:44` — `/** Cloud key sync is strictly account-scoped; never derive ownership from email/device prefs. */`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:68` — `val keysToSync = KEY_FIELDS.mapNotNull { field ->`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:69` — `val value = keyPrefs.getString(field, "") ?: ""`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:131` — `if (synced.value.isNotBlank() && synced.service in KEY_FIELDS) {`
+- `app/src/main/java/com/qabas/app/KeySyncService.kt:132` — `editor.putString(synced.service, synced.value)`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:90` — `val sharedPrefs = remember { context.getSharedPreferences("qabas_knowledge_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:91` — `var streakDays by remember { mutableIntStateOf(sharedPrefs.getInt("streak_days", 4)) }`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:92` — `var taskReadToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_read_today", false)) }`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:93` — `var taskQuizToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_quiz_today", false)) }`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:94` — `var taskScriptCreatedToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_script_today", false)) }`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:417` — `sharedPrefs.edit().putBoolean("task_read_today", true).apply()`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:481` — `sharedPrefs.edit().putBoolean("task_script_today", true).apply()`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:615` — `sharedPrefs.edit().putBoolean("task_script_today", true).apply()`
+- `app/src/main/java/com/qabas/app/KnowledgeHubScreen.kt:862` — `sharedPrefs.edit().putBoolean("task_quiz_today", true).apply()`
+- `app/src/main/java/com/qabas/app/LeaderboardScreen.kt:68` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/LeaderboardScreen.kt:100` — `?: prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/LeaderboardScreen.kt:103` — `val currentUserPoints = prefs.getInt("local_points", 0).coerceAtLeast(`
+- `app/src/main/java/com/qabas/app/LeaderboardScreen.kt:104` — `if (prefs.getBoolean("user_has_pro", false)) 250 else 50`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:17` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:19` — `val endMillis = prefs.getLong("league_end_date_ms", 0L)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:25` — `prefs.edit().putLong("league_end_date_ms", calendar.timeInMillis).apply()`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:34` — `prefs.edit().putLong("league_end_date_ms", newCalendar.timeInMillis).apply()`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:37` — `val userPoints = prefs.getInt("local_user_points", 0)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:40` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:41` — `.putBoolean("has_league_reward", true)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:42` — `.putBoolean("is_relative", true)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:43` — `.putLong("league_reward_expiry_ms", rewardExpiry)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:44` — `.putInt("local_user_points", 0)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:60` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:61` — `val hasReward = prefs.getBoolean("has_league_reward", false)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:62` — `val expiryMs = prefs.getLong("league_reward_expiry_ms", 0L)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:70` — `val isActuallyRelative = prefs.getBoolean("is_relative_permanent", false)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:71` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:72` — `.putBoolean("has_league_reward", false)`
+- `app/src/main/java/com/qabas/app/LeagueService.kt:73` — `.putBoolean("is_relative", isActuallyRelative)`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:42` — `LiveServiceCheck("gemini", "Gemini (ذكاء اصطناعي)", "https://aistudio.google.com/app/apikey", AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY), freeFallback = "المحلل المحلي + استخراج المشاهد البلاغية يعملان بلا مفتاح"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:43` — `LiveServiceCheck("groq", "Groq (نصوص فائقة السرعة)", "https://console.groq.com/keys", AgentPrefs.getString(context, AgentPrefs.GROQ_KEY), freeFallback = "توليد النصوص يقع على المحرك المحلي و Gemini المجاني"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:44` — `LiveServiceCheck("openai", "OpenAI (نماذج GPT)", "https://platform.openai.com/api-keys", AgentPrefs.getString(context, AgentPrefs.OPENAI_KEY), freeFallback = "توليد النصوص يقع على المحرك المحلي و Gemini المجاني"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:45` — `LiveServiceCheck("huggingface", "HuggingFace (صور AI)", "https://huggingface.co/settings/tokens", AgentPrefs.getString(context, AgentPrefs.HUGGINGFACE_KEY), freeFallback = "توليد الصور محلياً عبر LocalImageAnalyzer"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:46` — `LiveServiceCheck("azure", "Azure TTS (نطق)", "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices", AgentPrefs.getString(context, "azure_speech_key"), AgentPrefs.getString(context, "azure_speech_region"), freeFallback = "النطق المدمج في أندرويد (TextToSpeech) يعمل مجاناً دائماً"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:47` — `LiveServiceCheck("elevenlabs", "ElevenLabs (نطق)", "https://elevenlabs.io/app/settings/api-keys", AgentPrefs.getString(context, "elevenlabs_key"), freeFallback = "النطق المدمج في أندرويد (TextToSpeech) يعمل مجاناً دائماً"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:48` — `LiveServiceCheck("pexels", "Pexels (B-Roll)", "https://www.pexels.com/api/", AgentPrefs.getString(context, "pexels_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),`
+- `app/src/main/java/com/qabas/app/LiveHealthCheckPanel.kt:49` — `LiveServiceCheck("pixabay", "Pixabay (B-Roll)", "https://pixabay.com/api/docs/", AgentPrefs.getString(context, "pixabay_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:21` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:22` — `private const val KEY_ACCOUNTS_JSON = "key_registered_accounts_json"`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:111` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:112` — `val rawJson = prefs.getString(KEY_ACCOUNTS_JSON, null)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:139` — `val isLoggedIn = prefs.getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:146` — `val currentName = prefs.getString("user_name", "")?.trim()`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:147` — `?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:149` — `val currentCustomId = prefs.getString("user_custom_id", "")?.trim()`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:200` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:232` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:255` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:258` — `val name = prefs.getString("user_name", "")?.trim()`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:259` — `?.ifBlank { prefs.getString("user_display_name", "")?.trim().orEmpty() }`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:261` — `val customId = prefs.getString("user_custom_id", "")?.trim().orEmpty()`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:262` — `val isLoggedIn = prefs.getBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:297` — `private fun saveListToPrefs(prefs: SharedPreferences, list: List<AccountRecord>) {`
+- `app/src/main/java/com/qabas/app/LocalAccountRegistry.kt:300` — `prefs.edit().putString(KEY_ACCOUNTS_JSON, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/LocalApiServer.kt:15` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LocalApiServer.kt:16` — `.getString("user_api_key", null) ?: ""`
+- `app/src/main/java/com/qabas/app/LocalImageAnalyzer.kt:197` — `val colorBgr2Gray = imgproc.getField("COLOR_BGR2GRAY").getInt(null)`
+- `app/src/main/java/com/qabas/app/LocalImageAnalyzer.kt:214` — `video.getField("OPTFLOW_FARNEBACK_GAUSSIAN").getInt(null)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:69` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:70` — `val savedAccount = prefs.getString("saved_login_email", "")?.trim().orEmpty()`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:330` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:331` — `val isRelative = prefs.getBoolean("is_relative", false)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:429` — `prefs.edit().apply {`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:430` — `putBoolean("is_logged_in", true)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:431` — `putBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:432` — `putBoolean("is_admin", finalIsAdmin)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:433` — `putBoolean("is_developer", finalIsDeveloper)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:434` — `putBoolean("is_relative", isRelative)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:435` — `putString("user_id", authUid)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:436` — `putString("user_email", authEmail)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:437` — `putString("user_name", effectiveLoginName)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:438` — `putString("user_display_name", effectiveLoginName)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:439` — `putString("user_custom_id", cloudCustomId)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:440` — `putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:441` — `putString("user_account_number", accountNumber)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:442` — `putString("user_name_with_account", nameWithAccount)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:443` — `if (rememberMe) putString("saved_login_email", authEmail) else remove("saved_login_email")`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:807` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:809` — `prefs.edit().putString("draft_register_email", currentTyped).apply()`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:874` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:876` — `prefs.edit().putString("draft_register_email", currentTyped).apply()`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:897` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:898` — `prefs.edit().apply {`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:899` — `putBoolean("is_logged_in", false) // Guest mode is strictly unauthenticated`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:900` — `putBoolean("is_guest", true)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:901` — `putBoolean("is_admin", false)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:902` — `putBoolean("is_developer", false)`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:907` — `putString("user_email", "guest@qabas.studio")`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:908` — `putString("user_name", "ضيف قبس")`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:909` — `putString("user_display_name", "زائر مؤقت")`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:910` — `putString("user_custom_id", "guest")`
+- `app/src/main/java/com/qabas/app/LoginScreen.kt:911` — `putString("user_tag", "@guest")`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:244` — `getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:246` — `sharedPrefs.getBoolean("dev_transaction_notifications", false)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:309` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:315` — `var showFab by remember { mutableStateOf(prefs.getBoolean("show_floating_debug_fabs", false)) }`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1229` — `DEVELOPER_DASHBOARD, DEVELOPER_KEY_STATUS_HUB, HOME, PROJECTS, INPUT, UNDERSTANDING, RESOURCES, PROCESSING, REVIEW,`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1281` — `private val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1287` — `selectedRatio = prefs.getString("ratio", "9:16") ?: "9:16",`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1288` — `inputText = prefs.getString("input", "") ?: "",`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1289` — `videoDuration = prefs.getString("duration", Translator.tr("30 ثانية"))`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1291` — `editingStyle = prefs.getString("style", Translator.tr("أسلوب 3nvus / نيون داكن"))`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1293` — `voiceOver = prefs.getString("voice", Translator.tr("عميق")) ?: Translator.tr("عميق"),`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1294` — `musicVibe = prefs.getString("music", Translator.tr("ملحمية")) ?: Translator.tr("ملحمية"),`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1295` — `styleDescription = prefs.getString("styleDesc", "") ?: "",`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1296` — `selectedTemplate = prefs.getString("template", Translator.tr("تلقائي"))`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1298` — `videoQuality = prefs.getString("quality", Translator.tr("عالية الدقة 1080p"))`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1300` — `ambientSound = prefs.getString("ambient", Translator.tr("تلقائي"))`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1341` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1342` — `.putString("ratio", s.selectedRatio)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1343` — `.putString("input", s.inputText)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1344` — `.putString("duration", s.videoDuration)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1345` — `.putString("style", s.editingStyle)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1346` — `.putString("voice", s.voiceOver)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1347` — `.putString("music", s.musicVibe)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1348` — `.putString("styleDesc", s.styleDescription)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1349` — `.putString("template", s.selectedTemplate)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1350` — `.putString("quality", s.videoQuality)`
+- `app/src/main/java/com/qabas/app/MainActivity.kt:1351` — `.putString("ambient", s.ambientSound)`
+- `app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt:64` — `const val PREFS_KEY_SERVER_URL = "money_printer_turbo_server_url"`
+- `app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt:74` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt:75` — `return prefs.getString(PREFS_KEY_SERVER_URL, DEFAULT_LOCAL_SERVER) ?: DEFAULT_LOCAL_SERVER`
+- `app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt:79` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt:80` — `prefs.edit().putString(PREFS_KEY_SERVER_URL, url.trim().trimEnd('/')).apply()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:13` — `private const val PREFS_NAME = "qabas_muezzin_prefs"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:14` — `private const val CLOUD_PREFS_NAME = "qabas_muezzin_cloud_cache"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:15` — `private const val KEY_CUSTOM_MUEZZINS = "custom_muezzin_voices"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:16` — `private const val KEY_CLOUD_MUEZZINS = "cloud_muezzin_voices_cache"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:17` — `private const val KEY_PERSONAL_CLOUD_MUEZZINS = "personal_cloud_muezzin_voices_cache"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:18` — `private const val KEY_DEFAULT_VOICE_ID = "default_muezzin_voice_id"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:22` — `private fun customPrefs(context: Context): android.content.SharedPreferences {`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:24` — `val scopedName = "${PREFS_NAME}_${accountId ?: "device"}"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:25` — `val scoped = context.getSharedPreferences(scopedName, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:29` — `!scoped.contains(KEY_CUSTOM_MUEZZINS) &&`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:30` — `!scoped.contains(KEY_DEFAULT_VOICE_ID)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:33` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:34` — `context.getSharedPreferences("${PREFS_NAME}_device", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:37` — `it.contains(KEY_CUSTOM_MUEZZINS) || it.contains(KEY_DEFAULT_VOICE_ID)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:41` — `.putString(KEY_CUSTOM_MUEZZINS, source.getString(KEY_CUSTOM_MUEZZINS, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:42` — `.putString(KEY_DEFAULT_VOICE_ID, source.getString(KEY_DEFAULT_VOICE_ID, "") ?: "")`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:45` — `.remove(KEY_CUSTOM_MUEZZINS)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:46` — `.remove(KEY_DEFAULT_VOICE_ID)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:53` — `private fun cloudPrefs(context: Context): android.content.SharedPreferences {`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:54` — `val cloud = context.getSharedPreferences(CLOUD_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:55` — `if (!cloud.contains(KEY_CLOUD_MUEZZINS)) {`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:56` — `val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:57` — `if (legacy.contains(KEY_CLOUD_MUEZZINS)) {`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:59` — `.putString(KEY_CLOUD_MUEZZINS, legacy.getString(KEY_CLOUD_MUEZZINS, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:61` — `legacy.edit().remove(KEY_CLOUD_MUEZZINS).apply()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:82` — `val jsonStr = prefs.getString(KEY_CLOUD_MUEZZINS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:99` — `cloudPrefs(context).edit().putString(KEY_CLOUD_MUEZZINS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:104` — `parseVoicesJson(customPrefs(context).getString(KEY_PERSONAL_CLOUD_MUEZZINS, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:118` — `customPrefs(context).edit().putString(KEY_PERSONAL_CLOUD_MUEZZINS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:129` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:130` — `nameAr = obj.getString("nameAr"),`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:131` — `muezzinAr = obj.getString("muezzinAr"),`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:133` — `streamUrl = obj.getString("streamUrl"),`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:147` — `val jsonStr = prefs.getString(KEY_CUSTOM_MUEZZINS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:211` — `if (prefs.getString(KEY_DEFAULT_VOICE_ID, "") == voiceId) {`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:212` — `prefs.edit().remove(KEY_DEFAULT_VOICE_ID).apply()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:230` — `.putString(KEY_CUSTOM_MUEZZINS, arr.toString())`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:239` — `val savedId = prefs.getString(KEY_DEFAULT_VOICE_ID, "").orEmpty()`
+- `app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt:248` — `.putString(KEY_DEFAULT_VOICE_ID, voiceId)`
+- `app/src/main/java/com/qabas/app/MultiModelAgentOrchestrator.kt:125` — `* يستخدم SharedPreferences للتخزين الدائم بين الجلسات`
+- `app/src/main/java/com/qabas/app/MultiModelAgentOrchestrator.kt:451` — `* يستخدم SharedPreferences للتخزين الدائم بين الجلسات`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:18` — `private val prefs: SharedPreferences = context.getSharedPreferences("muslim_tools_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:73` — `fun getMissedFastingDays(): Int = prefs.getInt("missed_fasting_total", 0).coerceAtLeast(0)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:75` — `prefs.getInt("missed_fasting_completed", 0).coerceIn(0, getMissedFastingDays())`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:79` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:80` — `.putInt("missed_fasting_total", safeTotal)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:81` — `.putInt("missed_fasting_completed", safeCompleted)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:88` — `prefs.edit().putInt("missed_fasting_completed", completed + 1).apply()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:94` — `prefs.edit().putInt("missed_fasting_total", 0).putInt("missed_fasting_completed", 0).apply()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:102` — `const val KEY_SAVED_KHATMA_PLAN = "saved_khatma_plan"`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:124` — `return prefs.edit().putString(KEY_SAVED_KHATMA_PLAN, encoded).commit()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:128` — `val raw = prefs.getString(KEY_SAVED_KHATMA_PLAN, null) ?: return null`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:135` — `fun getTasbeehCount(type: String): Int = prefs.getInt("tasbeeh_$type", 0)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:137` — `prefs.edit().putInt("tasbeeh_$type", getTasbeehCount(type) + 1).apply()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:138` — `prefs.edit().putInt("total_tasbeeh", prefs.getInt("total_tasbeeh", 0) + 1).apply()`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:140` — `fun resetTasbeeh(type: String) { prefs.edit().putInt("tasbeeh_$type", 0).apply() }`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:146` — `val raw = prefs.getString("habits_list", null) ?: return listOf(`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:169` — `val editor = prefs.edit().putString("habits_list", Json.encodeToString(updatedHabits))`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:174` — `editor.putString(rewardDateKey, today)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:175` — `} else if (prefs.getString(rewardDateKey, null) != today) {`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:176` — `editor.putString(rewardDateKey, today)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:177` — `editor.putLong(`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:179` — `prefs.getLong("total_hasanat_earned", 0L) + 50L`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:256` — `val totalTasbeeh = prefs.getInt("total_tasbeeh", 0)`
+- `app/src/main/java/com/qabas/app/MuslimToolsEngine.kt:261` — `return WorshipStats(totalTasbeeh, fProgress, 0f, prefs.getLong("total_hasanat_earned", 0))`
+- `app/src/main/java/com/qabas/app/NotificationHelper.kt:44` — `val prefs = appContext.getSharedPreferences(DEV_REPLY_EVENT_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationHelper.kt:45` — `if (prefs.getBoolean("shown_$key", false)) return`
+- `app/src/main/java/com/qabas/app/NotificationHelper.kt:46` — `prefs.edit().putBoolean("shown_$key", true).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:17` — `private const val PREFS_NAME = "qabas_notification_settings"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:20` — `private const val PRAYER_PREFS_NAME = "qabas_prayer_prefs"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:33` — `private const val KEY_MASTER_ENABLED = "notif_master_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:34` — `private const val KEY_PRAYER_AZAN = "notif_prayer_azan_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:35` — `private const val KEY_SUHUR_REMINDER = "notif_suhur_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:36` — `private const val KEY_FAJR_REMINDER = "notif_fajr_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:37` — `private const val KEY_DAILY_HADITH = "notif_daily_hadith_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:38` — `private const val KEY_MORNING_ATHKAR = "notif_morning_athkar_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:39` — `private const val KEY_EVENING_ATHKAR = "notif_evening_athkar_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:40` — `private const val KEY_TREND_ALERTS = "notif_trend_alerts_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:41` — `private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:42` — `private const val KEY_SOUND_ENABLED = "notif_sound_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:43` — `private const val KEY_VIBRATION_ENABLED = "notif_vibration_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:46` — `private const val KEY_SUHUR_HOUR = "notif_suhur_hour"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:47` — `private const val KEY_SUHUR_MINUTE = "notif_suhur_minute"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:48` — `private const val KEY_FAJR_HOUR = "notif_fajr_hour"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:49` — `private const val KEY_FAJR_MINUTE = "notif_fajr_minute"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:50` — `private const val KEY_DAILY_HADITH_HOUR = "notif_daily_hadith_hour"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:51` — `private const val KEY_DAILY_HADITH_MINUTE = "notif_daily_hadith_minute"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:52` — `private const val KEY_MORNING_HOUR = "notif_morning_hour"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:53` — `private const val KEY_MORNING_MINUTE = "notif_morning_minute"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:54` — `private const val KEY_EVENING_HOUR = "notif_evening_hour"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:55` — `private const val KEY_EVENING_MINUTE = "notif_evening_minute"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:58` — `private const val KEY_WIRAD_STREAK = "notif_wirad_streak"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:59` — `private const val KEY_LAST_WIRAD_DATE = "notif_last_wirad_date"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:62` — `private const val KEY_PRAYER_FAJR = "notify_fajr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:63` — `private const val KEY_PRAYER_SUNRISE = "notify_sunrise"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:64` — `private const val KEY_PRAYER_DHUHR = "notify_dhuhr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:65` — `private const val KEY_PRAYER_ASR = "notify_asr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:66` — `private const val KEY_PRAYER_MAGHRIB = "notify_maghrib"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:67` — `private const val KEY_PRAYER_ISHA = "notify_isha"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:68` — `private const val KEY_PRAYER_SUHUR = "notify_suhur"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:71` — `private const val KEY_SOUND_MODE_FAJR = "sound_mode_fajr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:72` — `private const val KEY_SOUND_MODE_SUNRISE = "sound_mode_sunrise"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:73` — `private const val KEY_SOUND_MODE_DHUHR = "sound_mode_dhuhr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:74` — `private const val KEY_SOUND_MODE_ASR = "sound_mode_asr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:75` — `private const val KEY_SOUND_MODE_MAGHRIB = "sound_mode_maghrib"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:76` — `private const val KEY_SOUND_MODE_ISHA = "sound_mode_isha"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:77` — `private const val KEY_SOUND_MODE_SUHUR = "sound_mode_suhur"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:80` — `private const val KEY_VOICE_ID_FAJR = "voice_id_fajr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:81` — `private const val KEY_VOICE_ID_SUNRISE = "voice_id_sunrise"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:82` — `private const val KEY_VOICE_ID_DHUHR = "voice_id_dhuhr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:83` — `private const val KEY_VOICE_ID_ASR = "voice_id_asr"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:84` — `private const val KEY_VOICE_ID_MAGHRIB = "voice_id_maghrib"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:85` — `private const val KEY_VOICE_ID_ISHA = "voice_id_isha"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:86` — `private const val KEY_VOICE_ID_SUHUR = "voice_id_suhur"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:89` — `private const val KEY_GLOBAL_PRAYER_ENABLED = "prayer_notifications_enabled"`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:149` — `private var boundPrefs: SharedPreferences? = null`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:150` — `private var boundPrayerPrefs: SharedPreferences? = null`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:151` — `private var changeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:154` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:155` — `val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:157` — `// تهيئة متغيرات الحالة من SharedPreferences`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:158` — `_masterEnabled.value = prefs.getBoolean(KEY_MASTER_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:160` — `_prayerAzanEnabled.value = prayerPrefs.getBoolean(KEY_GLOBAL_PRAYER_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:161` — `_suhurReminderEnabled.value = prefs.getBoolean(KEY_SUHUR_REMINDER, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:162` — `_fajrReminderEnabled.value = prefs.getBoolean(KEY_FAJR_REMINDER, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:163` — `_dailyHadithEnabled.value = prefs.getBoolean(KEY_DAILY_HADITH, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:164` — `_morningAthkarEnabled.value = prefs.getBoolean(KEY_MORNING_ATHKAR, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:165` — `_eveningAthkarEnabled.value = prefs.getBoolean(KEY_EVENING_ATHKAR, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:166` — `_trendAlertsEnabled.value = prefs.getBoolean(KEY_TREND_ALERTS, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:167` — `_devChatAlertsEnabled.value = prefs.getBoolean(KEY_DEV_CHAT_ALERTS, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:168` — `_soundEnabled.value = prefs.getBoolean(KEY_SOUND_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:169` — `_vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:171` — `_wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:175` — `prefs.getInt(KEY_SUHUR_HOUR, 3),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:176` — `prefs.getInt(KEY_SUHUR_MINUTE, 30)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:179` — `prefs.getInt(KEY_FAJR_HOUR, 5),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:180` — `prefs.getInt(KEY_FAJR_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:183` — `prefs.getInt(KEY_DAILY_HADITH_HOUR, 9),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:184` — `prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:187` — `prefs.getInt(KEY_MORNING_HOUR, 7),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:188` — `prefs.getInt(KEY_MORNING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:191` — `prefs.getInt(KEY_EVENING_HOUR, 18),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:192` — `prefs.getInt(KEY_EVENING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:201` — `val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:203` — `KEY_MASTER_ENABLED -> _masterEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:204` — `KEY_PRAYER_AZAN -> _prayerAzanEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:205` — `KEY_SUHUR_REMINDER -> _suhurReminderEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:206` — `KEY_FAJR_REMINDER -> _fajrReminderEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:207` — `KEY_DAILY_HADITH -> _dailyHadithEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:208` — `KEY_MORNING_ATHKAR -> _morningAthkarEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:209` — `KEY_EVENING_ATHKAR -> _eveningAthkarEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:210` — `KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:211` — `KEY_DEV_CHAT_ALERTS -> _devChatAlertsEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:212` — `KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:213` — `KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:214` — `KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:215` — `KEY_SUHUR_HOUR, KEY_SUHUR_MINUTE -> _suhurTime.value = Pair(`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:216` — `prefs.getInt(KEY_SUHUR_HOUR, 3),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:217` — `prefs.getInt(KEY_SUHUR_MINUTE, 30)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:219` — `KEY_FAJR_HOUR, KEY_FAJR_MINUTE -> _fajrTime.value = Pair(`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:220` — `prefs.getInt(KEY_FAJR_HOUR, 5),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:221` — `prefs.getInt(KEY_FAJR_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:223` — `KEY_DAILY_HADITH_HOUR, KEY_DAILY_HADITH_MINUTE -> _dailyHadithTime.value = Pair(`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:224` — `prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:225` — `prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:227` — `KEY_MORNING_HOUR, KEY_MORNING_MINUTE -> _morningTime.value = Pair(`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:228` — `prefs.getInt(KEY_MORNING_HOUR, 7),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:229` — `prefs.getInt(KEY_MORNING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:231` — `KEY_EVENING_HOUR, KEY_EVENING_MINUTE -> _eveningTime.value = Pair(`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:232` — `prefs.getInt(KEY_EVENING_HOUR, 18),`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:233` — `prefs.getInt(KEY_EVENING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:235` — `KEY_GLOBAL_PRAYER_ENABLED -> _prayerAzanEnabled.value =`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:236` — `prayerPrefs.getBoolean(key, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:239` — `prefs.registerOnSharedPreferenceChangeListener(listener)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:250` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:251` — `prefs.edit().putBoolean(KEY_MASTER_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:257` — `val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:258` — `prayerPrefs.edit().putBoolean(KEY_GLOBAL_PRAYER_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:269` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:270` — `prefs.edit().putBoolean(KEY_SUHUR_REMINDER, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:280` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:281` — `prefs.edit().putBoolean(KEY_FAJR_REMINDER, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:291` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:292` — `prefs.edit().putBoolean(KEY_DAILY_HADITH, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:302` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:303` — `prefs.edit().putBoolean(KEY_MORNING_ATHKAR, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:313` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:314` — `prefs.edit().putBoolean(KEY_EVENING_ATHKAR, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:324` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:325` — `prefs.edit().putBoolean(KEY_TREND_ALERTS, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:330` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:331` — `prefs.edit().putBoolean(KEY_DEV_CHAT_ALERTS, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:336` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:337` — `prefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:342` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:343` — `prefs.edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:348` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:349` — `prefs.edit().putInt(KEY_SUHUR_HOUR, hour).putInt(KEY_SUHUR_MINUTE, minute).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:357` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:358` — `prefs.edit().putInt(KEY_FAJR_HOUR, hour).putInt(KEY_FAJR_MINUTE, minute).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:366` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:367` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:368` — `.putInt(KEY_DAILY_HADITH_HOUR, hour)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:369` — `.putInt(KEY_DAILY_HADITH_MINUTE, minute)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:378` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:379` — `prefs.edit().putInt(KEY_MORNING_HOUR, hour).putInt(KEY_MORNING_MINUTE, minute).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:387` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:388` — `prefs.edit().putInt(KEY_EVENING_HOUR, hour).putInt(KEY_EVENING_MINUTE, minute).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:396` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:397` — `prefs.edit().putInt(KEY_WIRAD_STREAK, streak).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:409` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:411` — `prefs.edit().putString(KEY_LAST_WIRAD_DATE, dateFormat.format(Date())).apply()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:420` — `val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:421` — `val prayerEnabled = prefs.getBoolean(getPrayerPrefKey(prayerKey), true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:422` — `val soundMode = prefs.getString(getSoundModeKey(prayerKey), SOUND_FULL_AZAN) ?: SOUND_FULL_AZAN`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:427` — `val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:428` — `return prefs.getString(getVoiceIdKey(prayerKey), "") ?: ""`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:438` — `val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:439` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:440` — `.putBoolean(getPrayerPrefKey(prayerKey), enabled)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:441` — `.putString(getSoundModeKey(prayerKey), soundMode)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:442` — `.putString(getVoiceIdKey(prayerKey), voiceId)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:447` — `val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:448` — `return prefs.getBoolean(KEY_GLOBAL_PRAYER_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:526` — `"fajr" -> KEY_PRAYER_FAJR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:527` — `"sunrise" -> KEY_PRAYER_SUNRISE`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:528` — `"dhuhr" -> KEY_PRAYER_DHUHR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:529` — `"asr" -> KEY_PRAYER_ASR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:530` — `"maghrib" -> KEY_PRAYER_MAGHRIB`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:531` — `"isha" -> KEY_PRAYER_ISHA`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:532` — `"suhur" -> KEY_PRAYER_SUHUR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:539` — `"fajr" -> KEY_SOUND_MODE_FAJR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:540` — `"sunrise" -> KEY_SOUND_MODE_SUNRISE`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:541` — `"dhuhr" -> KEY_SOUND_MODE_DHUHR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:542` — `"asr" -> KEY_SOUND_MODE_ASR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:543` — `"maghrib" -> KEY_SOUND_MODE_MAGHRIB`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:544` — `"isha" -> KEY_SOUND_MODE_ISHA`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:545` — `"suhur" -> KEY_SOUND_MODE_SUHUR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:552` — `"fajr" -> KEY_VOICE_ID_FAJR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:553` — `"sunrise" -> KEY_VOICE_ID_SUNRISE`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:554` — `"dhuhr" -> KEY_VOICE_ID_DHUHR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:555` — `"asr" -> KEY_VOICE_ID_ASR`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:556` — `"maghrib" -> KEY_VOICE_ID_MAGHRIB`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:557` — `"isha" -> KEY_VOICE_ID_ISHA`
+- `app/src/main/java/com/qabas/app/NotificationPreferencesManager.kt:558` — `"suhur" -> KEY_VOICE_ID_SUHUR`
+- `app/src/main/java/com/qabas/app/OfflineAiSettingsSection.kt:24` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OfflineAiSettingsSection.kt:27` — `var isOfflineMode by remember { mutableStateOf(prefs.getBoolean("offline_ai_mode", false)) }`
+- `app/src/main/java/com/qabas/app/OfflineAiSettingsSection.kt:91` — `prefs.edit().putBoolean("offline_ai_mode", enabled).apply()`
+- `app/src/main/java/com/qabas/app/OfflineAiSettingsSection.kt:175` — `prefs.edit().putBoolean("offline_ai_mode", true).apply()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:60` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:61` — `private const val KEY_SELECTED_MODEL = "selected_local_model_id"`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:62` — `private const val KEY_OFFLINE_MODE_ACTIVE = "offline_ai_mode"`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:147` — `private fun getPrefs(context: Context): SharedPreferences {`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:148` — `return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:198` — `val selectedId = prefs.getString(KEY_SELECTED_MODEL, availableModels.first().id)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:206` — `getPrefs(context).edit().putString(KEY_SELECTED_MODEL, modelId).apply()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:213` — `return getPrefs(context).getBoolean(KEY_OFFLINE_MODE_ACTIVE, false)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:220` — `getPrefs(context).edit().putBoolean(KEY_OFFLINE_MODE_ACTIVE, active).apply()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:278` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:279` — `val savedResumeBytes = prefs.getLong("model_resume_${modelInfo.id}", 0L)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:280` — `val savedTotalBytes = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:305` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:306` — `.putLong("model_resume_${modelInfo.id}", resumeBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:307` — `.putLong("model_total_${modelInfo.id}", savedTotalBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:316` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:317` — `.putLong("model_resume_${modelInfo.id}", resumeBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:318` — `.putLong("model_total_${modelInfo.id}", savedTotalBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:374` — `prefs.edit().remove("model_resume_${modelInfo.id}").remove("model_total_${modelInfo.id}").apply()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:385` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:386` — `.putLong("model_resume_${modelInfo.id}", downloadedBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:387` — `.putLong("model_total_${modelInfo.id}", savedTotalBytes)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:406` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:407` — `val savedResume = prefs.getLong("model_resume_${modelInfo.id}", 0L)`
+- `app/src/main/java/com/qabas/app/OnDeviceModelManager.kt:408` — `val savedTotal = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)`
+- `app/src/main/java/com/qabas/app/OnboardingScreen.kt:300` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OnboardingScreen.kt:301` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/OnboardingScreen.kt:302` — `.putBoolean("has_seen_onboarding", true)`
+- `app/src/main/java/com/qabas/app/OnboardingScreen.kt:303` — `.putBoolean("has_seen_welcome_rules", true)`
+- `app/src/main/java/com/qabas/app/OnboardingScreen.kt:304` — `.putBoolean("has_accepted_covenant", true)`
+- `app/src/main/java/com/qabas/app/OnboardingTutorialOverlay.kt:105` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/OnboardingTutorialOverlay.kt:106` — `prefs.edit().putBoolean("has_completed_guided_tutorial", true).apply()`
+- `app/src/main/java/com/qabas/app/OperationalReadinessManager.kt:58` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PaymentService.kt:24` — `private val prefs = context.getSharedPreferences("real_payment_db", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:33` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:34` — `val currentLocal = prefs.getInt("local_user_points", 0)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:36` — `prefs.edit().putInt("local_user_points", newTotal).apply()`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:41` — `val userId = prefs.getString("local_user_id", "") ?: ""`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:42` — `val userName = prefs.getString("local_user_name", "صانع محتوى") ?: "صانع محتوى"`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:58` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:61` — `val lastLoginDate = prefs.getString("last_login_date", "")`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:64` — `prefs.edit().putString("last_login_date", todayStr).apply()`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:118` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:119` — `return prefs.getBoolean("completed_$missionId", false)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:123` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PointsManager.kt:124` — `prefs.edit().putBoolean("completed_$missionId", true).apply()`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:105` — `val prefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:106` — `return prefs.getBoolean("notify_$prayerKey", true)`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:118` — `val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:119` — `val isPrayerEnabled = prayerPrefs.getBoolean("notify_$prayerKey", true)`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:150` — `val soundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"`
+- `app/src/main/java/com/qabas/app/PrayerAlarmManager.kt:152` — `val voiceId = prayerPrefs.getString("voice_id_$prayerKey", defaultVoice) ?: defaultVoice`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:95` — `private const val CITY_PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:96` — `private const val PRAYER_PREFS_NAME = "qabas_prayer_prefs"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:98` — `private const val PRIVATE_LOCATION_PREFS_NAME = "qabas_prayer_location_private"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:99` — `private const val KEY_SELECTED_CITY_NAME = "selected_prayer_city_name"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:100` — `private const val KEY_SYNCED_CITY_INDEX = "selected_city_index"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:101` — `private const val KEY_LOCAL_CITY_INDEX = "selected_city_index"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:102` — `private const val KEY_CUSTOM_CITY_ENABLED = "custom_city_enabled"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:162` — `val cityPrefs = context.getSharedPreferences(CITY_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:163` — `val savedName = cityPrefs.getString(KEY_SELECTED_CITY_NAME, "مكة المكرمة") ?: "مكة المكرمة"`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:164` — `val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:166` — `if (privatePrefs.getBoolean(KEY_CUSTOM_CITY_ENABLED, false)) {`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:167` — `val localCustomName = privatePrefs.getString("$CUSTOM_CITY_PREFIX.name_ar", null)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:187` — `val editor = privatePrefs.edit().putBoolean(KEY_CUSTOM_CITY_ENABLED, false)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:197` — `val fallbackIndex = cityPrefs.getInt(KEY_SYNCED_CITY_INDEX, 0).coerceIn(0, popularCities.lastIndex)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:207` — `val cityPrefs = context.getSharedPreferences(CITY_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:208` — `val prayerPrefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:209` — `val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:216` — `if (cityPrefs.getString(KEY_SELECTED_CITY_NAME, null) != city.nameAr ||`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:217` — `cityPrefs.getInt(KEY_SYNCED_CITY_INDEX, -1) != syncedCityIndex`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:220` — `.putString(KEY_SELECTED_CITY_NAME, city.nameAr)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:221` — `.putInt(KEY_SYNCED_CITY_INDEX, syncedCityIndex)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:224` — `if (prayerPrefs.getInt(KEY_LOCAL_CITY_INDEX, -1) != syncedCityIndex) {`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:225` — `prayerPrefs.edit().putInt(KEY_LOCAL_CITY_INDEX, syncedCityIndex).apply()`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:230` — `privateEditor.putBoolean(KEY_CUSTOM_CITY_ENABLED, false)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:233` — `privateEditor.putBoolean(KEY_CUSTOM_CITY_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:249` — `val privatePrefs = context.getSharedPreferences(PRIVATE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:262` — `private fun readStoredCity(prefs: SharedPreferences, prefix: String): CityLocation? {`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:263` — `val nameAr = prefs.getString("$prefix.name_ar", null)?.takeIf { it.isNotBlank() } ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:264` — `val nameEn = prefs.getString("$prefix.name_en", null)?.takeIf { it.isNotBlank() } ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:265` — `val countryAr = prefs.getString("$prefix.country_ar", null)?.takeIf { it.isNotBlank() } ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:266` — `val latitude = prefs.getString("$prefix.latitude", null)?.toDoubleOrNull() ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:267` — `val longitude = prefs.getString("$prefix.longitude", null)?.toDoubleOrNull() ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:268` — `val timezoneOffset = prefs.getString("$prefix.timezone_offset", null)?.toDoubleOrNull() ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:269` — `val methodName = prefs.getString("$prefix.method", null) ?: return null`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:271` — `val timeZoneId = prefs.getString("$prefix.timezone_id", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:280` — `private fun writeStoredCity(editor: SharedPreferences.Editor, prefix: String, city: CityLocation) {`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:281` — `editor.putString("$prefix.name_ar", city.nameAr)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:282` — `.putString("$prefix.name_en", city.nameEn)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:283` — `.putString("$prefix.country_ar", city.countryAr)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:284` — `.putString("$prefix.latitude", city.latitude.toString())`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:285` — `.putString("$prefix.longitude", city.longitude.toString())`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:286` — `.putString("$prefix.timezone_offset", city.timeZoneOffsetHours.toString())`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:287` — `.putString("$prefix.timezone_id", city.timeZoneId)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:288` — `.putString("$prefix.method", city.defaultMethod.name)`
+- `app/src/main/java/com/qabas/app/PrayerCalculationHelper.kt:291` — `private fun clearStoredCity(editor: SharedPreferences.Editor, prefix: String) {`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:269` — `val prefs = remember { context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:703` — `val prefs = remember { context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:706` — `mutableStateOf(prefs.getBoolean("notify_$prayerKey", true))`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:709` — `mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1028` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1029` — `.putBoolean("notify_$prayerKey", isEnabled)`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1030` — `.putString("sound_mode_$prayerKey", soundMode)`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1235` — `prefs: android.content.SharedPreferences,`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1349` — `mutableStateOf(prefs.getBoolean("notify_${prayer.key}", true))`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1430` — `prefs.edit().putBoolean("notify_${prayer.key}", isNotifyEnabled).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1457` — `fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1459` — `var streakCount by remember { mutableIntStateOf(prefs.getInt("prayer_streak_count", 7)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1461` — `var fajrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_fajr", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1462` — `var fajrJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_fajr_jamaah", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1463` — `var dhuhrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_dhuhr", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1464` — `var dhuhrJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_dhuhr_jamaah", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1465` — `var asrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_asr", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1466` — `var asrJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_asr_jamaah", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1467` — `var maghribDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_maghrib", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1468` — `var maghribJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_maghrib_jamaah", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1469` — `var ishaDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_isha", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1470` — `var ishaJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_isha_jamaah", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1472` — `var rawatibDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_rawatib", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1473` — `var duhaDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_duha", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1474` — `var witrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_witr", false)) }`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1558` — `prefs.edit().putBoolean("${todayDateKey}_fajr", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1562` — `prefs.edit().putBoolean("${todayDateKey}_fajr_jamaah", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1570` — `prefs.edit().putBoolean("${todayDateKey}_dhuhr", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1574` — `prefs.edit().putBoolean("${todayDateKey}_dhuhr_jamaah", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1582` — `prefs.edit().putBoolean("${todayDateKey}_asr", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1586` — `prefs.edit().putBoolean("${todayDateKey}_asr_jamaah", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1594` — `prefs.edit().putBoolean("${todayDateKey}_maghrib", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1598` — `prefs.edit().putBoolean("${todayDateKey}_maghrib_jamaah", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1606` — `prefs.edit().putBoolean("${todayDateKey}_isha", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1610` — `prefs.edit().putBoolean("${todayDateKey}_isha_jamaah", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1634` — `prefs.edit().putBoolean("${todayDateKey}_rawatib", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1648` — `prefs.edit().putBoolean("${todayDateKey}_duha", it).apply()`
+- `app/src/main/java/com/qabas/app/PrayerTimesScreen.kt:1662` — `prefs.edit().putBoolean("${todayDateKey}_witr", it).apply()`
+- `app/src/main/java/com/qabas/app/ProcessingScreen.kt:72` — `context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProcessingScreen.kt:355` — `prefs.edit().putString("cached_scenes", scenesJson.toString())`
+- `app/src/main/java/com/qabas/app/ProcessingScreen.kt:356` — `.putLong("cached_scenes_time", System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/ProcessingScreen.kt:359` — `val isParallelEnabled = prefs.getBoolean("enable_parallel_processing", true)`
+- `app/src/main/java/com/qabas/app/ProcessingScreen.kt:560` — `prefs.edit().remove("cached_scenes").remove("cached_scenes_time").apply()`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:11` — `private const val PREFS_NAME = "qabas_pipeline_events"`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:12` — `private const val KEY_EVENTS = "pipeline_events"`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:100` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:102` — `JSONArray(prefs.getString(KEY_EVENTS, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:111` — `prefs.edit().putString(KEY_EVENTS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:115` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:117` — `JSONArray(prefs.getString(KEY_EVENTS, "[]") ?: "[]")`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:136` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProductionPipelineTracker.kt:137` — `.edit().remove(KEY_EVENTS).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:48` — `context.getSharedPreferences(`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:79` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:83` — `?: prefs.getString("user_email", "")`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:94` — `val savedName = profilePrefs.getString("user_name", "")?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:95` — `?: prefs.getString("user_name", "")?.takeIf {`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:96` — `prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:102` — `mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:113` — `mutableStateOf(profilePrefs.getString("user_avatar_uri", "") ?: "")`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:116` — `mutableIntStateOf(profilePrefs.getInt("user_avatar_preset", 0))`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:201` — `displayName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:204` — `userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:207` — `avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:209` — `selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:225` — `val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:226` — `val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:228` — `prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:229` — `?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:234` — `prefs.edit().putString("user_email", activeEmail).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:245` — `activeProfilePrefs.edit().putString("user_name", effectiveName).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:247` — `prefs.edit().putString("user_display_name", effectiveName).putString("user_name", effectiveName).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:253` — `activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:255` — `userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:266` — `val savedAvatarUri = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:270` — `selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:273` — `activeProfilePrefs.edit().putString("user_avatar_uri", cloudAvatarUrl).putInt("user_avatar_preset", -1).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:277` — `activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:316` — `prefs.edit().putString("user_account_number", cloudAcc).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:397` — `profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:409` — `var userLeaguePoints by remember { mutableIntStateOf(prefs.getInt("user_league_points", 0)) }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:410` — `var userLeagueRank by remember { mutableIntStateOf(prefs.getInt("user_league_rank", 0)) }`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:449` — `val lastCelebrated = prefs.getInt("last_celebrated_tournament_tier", -1)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:452` — `prefs.edit().putInt("last_celebrated_tournament_tier", currentTierIndex).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:454` — `prefs.edit().putInt("last_celebrated_tournament_tier", currentTierIndex).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:491` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:492` — `.putInt("user_league_points", userLeaguePoints)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:493` — `.putInt("user_league_rank", userLeagueRank)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2384` — `prefs.edit().putString("saved_login_email", otherAcc.email).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2700` — `profilePrefs.edit().putString("user_name", displayName).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2701` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2702` — `.putString("user_id", authUid)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2703` — `.putString("user_display_name", displayName)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2704` — `.putString("user_name", displayName)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2705` — `.putString("user_tag", userCustomTag)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2706` — `.putString("user_custom_id", cloudUser.customId)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2707` — `.putString("user_account_number", cloudUser.accountNumber)`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2709` — `profilePrefs.edit().putString("user_bio", userBio).apply()`
+- `app/src/main/java/com/qabas/app/ProfileScreen.kt:2801` — `profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()`
+- `app/src/main/java/com/qabas/app/ProjectService.kt:44` — `context.getSharedPreferences(DELETE_TOMBSTONES_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ProjectService.kt:48` — `syncPrefs.getStringSet(DELETE_TOMBSTONES_KEY, emptySet()).orEmpty().toSet()`
+- `app/src/main/java/com/qabas/app/ProjectService.kt:53` — `syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).commit()`
+- `app/src/main/java/com/qabas/app/ProjectService.kt:59` — `syncPrefs.edit().putStringSet(DELETE_TOMBSTONES_KEY, ids).commit()`
+- `app/src/main/java/com/qabas/app/ProjectService.kt:170` — `TasteManager.registerPreference(context, "TOPIC", keywords.getString(i), 1)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:16` — `private const val KEY_PENDING_TOKEN = "pending_fcm_token"`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:26` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:27` — `.edit().putString(KEY_PENDING_TOKEN, token).apply()`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:36` — `val token = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:37` — `.getString(KEY_PENDING_TOKEN, null)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:42` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:43` — `.edit().remove(KEY_PENDING_TOKEN).apply()`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:47` — `context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/PushTokenManager.kt:48` — `.edit().putString(KEY_PENDING_TOKEN, token).apply()`
+- `app/src/main/java/com/qabas/app/QabasApplication.kt:26` — `val prefs = getSharedPreferences("qabas_prefs", MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasApplication.kt:27` — `prefs.edit().putInt("app_launch_count", prefs.getInt("app_launch_count", 0) + 1).apply()`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:18` — `private val prefs = context.getSharedPreferences("qabas_brain_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:169` — `prefs.edit().putString("qabas_brain_decision_history_json", jsonArr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:181` — `val savedJson = prefs.getString("qabas_brain_decision_history_json", null)`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:209` — `prefs.edit().putString("qabas_brain_decision_history_json", jsonArr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:219` — `prefs.edit().remove("qabas_brain_decision_history_json").apply()`
+- `app/src/main/java/com/qabas/app/QabasBrainRepository.kt:236` — `prefs.edit().putString("qabas_brain_decision_history_json", jsonArr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/QabasBrainViewModel.kt:482` — `val apiKey = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).trim()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:104` — `val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:105` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:106` — `.putString(PREF_PREVIOUS_STARTUP_STAGE, prefs.getString(PREF_LAST_STARTUP_STAGE, "unknown") ?: "unknown")`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:107` — `.putLong(PREF_PREVIOUS_STARTUP_STAGE_TS, prefs.getLong(PREF_LAST_STARTUP_STAGE_TS, 0L))`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:117` — `val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:119` — `val lastTs = prefs.getLong(PREF_LAST_TS, 0L)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:120` — `val lastRelaunch = prefs.getLong(PREF_LAST_RELAUNCH_TS, 0L)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:121` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:122` — `.putLong(PREF_LAST_TS, now)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:123` — `.putLong(PREF_COUNT, prefs.getLong(PREF_COUNT, 0L) + 1)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:134` — `prefs.edit().putLong(PREF_LAST_RELAUNCH_TS, now).apply()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:169` — `context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:171` — `.putString(PREF_LAST_STARTUP_STAGE, cleanStage)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:172` — `.putLong(PREF_LAST_STARTUP_STAGE_TS, System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:191` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:193` — `if (now - prefs.getLong(PREF_LAST_EXIT_SCAN_TS, 0L) < 60_000L) return`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:200` — `var lastRecorded = prefs.getLong("crash_guard_last_exit_recorded_ts", 0L)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:261` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:262` — `.putLong("crash_guard_last_exit_recorded_ts", lastRecorded)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:263` — `.putLong(PREF_LAST_EXIT_SCAN_TS, now)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:780` — `map[o.getString("key")] = FingerprintEntry(`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:872` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:873` — `val url = prefs.getString("developer_webhook_url", null)?.trim().orEmpty()`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:877` — `if (prefs.getBoolean(sessionKey, false)) return`
+- `app/src/main/java/com/qabas/app/QabasCrashGuard.kt:878` — `prefs.edit().putBoolean(sessionKey, true).apply()`
+- `app/src/main/java/com/qabas/app/QabasHomeScreen.kt:153` — `context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:52` — `private const val KEY_LAST_UPDATE_NOTIFIED = "last_update_notified_code"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:53` — `private const val KEY_AZAN_PREFIX = "last_azan_"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:54` — `private const val KEY_ALERT_COUNT = "grouped_count"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:55` — `private const val KEY_ALERT_WINDOW = "grouped_window_start"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:56` — `private const val KEY_RECENT_LINES = "grouped_recent_lines"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:68` — `.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:70` — `.putLong(KEY_AZAN_PREFIX + prayerKey, System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:81` — `.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:82` — `.getLong(KEY_AZAN_PREFIX + prayerKey, 0L)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:97` — `val prefs = appContext.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:99` — `val windowStart = prefs.getLong(KEY_ALERT_WINDOW, 0L)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:103` — `prefs.getInt(KEY_ALERT_COUNT, 0) + 1`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:105` — `val recent = (listOf(headline.trim()) + prefs.getString(KEY_RECENT_LINES, "")`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:113` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:114` — `.putLong(KEY_ALERT_WINDOW, now)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:115` — `.putInt(KEY_ALERT_COUNT, count)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:116` — `.putString(KEY_RECENT_LINES, recent.joinToString("\n"))`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:174` — `private const val KEY_NEXT_DYNAMIC_ID = "next_dynamic_id"`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:195` — `.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:197` — `val next = prefs.getInt(KEY_NEXT_DYNAMIC_ID, DYNAMIC_ID_BASE) + 1`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:198` — `val persisted = prefs.edit().putInt(KEY_NEXT_DYNAMIC_ID, next).commit()`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:537` — `val prefs = appContext.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:538` — `if (prefs.getInt(KEY_LAST_UPDATE_NOTIFIED, 0) >= versionCode) return`
+- `app/src/main/java/com/qabas/app/QabasNotificationHelper.kt:552` — `prefs.edit().putInt(KEY_LAST_UPDATE_NOTIFIED, versionCode).apply()`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:19` — `val surahNumber = surah.getInt("id")`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:20` — `val surahName = surah.getString("name").removePrefix("سورة ").trim()`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:24` — `val ayahNumber = ayah.getInt("number")`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:25` — `val text = ayah.getString("text").replace("\uFEFF", "").trim()`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:39` — `val surahNumber = row.getInt("surah")`
+- `app/src/main/java/com/qabas/app/QabasQuranData.kt:40` — `val ayahNumber = row.getInt("ayah")`
+- `app/src/main/java/com/qabas/app/QabasStudioScreen.kt:1015` — `if (json.has("tashkeelText")) inputText = json.getString("tashkeelText")`
+- `app/src/main/java/com/qabas/app/QabasStudioScreen.kt:1016` — `if (json.has("narrator")) narratorText = json.getString("narrator")`
+- `app/src/main/java/com/qabas/app/QabasStudioScreen.kt:1017` — `if (json.has("status")) hadithStatus = json.getString("status")`
+- `app/src/main/java/com/qabas/app/QabasStudioScreen.kt:1018` — `if (json.has("source")) hadithSource = json.getString("source")`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:27` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:28` — `private const val KEY_CUSTOM_GROUP_URL = "official_community_group_url"`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:31` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:32` — `val saved = prefs.getString(KEY_CUSTOM_GROUP_URL, null)`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:42` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/QabasWebConfig.kt:43` — `prefs.edit().putString(KEY_CUSTOM_GROUP_URL, url.trim()).apply()`
+- `app/src/main/java/com/qabas/app/RealServices.kt:42` — `val fromPrefs = KeyPoolManager.sanitizeApiKey(prefs().getString(prefsKey, "") ?: "")`
+- `app/src/main/java/com/qabas/app/RealServices.kt:63` — `val coverr: String get() = (prefs().getString("coverr_key", "") ?: "").trim()`
+- `app/src/main/java/com/qabas/app/RealServices.kt:81` — `else -> (prefs().getString(prefsKey, "") ?: "").trim()`
+- `app/src/main/java/com/qabas/app/RealServices.kt:192` — `for (i in 0 until themesArr.length()) themesList.add(themesArr.getString(i))`
+- `app/src/main/java/com/qabas/app/RealServices.kt:1906` — `for (t in 0 until tagsArr.length()) tagsList.add(tagsArr.getString(t))`
+- `app/src/main/java/com/qabas/app/ReelCreatorProfileSheet.kt:95` — `val appPrefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/ReelCreatorProfileSheet.kt:100` — `appPrefs.getString("user_bio", "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:68` — `private const val PREFS_NAME = "qabas_reels_preferences"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:71` — `private const val KEY_AUTOPLAY_WIFI_ONLY = "reels_autoplay_wifi_only"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:72` — `private const val KEY_START_MUTED = "reels_start_muted"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:73` — `private const val KEY_DATA_SAVER = "reels_data_saver"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:74` — `private const val KEY_HAPTIC_FEEDBACK = "reels_haptic_feedback"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:75` — `private const val KEY_AUTO_SCROLL = "reels_auto_scroll"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:76` — `private const val KEY_PLAYBACK_SPEED = "reels_playback_speed"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:77` — `private const val KEY_SHOW_CAPTIONS = "reels_show_captions"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:78` — `private const val KEY_CONTENT_CATEGORY = "reels_content_category"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:79` — `private const val KEY_DOUBLE_TAP_ACTION = "reels_double_tap_action" // "LIKE", "SAVE", "PAUSE"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:80` — `private const val KEY_WATCH_HISTORY = "reels_watch_history_json"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:81` — `private const val KEY_SAVED_REELS = "reels_saved_reels_json"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:82` — `private const val KEY_LIKED_REELS = "reels_liked_reels_json"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:83` — `private const val KEY_STATS = "reels_stats_json"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:84` — `private const val KEY_CACHED_REELS = "reels_cached_reels_json"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:85` — `private const val KEY_AL_ATHAR_ENABLED = "reels_al_athar_enabled"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:86` — `private const val KEY_HIDDEN_REELS = "reels_hidden_ids"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:139` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:141` — `_autoplayWifiOnly.value = prefs.getBoolean(KEY_AUTOPLAY_WIFI_ONLY, false)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:142` — `_startMuted.value = prefs.getBoolean(KEY_START_MUTED, false)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:143` — `_dataSaver.value = prefs.getBoolean(KEY_DATA_SAVER, false)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:144` — `_hapticFeedback.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:145` — `_autoScrollOnFinish.value = prefs.getBoolean(KEY_AUTO_SCROLL, false)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:146` — `_playbackSpeed.value = prefs.getFloat(KEY_PLAYBACK_SPEED, 1.0f)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:147` — `_showCaptions.value = prefs.getBoolean(KEY_SHOW_CAPTIONS, true)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:148` — `_contentCategory.value = prefs.getString(KEY_CONTENT_CATEGORY, "ALL") ?: "ALL"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:149` — `_doubleTapAction.value = prefs.getString(KEY_DOUBLE_TAP_ACTION, "LIKE") ?: "LIKE"`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:150` — `_alAtharEnabled.value = prefs.getBoolean(KEY_AL_ATHAR_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:158` — `val cleanHistory = parseItemsJson(prefs.getString(KEY_WATCH_HISTORY, "[]") ?: "[]").filterNot { isMock(it) }`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:159` — `val cleanSaved = parseItemsJson(prefs.getString(KEY_SAVED_REELS, "[]") ?: "[]").filterNot { isMock(it) }`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:160` — `val cleanLiked = parseItemsJson(prefs.getString(KEY_LIKED_REELS, "[]") ?: "[]").filterNot { isMock(it) }`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:165` — `_userStats.value = parseStatsJson(prefs.getString(KEY_STATS, "{}") ?: "{}")`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:167` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:168` — `.putString(KEY_WATCH_HISTORY, serializeItemsJson(cleanHistory))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:169` — `.putString(KEY_SAVED_REELS, serializeItemsJson(cleanSaved))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:170` — `.putString(KEY_LIKED_REELS, serializeItemsJson(cleanLiked))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:185` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:186` — `.putBoolean(KEY_AUTOPLAY_WIFI_ONLY, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:191` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:192` — `.putBoolean(KEY_START_MUTED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:197` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:198` — `.putBoolean(KEY_DATA_SAVER, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:203` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:204` — `.putBoolean(KEY_HAPTIC_FEEDBACK, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:209` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:210` — `.putBoolean(KEY_AUTO_SCROLL, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:215` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:216` — `.putFloat(KEY_PLAYBACK_SPEED, speed).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:221` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:222` — `.putBoolean(KEY_SHOW_CAPTIONS, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:227` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:228` — `.putString(KEY_CONTENT_CATEGORY, category).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:233` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:234` — `.putString(KEY_DOUBLE_TAP_ACTION, action).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:239` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:240` — `.putBoolean(KEY_AL_ATHAR_ENABLED, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:244` — `.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:245` — `.getStringSet(KEY_HIDDEN_REELS, emptySet())?.toSet() ?: emptySet()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:249` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:250` — `.putStringSet(KEY_HIDDEN_REELS, hidden).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:256` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:257` — `.putStringSet(KEY_HIDDEN_REELS, hidden).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:262` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:263` — `.remove(KEY_HIDDEN_REELS).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:303` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:304` — `.putString(KEY_WATCH_HISTORY, serializeItemsJson(currentList)).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:328` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:329` — `.putString(KEY_WATCH_HISTORY, serializeItemsJson(currentList)).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:338` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:339` — `.putString(KEY_WATCH_HISTORY, "[]").apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:364` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:365` — `.putString(KEY_WATCH_HISTORY, serializeItemsJson(history))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:366` — `.putString(KEY_SAVED_REELS, serializeItemsJson(saved))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:367` — `.putString(KEY_LIKED_REELS, serializeItemsJson(liked))`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:412` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:413` — `.putString(KEY_SAVED_REELS, serializeItemsJson(currentList)).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:428` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:429` — `.putString(KEY_SAVED_REELS, "[]").apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:472` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:473` — `.putString(KEY_LIKED_REELS, serializeItemsJson(currentList)).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:597` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:598` — `.putString(KEY_STATS, obj.toString()).apply()`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:627` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:629` — `.putString(KEY_CACHED_REELS, jsonStr)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:639` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPreferencesManager.kt:640` — `val jsonStr = prefs.getString(KEY_CACHED_REELS, null) ?: return emptyList()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:27` — `private const val PREFS_NAME = "qabas_reels_publish_prefs"`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:37` — `private const val KEY_LAST_PUBLISH_TS = "last_publish_timestamp"`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:38` — `private const val KEY_TODAY_DATE = "today_date_str"`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:39` — `private const val KEY_TODAY_COUNT = "today_publish_count"`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:76` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:77` — `val savedName = prefs.getString("user_name", "")?.trim().orEmpty()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:82` — `val myPublishedReelIds = prefs.getStringSet("my_published_reel_ids", emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:117` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:119` — `val savedDate = prefs.getString(KEY_TODAY_DATE, "") ?: ""`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:122` — `prefs.getInt(KEY_TODAY_COUNT, 0)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:133` — `val lastPublish = prefs.getLong(KEY_LAST_PUBLISH_TS, 0L)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:209` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:211` — `val savedDate = prefs.getString(KEY_TODAY_DATE, "") ?: ""`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:213` — `val currentCount = if (savedDate == todayStr) prefs.getInt(KEY_TODAY_COUNT, 0) else 0`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:215` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:216` — `.putString(KEY_TODAY_DATE, todayStr)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:217` — `.putInt(KEY_TODAY_COUNT, currentCount + 1)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:218` — `.putLong(KEY_LAST_PUBLISH_TS, System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:407` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:408` — `.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:464` — `val pubPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:465` — `val currentMyReels = pubPrefs.getStringSet("my_published_reel_ids", emptySet())?.toMutableSet() ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:467` — `pubPrefs.edit().putStringSet("my_published_reel_ids", currentMyReels).apply()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:506` — `val pubPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:507` — `val currentMyReels = pubPrefs.getStringSet("my_published_reel_ids", emptySet())?.toMutableSet() ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:509` — `pubPrefs.edit().putStringSet("my_published_reel_ids", currentMyReels).apply()`
+- `app/src/main/java/com/qabas/app/ReelPublishManager.kt:556` — `Pair(json.getString("title"), json.getString("description"))`
+- `app/src/main/java/com/qabas/app/ReelsScreen.kt:355` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/ReelsScreen.kt:356` — `val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"`
+- `app/src/main/java/com/qabas/app/ReelsScreen.kt:357` — `val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:61` — `private const val PREFS_KEY = "multi_repo_vault_json_v2"`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:73` — `val raw = prefs.getString(PREFS_KEY, null)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:94` — `prefs.edit().putString(PREFS_KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:100` — `return prefs.getString(ACTIVE_REPO_ID_KEY, null)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:119` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:120` — `.putString(ACTIVE_REPO_ID_KEY, id)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:121` — `.putString("build_center_owner", target.owner)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:122` — `.putString("build_center_repo", target.repo)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:123` — `.putString("build_center_token", target.token)`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:131` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/RepoVaultManager.kt:132` — `.remove(PREFS_KEY)`
+- `app/src/main/java/com/qabas/app/ResourceReviewScreen.kt:116` — `if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:15` — `private const val PREFS_NAME = "qabas_role_prefs"`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:16` — `private const val KEY_ROLE_PREFIX = "cloud_role_for_uid_"`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:40` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:41` — `val roleKey = KEY_ROLE_PREFIX + userId`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:42` — `val previousRole = prefs.getString(roleKey, null)`
+- `app/src/main/java/com/qabas/app/RolePromotionNotifier.kt:43` — `prefs.edit().putString(roleKey, normalizedRole).apply()`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1293` — `// Bookmarking helpers (using SharedPreferences for durable zero-overhead local storage)`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1294` — `private const val PREFS_NAME = "qabas_sahih_bookmarks"`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1295` — `private const val KEY_BOOKMARKS = "saved_hadith_ids"`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1298` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1299` — `val set = prefs.getStringSet(KEY_BOOKMARKS, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1304` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1305` — `val currentSet = prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.toMutableSet() ?: mutableSetOf()`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1312` — `prefs.edit().putStringSet(KEY_BOOKMARKS, currentSet).apply()`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1317` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SahihHadithData.kt:1318` — `val set = prefs.getStringSet(KEY_BOOKMARKS, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:170` — `val quizPrefs = remember { context.getSharedPreferences("sahih_quiz", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:171` — `var pointsAwarded by remember { mutableStateOf(quizPrefs.getBoolean(awardedKey, false)) }`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:173` — `var best by remember { mutableIntStateOf(quizPrefs.getInt(prefsKey, 0)) }`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:206` — `quizPrefs.edit().putInt(prefsKey, score).apply()`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:213` — `quizPrefs.edit().putBoolean(awardedKey, true).apply()`
+- `app/src/main/java/com/qabas/app/SahihQuizEngine.kt:229` — `if (!quizPrefs.getBoolean(awardedKey, false) || roundPaid) {`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:61` — `private val _favorites = MutableStateFlow<Set<String>>(prefs.getFavorites())`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:64` — `private val _completedChallenges = MutableStateFlow<Set<String>>(prefs.getCompletedChallenges())`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:98` — `prefs.toggleFavorite(scholarId)`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:99` — `_favorites.value = prefs.getFavorites()`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:103` — `prefs.toggleChallengeCompleted(scholarId)`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:104` — `_completedChallenges.value = prefs.getCompletedChallenges()`
+- `app/src/main/java/com/qabas/app/ScholarBiographiesScreen.kt:119` — `return prefs.getLectureCountForScholar(scholarId)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:50` — `var isBookmarked by remember { mutableStateOf(prefs.isFavorite(scholar.id)) }`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:51` — `var isChallengeDone by remember { mutableStateOf(prefs.isChallengeCompleted(scholar.id)) }`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:54` — `var lecturesCount by remember { mutableIntStateOf(prefs.getLectureCountForScholar(scholar.id)) }`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:116` — `isBookmarked = prefs.toggleFavorite(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:341` — `isChallengeDone = prefs.toggleChallengeCompleted(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:380` — `isChallengeDone = prefs.toggleChallengeCompleted(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:413` — `isChallengeDone = prefs.toggleChallengeCompleted(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:446` — `isChallengeDone = prefs.toggleChallengeCompleted(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:915` — `val officialLectures = remember(scholar.id) { prefs.getOfficialLectures(scholar.id, scholar.name) }`
+- `app/src/main/java/com/qabas/app/ScholarDetailScreen.kt:916` — `val userProposals = remember(scholar.id) { prefs.getUserProposals(scholar.id) }`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:56` — `var isDevMode by remember { mutableStateOf(prefs.isDeveloperMode()) }`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:58` — `var officialLectures by remember { mutableStateOf(prefs.getOfficialLectures(scholar.id, scholar.name)) }`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:59` — `var userProposals by remember { mutableStateOf(prefs.getUserProposals(scholar.id)) }`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:73` — `val cloudLecs = prefs.syncLecturesFromCloud(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:74` — `val cloudProps = prefs.syncProposalsFromCloud(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:96` — `val updatedLectures = prefs.getOfficialLectures(scholar.id, scholar.name)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:97` — `val updatedProposals = prefs.getUserProposals(scholar.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:146` — `prefs.setDeveloperMode(next)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:417` — `prefs.deleteDeveloperLecture(lecture.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:497` — `prefs.upvoteProposal(proposal.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:514` — `prefs.addDeveloperLecture(newLecture)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:515` — `prefs.deleteUserProposal(proposal.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:520` — `prefs.deleteUserProposal(proposal.id)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:540` — `prefs.addDeveloperLecture(newLec)`
+- `app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt:554` — `prefs.addUserProposal(newProp)`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:12` — `private val prefs: SharedPreferences = context.getSharedPreferences("qabas_scholar_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:15` — `return prefs.getStringSet(KEY_FAVORITES, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:31` — `prefs.edit().putStringSet(KEY_FAVORITES, current).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:36` — `return prefs.getStringSet(KEY_COMPLETED_CHALLENGES, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:52` — `prefs.edit().putStringSet(KEY_COMPLETED_CHALLENGES, current).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:59` — `return prefs.getBoolean(KEY_DEV_MODE, false)`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:63` — `prefs.edit().putBoolean(KEY_DEV_MODE, enabled).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:126` — `prefs.edit().putStringSet(KEY_DELETED_CURATED_IDS, deleted).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:175` — `val jsonString = prefs.getString(KEY_DEV_LECTURES, null) ?: return emptyList()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:226` — `prefs.edit().putString(KEY_DEV_LECTURES, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:230` — `return prefs.getStringSet(KEY_DELETED_CURATED_IDS, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:245` — `val jsonString = prefs.getString(KEY_USER_PROPOSALS, null) ?: return emptyList()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:401` — `prefs.edit().putString(KEY_USER_PROPOSALS, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:453` — `private const val KEY_FAVORITES = "bookmarked_scholars"`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:454` — `private const val KEY_COMPLETED_CHALLENGES = "completed_scholar_challenges"`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:455` — `private const val KEY_DEV_MODE = "scholar_developer_mode_enabled"`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:456` — `private const val KEY_DEV_LECTURES = "custom_scholar_lectures"`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:457` — `private const val KEY_DELETED_CURATED_IDS = "deleted_curated_lecture_ids"`
+- `app/src/main/java/com/qabas/app/ScholarPreferences.kt:458` — `private const val KEY_USER_PROPOSALS = "user_lecture_proposals"`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:114` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:155` — `prefs.getString("user_display_name", null)`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:162` — `prefs.getString("user_avatar_uri", null)`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:168` — `mutableIntStateOf(prefs.getInt("user_preset_avatar", 0))`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:180` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:181` — `.putString("user_avatar_uri", cloudAvatar)`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:182` — `.putInt("user_preset_avatar", -1)`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:187` — `val storedEmail = prefs.getString("user_email", "") ?: ""`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:198` — `val isRelative = prefs.getBoolean("is_relative_user", false)`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:201` — `mutableStateOf(prefs.getBoolean("auto_publish", false))`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:204` — `mutableStateOf(prefs.getString("default_export_quality", "1080p") ?: "1080p")`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:340` — `prefs.edit().putString("last_release_notes", info.releaseNotes).apply()`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:669` — `prefs.edit().putString("last_release_notes", info.releaseNotes).apply()`
+- `app/src/main/java/com/qabas/app/SettingsScreen.kt:1134` — `prefs.edit().putInt("user_preset_avatar", id).remove("user_avatar_uri").apply()`
+- `app/src/main/java/com/qabas/app/SmartStudioUpgrades.kt:27` — `val out = (0 until arr.length()).map { arr.getString(it).trim() }.filter { it.length > 5 }.take(5)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:103` — `private const val PREFS_NAME = "qabas_social_accounts"`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:104` — `private const val KEY_CUSTOM_CHANNELS = "official_custom_channels"`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:126` — `/** One-time migration from the legacy social SharedPreferences file. */`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:130` — `val existing = securePrefs.getString(secureKey, "").orEmpty()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:140` — `val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:141` — `val legacy = legacyPrefs.getString(legacyKey, "").orEmpty()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:143` — `AgentPrefs.putString(context, secureKey, legacy)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:152` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:153` — `.putString("official_${p}_handle", handle.trim())`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:154` — `.putString("official_${p}_url", url.trim())`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:160` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:161` — `val json = prefs.getString(KEY_CUSTOM_CHANNELS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:169` — `id = o.getString("id"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:174` — `url = o.getString("url"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:201` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:202` — `.edit().putString(KEY_CUSTOM_CHANNELS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:219` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:220` — `.edit().putString(KEY_CUSTOM_CHANNELS, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:224` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:232` — `url = prefs.getString("official_website_url", QabasWebConfig.OFFICIAL_WEBSITE_URL) ?: QabasWebConfig.OFFICIAL_WEBSITE_URL,`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:249` — `handle = prefs.getString("official_yt_handle", "@Qabas.Official") ?: "@Qabas.Official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:252` — `url = prefs.getString("official_yt_url", "https://www.youtube.com/@Qabas.Official") ?: "https://www.youtube.com/@Qabas.Official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:258` — `handle = prefs.getString("official_fb_handle", "Qabas.Official") ?: "Qabas.Official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:261` — `url = prefs.getString("official_fb_url", "https://www.facebook.com/Qabas.Official") ?: "https://www.facebook.com/Qabas.Official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:267` — `handle = prefs.getString("official_insta_handle", "qabas_official") ?: "qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:270` — `url = prefs.getString("official_insta_url", "https://www.instagram.com/qabas_official") ?: "https://www.instagram.com/qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:276` — `handle = prefs.getString("official_threads_handle", "qabas_official") ?: "qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:279` — `url = prefs.getString("official_threads_url", "https://www.threads.net/@qabas_official") ?: "https://www.threads.net/@qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:285` — `handle = prefs.getString("official_tiktok_handle", "@qabas_official") ?: "@qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:288` — `url = prefs.getString("official_tiktok_url", "https://www.tiktok.com/@qabas_official") ?: "https://www.tiktok.com/@qabas_official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:389` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:390` — `prefs.edit().putBoolean("${platformId}_verified", verified).apply()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:394` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:395` — `return prefs.getBoolean("${platformId}_verified", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:399` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:401` — `val ytConnected = prefs.getBoolean("yt_connected", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:402` — `val tiktokConnected = prefs.getBoolean("tiktok_connected", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:403` — `val instaConnected = prefs.getBoolean("insta_connected", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:404` — `val twitterConnected = prefs.getBoolean("twitter_connected", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:405` — `val fbConnected = prefs.getBoolean("fb_connected", false)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:408` — `val ytFollowers = prefs.getInt("yt_followers", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:409` — `val ytLikes = prefs.getInt("yt_likes", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:410` — `val ytViews = prefs.getInt("yt_views", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:411` — `val ytPublished = prefs.getInt("yt_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:413` — `val tiktokFollowers = prefs.getInt("tiktok_followers", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:414` — `val tiktokLikes = prefs.getInt("tiktok_likes", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:415` — `val tiktokViews = prefs.getInt("tiktok_views", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:416` — `val tiktokPublished = prefs.getInt("tiktok_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:418` — `val instaFollowers = prefs.getInt("insta_followers", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:419` — `val instaLikes = prefs.getInt("insta_likes", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:420` — `val instaViews = prefs.getInt("insta_views", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:421` — `val instaPublished = prefs.getInt("insta_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:423` — `val twitterFollowers = prefs.getInt("twitter_followers", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:424` — `val twitterLikes = prefs.getInt("twitter_likes", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:425` — `val twitterViews = prefs.getInt("twitter_views", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:426` — `val twitterPublished = prefs.getInt("twitter_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:428` — `val fbFollowers = prefs.getInt("fb_followers", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:429` — `val fbLikes = prefs.getInt("fb_likes", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:430` — `val fbViews = prefs.getInt("fb_views", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:431` — `val fbPublished = prefs.getInt("fb_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:439` — `handle = prefs.getString("yt_handle", "@your_channel") ?: "@your_channel",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:445` — `lastSync = prefs.getString("yt_last_sync", now) ?: now`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:450` — `handle = prefs.getString("tiktok_handle", "@your_account") ?: "@your_account",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:456` — `lastSync = prefs.getString("tiktok_last_sync", now) ?: now`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:461` — `handle = prefs.getString("insta_handle", "@your_account") ?: "@your_account",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:467` — `lastSync = prefs.getString("insta_last_sync", now) ?: now`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:472` — `handle = prefs.getString("fb_handle", "Qabas.Official") ?: "Qabas.Official",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:478` — `lastSync = prefs.getString("fb_last_sync", now) ?: now`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:483` — `handle = prefs.getString("twitter_handle", "@QabasApp") ?: "@QabasApp",`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:489` — `lastSync = prefs.getString("twitter_last_sync", now) ?: now`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:495` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:496` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:497` — `.putInt("yt_followers", 0).putInt("yt_likes", 0).putInt("yt_views", 0).putInt("yt_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:498` — `.putInt("tiktok_followers", 0).putInt("tiktok_likes", 0).putInt("tiktok_views", 0).putInt("tiktok_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:499` — `.putInt("insta_followers", 0).putInt("insta_likes", 0).putInt("insta_views", 0).putInt("insta_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:500` — `.putInt("twitter_followers", 0).putInt("twitter_likes", 0).putInt("twitter_views", 0).putInt("twitter_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:501` — `.putInt("fb_followers", 0).putInt("fb_likes", 0).putInt("fb_views", 0).putInt("fb_published", 0)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:506` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:507` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:510` — `apiToken.isNotBlank() -> AgentPrefs.putString(context, secureKey, apiToken.trim())`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:516` — `editor.putBoolean("yt_connected", isConnected)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:517` — `if (handle.isNotBlank()) editor.putString("yt_handle", handle)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:520` — `editor.putBoolean("tiktok_connected", isConnected)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:521` — `if (handle.isNotBlank()) editor.putString("tiktok_handle", handle)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:524` — `editor.putBoolean("insta_connected", isConnected)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:525` — `if (handle.isNotBlank()) editor.putString("insta_handle", handle)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:528` — `editor.putBoolean("twitter_connected", isConnected)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:529` — `if (handle.isNotBlank()) editor.putString("twitter_handle", handle)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:532` — `editor.putBoolean("fb_connected", isConnected)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:533` — `if (handle.isNotBlank()) editor.putString("fb_handle", handle)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:545` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:546` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:549` — `editor.putString("yt_last_sync", now)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:550` — `.putString("tiktok_last_sync", now)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:551` — `.putString("insta_last_sync", now)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:552` — `.putString("twitter_last_sync", now)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:553` — `.putString("fb_last_sync", now)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:568` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:569` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:586` — `"youtube" -> editor.putInt("yt_published", account.publishedCount + 1)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:587` — `"tiktok" -> editor.putInt("tiktok_published", account.publishedCount + 1)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:588` — `"instagram" -> editor.putInt("insta_published", account.publishedCount + 1)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:589` — `"twitter" -> editor.putInt("twitter_published", account.publishedCount + 1)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:590` — `"facebook" -> editor.putInt("fb_published", account.publishedCount + 1)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:687` — `private const val KEY_SCHEDULED_ITEMS = "scheduled_publish_items"`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:838` — `return context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:839` — `.getBoolean("auto_publish", true)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:940` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:941` — `val json = prefs.getString(KEY_SCHEDULED_ITEMS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:949` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:950` — `title = obj.getString("title"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:951` — `platformId = obj.getString("platformId"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:952` — `platformName = obj.getString("platformName"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:953` — `scheduledTimeMillis = obj.getLong("scheduledTimeMillis"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:954` — `formattedTime = obj.getString("formattedTime"),`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:966` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SocialAccountManager.kt:980` — `prefs.edit().putString(KEY_SCHEDULED_ITEMS, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/SpatialBuildTestLabDialog.kt:61` — `val owner = activeRepo?.owner ?: prefs.getString("build_center_owner", "") ?: ""`
+- `app/src/main/java/com/qabas/app/SpatialBuildTestLabDialog.kt:62` — `val repo = activeRepo?.repo ?: prefs.getString("build_center_repo", "") ?: ""`
+- `app/src/main/java/com/qabas/app/SpatialBuildTestLabDialog.kt:63` — `val token = activeRepo?.token ?: prefs.getString("build_center_token", "") ?: ""`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:11` — `* يدعم التخزين الفوري في SharedPreferences وتحديث الحالة التفاعلية لـ Compose بدون تأخير.`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:14` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:17` — `const val KEY_CAMERA_ENABLED = "spatial_cam_enabled"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:18` — `const val KEY_COMPACT_MODE = "spatial_cam_compact_mode"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:19` — `const val KEY_DOCKED_MODE = "spatial_cam_docked_mode"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:20` — `const val KEY_TAP_INSTANT_SNAP = "spatial_cam_tap_instant_snap"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:21` — `const val KEY_SKIP_WHITE_FLASH = "spatial_cam_skip_white_flash"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:22` — `const val KEY_IDLE_ALPHA = "spatial_cam_idle_alpha"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:23` — `const val KEY_HAPTIC_ENABLED = "spatial_cam_haptic_feedback"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:24` — `const val KEY_OFFSET_X = "spatial_dev_cam_offset_x"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:25` — `const val KEY_OFFSET_Y = "spatial_dev_cam_offset_y"`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:54` — `val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:55` — `_cameraEnabled.value = prefs.getBoolean(KEY_CAMERA_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:56` — `_compactMode.value = prefs.getBoolean(KEY_COMPACT_MODE, false)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:57` — `_dockedMode.value = prefs.getBoolean(KEY_DOCKED_MODE, false)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:58` — `_tapInstantSnap.value = prefs.getBoolean(KEY_TAP_INSTANT_SNAP, false)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:59` — `_skipWhiteFlash.value = prefs.getBoolean(KEY_SKIP_WHITE_FLASH, true)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:60` — `_idleAlpha.value = prefs.getFloat(KEY_IDLE_ALPHA, 1.0f)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:61` — `_hapticEnabled.value = prefs.getBoolean(KEY_HAPTIC_ENABLED, true)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:72` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:73` — `?.edit()?.putBoolean(KEY_CAMERA_ENABLED, enabled)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:83` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:84` — `?.edit()?.putBoolean(KEY_COMPACT_MODE, compact)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:94` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:95` — `?.edit()?.putBoolean(KEY_DOCKED_MODE, docked)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:105` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:106` — `?.edit()?.putBoolean(KEY_TAP_INSTANT_SNAP, instant)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:116` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:117` — `?.edit()?.putBoolean(KEY_SKIP_WHITE_FLASH, skip)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:127` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:128` — `?.edit()?.putFloat(KEY_IDLE_ALPHA, alpha)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:138` — `appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:139` — `?.edit()?.putBoolean(KEY_HAPTIC_ENABLED, enabled)?.apply()`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:144` — `target?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:146` — `?.remove(KEY_OFFSET_X)`
+- `app/src/main/java/com/qabas/app/SpatialCameraPreferencesManager.kt:147` — `?.remove(KEY_OFFSET_Y)`
+- `app/src/main/java/com/qabas/app/SpatialCommandHomeScreen.kt:110` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SpatialCommandHomeScreen.kt:2253` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpatialCommandHomeScreen.kt:2258` — `prefs.getString("user_display_name", null)`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:59` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:89` — `var isAutonomousEngineEnabled by remember { mutableStateOf(prefs.getBoolean("dev_ai_autonomous_enabled", true)) }`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:90` — `var isUrgentAutoTriage by remember { mutableStateOf(prefs.getBoolean("dev_urgent_auto_triage", true)) }`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:91` — `var isSoundFxEnabled by remember { mutableStateOf(prefs.getBoolean("dev_sound_fx_enabled", true)) }`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:92` — `var isTelemetryAutoAttach by remember { mutableStateOf(prefs.getBoolean("dev_telemetry_auto_attach", false)) }`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:724` — `prefs.edit().putBoolean("dev_ai_autonomous_enabled", it).apply()`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:736` — `prefs.edit().putBoolean("dev_urgent_auto_triage", it).apply()`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:796` — `prefs.edit().putBoolean("dev_sound_fx_enabled", it).apply()`
+- `app/src/main/java/com/qabas/app/SpatialDevSettingsDialog.kt:808` — `prefs.edit().putBoolean("dev_telemetry_auto_attach", it).apply()`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:51` — `* - تحريك حر 2D Dragging مع تذكر الإحداثيات في ذاكرة الجهاز (SharedPreferences).`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:77` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:81` — `val savedX = prefs.getFloat("spatial_cam_offset_x", -1f)`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:87` — `val savedY = prefs.getFloat("spatial_cam_offset_y", -1f)`
+- `app/src/main/java/com/qabas/app/SpatialDraggableCameraButton.kt:122` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/SpatialDraggableDevCameraButton.kt:94` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SpatialDraggableDevCameraButton.kt:155` — `val savedX = prefs.getFloat("spatial_dev_cam_offset_x", -1f)`
+- `app/src/main/java/com/qabas/app/SpatialDraggableDevCameraButton.kt:161` — `val savedY = prefs.getFloat("spatial_dev_cam_offset_y", -1f)`
+- `app/src/main/java/com/qabas/app/SpatialDraggableDevCameraButton.kt:171` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/SpatialServiceDiagnosticsHub.kt:63` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:126` — `private const val KEY_SUHUR_HOUR = "notif_suhur_hour"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:127` — `private const val KEY_SUHUR_MINUTE = "notif_suhur_minute"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:128` — `private const val KEY_FAJR_HOUR = "notif_fajr_hour"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:129` — `private const val KEY_FAJR_MINUTE = "notif_fajr_minute"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:130` — `private const val KEY_MORNING_HOUR = "notif_morning_hour"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:131` — `private const val KEY_MORNING_MINUTE = "notif_morning_minute"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:132` — `private const val KEY_EVENING_HOUR = "notif_evening_hour"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:133` — `private const val KEY_EVENING_MINUTE = "notif_evening_minute"`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:194` — `val notifPrefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:197` — `notifPrefs.getInt(KEY_SUHUR_HOUR, 3),`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:198` — `notifPrefs.getInt(KEY_SUHUR_MINUTE, 30)`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:201` — `notifPrefs.getInt(KEY_FAJR_HOUR, 5),`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:202` — `notifPrefs.getInt(KEY_FAJR_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:205` — `notifPrefs.getInt(KEY_MORNING_HOUR, 7),`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:206` — `notifPrefs.getInt(KEY_MORNING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:209` — `notifPrefs.getInt(KEY_EVENING_HOUR, 18),`
+- `app/src/main/java/com/qabas/app/SpiritualNotificationReceiver.kt:210` — `notifPrefs.getInt(KEY_EVENING_MINUTE, 0)`
+- `app/src/main/java/com/qabas/app/SpiritualSafetyGuard.kt:113` — `val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)`
+- `app/src/main/java/com/qabas/app/SpiritualSafetyGuard.kt:115` — `val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0`
+- `app/src/main/java/com/qabas/app/SpiritualSafetyGuard.kt:116` — `val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0`
+- `app/src/main/java/com/qabas/app/StudioProEditorScreen.kt:2175` — `retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:687` — `private const val PREFS_NAME = "qabas_style_brain_prefs"`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:726` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:729` — `val stylesJson = prefs.getString(STYLES_KEY, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:738` — `for (j in 0 until vArr.length()) vTraits.add(vArr.getString(j))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:742` — `for (j in 0 until mArr.length()) mTraits.add(mArr.getString(j))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:746` — `for (j in 0 until tArr.length()) tTraits.add(tArr.getString(j))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:768` — `val coreJson = prefs.getString(CORE_STYLE_KEY, null)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:774` — `for (i in 0 until vArr.length()) vList.add(vArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:778` — `for (i in 0 until mArr.length()) mList.add(mArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:782` — `for (i in 0 until tArr.length()) tList.add(tArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:804` — `_primaryStyleId.value = prefs.getString(PRIMARY_STYLE_KEY, null)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:807` — `_isContinuousLearningEnabled.value = prefs.getBoolean(CONTINUOUS_LEARNING_KEY, true)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:808` — `_lastLearningTimestamp.value = prefs.getLong(LAST_LEARNING_ANALYSIS_KEY, 0L)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:809` — `val propJson = prefs.getString(PROPOSALS_KEY, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:842` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:843` — `prefs.edit().putBoolean(CONTINUOUS_LEARNING_KEY, enabled).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:848` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:869` — `prefs.edit().putString(PROPOSALS_KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:920` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:922` — `.putLong(LAST_LEARNING_ANALYSIS_KEY, now)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1000` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1001` — `prefs.edit().putString(PRIMARY_STYLE_KEY, styleId).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1064` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1083` — `prefs.edit().putString(CORE_STYLE_KEY, obj.toString()).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1088` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1115` — `prefs.edit().putString(STYLES_KEY, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1124` — `val geminiKey = AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1125` — `val groqKey = AgentPrefs.getString(context, AgentPrefs.GROQ_KEY).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1539` — `if (obj.has("analysis") && obj.getString("analysis").isNotBlank()) {`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1540` — `analysisText = obj.getString("analysis")`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1543` — `val parsedScore = obj.getInt("overallScore")`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1561` — `val str = vArr.getString(i).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1571` — `val str = mArr.getString(i).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:1583` — `val str = tArr.getString(i).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:2136` — `val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L`
+- `app/src/main/java/com/qabas/app/StyleBrain.kt:2251` — `val apiKey = AgentPrefs.getString(actualContext, AgentPrefs.GEMINI_KEY).trim()`
+- `app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt:37` — `android.media.MediaMetadataRetriever.METADATA_KEY_DURATION`
+- `app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt:102` — `val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt:103` — `val stylesJson = prefs.getString("absorbed_styles_list", "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt:116` — `val coreJson = prefs.getString("qabas_core_style_json", null)`
+- `app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt:146` — `prefs.edit().putString("qabas_core_style_json", obj.toString()).apply()`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:54` — `val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:56` — `val coreJson = prefs.getString("qabas_core_style_json", null)`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:103` — `val persisted = prefs.edit()`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:104` — `.putString("qabas_core_style_json", corrected.toString())`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:129` — `val prefs = context.getSharedPreferences("qabas_style_brain_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:138` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:139` — `.putString("qabas_core_style_json", emptyCore.toString())`
+- `app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt:140` — `.putString("absorbed_styles_list", "[]")`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:4` — `import android.content.SharedPreferences`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:178` — `private const val PREFS_NAME = "qabas_master_styles_prefs"`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:179` — `private const val KEY_MASTER_STYLES = "saved_master_styles"`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:180` — `private const val KEY_ACTIVE_MASTER_STYLE = "active_master_style_id"`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:196` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:197` — `val jsonStr = prefs.getString(KEY_MASTER_STYLES, null)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:218` — `val activeId = prefs.getString(KEY_ACTIVE_MASTER_STYLE, null)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:226` — `private fun saveLocalMasterStyles(prefs: SharedPreferences, list: List<MasterStyle>) {`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:232` — `prefs.edit().putString(KEY_MASTER_STYLES, array.toString()).apply()`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:334` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:336` — `prefs.edit().putString(KEY_ACTIVE_MASTER_STYLE, masterProfile.id).apply()`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:453` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:698` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:699` — `prefs.edit().putString(KEY_ACTIVE_MASTER_STYLE, masterStyle.id).apply()`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:711` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:716` — `prefs.edit().putString(KEY_ACTIVE_MASTER_STYLE, _activeMasterStyle.value?.id).apply()`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:760` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:863` — `for (i in 0 until idsArr.length()) ids.add(idsArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:869` — `for (i in 0 until namesArr.length()) names.add(namesArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:876` — `for (i in 0 until vtArr.length()) vtList.add(vtArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:890` — `for (i in 0 until mtArr.length()) mtList.add(mtArr.getString(i))`
+- `app/src/main/java/com/qabas/app/StyleManager.kt:904` — `for (i in 0 until ttArr.length()) ttList.add(ttArr.getString(i))`
+- `app/src/main/java/com/qabas/app/SupabaseAudioSection.kt:57` — `val prefs = remember { context.getSharedPreferences("qabas_audio_social", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SupabaseAudioSection.kt:59` — `mutableStateOf(prefs.getStringSet("liked_tracks", emptySet()) ?: emptySet())`
+- `app/src/main/java/com/qabas/app/SupabaseAudioSection.kt:585` — `prefs.edit().putStringSet("liked_tracks", newSet).apply()`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:66` — `/** Reads SUPABASE_URL: from SharedPreferences, BuildConfig, or default fixed URL. */`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:70` — `AgentPrefs.getString(AppServices.appContext, "supabase_url")`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:78` — `/** Reads SUPABASE_ANON_KEY: from SharedPreferences, BuildConfig, or default fixed Key. */`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:82` — `AgentPrefs.getString(AppServices.appContext, "supabase_anon_key")`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:176` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:186` — `val verified = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:187` — `.getBoolean(PREF_VERIFIED, false)`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:198` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:200` — `.putBoolean(PREF_VERIFIED, true)`
+- `app/src/main/java/com/qabas/app/SupabaseConfig.kt:207` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:27` — `private val preferences = appContext.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:42` — `.putString(SESSION_KEY, Base64.encodeToString(payload, Base64.NO_WRAP))`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:49` — `val encoded = preferences.getString(SESSION_KEY, null)`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:84` — `val existing = runCatching { keyStore.getKey(KEY_ALIAS, null) as? SecretKey }.getOrNull()`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:87` — `if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS)`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:89` — `val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:92` — `KEY_ALIAS,`
+- `app/src/main/java/com/qabas/app/SupabaseEncryptedSessionManager.kt:108` — `const val KEY_ALIAS = "qabas_supabase_auth_aes_v1"`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:228` — `context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:230` — `val isGuest = prefs?.getBoolean("is_guest", false) ?: false`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:232` — `val name = prefs?.getString("user_name", "ضيف قبس") ?: "ضيف قبس"`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:369` — `appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:371` — `.putString("user_id", uid)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:372` — `.putString("user_email", profileEmail)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:373` — `.putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:374` — `.putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:375` — `.putString("user_custom_id", userRow.customId)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:376` — `.putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:377` — `.putString("user_account_number", userRow.accountNumber)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:441` — `context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:449` — `prefs.edit().apply {`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:450` — `putBoolean("is_logged_in", true)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:451` — `putBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:452` — `putString("user_id", uid)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:454` — `putString("user_email", email)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:798` — `AppServices.appContext.getSharedPreferences(`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:802` — `putBoolean("is_logged_in", false)`
+- `app/src/main/java/com/qabas/app/SupabaseRepository.kt:803` — `putBoolean("is_guest", false)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:71` — `* يقرأ محلياً من SharedPreferences ويحدث سحابياً عبر Firestore لجميع المستخدمين.`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:101` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:104` — `whatsappGroupUrl = prefs.getString(PREF_WHATSAPP_URL, default.whatsappGroupUrl) ?: default.whatsappGroupUrl,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:105` — `whatsappGroupName = prefs.getString(PREF_WHATSAPP_NAME, default.whatsappGroupName) ?: default.whatsappGroupName,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:106` — `paypalUrl = prefs.getString(PREF_PAYPAL_URL, default.paypalUrl) ?: default.paypalUrl,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:107` — `usdtTronAddress = prefs.getString(PREF_USDT_ADDR, default.usdtTronAddress) ?: default.usdtTronAddress,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:108` — `bankName = prefs.getString(PREF_BANK_NAME, default.bankName) ?: default.bankName,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:109` — `bankIban = prefs.getString(PREF_BANK_IBAN, default.bankIban) ?: default.bankIban,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:110` — `hadithQuote = prefs.getString(PREF_HADITH_QUOTE, default.hadithQuote) ?: default.hadithQuote,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:111` — `coffeeTierPrice = prefs.getString(PREF_COFFEE_PRICE, default.coffeeTierPrice) ?: default.coffeeTierPrice,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:112` — `coffeeTierDesc = prefs.getString(PREF_COFFEE_DESC, default.coffeeTierDesc) ?: default.coffeeTierDesc,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:113` — `aiTierPrice = prefs.getString(PREF_AI_PRICE, default.aiTierPrice) ?: default.aiTierPrice,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:114` — `aiTierDesc = prefs.getString(PREF_AI_DESC, default.aiTierDesc) ?: default.aiTierDesc,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:115` — `serverTierPrice = prefs.getString(PREF_SERVER_PRICE, default.serverTierPrice) ?: default.serverTierPrice,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:116` — `serverTierDesc = prefs.getString(PREF_SERVER_DESC, default.serverTierDesc) ?: default.serverTierDesc,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:117` — `waqfTierPrice = prefs.getString(PREF_WAQF_PRICE, default.waqfTierPrice) ?: default.waqfTierPrice,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:118` — `waqfTierDesc = prefs.getString(PREF_WAQF_DESC, default.waqfTierDesc) ?: default.waqfTierDesc,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:119` — `shareMessage = prefs.getString(PREF_SHARE_MSG, default.shareMessage) ?: default.shareMessage,`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:120` — `lastUpdated = prefs.getLong(PREF_LAST_UPDATED, 0L),`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:121` — `updatedBy = prefs.getString(PREF_UPDATED_BY, "admin") ?: "admin"`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:128` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:129` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:130` — `.putString(PREF_WHATSAPP_URL, cfg.whatsappGroupUrl)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:131` — `.putString(PREF_WHATSAPP_NAME, cfg.whatsappGroupName)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:132` — `.putString(PREF_PAYPAL_URL, cfg.paypalUrl)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:133` — `.putString(PREF_USDT_ADDR, cfg.usdtTronAddress)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:134` — `.putString(PREF_BANK_NAME, cfg.bankName)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:135` — `.putString(PREF_BANK_IBAN, cfg.bankIban)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:136` — `.putString(PREF_HADITH_QUOTE, cfg.hadithQuote)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:137` — `.putString(PREF_COFFEE_PRICE, cfg.coffeeTierPrice)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:138` — `.putString(PREF_COFFEE_DESC, cfg.coffeeTierDesc)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:139` — `.putString(PREF_AI_PRICE, cfg.aiTierPrice)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:140` — `.putString(PREF_AI_DESC, cfg.aiTierDesc)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:141` — `.putString(PREF_SERVER_PRICE, cfg.serverTierPrice)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:142` — `.putString(PREF_SERVER_DESC, cfg.serverTierDesc)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:143` — `.putString(PREF_WAQF_PRICE, cfg.waqfTierPrice)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:144` — `.putString(PREF_WAQF_DESC, cfg.waqfTierDesc)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:145` — `.putString(PREF_SHARE_MSG, cfg.shareMessage)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:146` — `.putLong(PREF_LAST_UPDATED, cfg.lastUpdated)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:147` — `.putString(PREF_UPDATED_BY, cfg.updatedBy)`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:196` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:215` — `mutableStateOf(prefs.getBoolean("is_qabas_patron_claimed", false))`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:218` — `mutableIntStateOf(prefs.getInt("user_support_rating", 5))`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:1168` — `prefs.edit().putBoolean("is_qabas_patron_claimed", true).apply()`
+- `app/src/main/java/com/qabas/app/SupportContributionSection.kt:1235` — `prefs.edit().putInt("user_support_rating", star).apply()`
+- `app/src/main/java/com/qabas/app/TeleprompterScreen.kt:83` — `// Check SharedPreferences on init if no initialScript provided`
+- `app/src/main/java/com/qabas/app/TeleprompterScreen.kt:86` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/TeleprompterScreen.kt:87` — `val savedInput = prefs.getString("input", null)`
+- `app/src/main/java/com/qabas/app/TeleprompterScreen.kt:739` — `val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/TeleprompterScreen.kt:740` — `val currentInput = remember { prefs.getString("input", "") ?: "" }`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:15` — `private const val PREFS_NAME = "qabas_transactions_prefs"`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:16` — `private const val KEY_TRANSACTIONS = "cached_transactions_json"`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:31` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:32` — `val jsonStr = prefs.getString(KEY_TRANSACTIONS, "[]") ?: "[]"`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:66` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:67` — `prefs.edit().remove(KEY_TRANSACTIONS).apply()`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:72` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/TransactionManager.kt:79` — `prefs.edit().putString(KEY_TRANSACTIONS, jsonArray.toString()).apply()`
+- `app/src/main/java/com/qabas/app/UnifiedPublishScreen.kt:52` — `val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedPublishScreen.kt:53` — `prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"`
+- `app/src/main/java/com/qabas/app/UnifiedPublishScreen.kt:56` — `val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedPublishScreen.kt:57` — `prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:42` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:46` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:47` — `.getInt(RESIZE_KEY, AspectRatioFrameLayout.RESIZE_MODE_FIT)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:52` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:53` — `.getBoolean(CONTROLS_KEY, true)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:63` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:69` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:70` — `.edit().putInt(RESIZE_KEY, mode).apply()`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:74` — `context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:75` — `.edit().putBoolean(CONTROLS_KEY, enabled).apply()`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:82` — `val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:83` — `var speed by remember { mutableFloatStateOf(prefs.getFloat("unified_video_speed", 1f).coerceIn(0.5f, 2f)) }`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:84` — `var resize by remember { mutableStateOf(prefs.getInt("unified_video_resize_mode", AspectRatioFrameLayout.RESIZE_MODE_FIT)) }`
+- `app/src/main/java/com/qabas/app/UnifiedVideoPlayerSettings.kt:85` — `var controls by remember { mutableStateOf(prefs.getBoolean("unified_video_controls_enabled", true)) }`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:47` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:49` — `prefs.getInt(PREF_AUTO_CHECK_INTERVAL_HOURS, DEFAULT_AUTO_CHECK_INTERVAL_HOURS)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:58` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:60` — `.putInt(PREF_AUTO_CHECK_INTERVAL_HOURS, clamped)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:67` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:68` — `.getLong(PREF_LAST_CHECK, 0L)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:75` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:90` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:91` — `val owner = prefs.getString("build_center_owner", null)?.trim()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:92` — `val repo = prefs.getString("build_center_repo", null)?.trim()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:131` — `val timestamp = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:132` — `.getLong(deltaFailureKey(update), 0L)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:137` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:138` — `.edit().putLong(deltaFailureKey(update), System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:173` — `val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:176` — `e.putString("pending_install_version_name", value.versionName)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:177` — `e.putInt("pending_install_version_code", value.versionCode)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:178` — `e.putLong("pending_install_apk_size", value.apkSize)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:179` — `e.putBoolean("pending_install_presented", value.presented)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:191` — `val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:192` — `val name = p.getString("pending_install_version_name", null) ?: return null`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:193` — `val code = p.getInt("pending_install_version_code", -1)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:198` — `apkSize = p.getLong("pending_install_apk_size", 0L),`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:199` — `presented = p.getBoolean("pending_install_presented", false)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:412` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:418` — `prefs.edit().putLong(PREF_LAST_CHECK, System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:438` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:439` — `.putInt("update_last_version_code", active.versionCode)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:535` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:564` — `prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:697` — `prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:708` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:709` — `.putLong("update_last_check", System.currentTimeMillis())`
+- `app/src/main/java/com/qabas/app/UpdateManager.kt:710` — `.putInt("update_last_version_code", candidate.versionCode)`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:131` — `val prefs = context.getSharedPreferences(PREFS_FAILURE_COUNTS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:133` — `val newCount = prefs.getInt(failureKey, 0) + 1`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:134` — `prefs.edit().putInt(failureKey, newCount).apply()`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:227` — `failureId = doc.getString("failureId") ?: doc.id,`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:228` — `deviceId = doc.getString("deviceId") ?: "unknown",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:229` — `userId = doc.getString("userId"),`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:230` — `currentVersionCode = doc.getLong("currentVersionCode")?.toInt() ?: 0,`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:231` — `currentVersionName = doc.getString("currentVersionName") ?: "",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:232` — `targetVersionCode = doc.getLong("targetVersionCode")?.toInt() ?: 0,`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:233` — `targetVersionName = doc.getString("targetVersionName") ?: "",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:234` — `phase = doc.getString("phase") ?: "UNKNOWN",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:235` — `errorMessage = doc.getString("errorMessage") ?: "No error message",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:236` — `cleanStackTrace = doc.getString("cleanStackTrace") ?: "",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:237` — `exceptionClass = doc.getString("exceptionClass"),`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:238` — `deviceAbi = doc.getString("deviceAbi") ?: "unknown",`
+- `app/src/main/java/com/qabas/app/UpdateTelemetryManager.kt:239` — `failureCount = doc.getLong("failureCount")?.toInt() ?: 1,`
+- `app/src/main/java/com/qabas/app/UserAzanCloudRepository.kt:40` — `if (cursor.moveToFirst()) cursor.getString(0) else null`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:19` — `private const val PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:20` — `private const val KEY_CUSTOM_ID = "user_custom_id"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:21` — `private const val KEY_USER_TAG = "user_tag"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:22` — `private const val KEY_MAP_PREFIX = "user_id_map_"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:23` — `private const val KEY_CUSTOM_ID_MAP_PREFIX = "user_custom_id_map_"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:24` — `const val KEY_ACCOUNT_NUMBER = "user_account_number"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:25` — `private const val KEY_ACCOUNT_MAP_PREFIX = "user_acc_map_"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:26` — `private const val KEY_NEXT_ACCOUNT_SEQ = "next_account_seq_num"`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:53` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:54` — `val cached = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:64` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:67` — `val mapped = prefs.getString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, null)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:73` — `val current = prefs.getString(KEY_ACCOUNT_NUMBER, "") ?: ""`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:84` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:85` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:86` — `.putString(KEY_ACCOUNT_NUMBER, formatted)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:87` — `.putString(KEY_ACCOUNT_MAP_PREFIX + cleanEmail, formatted)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:310` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:311` — `val cached = prefs.getString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, null)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:324` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:325` — `val editor = prefs.edit()`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:326` — `editor.putString(KEY_CUSTOM_ID, clean)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:327` — `editor.putString(KEY_USER_TAG, formatDisplay(clean))`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:329` — `val resolvedEmail = email ?: prefs.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:332` — `editor.putString(KEY_MAP_PREFIX + clean, cleanEmail)`
+- `app/src/main/java/com/qabas/app/UserIdentifierManager.kt:333` — `editor.putString(KEY_CUSTOM_ID_MAP_PREFIX + cleanEmail, clean)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:38` — `private const val PREFS_NAME = "qabas_user_preferences"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:41` — `private const val QABAS_PREFS_NAME = "qabas_prefs"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:67` — `private var qabasPrefsListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:186` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:187` — `_quranFontSize.value = prefs.getFloat("quran_font_size", 20f)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:188` — `_readingFontFamily.value = prefs.getString("reading_font_family", "amiri") ?: "amiri"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:189` — `_readingTheme.value = prefs.getString("reading_theme", "dark_luxury") ?: "dark_luxury"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:190` — `_showTashkeel.value = prefs.getBoolean("show_tashkeel", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:191` — `_quranReciter.value = prefs.getString("quran_reciter", "alafasy") ?: "alafasy"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:193` — `_calculationMethod.value = prefs.getString("calculation_method", "MAKKAH") ?: "MAKKAH"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:194` — `_athanVoice.value = prefs.getString("athan_voice", "makkah") ?: "makkah"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:195` — `_morningAthkar.value = prefs.getBoolean("morning_athkar", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:196` — `_eveningAthkar.value = prefs.getBoolean("evening_athkar", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:197` — `_qiyamReminder.value = prefs.getBoolean("qiyam_reminder", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:198` — `_kahfFridayReminder.value = prefs.getBoolean("kahf_friday_reminder", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:200` — `_watermarkEnabled.value = prefs.getBoolean("watermark_enabled", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:201` — `_watermarkText.value = prefs.getString("watermark_text", "@qabas.studio") ?: "@qabas.studio"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:202` — `_watermarkPosition.value = prefs.getString("watermark_position", "BOTTOM_RIGHT") ?: "BOTTOM_RIGHT"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:203` — `_defaultAspectRatio.value = prefs.getString("default_aspect_ratio", "9:16") ?: "9:16"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:204` — `_autoSaveToGallery.value = prefs.getBoolean("auto_save_to_gallery", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:206` — `_dataSaverMode.value = prefs.getBoolean("data_saver_mode", false)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:207` — `_cacheLimitMb.value = prefs.getInt("cache_limit_mb", 500)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:209` — `val lang = prefs.getString("app_language", "ar") ?: "ar"`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:213` — `_highContrastMode.value = prefs.getBoolean("high_contrast_mode", false)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:214` — `_reducedMotion.value = prefs.getBoolean("reduced_motion", false)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:215` — `_globalTextScale.value = prefs.getFloat("global_text_scale", 1.0f)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:217` — `_cloudSyncEnabled.value = prefs.getBoolean("cloud_sync_enabled", true)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:218` — `_lastSyncTime.value = prefs.getLong("last_sync_timestamp", 0L)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:223` — `val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:228` — `appContext.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:245` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled", enabled).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:252` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:253` — `var deviceId = prefs.getString("device_sync_id", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:256` — `prefs.edit().putString("device_sync_id", deviceId).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:317` — `val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:318` — `val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:319` — `val savedName = identityPrefs.getString("user_name", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:320` — `?: legacyPrefs.getString("user_name", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:321` — `?: legacyPrefs.getString("saved_user_name", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:322` — `val savedEmail = identityPrefs.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:323` — `?: legacyPrefs.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:324` — `?: legacyPrefs.getString("saved_login_email", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:330` — `avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:338` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:339` — `.edit().putLong("last_sync_timestamp", now).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:374` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:375` — `.edit().putLong("last_sync_timestamp", row.updatedAtMillis).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:383` — `val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:386` — `val localAvatar = identityPrefs.getString("user_avatar_uri", null)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:388` — `editor.putString("user_avatar_uri", profile.avatarUrl); changed = true`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:390` — `if (identityPrefs.getString("user_name", null).isNullOrBlank() && !profile.fullName.isNullOrBlank()) {`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:391` — `editor.putString("user_name", profile.fullName); changed = true`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:393` — `if (identityPrefs.getString("user_email", null).isNullOrBlank() && !profile.email.isNullOrBlank()) {`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:394` — `editor.putString("user_email", profile.email); changed = true`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:414` — `val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:415` — `val uriStr = identityPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:445` — `identityPrefs.edit().putString("user_avatar_uri", url).commit()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:470` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat("quran_font_size", size).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:476` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("reading_font_family", font).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:482` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("reading_theme", theme).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:488` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("show_tashkeel", show).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:494` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("quran_reciter", reciter).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:500` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("calculation_method", method).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:506` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("athan_voice", voice).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:512` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("morning_athkar", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:518` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("evening_athkar", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:524` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("qiyam_reminder", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:530` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("kahf_friday_reminder", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:536` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("watermark_enabled", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:542` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("watermark_text", text).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:548` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("watermark_position", pos).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:554` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("default_aspect_ratio", ratio).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:560` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("auto_save_to_gallery", autoSave).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:566` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("data_saver_mode", enable).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:572` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putInt("cache_limit_mb", limit).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:578` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("app_language", lang).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:656` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:657` — `prefs.all.forEach { (k, v) ->`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:664` — `val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:709` — `val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:714` — `is Boolean -> editor.putBoolean(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:715` — `is Int -> editor.putInt(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:716` — `is Long -> editor.putLong(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:718` — `is String -> editor.putString(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:737` — `val editor = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:743` — `is Boolean -> editor.putBoolean(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:744` — `is Int -> editor.putInt(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:745` — `is Long -> editor.putLong(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:748` — `is String -> editor.putString(key, v)`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:764` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("high_contrast_mode", enabled).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:770` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("reduced_motion", enabled).apply()`
+- `app/src/main/java/com/qabas/app/UserPreferencesManager.kt:776` — `context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat("global_text_scale", scale).apply()`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:25` — `private const val KEY_STATS = "reels_stats_json"`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:56` — `val qp = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:57` — `if (task.id == "publish10") return qp.getInt(PUBLISHED_COUNT_KEY, 0)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:58` — `val rp = context.getSharedPreferences(REELS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:60` — `val obj = JSONObject(rp.getString(KEY_STATS, "{}") ?: "{}")`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:77` — `val qp = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:78` — `qp.edit().putInt(PUBLISHED_COUNT_KEY, qp.getInt(PUBLISHED_COUNT_KEY, 0) + 1).apply()`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:82` — `val email = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:83` — `.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:88` — `context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:89` — `.getStringSet(VERIFIED_IDS_KEY, emptySet()) ?: emptySet()`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:97` — `val email = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:98` — `.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:104` — `val email = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:105` — `.getString("user_email", null)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:118` — `val prefs = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:119` — `val ids = (prefs.getStringSet(VERIFIED_IDS_KEY, emptySet()) ?: emptySet()).toMutableSet()`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:121` — `prefs.edit().putStringSet(VERIFIED_IDS_KEY, ids).apply()`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:137` — `context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VerificationManager.kt:138` — `.edit().putStringSet(VERIFIED_IDS_KEY, ids.toSet()).apply()`
+- `app/src/main/java/com/qabas/app/VideoEngineManager.kt:575` — `val d = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:81` — `val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:82` — `val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:83` — `val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:103` — `retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:333` — `val ms = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 6000L`
+- `app/src/main/java/com/qabas/app/VideoProcessor.kt:691` — `val ms = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 5000L`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:59` — `private const val PREFS_NAME = "qabas_cloned_styles_vault"`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:165` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:166` — `val jsonStr = prefs.getString("custom_styles", null)`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:190` — `id = obj.getString("id"),`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:205` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:230` — `prefs.edit().putString("custom_styles", jsonArray.toString()).apply()`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:235` — `val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt:259` — `prefs.edit().putString("custom_styles", jsonArray.toString()).apply()`
+- `app/src/main/java/com/qabas/app/VoiceStudioScreen.kt:151` — `val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L`
+- `app/src/main/java/com/qabas/app/VoiceStudioScreen.kt:328` — `retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:83` — `const val PREFS_KEY_SERVER_URL = "voice_studio_server_url"`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:84` — `const val PREFS_KEY_CLONED_VOICES = "voice_studio_cloned_profiles"`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:94` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:95` — `return prefs.getString(PREFS_KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:99` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:100` — `prefs.edit().putString(PREFS_KEY_SERVER_URL, url.trim().trimEnd('/')).apply()`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:107` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:108` — `val raw = prefs.getString(PREFS_KEY_CLONED_VOICES, null) ?: return defaultStarterProfiles()`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:127` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:128` — `prefs.edit().putString(PREFS_KEY_CLONED_VOICES, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:135` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/VoiceStudioService.kt:136` — `prefs.edit().putString(PREFS_KEY_CLONED_VOICES, arr.toString()).apply()`
+- `app/src/main/java/com/qabas/app/WorkspaceAutoSaveManager.kt:357` — `val tType = try { TrackType.valueOf(t.getString("type")) } catch (_: Exception) { TrackType.VIDEO }`
+- `app/src/main/java/com/qabas/app/WorkspaceAutoSaveManager.kt:363` — `val cType = try { TrackType.valueOf(c.getString("type")) } catch (_: Exception) { TrackType.VIDEO }`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentRequirementsTab.kt:110` — `val owner = prefs.getString("build_center_owner", "") ?: ""`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentRequirementsTab.kt:111` — `val repo = prefs.getString("build_center_repo", "") ?: ""`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentRequirementsTab.kt:112` — `val token = prefs.getString("build_center_token", "") ?: ""`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentToolsTab.kt:146` — `prefs.edit().putString(AgentPrefs.MODEL, id ?: "").apply()`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentToolsTab.kt:196` — `prefs.edit().putInt(AgentPrefs.MAX_TURNS, it.toInt()).apply()`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentToolsTab.kt:238` — `prefs.edit().putBoolean(AgentPrefs.AUTO_FIX, it).apply()`
+- `app/src/main/java/com/qabas/app/ui/agent/tabs/AgentToolsTab.kt:383` — `prefs.edit().putBoolean(AgentPrefs.toolKey(tool.name), it).apply()`
+- `app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt:52` — `var inputUrl by remember { mutableStateOf(sp.getString("supabase_url", "")?.ifBlank { SupabaseConfig.url } ?: SupabaseConfig.url) }`
+- `app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt:53` — `var inputAnonKey by remember { mutableStateOf(sp.getString("supabase_anon_key", "")?.ifBlank { SupabaseConfig.key } ?: SupabaseConfig.key) }`
+- `app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt:402` — `.putString("supabase_url", inputUrl)`
+- `app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt:403` — `.putString("supabase_anon_key", inputAnonKey)`
+- `app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt:36` — `val name = cursor.getString(nameIndex)`
+- `app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt:40` — `val size = cursor.getLong(sizeIndex)`
+- `app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt:57` — `val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt:78` — `val name = cursor.getString(nameIndex)`
+- `app/src/main/java/com/qabas/app/ui/input/MediaPickerHelpers.kt:87` — `val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:104` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:105` — `val savedPresetId = prefs.getString("app_theme_preset", null)`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:123` — `val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:124` — `prefs.edit()`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:125` — `.putString("app_theme_preset", preset.id)`
+- `app/src/main/java/com/qabas/app/ui/theme/Theme.kt:126` — `.putBoolean("app_dark_theme", true)`
+- `app/src/main/java/com/qabas/app/ui/theme/Type.kt:67` — `val savedId = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ui/theme/Type.kt:68` — `.getString(PREF_KEY, AppFontChoice.TAJAWAL.id)`
+- `app/src/main/java/com/qabas/app/ui/theme/Type.kt:74` — `context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)`
+- `app/src/main/java/com/qabas/app/ui/theme/Type.kt:76` — `.putString(PREF_KEY, choice.id)`

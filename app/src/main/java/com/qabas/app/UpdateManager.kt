@@ -344,6 +344,9 @@ object UpdateManager {
         val apkUrl: String?,
         val xdeltaBinaries: List<String>,
         val xdeltaUrls: Map<String, String>,
+        val deltaSha256: String? = null,
+        val baseApkSha256: String? = null,
+        val apkSha256: String? = null,
         val totalAssetsCount: Int,
         val isNewerThanCurrent: Boolean
     )
@@ -942,6 +945,8 @@ object UpdateManager {
             var apkAsset: String? = null
             var apkSize = 0L
             var apkUrl: String? = null
+            var deltaSha256: String? = null
+            var apkSha256: String? = null
             val xdeltaBinaries = mutableListOf<String>()
             val xdeltaUrls = mutableMapOf<String, String>()
 
@@ -955,15 +960,49 @@ object UpdateManager {
                         deltaAsset = aName
                         deltaSize = aSize
                         deltaUrl = aUrl
+                        deltaSha256 = asset.optString("digest", "")
+                            .removePrefix("sha256:")
+                            .takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
                     }
                     aName.endsWith(".apk") -> {
                         apkAsset = aName
                         apkSize = aSize
                         apkUrl = aUrl
+                        apkSha256 = asset.optString("digest", "")
+                            .removePrefix("sha256:")
+                            .takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
                     }
                     aName.startsWith("xdelta3-") -> {
                         xdeltaBinaries.add(aName)
                         xdeltaUrls[aName] = aUrl
+                    }
+                }
+            }
+            var baseApkSha256: String? = null
+            val sourceTag = deltaAsset?.let {
+                Regex("-from-(.+)\\.delta$", RegexOption.IGNORE_CASE)
+                    .find(it)?.groupValues?.getOrNull(1)
+            }
+            if (!sourceTag.isNullOrBlank()) {
+                val sourceRequest = Request.Builder()
+                    .url("https://api.github.com/repos/$targetRepo/releases/tags/${java.net.URLEncoder.encode(sourceTag, "UTF-8")}")
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "Qabas-Studio")
+                    .apply { if (!targetToken.isNullOrBlank()) header("Authorization", "Bearer $targetToken") }
+                    .build()
+                client.newCall(sourceRequest).execute().use { sourceResponse ->
+                    if (sourceResponse.isSuccessful) {
+                        val sourceJson = org.json.JSONObject(sourceResponse.body?.string().orEmpty())
+                        val sourceAssets = sourceJson.optJSONArray("assets") ?: org.json.JSONArray()
+                        for (i in 0 until sourceAssets.length()) {
+                            val sourceAsset = sourceAssets.optJSONObject(i) ?: continue
+                            if (sourceAsset.optString("name").endsWith(".apk")) {
+                                baseApkSha256 = sourceAsset.optString("digest", "")
+                                    .removePrefix("sha256:")
+                                    .takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
+                                if (baseApkSha256 != null) break
+                            }
+                        }
                     }
                 }
             }
@@ -992,6 +1031,9 @@ object UpdateManager {
                 apkUrl = apkUrl,
                 xdeltaBinaries = xdeltaBinaries,
                 xdeltaUrls = xdeltaUrls,
+                deltaSha256 = deltaSha256,
+                baseApkSha256 = baseApkSha256,
+                apkSha256 = apkSha256,
                 totalAssetsCount = assets.length(),
                 isNewerThanCurrent = finalIsNewer
             )

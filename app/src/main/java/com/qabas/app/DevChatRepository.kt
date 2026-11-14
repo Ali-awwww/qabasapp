@@ -32,6 +32,8 @@ object DevChatRepository {
         val userId: String? = null,
         val userEmail: String = "",
         val sender: String = "user", // "user" | "developer"
+        val senderDisplayName: String? = null,
+        val senderAvatarUrl: String? = null,
         val message: String = "",
         val createdAt: Long = System.currentTimeMillis(),
         val formattedTime: String = "",
@@ -190,6 +192,36 @@ object DevChatRepository {
         }
         saveLocalMessages(context, cleanEmail, saved)
         finalMessage
+    }
+
+    /** إعادة محاولة إرسال الرسالة نفسها دون إنشاء نسخة محلية مكررة. */
+    suspend fun retryPendingMessage(
+        context: Context,
+        message: DevChatMessage
+    ): DevChatMessage = withContext(Dispatchers.IO) {
+        if (message.status != "pending") return@withContext message
+        val isUserMessage = message.sender.equals("user", ignoreCase = true)
+        val accountNumber = UserIdentifierManager.getAccountNumber(context, message.userEmail)
+        val prefix = when {
+            message.isUrgent -> "[URGENT] "
+            message.isTelemetry -> "[TELEMETRY] "
+            else -> ""
+        }
+        val delivered = runCatching {
+            SupabaseServices.isSupabaseAvailable &&
+                SupabaseServices.Database.sendChatMessage(
+                    userEmail = message.userEmail,
+                    message = prefix + message.message,
+                    sender = message.sender,
+                    targetUserId = if (isUserMessage) null else message.userId,
+                    accountNumber = accountNumber.takeIf { it.isNotBlank() }
+                )
+        }.getOrDefault(false)
+        val updated = message.copy(status = if (delivered) "sent" else "pending")
+        val current = getLocalMessages(context, message.userEmail)
+            .map { if (it.id == message.id) updated else it }
+        saveLocalMessages(context, message.userEmail, current)
+        updated
     }
 
     /** إضافة تفاعل إيموجي على رسالة معينة */

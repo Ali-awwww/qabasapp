@@ -45,6 +45,10 @@ class QabasApplication : Application() {
             runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
                 .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
 
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AccountIdentityManager.refresh")
+            runCatching { AccountIdentityManager.refresh(this@QabasApplication) }
+                .onFailure { recordStartupFailure("AccountIdentityManager.refresh", it) }
+
             QabasCrashGuard.markStartupStage(this@QabasApplication, "PushTokenManager.captureAndSync")
             runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }
                 .onFailure { recordStartupFailure("PushTokenManager.captureAndSync", it) }
