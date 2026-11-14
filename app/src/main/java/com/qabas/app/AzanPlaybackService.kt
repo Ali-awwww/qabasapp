@@ -254,11 +254,11 @@ class AzanPlaybackService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
+        val fullScreenIntent = Intent(this, AdhanFullScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "prayer_times")
             putExtra("full_screen_azan", true)
             putExtra("prayer_name", prayerName)
+            putExtra("prayer_notification_id", NOTIFICATION_ID)
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             this, 9923, fullScreenIntent,

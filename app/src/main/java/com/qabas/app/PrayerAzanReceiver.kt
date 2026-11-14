@@ -109,11 +109,12 @@ class PrayerAzanReceiver : BroadcastReceiver() {
 
         val appIcon = QabasNotificationHelper.getAppIconBitmap(context)
 
-        val fullScreenIntent = Intent(context, MainActivity::class.java).apply {
+        // شاشة الأذان مستقلة عن MainActivity وعن إشعار العداد المباشر.
+        val fullScreenIntent = Intent(context, AdhanFullScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "prayer_times")
             putExtra("full_screen_azan", true)
             putExtra("prayer_name", prayerName)
+            putExtra("prayer_notification_id", notifId)
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,

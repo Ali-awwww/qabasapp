@@ -169,6 +169,13 @@
                     android:host="ais-pre-4m7ngsd7prdvbhwsiegpif-753796887195.europe-west2.run.app" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AdhanFullScreenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.MyApplication" />
         <service
             android:name=".UpdateDownloadService"
             android:exported="false"
