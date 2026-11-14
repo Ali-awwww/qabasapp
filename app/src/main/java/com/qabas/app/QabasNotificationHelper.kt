@@ -359,7 +359,8 @@ object QabasNotificationHelper {
         context: Context,
         channelId: String,
         title: String,
-        message: String
+        message: String,
+        navigateTo: String = "notifications"
     ): NotificationCompat.Builder? {
         initializeChannels(context)
         NotificationPreferencesManager.init(context)
@@ -370,7 +371,7 @@ object QabasNotificationHelper {
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "notifications")
+            putExtra("navigate_to", navigateTo)
         }
         val reqCode = nextNotificationId(context) ?: run {
             android.util.Log.w(

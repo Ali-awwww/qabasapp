@@ -3,6 +3,10 @@ package com.qabas.app
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * 🛰️ خدمة استقبال الإشعارات السحابية (FCM) لتطبيق قبس
@@ -11,6 +15,7 @@ import com.google.firebase.messaging.RemoteMessage
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val TAG = "MyFirebaseMessagingService"
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         // التحقق من وجود بيانات أو إشعار
@@ -40,6 +45,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun handleDataMessage(data: Map<String, String>) {
+        if (data["type"] == "developer_reply") {
+            NotificationHelper.showDeveloperReplyNotification(
+                context = applicationContext,
+                messageId = data["message_id"].orEmpty(),
+                message = data["message"].orEmpty()
+            )
+            return
+        }
         val title = data["title"] ?: "تحديث من قبس"
         val message = data["message"] ?: ""
         val shareText = data["share_text"]
@@ -53,6 +66,9 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun sendRegistrationToServer(token: String) {
-        // TODO: تنفيذ الربط مع الخادم لحفظ الرمز (FCM Token)
+        serviceScope.launch {
+            runCatching { PushTokenManager.onTokenRefreshed(applicationContext, token) }
+                .onFailure { Log.w(TAG, "تعذر ربط رمز FCM بالحساب: ${it.message}") }
+        }
     }
 }

@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 
 object NotificationHelper {
     private val CHANNEL_ID get() = QabasNotificationHelper.CHANNEL_GENERAL
+    private const val DEV_REPLY_EVENT_PREFS = "qabas_dev_reply_notifications"
 
     fun showNotification(
         context: Context,
@@ -35,5 +36,32 @@ object NotificationHelper {
         )
 
         notificationManager.notify(notifId, builder.build())
+    }
+
+    fun showDeveloperReplyNotification(context: Context, messageId: String, message: String) {
+        val appContext = context.applicationContext
+        val key = messageId.trim().ifBlank { message.trim().hashCode().toString() }
+        val prefs = appContext.getSharedPreferences(DEV_REPLY_EVENT_PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean("shown_$key", false)) return
+        prefs.edit().putBoolean("shown_$key", true).apply()
+
+        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        QabasNotificationHelper.ensureChannel(appContext, QabasNotificationHelper.CHANNEL_DEV_CHAT)
+        val notificationId = QabasNotificationHelper.nextNotificationId(appContext) ?: return
+        val safeMessage = message.trim().ifBlank { "لديك رد جديد من المطور" }
+        val builder = QabasNotificationHelper.createBaseBuilder(
+            context = appContext,
+            channelId = QabasNotificationHelper.CHANNEL_DEV_CHAT,
+            title = "رد جديد من المطور",
+            message = safeMessage,
+            navigateTo = "request_chat"
+        ) ?: return
+        manager.notify(notificationId, builder.build())
+        AppNotificationService.recordNotification(
+            context = appContext,
+            title = "رد جديد من المطور",
+            message = safeMessage,
+            category = AppNotificationService.CATEGORY_SYSTEM
+        )
     }
 }

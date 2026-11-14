@@ -1152,6 +1152,20 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "sendChatMessage failed: ${it.message}") }.getOrDefault(false)
 
+        suspend fun upsertPushToken(userId: String, token: String): Boolean = runCatching {
+            val client = client ?: return false
+            if (userId.isBlank() || token.isBlank()) return false
+            client.postgrest.from("user_push_tokens").upsert(
+                PushTokenRow(
+                    userId = userId,
+                    token = token,
+                    platform = "android",
+                    updatedAt = java.time.Instant.now().toString()
+                )
+            )
+            true
+        }.onFailure { Log.e(TAG, "upsertPushToken failed: ${it.message}") }.getOrDefault(false)
+
         // ── Styles Operations ──
         suspend fun getStyleObjects(userId: String? = null): List<StyleRow> = runCatching {
             val client = client ?: return emptyList()
@@ -3145,6 +3159,14 @@ object SupabaseServices {
         val sender: String = "user",
         val message: String = "",
         @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
+    data class PushTokenRow(
+        @SerialName("user_id") val userId: String,
+        val token: String,
+        val platform: String = "android",
+        @SerialName("updated_at") val updatedAt: String? = null
     )
 
     @Serializable

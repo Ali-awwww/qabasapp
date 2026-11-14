@@ -846,6 +846,7 @@ class MainActivity : ComponentActivity() {
             "rewards" -> AppState.REWARDS
             "downloads", "download_manager" -> AppState.DOWNLOAD_MANAGER
             "settings" -> AppState.SETTINGS
+            "request_chat", "developer_contact" -> AppState.REQUEST_CHAT
             else -> runCatching { AppState.valueOf(target.uppercase()) }.getOrNull()
         } ?: return
         AppNavigator.navigateFromNotification(appState)

@@ -30,12 +30,19 @@ import androidx.compose.ui.platform.testTag
 @Composable
 fun QabasApp() {
     val context = LocalContext.current
+    val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
     
     // Initialize Navigation Animation, Style and Sound managers
     LaunchedEffect(Unit) {
         AppAnimationManager.init(context)
         HomeScreenStyleManager.init(context)
         AppSoundManager.init(context)
+    }
+
+    LaunchedEffect(currentUser?.id) {
+        if (currentUser?.id != null) {
+            PushTokenManager.syncPending(context)
+        }
     }
 
     DisposableEffect(Unit) {

@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.qabas-key-vault]
 verify_jwt = false
+
+[functions.send-developer-reply-push]
+verify_jwt = false
