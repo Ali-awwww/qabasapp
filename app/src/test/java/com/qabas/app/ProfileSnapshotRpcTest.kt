@@ -11,7 +11,7 @@ class ProfileSnapshotRpcTest {
     @Test
     fun `profile snapshot RPC is invoker-only and owner-scoped`() {
         val sql = projectFile(
-            "supabase/migrations/20261114085700_get_current_profile_snapshot.sql"
+            "supabase/migrations/20261114130159_get_current_profile_snapshot.sql"
         ).readText()
 
         assertTrue(sql.contains("SECURITY INVOKER"))
