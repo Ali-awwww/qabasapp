@@ -386,8 +386,7 @@ object SupabaseServices {
 
             // Authenticated profile reads are strictly UID-scoped.
             if (!authUserId.isNullOrBlank()) {
-                val currentUid = client.auth.currentUserOrNull()?.id
-                    ?: client.auth.currentSessionOrNull()?.user?.id
+                val currentUid = SupabaseServices.Auth.getCurrentUserId()
                 if (currentUid != authUserId) return null
                 val byId = client.postgrest.from("users").select {
                     filter { eq("id", authUserId) }
@@ -473,18 +472,15 @@ object SupabaseServices {
         ): Result<UserRow> = withContext(Dispatchers.IO) {
             try {
                 val client = client ?: throw IllegalStateException("خدمة السحابة غير متاحة")
-                val authUid = client.auth.currentUserOrNull()?.id
-                    ?: client.auth.currentSessionOrNull()?.user?.id
-                    ?: throw IllegalStateException("انتهت جلسة الدخول")
+                val authUid = SupabaseServices.Auth.getCurrentUserId()
+                    ?: throw IllegalStateException("حالة الحساب غير متاحة")
                 if (id != authUid) {
                     throw SecurityException("جلسة الحساب لا تطابق الحساب المطلوب تحديثه")
                 }
 
-                val authEmail = (
-                    client.auth.currentUserOrNull()?.email
-                        ?: client.auth.currentSessionOrNull()?.user?.email
-                    )?.trim()?.lowercase(java.util.Locale.ROOT)
-                    ?: throw IllegalStateException("تعذر قراءة بريد الحساب من جلسة المصادقة")
+                val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
+                    ?.trim()?.lowercase(java.util.Locale.ROOT)
+                    ?: throw IllegalStateException("تعذر قراءة بريد الحساب من حالة المصادقة")
                 if (!authEmail.equals(email.trim(), ignoreCase = true)) {
                     throw SecurityException("بريد الحساب لا يطابق جلسة المصادقة")
                 }
@@ -539,15 +535,13 @@ object SupabaseServices {
             accountNumber: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: client.auth.currentSessionOrNull()?.user?.id
-                ?: return false
+            val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return false
             if (id != authUid) {
                 Log.w(TAG, "saveUser: rejected write for a non-authenticated user")
                 return false
             }
 
-            val authEmail = (client.auth.currentUserOrNull()?.email ?: client.auth.currentSessionOrNull()?.user?.email)
+            val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
                 ?.trim()?.lowercase(java.util.Locale.ROOT)
                 ?: return false
             if (!authEmail.equals(email.trim(), ignoreCase = true)) return false
@@ -1260,24 +1254,19 @@ object SupabaseServices {
         private val _verifiedRole = MutableStateFlow("user")
         val verifiedRole: StateFlow<String> = _verifiedRole
 
-        fun getCurrentUserId(): String? = runCatching {
-            if (!isSupabaseAvailable) null 
-            else client?.auth?.currentUserOrNull()?.id 
-                ?: (SupabaseRepository.getInstance().authState.value as? AuthState.Authenticated)?.userRow?.id
-        }.getOrNull()
+        /** Reads only the canonical AuthState; feature screens must not restore sessions. */
+        fun getCurrentUserId(): String? =
+            SupabaseRepository.getInstance().getCurrentUserId()
 
         /**
-         * Waits for the persisted Supabase session to finish initializing before
-         * resolving the current UID. Prevents a first-screen tap from being
-         * mistaken for a logged-out user while storage restoration is still running.
+         * Compatibility accessor for older call sites. This is an in-memory snapshot read,
+         * not a network refresh or session-restoration attempt.
          */
-        suspend fun awaitCurrentUserId(timeoutMillis: Long = 8_000L): String? = runCatching {
-            SupabaseRepository.getInstance().ensureAuthenticatedSession(timeoutMillis)
-        }.getOrNull()
+        @Suppress("UNUSED_PARAMETER")
+        suspend fun awaitCurrentUserId(timeoutMillis: Long = 8_000L): String? = getCurrentUserId()
 
-        fun getCurrentUserEmail(): String? = runCatching {
-            if (!isSupabaseAvailable) null else client?.auth?.currentUserOrNull()?.email
-        }.getOrNull()
+        fun getCurrentUserEmail(): String? =
+            SupabaseRepository.getInstance().authState.value.authenticatedSessionSnapshot()?.email
 
         fun getCurrentUserMeta(key: String): String? = runCatching {
             if (!isSupabaseAvailable) null
@@ -1290,14 +1279,8 @@ object SupabaseServices {
          * قراءة الرتبة الرسمية الموثقة سحابياً من app_metadata في جلسة Supabase Auth
          * (حيث يتم حقن role: "developer" عند ترقية الحساب من لوحة التحكم أو SQL).
          */
-        fun getCurrentUserAppRole(): String? = runCatching {
-            if (!isSupabaseAvailable) null
-            else {
-                val user = client?.auth?.currentUserOrNull()
-                val role = user?.appMetadata?.get("role")?.toString()?.trim('"')
-                role?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
-            }
-        }.getOrNull()
+        fun getCurrentUserAppRole(): String? =
+            SupabaseRepository.getInstance().authState.value.authenticatedSessionSnapshot()?.role
 
         fun isDeveloperRole(role: String?): Boolean {
             if (role.isNullOrBlank()) return false
@@ -1317,19 +1300,27 @@ object SupabaseServices {
          * Database profile fields and user_metadata are not trusted role sources.
          */
         fun getUserRoleFromMetadata(): String {
-            val role = runCatching {
-                if (!isSupabaseAvailable) "user"
-                else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
-            }.getOrDefault("user")
+            val role = SupabaseRepository.getInstance().authState.value
+                .authenticatedSessionSnapshot()?.role ?: "user"
             _verifiedRole.value = role
             return role
+        }
+
+        internal fun readTrustedRoleFromCurrentSession(): String = runCatching {
+            if (!isSupabaseAvailable) "user"
+            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
+        }.getOrDefault("user")
+
+        internal fun publishVerifiedRole(role: String) {
+            _verifiedRole.value = role
         }
 
         fun clearVerifiedRole() {
             _verifiedRole.value = "user"
         }
 
-        suspend fun refreshVerifiedRole(): String = getUserRoleFromMetadata()
+        suspend fun refreshVerifiedRole(): String =
+            SupabaseRepository.getInstance().refreshAuthenticatedRole()
 
         suspend fun isAuthAdmin(): Boolean = runCatching {
             // "special" is an account category, not an authorization role for admin APIs.
@@ -1783,7 +1774,7 @@ object SupabaseServices {
                 Log.e("ReelPublish", err)
                 throw IllegalStateException(err)
             }
-            val currentAuthUid = client.auth.currentUserOrNull()?.id
+            val currentAuthUid = SupabaseServices.Auth.getCurrentUserId()
             if (currentAuthUid.isNullOrBlank()) {
                 val err = "لا توجد جلسة مصادقة نشطة (auth.uid is null). يلزم تسجيل الدخول لإدراج ريلز."
                 Log.e("ReelPublish", err)
@@ -1879,7 +1870,7 @@ object SupabaseServices {
 
         private suspend fun ensureStarterReel(reelId: String, creatorId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return false
             if (authUid != creatorId) return false
 
@@ -1898,7 +1889,7 @@ object SupabaseServices {
         suspend fun likeReel(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: run {
                     lastInteractionError = "يجب تسجيل الدخول للإعجاب"
                     return false
@@ -1927,7 +1918,7 @@ object SupabaseServices {
         suspend fun unlikeReel(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: run {
                     lastInteractionError = "يجب تسجيل الدخول"
                     return false
@@ -1975,7 +1966,7 @@ object SupabaseServices {
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: run {
                     lastInteractionError = "يجب تسجيل الدخول"
                     return false
@@ -2001,7 +1992,7 @@ object SupabaseServices {
 
         suspend fun removeReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return false
             if (authUid != userId) return false
             client.postgrest.from("reel_bookmarks").delete {
@@ -2020,7 +2011,7 @@ object SupabaseServices {
             commentText: String
         ): ReelCommentRow? = runCatching {
             val client = client ?: return null
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return null
             if (authUid != userId || reelId.isBlank()) {
                 Log.w(TAG, "addReelComment rejected an invalid caller identity or reel id")
@@ -2061,7 +2052,7 @@ object SupabaseServices {
             commentText: String
         ): ReelCommentRow? = runCatching {
             val client = client ?: return null
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return null
             val safeText = commentText.trim()
             if (authUid != userId || commentId.isBlank() || safeText.isBlank()) return null
@@ -2081,7 +2072,7 @@ object SupabaseServices {
         /** Delete a comment only when the current authenticated user owns the row. */
         suspend fun deleteReelComment(commentId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return false
             if (authUid != userId || commentId.isBlank()) return false
 
@@ -2096,9 +2087,7 @@ object SupabaseServices {
 
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: client.auth.currentSessionOrNull()?.user?.id
-                ?: return null
+            val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return null
             if (authUid != userId) return null
             client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter { eq("user_id", authUid) }
@@ -2107,9 +2096,8 @@ object SupabaseServices {
 
         suspend fun getLikedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
-            // Use the same session-restoration path as writes. Reading immediately from
-            // currentUserOrNull can race with Supabase Auth restoring a persisted session.
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            // Bind the query to the canonical AuthState UID; Supabase RLS remains authoritative.
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return null
             if (authUid != userId) return null
             client.postgrest.from("reel_likes").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
@@ -2123,7 +2111,7 @@ object SupabaseServices {
          */
         suspend fun getUserReelActivity(userId: String): ReelActivitySnapshot? = runCatching {
             val client = client ?: return null
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return null
             if (authUid != userId) return null
 
@@ -2212,7 +2200,7 @@ object SupabaseServices {
 
         suspend fun removeReelWatchHistory(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return false
             if (authUid != userId || reelId.isBlank()) return false
             client.postgrest.from("reel_history").delete {
@@ -2226,7 +2214,7 @@ object SupabaseServices {
 
         suspend fun clearReelWatchHistory(userId: String): Boolean = runCatching {
             val client = client ?: return false
-            val authUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(10_000L)
+            val authUid = SupabaseServices.Auth.getCurrentUserId()
                 ?: return false
             if (authUid != userId) return false
             client.postgrest.from("reel_history").delete {
@@ -2254,9 +2242,7 @@ object SupabaseServices {
          */
         suspend fun recordReelWatch(reelId: String, userId: String, watchedDurationSec: Int): Int? = runCatching {
             val client = client ?: return null
-            val authUid = client.auth.currentUserOrNull()?.id
-                ?: client.auth.currentSessionOrNull()?.user?.id
-                ?: return null
+            val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return null
             if (authUid != userId || reelId.isBlank()) return null
 
             val params = buildJsonObject {

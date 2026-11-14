@@ -1244,12 +1244,19 @@ fun ReelPublishScreen(
                 (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed)
 
             val doPublishAction: (Boolean) -> Unit = { asSilent ->
-                val authId = SupabaseServices.Auth.getCurrentUserId()
+                val authState = SupabaseRepository.getInstance().authState.value
+                val authId = authState.authenticatedSessionSnapshot()?.userId
                 if (authId.isNullOrBlank()) {
-                    android.util.Log.e("ReelPublish", "doPublishAction: No active auth session. Prompting login.")
-                    Toast.makeText(context, "يجب تسجيل الدخول أولاً لتتمكن من نشر الريلز", Toast.LENGTH_LONG).show()
+                    if (authState is AuthState.Guest || authState is AuthState.Unauthenticated) {
+                        Toast.makeText(context, "يجب تسجيل الدخول أولاً لتتمكن من نشر الريلز", Toast.LENGTH_LONG).show()
+                        onDismiss()
+                        onRequireLogin()
+                    } else {
+                        Toast.makeText(context, "تعذر قراءة حالة الحساب مؤقتاً. حاول مرة أخرى دون إعادة تسجيل الدخول.", Toast.LENGTH_LONG).show()
+                    }
+                } else if (authId != currentUserId) {
+                    Toast.makeText(context, "تغيرت هوية الحساب؛ أعد فتح شاشة النشر.", Toast.LENGTH_LONG).show()
                     onDismiss()
-                    onRequireLogin()
                 } else {
                     val validation = ReelPublishManager.validateContent(
                         title = title,

@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -58,10 +60,54 @@ sealed class AuthState {
     data class Authenticated(
         val userRow: SupabaseServices.UserRow,
         val session: UserSession? = null,
-        val isAdmin: Boolean = false
+        val isAdmin: Boolean = false,
+        val role: String = "user"
     ) : AuthState()
     data class Error(val message: String) : AuthState()
 }
+
+internal data class AuthenticatedSessionSnapshot(
+    val userId: String,
+    val email: String?,
+    val displayName: String?,
+    val customId: String?,
+    val accountNumber: String?,
+    val role: String,
+    val isAdmin: Boolean
+)
+
+/** Ephemeral session identity used only to reject stale asynchronous auth results. */
+internal class AuthSessionFingerprint(
+    val userId: String,
+    private val accessToken: String
+) {
+    fun matches(other: AuthSessionFingerprint?): Boolean =
+        other != null && userId == other.userId && accessToken == other.accessToken
+}
+
+internal fun canCommitAuthSessionResult(
+    expected: AuthSessionFingerprint,
+    active: AuthSessionFingerprint?,
+    expectedStateRevision: Long,
+    activeStateRevision: Long
+): Boolean = expectedStateRevision == activeStateRevision && expected.matches(active)
+
+internal fun AuthState.authenticatedSessionSnapshot(): AuthenticatedSessionSnapshot? {
+    val authenticated = this as? AuthState.Authenticated ?: return null
+    val userId = authenticated.userRow.id.takeIf { it.isNotBlank() } ?: return null
+    return AuthenticatedSessionSnapshot(
+        userId = userId,
+        email = authenticated.userRow.email ?: authenticated.session?.user?.email,
+        displayName = authenticated.userRow.name,
+        customId = authenticated.userRow.customId,
+        accountNumber = authenticated.userRow.accountNumber,
+        role = authenticated.role,
+        isAdmin = authenticated.isAdmin
+    )
+}
+
+internal fun AuthState.requiresInteractiveLogin(): Boolean =
+    this is AuthState.Guest || this is AuthState.Unauthenticated
 
 /**
  * Repository class that handles reactive authentication flows, Postgrest database operations,
@@ -96,6 +142,41 @@ class SupabaseRepository(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     /** Reactive authentication state stream broadcasted to the entire app. */
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    private val authProfileRefreshMutex = Mutex()
+    private val authStateWriteLock = Any()
+    private var authStateRevision = 0L
+
+    private fun publishAuthState(state: AuthState): Long = synchronized(authStateWriteLock) {
+        authStateRevision += 1L
+        _authState.value = state
+        authStateRevision
+    }
+
+    private fun publishAuthStateIfRevision(expectedRevision: Long, state: AuthState): Boolean =
+        synchronized(authStateWriteLock) {
+            if (authStateRevision != expectedRevision) return@synchronized false
+            authStateRevision += 1L
+            _authState.value = state
+            true
+    }
+
+    private fun currentAuthStateRevision(): Long = synchronized(authStateWriteLock) {
+        authStateRevision
+    }
+
+    private fun sessionFingerprint(session: UserSession?): AuthSessionFingerprint? {
+        val activeSession = session ?: return null
+        val userId = activeSession.user?.id?.takeIf { it.isNotBlank() } ?: return null
+        val token = activeSession.accessToken.takeIf { it.isNotBlank() } ?: return null
+        return AuthSessionFingerprint(userId, token)
+    }
+
+    private fun currentSessionFingerprint(): AuthSessionFingerprint? = runCatching {
+        sessionFingerprint(client.auth.currentSessionOrNull())
+    }.getOrNull()
+
+    private fun isActiveSession(expected: AuthSessionFingerprint): Boolean =
+        expected.matches(currentSessionFingerprint())
 
     /** Derived reactive stream indicating whether a valid user session exists. */
     val isAuthenticated: StateFlow<Boolean> = _authState.map {
@@ -138,7 +219,7 @@ class SupabaseRepository(
      * Explicitly sets the reactive auth state to Guest Mode (unauthenticated browsing session).
      */
     fun emitGuestMode(displayName: String = "ضيف قبس") {
-        _authState.value = AuthState.Guest(displayName)
+        publishAuthState(AuthState.Guest(displayName))
     }
 
     private fun checkLocalAuthFallback() {
@@ -152,7 +233,7 @@ class SupabaseRepository(
             emitGuestMode(name)
         } else {
             // Local flags and cached email are presentation data, never proof of authentication.
-            _authState.value = AuthState.Unauthenticated
+            publishAuthState(AuthState.Unauthenticated)
         }
     }
 
@@ -185,7 +266,9 @@ class SupabaseRepository(
                             checkLocalAuthFallback()
                         }
                         is SessionStatus.Initializing -> {
-                            _authState.value = AuthState.Loading
+                            if (_authState.value !is AuthState.Loading) {
+                                publishAuthState(AuthState.Loading)
+                            }
                         }
                         else -> {
                             val existingSession = client.auth.currentSessionOrNull()
@@ -215,72 +298,217 @@ class SupabaseRepository(
         requestedDisplayName: String? = null
     ): Boolean =
         withContext(Dispatchers.IO) {
-            runCatching {
-                val email = session?.user?.email ?: client.auth.currentUserOrNull()?.email
-                val name = requestedDisplayName?.trim()?.takeIf { it.isNotBlank() } ?: email?.substringBefore("@")
-                val userRow = SupabaseServices.Database.ensureUser(uid, email, name, requestedCustomId)
-                    ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
-                if (userRow.id != uid ||
-                    userRow.customId.isNullOrBlank() ||
-                    userRow.accountNumber.isNullOrBlank()
-                ) {
-                    throw IllegalStateException("ملف المستخدم السحابي لا يحتوي هوية مكتملة")
+            authProfileRefreshMutex.withLock {
+                val capturedSession = session ?: client.auth.currentSessionOrNull()
+                    ?: return@withLock false
+                val expectedSession = sessionFingerprint(capturedSession)
+                    ?: return@withLock false
+                if (expectedSession.userId != uid || !isActiveSession(expectedSession)) {
+                    return@withLock false
                 }
 
-                val role = SupabaseServices.Auth.getUserRoleFromMetadata()
-                val authEmail = SupabaseServices.Auth.getCurrentUserEmail() ?: email
-                val isAdmin = SupabaseServices.Auth.isAdminRole(role) ||
-                    CloudServices.isOwnerAccount(authEmail)
-                _authState.value = AuthState.Authenticated(
-                    userRow = userRow,
-                    session = session,
-                    isAdmin = isAdmin
-                )
+                val previous = _authState.value as? AuthState.Authenticated
+                val sameAuthenticatedSession = previous?.userRow?.id == uid &&
+                    sessionFingerprint(previous.session)?.matches(expectedSession) == true
+                if (sameAuthenticatedSession) return@withLock true
 
-                // Local preferences are only a cache of values that the cloud
-                // profile has already issued. Restore them after every session load
-                // so a second device never invents a different handle or number.
-                val appContext = AppServices.appContext
-                val profileEmail = userRow.email ?: email
-                if (!profileEmail.isNullOrBlank()) {
-                    userRow.customId?.takeIf { it.isNotBlank() }?.let {
-                        UserIdentifierManager.saveCustomId(appContext, it, profileEmail)
-                    }
-                    userRow.accountNumber?.takeIf { it.isNotBlank() }?.let {
-                        UserIdentifierManager.saveAccountNumber(appContext, profileEmail, it)
-                    }
-                    appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-                        .edit()
-                        .putString("user_id", uid)
-                        .putString("user_email", profileEmail)
-                        .putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))
-                        .putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))
-                        .putString("user_custom_id", userRow.customId)
-                        .putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })
-                        .putString("user_account_number", userRow.accountNumber)
-                        .apply()
+                // Do not expose the previous account while a different UID is loading.
+                if (previous?.userRow?.id != uid) {
+                    publishAuthState(AuthState.Loading)
+                    SupabaseServices.Auth.clearVerifiedRole()
                 }
-                true
-            }.getOrElse { e ->
-                Log.e(TAG, "Failed to persist or load canonical profile for $uid: ${e.message}")
-                _authState.value = AuthState.Error("تعذر تحميل ملف حسابك السحابي. حاول مجدداً.")
-                false
+                val startingStateRevision = currentAuthStateRevision()
+
+                try {
+                    val email = capturedSession.user?.email
+                        ?: client.auth.currentUserOrNull()?.email
+                    val name = requestedDisplayName?.trim()?.takeIf { it.isNotBlank() }
+                        ?: email?.substringBefore("@")
+                    val userRow = SupabaseServices.Database.ensureUser(uid, email, name, requestedCustomId)
+                        ?: throw IllegalStateException("تعذر إنشاء أو استعادة ملف المستخدم السحابي")
+
+                    // The profile request may suspend while logout or another login replaces the session.
+                    if (!isActiveSession(expectedSession)) return@withLock false
+                    if (userRow.id != uid || userRow.customId.isNullOrBlank() || userRow.accountNumber.isNullOrBlank()) {
+                        throw IllegalStateException("ملف المستخدم السحابي لا يحتوي هوية مكتملة")
+                    }
+
+                    // Resolve authorization only from the exact session whose profile was loaded.
+                    val role = trustedRoleFromAppMetadata(capturedSession.user?.appMetadata)
+                    val authEmail = capturedSession.user?.email ?: email
+                    val isOwner = CloudServices.isOwnerAccount(authEmail)
+                    val nextState = AuthState.Authenticated(
+                        userRow = userRow,
+                        session = capturedSession,
+                        isAdmin = SupabaseServices.Auth.isAdminRole(role) || isOwner,
+                        role = role
+                    )
+
+                    synchronized(authStateWriteLock) {
+                        if (!canCommitAuthSessionResult(
+                                expected = expectedSession,
+                                active = currentSessionFingerprint(),
+                                expectedStateRevision = startingStateRevision,
+                                activeStateRevision = authStateRevision
+                            )
+                        ) {
+                            return@synchronized false
+                        }
+
+                        // Local preferences remain a cache; publish them only after the cloud
+                        // response and role have both been tied to the still-active session.
+                        val appContext = AppServices.appContext
+                        val profileEmail = userRow.email ?: email
+                        if (!profileEmail.isNullOrBlank()) {
+                            userRow.customId?.takeIf { it.isNotBlank() }?.let {
+                                UserIdentifierManager.saveCustomId(appContext, it, profileEmail)
+                            }
+                            userRow.accountNumber?.takeIf { it.isNotBlank() }?.let {
+                                UserIdentifierManager.saveAccountNumber(appContext, profileEmail, it)
+                            }
+                            appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("user_id", uid)
+                                .putString("user_email", profileEmail)
+                                .putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))
+                                .putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))
+                                .putString("user_custom_id", userRow.customId)
+                                .putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })
+                                .putString("user_account_number", userRow.accountNumber)
+                                .apply()
+                        }
+
+                        // Recheck after local cache writes; a stale request must not publish auth state.
+                        if (!canCommitAuthSessionResult(
+                                expected = expectedSession,
+                                active = currentSessionFingerprint(),
+                                expectedStateRevision = startingStateRevision,
+                                activeStateRevision = authStateRevision
+                            )
+                        ) {
+                            return@synchronized false
+                        }
+
+                        authStateRevision += 1L
+                        _authState.value = nextState
+                        SupabaseServices.Auth.publishVerifiedRole(role)
+                        true
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    Log.e(TAG, "Failed to persist or load canonical profile")
+                    synchronized(authStateWriteLock) {
+                        if (canCommitAuthSessionResult(
+                                expected = expectedSession,
+                                active = currentSessionFingerprint(),
+                                expectedStateRevision = startingStateRevision,
+                                activeStateRevision = authStateRevision
+                            )
+                        ) {
+                            val established = _authState.value as? AuthState.Authenticated
+                            if (established?.userRow?.id == uid) {
+                                // Keep the last good profile for this same user, but refresh its
+                                // session and role from the captured active session.
+                                val role = trustedRoleFromAppMetadata(capturedSession.user?.appMetadata)
+                                val authEmail = capturedSession.user?.email ?: established.userRow.email
+                                val updated = established.copy(
+                                    session = capturedSession,
+                                    role = role,
+                                    isAdmin = SupabaseServices.Auth.isAdminRole(role) ||
+                                        CloudServices.isOwnerAccount(authEmail)
+                                )
+                                authStateRevision += 1L
+                                _authState.value = updated
+                                SupabaseServices.Auth.publishVerifiedRole(role)
+                                Log.w(TAG, "Profile refresh failed; retaining the established same-user snapshot")
+                            } else {
+                                authStateRevision += 1L
+                                _authState.value = AuthState.Error("تعذر تحميل ملف حسابك السحابي. حاول مجدداً.")
+                                SupabaseServices.Auth.clearVerifiedRole()
+                            }
+                        }
+                    }
+                    false
+                }
             }
         }
 
     private fun syncLocalAuthSuccess(uid: String, email: String?) {
+        if (currentSessionFingerprint()?.userId != uid) return
         val context = AppServices.appContext
         val prefs = runCatching {
             context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
         }.getOrNull() ?: return
-        prefs.edit().apply {
-            putBoolean("is_logged_in", true)
-            putBoolean("is_guest", false)
-            putString("user_id", uid)
-            if (!email.isNullOrBlank()) {
-                putString("user_email", email)
+        synchronized(authStateWriteLock) {
+            if (currentSessionFingerprint()?.userId != uid ||
+                _authState.value.authenticatedSessionSnapshot()?.userId != uid
+            ) {
+                return@synchronized
             }
-            apply()
+            prefs.edit().apply {
+                putBoolean("is_logged_in", true)
+                putBoolean("is_guest", false)
+                putString("user_id", uid)
+                if (!email.isNullOrBlank()) {
+                    putString("user_email", email)
+                }
+                apply()
+            }
+        }
+    }
+
+    /**
+     * Explicitly refreshes the trusted role and updates the canonical authenticated snapshot.
+     */
+    internal suspend fun refreshAuthenticatedRole(): String = withContext(Dispatchers.IO) {
+        authProfileRefreshMutex.withLock {
+            val current = _authState.value as? AuthState.Authenticated
+                ?: return@withLock "user"
+            val capturedSession = client.auth.currentSessionOrNull()
+                ?: return@withLock current.role
+            val expectedSession = sessionFingerprint(capturedSession)
+                ?: return@withLock "user"
+            if (expectedSession.userId != current.userRow.id || !isActiveSession(expectedSession)) {
+                val revision = currentAuthStateRevision()
+                synchronized(authStateWriteLock) {
+                    val latest = _authState.value as? AuthState.Authenticated
+                    if (authStateRevision == revision && latest?.userRow?.id == current.userRow.id &&
+                        currentSessionFingerprint()?.userId != current.userRow.id
+                    ) {
+                        authStateRevision += 1L
+                        _authState.value = AuthState.Loading
+                        SupabaseServices.Auth.clearVerifiedRole()
+                    }
+                }
+                return@withLock "user"
+            }
+
+            val startingStateRevision = currentAuthStateRevision()
+            val role = trustedRoleFromAppMetadata(capturedSession.user?.appMetadata)
+            val email = capturedSession.user?.email ?: current.userRow.email
+            val updated = current.copy(
+                session = capturedSession,
+                role = role,
+                isAdmin = SupabaseServices.Auth.isAdminRole(role) || CloudServices.isOwnerAccount(email)
+            )
+            val committed = synchronized(authStateWriteLock) {
+                val latest = _authState.value as? AuthState.Authenticated
+                if (!canCommitAuthSessionResult(
+                        expected = expectedSession,
+                        active = currentSessionFingerprint(),
+                        expectedStateRevision = startingStateRevision,
+                        activeStateRevision = authStateRevision
+                    ) || latest?.userRow?.id != current.userRow.id
+                ) {
+                    return@synchronized false
+                }
+                authStateRevision += 1L
+                _authState.value = updated
+                SupabaseServices.Auth.publishVerifiedRole(role)
+                true
+            }
+            if (committed) role else "user"
         }
     }
 
@@ -310,6 +538,8 @@ class SupabaseRepository(
      */
     suspend fun ensureAuthenticatedSession(timeoutMillis: Long = 8_000L): String? = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext null
+        // Cold-start restoration only. After Authenticated is published, all features use its snapshot.
+        _authState.value.authenticatedSessionSnapshot()?.let { return@withContext it.userId }
         runCatching {
             // Wait for initialization if necessary
             if (client.auth.sessionStatus.value is SessionStatus.Initializing) {
@@ -352,10 +582,10 @@ class SupabaseRepository(
     // Reactive Auth API Actions
     // ==========================================
 
-    /** Returns current authenticated user ID or null. */
+    /** Returns the UID from the canonical authenticated state; never restores or probes a session. */
     fun getCurrentUserId(): String? {
         if (!isAvailable) return null
-        return runCatching { client.auth.currentUserOrNull()?.id }.getOrNull()
+        return _authState.value.authenticatedSessionSnapshot()?.userId
     }
 
     /** Returns current user session if active. */
@@ -372,7 +602,7 @@ class SupabaseRepository(
         displayName: String? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        _authState.value = AuthState.Loading
+        val attemptRevision = publishAuthState(AuthState.Loading)
         runCatching {
             client.auth.signUpWith(Email) {
                 this.email = email
@@ -387,7 +617,10 @@ class SupabaseRepository(
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
-            _authState.value = AuthState.Error(e.message ?: "Registration failed")
+            publishAuthStateIfRevision(
+                attemptRevision,
+                AuthState.Error(e.message ?: "Registration failed")
+            )
         }
     }
 
@@ -398,8 +631,32 @@ class SupabaseRepository(
     suspend fun diagnoseSignInAttempt(email: String, pass: String): SupabaseServices.AuthDiagnosticsResult = withContext(Dispatchers.IO) {
         val result = SupabaseServices.Auth.diagnoseSignInAttempt(email, pass)
         Log.d(TAG, "[SupabaseRepository] Sign-in Diagnostic Output -> isSuccess: ${result.isSuccess}, hasSession: ${result.hasSession}, userId: ${result.userId}, rawError: ${result.rawErrorMessage}")
-        if (result.isSuccess && result.userId != null) {
-            refreshUserAndEmitAuthenticated(result.userId, getCurrentSession())
+        val uid = result.userId?.takeIf { it.isNotBlank() }
+        if (result.isSuccess && result.hasSession && uid != null) {
+            val session = getCurrentSession()
+            val profileLoaded = refreshUserAndEmitAuthenticated(uid, session)
+            if (!profileLoaded) {
+                return@withContext result.copy(
+                    isSuccess = false,
+                    friendlyErrorMessage = "تعذر تحميل ملف الحساب السحابي. حاول مرة أخرى.",
+                    isNetworkError = false
+                )
+            }
+            val loadedAccount = _authState.value as? AuthState.Authenticated
+            if (loadedAccount?.userRow?.id != uid) {
+                return@withContext result.copy(
+                    isSuccess = false,
+                    friendlyErrorMessage = "تغيرت هوية الحساب أثناء تسجيل الدخول. أعد المحاولة.",
+                    isNetworkError = false
+                )
+            }
+            syncLocalAuthSuccess(uid, loadedAccount.userRow.email ?: session?.user?.email)
+        } else if (result.isSuccess) {
+            return@withContext result.copy(
+                isSuccess = false,
+                friendlyErrorMessage = "تعذر استعادة جلسة تسجيل الدخول. حاول مرة أخرى.",
+                isNetworkError = false
+            )
         }
         result
     }
@@ -407,7 +664,7 @@ class SupabaseRepository(
     /** Sign in with email and password and broadcast updated auth state. */
     suspend fun login(email: String, pass: String): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        _authState.value = AuthState.Loading
+        val attemptRevision = publishAuthState(AuthState.Loading)
         runCatching {
             client.auth.signInWith(Email) {
                 this.email = email
@@ -422,7 +679,10 @@ class SupabaseRepository(
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { e ->
-            _authState.value = AuthState.Error(e.message ?: "Login failed")
+            publishAuthStateIfRevision(
+                attemptRevision,
+                AuthState.Error(e.message ?: "Login failed")
+            )
         }
     }
 
@@ -436,7 +696,7 @@ class SupabaseRepository(
             if (!isAvailable) {
                 return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
             }
-            _authState.value = AuthState.Loading
+            val attemptRevision = publishAuthState(AuthState.Loading)
             runCatching {
                 val response = client.functions.invoke(
                     function = "qabas-auth-identifier-login",
@@ -476,14 +736,17 @@ class SupabaseRepository(
                 true
             }.onFailure { error ->
                 Log.w(TAG, "Identifier sign-in failed: ${error.message}")
-                _authState.value = AuthState.Error("بيانات الدخول غير صحيحة أو تعذر الوصول إلى خدمة المصادقة.")
+                publishAuthStateIfRevision(
+                    attemptRevision,
+                    AuthState.Error("بيانات الدخول غير صحيحة أو تعذر الوصول إلى خدمة المصادقة.")
+                )
             }
         }
 
     /** Sign in with Google ID token and broadcast updated auth state. */
     suspend fun loginWithGoogle(idToken: String, nonce: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        _authState.value = AuthState.Loading
+        val attemptRevision = publishAuthState(AuthState.Loading)
         runCatching {
             client.auth.signInWith(IDToken) {
                 this.idToken = idToken
@@ -495,7 +758,10 @@ class SupabaseRepository(
             checkAuthState()
             true
         }.onFailure { e ->
-            _authState.value = AuthState.Error(e.message ?: "Google Sign-In failed")
+            publishAuthStateIfRevision(
+                attemptRevision,
+                AuthState.Error(e.message ?: "Google Sign-In failed")
+            )
         }
     }
 
@@ -522,29 +788,36 @@ class SupabaseRepository(
     /** Sign out and remove cached account/session fields so another UID cannot inherit them. */
     suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            // Invalidate any profile/role response already in flight before sign-out starts.
+            synchronized(authStateWriteLock) {
+                authStateRevision += 1L
+            }
             if (isAvailable) client.auth.signOut()
 
-            AppServices.appContext.getSharedPreferences(
-                "qabas_prefs",
-                android.content.Context.MODE_PRIVATE
-            ).edit().apply {
-                putBoolean("is_logged_in", false)
-                putBoolean("is_guest", false)
-                remove("is_admin")
-                remove("is_developer")
-                remove("user_id")
-                remove("user_email")
-                remove("user_name")
-                remove("user_display_name")
-                remove("user_custom_id")
-                remove("custom_id")
-                remove("user_tag")
-                remove("user_account_number")
-                apply()
+            synchronized(authStateWriteLock) {
+                AppServices.appContext.getSharedPreferences(
+                    "qabas_prefs",
+                    android.content.Context.MODE_PRIVATE
+                ).edit().apply {
+                    putBoolean("is_logged_in", false)
+                    putBoolean("is_guest", false)
+                    remove("is_admin")
+                    remove("is_developer")
+                    remove("user_id")
+                    remove("user_email")
+                    remove("user_name")
+                    remove("user_display_name")
+                    remove("user_custom_id")
+                    remove("custom_id")
+                    remove("user_tag")
+                    remove("user_account_number")
+                    apply()
+                }
+                RolePromotionNotifier.dismissCelebration()
+                SupabaseServices.Auth.clearVerifiedRole()
+                authStateRevision += 1L
+                _authState.value = AuthState.Unauthenticated
             }
-            RolePromotionNotifier.dismissCelebration()
-            SupabaseServices.Auth.clearVerifiedRole()
-            _authState.value = AuthState.Unauthenticated
             Unit
         }.onFailure { e ->
             Log.e(TAG, "Logout failed: ${e.message}")

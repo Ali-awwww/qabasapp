@@ -353,7 +353,7 @@ object CreatorFollowManager {
         follow: Boolean
     ): Boolean = withContext(Dispatchers.IO) {
         if (!cloudReady() || viewer.id.isBlank()) return@withContext false
-        val authenticatedUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(8_000L)
+        val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
         if (authenticatedUid.isNullOrBlank() || authenticatedUid != viewer.id) return@withContext false
         val ok = runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery false
@@ -400,7 +400,7 @@ object CreatorFollowManager {
 
     suspend fun cloudIsFollowing(viewerId: String, creatorId: String): Boolean? = withContext(Dispatchers.IO) {
         if (!cloudReady() || viewerId.isBlank() || creatorId.isBlank()) return@withContext null
-        val authenticatedUid = SupabaseRepository.getInstance().ensureAuthenticatedSession(8_000L)
+        val authenticatedUid = SupabaseServices.Auth.getCurrentUserId()
         if (authenticatedUid.isNullOrBlank() || authenticatedUid != viewerId) return@withContext null
         runFollowQuery {
             val client = SupabaseServices.client ?: return@runFollowQuery null

@@ -2526,7 +2526,7 @@ fun ProfileScreen(
                                 }
                                 is UserIdentifierManager.CustomIdAvailabilityResult.Available,
                                 is UserIdentifierManager.CustomIdAvailabilityResult.CurrentUserOwnsIt -> {
-                                    val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                    val authUid = SupabaseServices.Auth.getCurrentUserId()
                                     if (authUid.isNullOrBlank()) {
                                         isCheckingTag = false
                                         tagError = "يجب تسجيل الدخول إلى السحابة لتعديل ملفك الشخصي."

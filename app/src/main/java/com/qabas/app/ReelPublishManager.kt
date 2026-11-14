@@ -259,11 +259,11 @@ object ReelPublishManager {
     ): PublishResult = withContext(Dispatchers.IO) {
         val isDev = isDeveloperUser(context, email)
 
-        val authUserId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        val authUserId = SupabaseServices.Auth.getCurrentUserId()
 
         if (authUserId.isNullOrBlank()) {
-            val err = "لا توجد جلسة مصادقة نشطة. يلزم تسجيل الدخول أولاً لنشر الريلز."
-            Log.e("ReelPublish", "Publish failed: No active auth session (user_id is missing)")
+            val err = "تعذر قراءة هوية الحساب الحالية. حاول مرة أخرى بعد اكتمال التحقق."
+            Log.w("ReelPublish", "Publish deferred: authenticated AuthState snapshot is unavailable")
             return@withContext PublishResult.Failed(PublishStage.SAVE_ROW, err)
         }
         val effectiveUserId = authUserId

@@ -187,8 +187,9 @@ fun SettingsScreen(
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = CloudServices.Auth.currentUser.value?.email?.ifBlank { storedEmail } ?: storedEmail.ifBlank { "المستخدم الحالي" }
     val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
-    val isGuest = accountAuthState !is AuthState.Authenticated
+    val isGuest = accountAuthState.requiresInteractiveLogin()
     val isLoggedInAccount = accountAuthState is AuthState.Authenticated
+    val canShowLoginOrLogout = isGuest || isLoggedInAccount
     val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
     val isAdmin = remember(accountAuthState, verifiedRole) {
         SupabaseServices.Auth.isAdminRole(verifiedRole) ||
@@ -229,7 +230,7 @@ fun SettingsScreen(
                 )
             } else base
         }.let { base ->
-            if (isLoggedInAccount && !isGuest) {
+            if (isLoggedInAccount) {
                 base + listOf(
                     SearchableSetting("مركز الدعم والدردشة المباشرة", "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬", accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8), badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else null),
                     SearchableSetting("زر الكاميرا الفضائي للبلاغات والمشاكل", "التحكم الكامل بزر الكاميرا العائم للبلاغات والمشاكل", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "خاص بالحسابات 📸", accentColor = Color(0xFF00E5FF))
@@ -585,12 +586,14 @@ fun SettingsScreen(
                                 }
                             },
                             actions = {
-                                IconButton(onClick = onLogout) {
-                                    Icon(
-                                        if (isGuest) Icons.Default.Login else Icons.Default.Logout,
-                                        contentDescription = "تسجيل",
-                                        tint = if (isGuest) GoldPrimary else Color(0xFFEF4444)
-                                    )
+                                if (canShowLoginOrLogout) {
+                                    IconButton(onClick = onLogout) {
+                                        Icon(
+                                            if (isGuest) Icons.Default.Login else Icons.Default.Logout,
+                                            contentDescription = "تسجيل",
+                                            tint = if (isGuest) GoldPrimary else Color(0xFFEF4444)
+                                        )
+                                    }
                                 }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
@@ -740,21 +743,33 @@ fun SettingsScreen(
 
                         // زر تسجيل الخروج السريع (Single Instance)
                         val logoutShape = androidx.compose.foundation.shape.CutCornerShape(8.dp)
-                        Button(
-                            onClick = onLogout,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A24)),
-                            border = BorderStroke(1.dp, if (isGuest) GoldPrimary else Color(0xFFEF4444)),
-                            shape = logoutShape
-                        ) {
-                            Icon(if (isGuest) Icons.Default.Login else Icons.Default.Logout, contentDescription = null, tint = if (isGuest) GoldPrimary else Color(0xFFEF4444), modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                        if (canShowLoginOrLogout) {
+                            Button(
+                                onClick = onLogout,
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A24)),
+                                border = BorderStroke(1.dp, if (isGuest) GoldPrimary else Color(0xFFEF4444)),
+                                shape = logoutShape
+                            ) {
+                                Icon(if (isGuest) Icons.Default.Login else Icons.Default.Logout, contentDescription = null, tint = if (isGuest) GoldPrimary else Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (isGuest) Translator.tr("تسجيل الدخول / إنشاء حساب") else Translator.tr("تسجيل الخروج من الحساب"),
+                                    color = if (isGuest) GoldPrimary else Color(0xFFEF4444),
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        } else {
                             Text(
-                                if (isGuest) Translator.tr("تسجيل الدخول / إنشاء حساب") else Translator.tr("تسجيل الخروج من الحساب"),
-                                color = if (isGuest) GoldPrimary else Color(0xFFEF4444),
+                                text = if (accountAuthState is AuthState.Loading)
+                                    "جارٍ التحقق من حالة الحساب…"
+                                else "تعذر التحقق من حالة الحساب مؤقتًا؛ لا حاجة لإعادة تسجيل الدخول.",
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                color = Color.White.copy(alpha = 0.65f),
                                 fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 13.sp
                             )
                         }
 
@@ -936,7 +951,7 @@ fun SettingsScreen(
 
                         // ── الدعم والتشخيص ──
                         SettingsGroupHeader(Translator.tr("الدعم والتشخيص 🛠️"))
-                        if (!isGuest) {
+                        if (isLoggedInAccount) {
                             SettingsActionCard(
                                 title = "سجل بلاغاتي واقتراحاتي للتحسين",
                                 subtitle = "متابعة حالة الأعطال والاقتراحات المرسلة وردود فريق التطوير",

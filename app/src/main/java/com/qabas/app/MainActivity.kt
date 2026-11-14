@@ -310,7 +310,7 @@ class MainActivity : ComponentActivity() {
         val currentEmail = prefs.getString("user_email", "") ?: ""
         val isLoggedIn = prefs.getBoolean("is_logged_in", false)
         val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
-        val isGuestUser = accountAuthState !is AuthState.Authenticated
+        val isGuestUser = accountAuthState.requiresInteractiveLogin()
         val isRegisteredUser = accountAuthState is AuthState.Authenticated
         val isCameraEnabled by SpatialCameraPreferencesManager.cameraEnabled.collectAsState()
 

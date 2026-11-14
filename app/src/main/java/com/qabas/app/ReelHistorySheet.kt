@@ -57,7 +57,7 @@ fun ReelHistorySheet(
         if (initialLoad) isLoading = true else isRefreshing = true
         loadFailed = false
 
-        val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        val userId = SupabaseServices.Auth.getCurrentUserId()
         val activity = userId?.let { SupabaseServices.Profiles.getUserReelActivity(it) }
         if (activity != null) {
             ReelPreferencesManager.replaceActivityFromCloud(context, activity)
@@ -70,9 +70,9 @@ fun ReelHistorySheet(
     }
 
     suspend fun removeActivityItem(tab: Int, item: ReelHistoryItem) {
-        val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        val userId = SupabaseServices.Auth.getCurrentUserId()
         if (userId == null) {
-            Toast.makeText(context, "انتهت جلسة الدخول. سجّل الدخول ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "تعذر قراءة حالة الحساب الآن؛ لم يتم تنفيذ العملية. أعد المحاولة بعد قليل.", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -390,7 +390,7 @@ fun ReelHistorySheet(
                     onClick = {
                         showClearConfirmDialog = false
                         coroutineScope.launch {
-                            val userId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                            val userId = SupabaseServices.Auth.getCurrentUserId()
                             val cleared = userId?.let {
                                 SupabaseServices.Profiles.clearReelWatchHistory(it)
                             } ?: false

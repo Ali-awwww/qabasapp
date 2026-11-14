@@ -58,10 +58,16 @@ fun UserReportsDialog(
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
     val cloudUser by CloudServices.Auth.currentUser.collectAsState()
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val authSnapshot = remember(accountAuthState) { accountAuthState.authenticatedSessionSnapshot() }
+    val isAuthenticated = authSnapshot != null
+    val isGuest = accountAuthState.requiresInteractiveLogin()
     val storedEmail = prefs.getString("user_email", "") ?: ""
     val userEmail = currentUser?.email?.ifBlank { storedEmail } ?: storedEmail
-    val supabaseUserId = remember(currentUser) { SupabaseServices.Auth.getCurrentUserId() }
-    val authenticatedEmail = currentUser?.email ?: cloudUser?.email
+    val supabaseUserId = authSnapshot?.userId
+    val authenticatedEmail = if (isAuthenticated) {
+        authSnapshot?.email ?: currentUser?.email ?: cloudUser?.email
+    } else null
     val userReports = remember(
         allReports, currentUser, cloudUser, supabaseUserId, authenticatedEmail
     ) {
@@ -72,23 +78,18 @@ fun UserReportsDialog(
             authenticatedEmail = authenticatedEmail
         )
     }
-    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
-    val isGuest = accountAuthState !is AuthState.Authenticated
 
     var selectedFilter by remember { mutableStateOf("ALL") }
     var selectedImageForPreview by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isGuest, currentUser?.email) {
-        if (!isGuest) {
+    LaunchedEffect(isAuthenticated, authSnapshot?.userId) {
+        if (isAuthenticated && !authSnapshot?.userId.isNullOrBlank()) {
             BugReportRepository.loadLocalReports(context)
-            // المزامنة التلقائية الدورية أثناء فتح النافذة.
-            // Keying the effect by the Supabase email restarts it after session restoration.
+            // Sync only while the central repository confirms this account.
             while (true) {
-                if (!currentUser?.email.isNullOrBlank()) {
-                    BugReportRepository.refreshUserReports(context)
-                }
-                kotlinx.coroutines.delay(15000) // كل 15 ثانية
+                BugReportRepository.refreshUserReports(context)
+                kotlinx.coroutines.delay(15000) // كل 15 ثانية أثناء فتح النافذة
             }
         }
     }
@@ -204,6 +205,35 @@ fun UserReportsDialog(
                             }
                         }
                     }
+                }
+            }
+        } else if (!isAuthenticated) {
+            GlassmorphicSurface(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .padding(vertical = 24.dp),
+                shape = RoundedCornerShape(24.dp),
+                borderColor = GoldPrimary.copy(alpha = 0.55f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (accountAuthState is AuthState.Loading) {
+                        CircularProgressIndicator(color = GoldPrimary)
+                    }
+                    Text(
+                        text = if (accountAuthState is AuthState.Loading)
+                            "جارٍ التحقق من الحساب…"
+                        else "تعذر التحقق من الحساب مؤقتًا. لا حاجة لإعادة تسجيل الدخول؛ حاول لاحقًا.",
+                        color = Color.White,
+                        fontFamily = CairoFont,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         } else {

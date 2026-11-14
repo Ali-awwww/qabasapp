@@ -184,7 +184,7 @@ object UserIdentifierManager {
     ): Pair<String, String>? = withContext(Dispatchers.IO) {
         if (email.isBlank() || !SupabaseServices.isSupabaseAvailable) return@withContext null
 
-        val authUid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@withContext null
+        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext null
         val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
             ?.trim()?.lowercase(Locale.ROOT)
             ?: return@withContext null
@@ -276,7 +276,7 @@ object UserIdentifierManager {
         val cleanEmail = email?.trim()?.lowercase(Locale.ROOT).orEmpty()
         if (cleanEmail.isBlank() || !SupabaseServices.isSupabaseAvailable) return@withContext ""
 
-        val authUid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@withContext ""
+        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext ""
         val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
             ?.trim()?.lowercase(Locale.ROOT)
             ?: return@withContext ""

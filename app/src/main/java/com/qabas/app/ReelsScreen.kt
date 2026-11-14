@@ -353,33 +353,33 @@ fun ReelsScreen(
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
-    // 🛡️ User ID Selection - CRITICAL for RLS
-    // For reads/display, we can fallback. For WRITES (Like/Save/Publish), we MUST use Supabase ID.
-    val currentSupabaseId = SupabaseServices.Auth.getCurrentUserId()
+    // All screens consume the repository's authenticated snapshot. This reads no session,
+    // performs no profile request, and cannot turn a temporary error into a login redirect.
+    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
+    val authSnapshot = remember(accountAuthState) {
+        accountAuthState.authenticatedSessionSnapshot()
+    }
+    val currentSupabaseId = authSnapshot?.userId
     // Never use an email or locally cached account ID as an interaction owner.
     val currentUserId = currentSupabaseId.orEmpty()
 
-    // Account access and creator privileges follow the current authenticated cloud role.
-    val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
-    val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
-    val isDeveloper = remember(accountAuthState, verifiedRole) {
-        AdminGuard.isDashboardAccessAllowed(context)
-    }
-
-    val isGuest = accountAuthState !is AuthState.Authenticated && !isDeveloper
+    // App-metadata role remains the only role source; the owner allowlist stays separate.
+    val isDeveloper = authSnapshot?.let {
+        SupabaseServices.Auth.isDeveloperRole(it.role) || CloudServices.isOwnerAccount(it.email)
+    } == true
+    val isGuest = accountAuthState.requiresInteractiveLogin()
     var showGuestLoginPrompt by remember { mutableStateOf(false) }
     var pendingInteractionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     suspend fun refreshLikedReelsFromCloud(userId: String? = null) {
-        val authId = userId ?: SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+        val authId = userId ?: authSnapshot?.userId
         if (authId.isNullOrBlank()) {
             if (accountAuthState !is AuthState.Authenticated) likedReelIds.clear()
             return
         }
 
-        // A null result means the request failed; an empty set is a valid cloud state
-        // and must clear stale local likes. The timeout must exceed the auth-session
-        // restoration timeout used by getLikedReelIds (10 seconds).
+        // A null result means the request failed; an empty set is authoritative and
+        // clears stale local likes. No auth/session restoration is attempted here.
         repeat(3) { attempt ->
             val cloudLikedIds = withTimeoutOrNull(15_000L) {
                 SupabaseServices.Profiles.getLikedReelIds(authId)
@@ -394,17 +394,32 @@ fun ReelsScreen(
     }
 
     LaunchedEffect(accountAuthState) {
-        if (accountAuthState is AuthState.Authenticated) {
-            refreshLikedReelsFromCloud()
-            val pending = pendingInteractionAction
-            if (pending != null) {
-                pendingInteractionAction = null
-                pending()
-                Toast.makeText(context, "تم توثيق الحساب واستئناف العملية تلقائياً ✨", Toast.LENGTH_SHORT).show()
+        when (accountAuthState) {
+            is AuthState.Authenticated -> {
+                val userId = authSnapshot?.userId
+                if (!userId.isNullOrBlank()) {
+                    refreshLikedReelsFromCloud(userId)
+                    withTimeoutOrNull(8_000L) {
+                        SupabaseServices.Profiles.getBookmarkedReelIds(userId)?.let { cloudBookmarks = it }
+                    }
+                    val pending = pendingInteractionAction
+                    if (pending != null) {
+                        pendingInteractionAction = null
+                        pending()
+                        Toast.makeText(context, "تم توثيق الحساب واستئناف العملية تلقائياً ✨", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    likedReelIds.clear()
+                    cloudBookmarks = emptySet()
+                }
             }
-        } else {
-            // Prevent a previous account's state from surviving a sign-out.
-            likedReelIds.clear()
+            is AuthState.Guest, AuthState.Unauthenticated -> {
+                // Clear account-owned UI only after a definitive sign-out/guest state.
+                likedReelIds.clear()
+                cloudBookmarks = emptySet()
+                if (pendingInteractionAction != null) showGuestLoginPrompt = true
+            }
+            is AuthState.Loading, is AuthState.Error -> Unit
         }
     }
 
@@ -419,11 +434,22 @@ fun ReelsScreen(
      * Intercepts actions for guests and shows login prompt with automatic resume.
      */
     fun checkGuestInteraction(action: () -> Unit) {
-        if (isGuest) {
-            pendingInteractionAction = action
-            showGuestLoginPrompt = true
-        } else {
-            action()
+        when (accountAuthState) {
+            is AuthState.Authenticated -> {
+                if (authSnapshot != null) action()
+                else Toast.makeText(context, "جارٍ تجهيز حالة الحساب. حاول بعد لحظة.", Toast.LENGTH_SHORT).show()
+            }
+            is AuthState.Guest, AuthState.Unauthenticated -> {
+                pendingInteractionAction = action
+                showGuestLoginPrompt = true
+            }
+            is AuthState.Loading -> {
+                pendingInteractionAction = action
+                Toast.makeText(context, "جارٍ تجهيز الحساب؛ لن تحتاج إلى تسجيل الدخول من جديد.", Toast.LENGTH_SHORT).show()
+            }
+            is AuthState.Error -> {
+                Toast.makeText(context, "تعذر التحقق من حالة الحساب مؤقتاً. لم يتم تحويلك لتسجيل الدخول.", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -568,19 +594,8 @@ fun ReelsScreen(
             if (isManualRetry) isRetrying = false
             loadError = fetchFailed && allReels.isEmpty()
 
-            // Wait for Supabase Auth restoration before reading account-owned interactions.
-            val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-            if (!authId.isNullOrBlank()) {
-                withTimeoutOrNull(8_000L) {
-                    SupabaseServices.Profiles.getBookmarkedReelIds(authId)?.let { ids ->
-                        // Empty is authoritative too: remove stale local bookmarks.
-                        cloudBookmarks = ids
-                    }
-                    refreshLikedReelsFromCloud(authId)
-                }
-            } else {
-                refreshLikedReelsFromCloud()
-            }
+            // Account-owned likes/bookmarks load independently from the public reel feed;
+            // AuthState's observer above handles them when a verified account is ready.
         }
     }
 
@@ -939,46 +954,12 @@ fun ReelsScreen(
                                         allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = updatedCount) else it }
 
                                         scope.launch {
-                                            val authId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                            if (authId == null) {
-                                                // Keep the UI rolled back until sign-in succeeds and Supabase confirms the write.
+                                            val authId = currentSupabaseId
+                                            if (authId.isNullOrBlank()) {
                                                 likedReelIds[reel.id] = !newLikedState
                                                 allReels = allReels.map { if (it.id == reel.id) it.copy(likesCount = currentLikes) else it }
-                                                pendingInteractionAction = {
-                                                    scope.launch {
-                                                        likeInFlight[reel.id] = true
-                                                        val resId = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                                        val saved = resId != null && runCatching {
-                                                            withTimeoutOrNull(10_000L) {
-                                                                if (newLikedState) {
-                                                                    SupabaseServices.Profiles.likeReel(reel.id, resId)
-                                                                } else {
-                                                                    SupabaseServices.Profiles.unlikeReel(reel.id, resId)
-                                                                }
-                                                            } ?: false
-                                                        }.getOrDefault(false)
-
-                                                        if (saved) {
-                                                            likedReelIds[reel.id] = newLikedState
-                                                            allReels = allReels.map {
-                                                                if (it.id == reel.id) it.copy(likesCount = updatedCount) else it
-                                                            }
-                                                        } else {
-                                                            likedReelIds[reel.id] = !newLikedState
-                                                            allReels = allReels.map {
-                                                                if (it.id == reel.id) it.copy(likesCount = currentLikes) else it
-                                                            }
-                                                            Toast.makeText(
-                                                                context,
-                                                                "تعذر حفظ الإعجاب سحابياً. حاول مرة أخرى.",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                        }
-                                                        likeInFlight[reel.id] = false
-                                                    }
-                                                }
-                                                showGuestLoginPrompt = true
                                                 likeInFlight[reel.id] = false
+                                                Toast.makeText(context, "تعذر قراءة حالة الحساب الحالية. حاول مرة أخرى.", Toast.LENGTH_SHORT).show()
                                                 return@launch
                                             }
 
@@ -1089,12 +1070,12 @@ fun ReelsScreen(
                                 onDoubleTapLike = {
                                     if (selectedTab == 2 || isAlAtharMode) {
                                         // وضع الأثر مخصص للمشاهدة فقط — لا يوجد تفاعل
-                                    } else if (isGuest) {
-                                        showGuestLoginPrompt = true
                                     } else {
-                                        when (doubleTapAction) {
-                                            "SAVE" -> handleToggleSave()
-                                            else -> if (!isLiked) handleToggleLike()
+                                        checkGuestInteraction {
+                                            when (doubleTapAction) {
+                                                "SAVE" -> handleToggleSave()
+                                                else -> if (!isLiked) handleToggleLike()
+                                            }
                                         }
                                     }
                                 },
@@ -1201,11 +1182,12 @@ fun ReelsScreen(
                                 icon = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
                                 label = if (isDeveloper) "نشر 👑" else "نشر",
                                 onClick = {
-                                    val authId = SupabaseServices.Auth.getCurrentUserId()
-                                    if (authId.isNullOrBlank()) {
-                                        showGuestLoginPrompt = true
-                                    } else {
-                                        showPublishDialog = true
+                                    checkGuestInteraction {
+                                        if (!currentSupabaseId.isNullOrBlank()) {
+                                            showPublishDialog = true
+                                        } else {
+                                            Toast.makeText(context, "تعذر قراءة حالة الحساب. أعد المحاولة.", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                     ReelPreferencesManager.triggerHaptic(context)
                                 }
@@ -1676,14 +1658,21 @@ fun ReelsScreen(
         )
     }
 
-    // Publish Reel Screen
-    if (showPublishDialog) {
-        val authId = SupabaseServices.Auth.getCurrentUserId()
-        if (authId.isNullOrBlank()) {
+    LaunchedEffect(showPublishDialog, accountAuthState) {
+        if (showPublishDialog && accountAuthState !is AuthState.Authenticated) {
             showPublishDialog = false
-            showGuestLoginPrompt = true
-        } else {
-            ReelPublishScreen(
+            if (accountAuthState is AuthState.Guest || accountAuthState is AuthState.Unauthenticated) {
+                showGuestLoginPrompt = true
+            } else {
+                Toast.makeText(context, "تعذر تجهيز حالة المصادقة مؤقتاً. حاول مرة أخرى.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Publish Reel Screen
+    if (showPublishDialog && currentSupabaseId != null) {
+        val authId = currentSupabaseId
+        ReelPublishScreen(
                 currentUserId = authId,
                 currentUserName = currentUserName,
                 currentUserEmail = currentUserEmail,
@@ -1696,7 +1685,6 @@ fun ReelsScreen(
                     showGuestLoginPrompt = true
                 }
             )
-        }
     }
 
     // Settings Bottom Sheet
@@ -1812,7 +1800,10 @@ fun ReelsScreen(
     // 🛡️ Guest Interaction Dialog
     if (showGuestLoginPrompt) {
         GuestInteractionDialog(
-            onDismiss = { showGuestLoginPrompt = false },
+            onDismiss = {
+                showGuestLoginPrompt = false
+                pendingInteractionAction = null
+            },
             onLogin = {
                 showGuestLoginPrompt = false
                 onOpenProfile()

@@ -336,8 +336,7 @@ fun LoginScreen(
                                 diagnostic = SupabaseRepository.getInstance()
                                     .diagnoseSignInAttempt(trimmedInput, password)
                                 loginSucceeded = diagnostic?.isSuccess == true &&
-                                    diagnostic?.hasSession == true &&
-                                    SupabaseServices.Auth.awaitCurrentUserId(10_000L) != null
+                                    diagnostic?.hasSession == true
                             } else {
                                 loginSucceeded = SupabaseRepository.getInstance()
                                     .loginWithIdentifier(trimmedInput, password)
@@ -345,40 +344,37 @@ fun LoginScreen(
                             }
 
                             if (loginSucceeded) {
-                                val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
-                                val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
-                                    ?.trim()?.lowercase(java.util.Locale.ROOT)
-
-                                if (authUid.isNullOrBlank() || authEmail.isNullOrBlank()) {
-                                    authErrorMessage = "تعذر التحقق من هوية الحساب السحابية. أعد تسجيل الدخول."
+                                val account = authRepository.authState.value.authenticatedSessionSnapshot()
+                                if (account == null) {
+                                    authErrorMessage = "تعذر تجهيز حالة الحساب الموثقة. تحقق من الاتصال ثم أعد المحاولة."
+                                    authErrorIsNetwork = true
+                                    isLoading = false
+                                    return@launch
+                                }
+                                val authUid = account.userId
+                                val authEmail = account.email?.trim()?.lowercase(java.util.Locale.ROOT)
+                                    ?.takeIf { it.isNotBlank() }
+                                if (authEmail == null) {
+                                    authErrorMessage = "تعذر قراءة بريد الحساب من حالة المصادقة. أعد المحاولة."
                                     authErrorIsNetwork = false
-                                    runCatching { SupabaseServices.Auth.logout() }
                                     isLoading = false
                                     return@launch
                                 }
 
-                                val cloudUser = SupabaseServices.Database.ensureUser(
-                                    externalId = authUid,
-                                    email = authEmail,
-                                    name = authEmail.substringBefore('@')
-                                )
-                                val cloudCustomId = cloudUser?.customId?.takeIf { it.isNotBlank() }
-                                val accountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
-                                if (cloudUser?.id != authUid || cloudCustomId == null || accountNumber == null) {
-                                    authErrorMessage = "تعذر تحميل اليوزر ورقم الحساب من السحابة. لم يكتمل تسجيل الدخول."
+                                val cloudCustomId = account.customId?.takeIf { it.isNotBlank() }
+                                val accountNumber = account.accountNumber?.takeIf { it.isNotBlank() }
+                                if (cloudCustomId == null || accountNumber == null) {
+                                    authErrorMessage = "بيانات الحساب الموثقة غير مكتملة. لم يتم إنهاء تسجيل الدخول."
                                     authErrorIsNetwork = false
-                                    runCatching { SupabaseServices.Auth.logout() }
                                     isLoading = false
                                     return@launch
                                 }
 
-                                val effectiveLoginName = cloudUser.name?.takeIf { it.isNotBlank() }
+                                val effectiveLoginName = account.displayName?.takeIf { it.isNotBlank() }
                                     ?: authEmail.substringBefore('@')
-                                val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
-                                val finalIsDeveloper = SupabaseServices.Auth.isDeveloperRole(cloudRole) ||
-                                    authEmail.equals(CloudServices.OWNER_EMAIL, ignoreCase = true)
-                                val finalIsAdmin = SupabaseServices.Auth.isAdminRole(cloudRole) ||
+                                val finalIsDeveloper = SupabaseServices.Auth.isDeveloperRole(account.role) ||
                                     CloudServices.isOwnerAccount(authEmail)
+                                val finalIsAdmin = account.isAdmin
                                 val userType = when {
                                     finalIsDeveloper -> "مطور"
                                     finalIsAdmin -> "خاص"

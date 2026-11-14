@@ -1,6 +1,9 @@
 package com.qabas.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthNavigationObserverTest {
@@ -68,6 +71,41 @@ class AuthNavigationObserverTest {
     }
 
     @Test
+    fun loadingAndErrorAreNotTreatedAsGuestLoginPrompts() {
+        assertFalse(AuthState.Loading.requiresInteractiveLogin())
+        assertFalse(AuthState.Error("Temporary profile failure").requiresInteractiveLogin())
+        assertTrue(AuthState.Guest().requiresInteractiveLogin())
+        assertTrue(AuthState.Unauthenticated.requiresInteractiveLogin())
+    }
+
+    @Test
+    fun authenticatedSnapshotCarriesUidAndTrustedRoleTogether() {
+        val snapshot = AuthState.Authenticated(
+            userRow = SupabaseServices.UserRow(
+                id = "test-user",
+                email = "test@example.invalid",
+                name = "Test User",
+                customId = "test-user",
+                accountNumber = "QBS-1001"
+            ),
+            isAdmin = true,
+            role = "developer"
+        ).authenticatedSessionSnapshot()
+
+        assertEquals("test-user", snapshot?.userId)
+        assertEquals("test@example.invalid", snapshot?.email)
+        assertEquals("developer", snapshot?.role)
+        assertTrue(snapshot?.isAdmin == true)
+    }
+
+    @Test
+    fun unverifiedStatesHaveNoAuthenticatedSnapshot() {
+        assertNull(AuthState.Loading.authenticatedSessionSnapshot())
+        assertNull(AuthState.Error("Temporary profile failure").authenticatedSessionSnapshot())
+        assertNull(AuthState.Unauthenticated.authenticatedSessionSnapshot())
+    }
+
+    @Test
     fun authenticatedNavigationWaitsForInteractiveAuthFinalization() {
         var homeNavigations = 0
         val authenticatedState = AuthState.Authenticated(
@@ -95,5 +133,51 @@ class AuthNavigationObserverTest {
             suppressAuthenticatedNavigation = false
         )
         assertEquals("Automatic session restoration remains available after the interactive flow ends", 1, homeNavigations)
+    }
+
+    @Test
+    fun staleAuthResultCannotCommitAfterSessionOrStateRevisionChanges() {
+        val captured = AuthSessionFingerprint("account-a", "test-token-a")
+
+        assertTrue(
+            canCommitAuthSessionResult(
+                expected = captured,
+                active = AuthSessionFingerprint("account-a", "test-token-a"),
+                expectedStateRevision = 4L,
+                activeStateRevision = 4L
+            )
+        )
+        assertFalse(
+            canCommitAuthSessionResult(
+                expected = captured,
+                active = AuthSessionFingerprint("account-b", "test-token-b"),
+                expectedStateRevision = 4L,
+                activeStateRevision = 4L
+            )
+        )
+        assertFalse(
+            canCommitAuthSessionResult(
+                expected = captured,
+                active = AuthSessionFingerprint("account-a", "rotated-token-a"),
+                expectedStateRevision = 4L,
+                activeStateRevision = 4L
+            )
+        )
+        assertFalse(
+            canCommitAuthSessionResult(
+                expected = captured,
+                active = AuthSessionFingerprint("account-a", "test-token-a"),
+                expectedStateRevision = 4L,
+                activeStateRevision = 5L
+            )
+        )
+        assertFalse(
+            canCommitAuthSessionResult(
+                expected = captured,
+                active = null,
+                expectedStateRevision = 4L,
+                activeStateRevision = 4L
+            )
+        )
     }
 }

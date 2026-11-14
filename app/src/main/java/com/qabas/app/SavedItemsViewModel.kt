@@ -49,7 +49,7 @@ class SavedItemsViewModel(
                 is AuthState.Error -> flowOf(SavedItemsUiState.Error(authState.message))
                 is AuthState.Authenticated -> flow {
                     // Do not treat a local preference-only identity as a cloud owner.
-                    val userId = SupabaseServices.Auth.awaitCurrentUserId()
+                    val userId = SupabaseServices.Auth.getCurrentUserId()
                     if (userId.isNullOrBlank()) {
                         emit(SavedItemsUiState.Unauthenticated)
                     } else {
@@ -118,7 +118,7 @@ class SavedItemsViewModel(
 
     fun deleteItem(itemId: String) {
         viewModelScope.launch {
-            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
+            val uid = SupabaseServices.Auth.getCurrentUserId() ?: return@launch
             try {
                 repository.deleteItem(uid, itemId)
                 _syncMessage.value = "تم الحذف من سحابة قبس"
@@ -130,7 +130,7 @@ class SavedItemsViewModel(
 
     fun saveAyah(surah: String, ayahNumber: Int, text: String) {
         viewModelScope.launch {
-            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
+            val uid = SupabaseServices.Auth.getCurrentUserId() ?: return@launch
             val item = SavedItem(
                 id = "ayah_${surah}_$ayahNumber",
                 userId = uid,
@@ -151,7 +151,7 @@ class SavedItemsViewModel(
 
     fun saveInspiration(title: String, content: String, reference: String) {
         viewModelScope.launch {
-            val uid = SupabaseServices.Auth.awaitCurrentUserId() ?: return@launch
+            val uid = SupabaseServices.Auth.getCurrentUserId() ?: return@launch
             val item = SavedItem(
                 id = "insp_${System.currentTimeMillis()}",
                 userId = uid,

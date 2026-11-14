@@ -470,7 +470,7 @@ fun RegisterScreen(
                                     )
 
                                 if (success) {
-                                    val authUid = SupabaseServices.Auth.awaitCurrentUserId(10_000L)
+                                    val authUid = SupabaseServices.Auth.getCurrentUserId()
                                     val lowerEmail = SupabaseServices.Auth.getCurrentUserEmail()
                                         ?.trim()?.lowercase(java.util.Locale.ROOT)
                                         ?: trimmedEmail.lowercase(java.util.Locale.ROOT)
