@@ -336,7 +336,7 @@ fun PrayerTimesScreen(
         }
     }
 
-    val selectedMethod = currentCity.defaultMethod
+    val selectedMethod = PrayerCalculationHelper.getSelectedCalculationMethod(context, currentCity)
 
     // Audio Playback State
     val audioPlaybackState by AzanAudioPlayer.playbackState.collectAsState()

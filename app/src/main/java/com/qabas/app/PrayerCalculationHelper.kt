@@ -198,6 +198,24 @@ object PrayerCalculationHelper {
         return popularCities[fallbackIndex]
     }
 
+    /** طريقة الحساب التي اختارها المستخدم، مع الرجوع لطريقة المدينة عند غياب قيمة صالحة. */
+    fun getSelectedCalculationMethod(context: Context, city: CityLocation): CalculationMethod {
+        val key = context.getSharedPreferences("qabas_user_preferences", Context.MODE_PRIVATE)
+            .getString("calculation_method", null)
+            ?.trim()
+            ?.uppercase(Locale.US)
+
+        return when (key) {
+            "MAKKAH", "UMM_AL_QURA" -> CalculationMethod.UMM_AL_QURA
+            "MWL", "MUSLIM_WORLD_LEAGUE" -> CalculationMethod.MUSLIM_WORLD_LEAGUE
+            "EGYPT", "EGYPTIAN" -> CalculationMethod.EGYPTIAN
+            "KARACHI" -> CalculationMethod.KARACHI
+            "ISNA" -> CalculationMethod.ISNA
+            "DUBAI" -> CalculationMethod.DUBAI
+            else -> city.defaultMethod
+        }
+    }
+
     /**
      * Saves the selected city in the shared app/prayer preferences.
      * For a GPS-derived city, detailed coordinates remain device-local. The returned flag tells

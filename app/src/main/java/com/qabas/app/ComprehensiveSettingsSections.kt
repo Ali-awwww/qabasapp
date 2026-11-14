@@ -273,7 +273,6 @@ fun ReadingCustomizationSection() {
 fun SpiritualPreferencesSection() {
     val context = LocalContext.current
     val calculationMethod by UserPreferencesManager.calculationMethod.collectAsState()
-    val athanVoice by UserPreferencesManager.athanVoice.collectAsState()
     val backgroundScope = rememberCoroutineScope()
     var adhanBackground by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -344,43 +343,29 @@ fun SpiritualPreferencesSection() {
 
         HorizontalDivider(color = Color(0xFF1E293B))
 
-        // Athan Voice Selector
+        // مكتبة الصوت الموحدة
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Campaign, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("صوت الأذان المفضل:", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("صوت الأذان:", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
+            Text(
+                "اختيار المؤذن والتنزيل والتشغيل يتم من مكتبة أصوات الأذان الموحدة.",
+                color = TextSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(
-                    listOf(
-                        "makkah" to "الحرم المكي 🕋",
-                        "madinah" to "الحرم المدني 🕌",
-                        "aqsa" to "المسجد الأقصى 🇵🇸",
-                        "alafasy" to "مشاري العفاسي 🎙️",
-                        "takbeerat" to "تكبيرات مختصرة 🔊",
-                        "silent" to "تنبيه صامت / اهتزاز 📳"
-                    )
-                ) { (key, label) ->
-                    val isSelected = athanVoice == key
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            UserPreferencesManager.setAthanVoice(context, key)
-                            Toast.makeText(context, "تم اختيار: $label", Toast.LENGTH_SHORT).show()
-                        },
-                        label = { Text(label, fontFamily = CairoFont, fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color(0xFF151B2B),
-                            labelColor = TextSecondary,
-                            selectedContainerColor = GoldPrimary,
-                            selectedLabelColor = DeepSlate
-                        ),
-                        border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
-                        shape = androidx.compose.foundation.shape.CutCornerShape(6.dp)
-                    )
-                }
+            OutlinedButton(
+                onClick = { AppNavigator.navigateTo(AppState.PRAYER_TIMES) },
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, GoldPrimary)
+            ) {
+                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = GoldPrimary)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("فتح مكتبة أصوات الأذان", fontFamily = CairoFont, color = GoldPrimary)
             }
         }
 

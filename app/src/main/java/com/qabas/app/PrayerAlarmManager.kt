@@ -69,10 +69,11 @@ object PrayerAlarmManager {
         val city = PrayerCalculationHelper.getSavedCity(context)
         val cityTimeZone = PrayerCalculationHelper.timeZoneFor(city)
         val now = Calendar.getInstance(cityTimeZone)
-        val todayTimes = PrayerCalculationHelper.calculatePrayerTimes(now, city, city.defaultMethod)
+        val calculationMethod = PrayerCalculationHelper.getSelectedCalculationMethod(context, city)
+        val todayTimes = PrayerCalculationHelper.calculatePrayerTimes(now, city, calculationMethod)
 
         val tomorrowCal = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val tomorrowTimes = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCal, city, city.defaultMethod)
+        val tomorrowTimes = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCal, city, calculationMethod)
 
         // جدول كل الصلوات — التحقق من تمكين كل صلاة يتم داخل scheduleSinglePrayer
         // (مصدر الحقيقة الوحيد: qabas_prayer_prefs / notify_<key>) مع إلغاء المنبه المعطّل.
