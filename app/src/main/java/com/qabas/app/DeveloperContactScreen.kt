@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +83,7 @@ fun DeveloperContactScreen(
     val scope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     val authEmail by SupabaseServices.Auth.currentUser.collectAsState()
+    val unreadReplies by DevChatRealtimeManager.unreadReplies.collectAsState()
     val userEmail = authEmail?.email?.takeIf { it.isNotBlank() }
         ?: prefs.getString("user_email", "").orEmpty()
     val listState = rememberLazyListState()
@@ -91,6 +93,11 @@ fun DeveloperContactScreen(
     var isSending by remember { mutableStateOf(false) }
 
     BackHandler { onBack() }
+
+    DisposableEffect(Unit) {
+        DevChatRealtimeManager.setChatOpen(true)
+        onDispose { DevChatRealtimeManager.setChatOpen(false) }
+    }
 
     LaunchedEffect(userEmail) {
         if (userEmail.isBlank()) return@LaunchedEffect
@@ -109,7 +116,12 @@ fun DeveloperContactScreen(
                 title = {
                     Column {
                         Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 17.sp)
-                        Text("رسالتك تصل إلى لوحة المطور", fontFamily = CairoFont, color = TextSecondary, fontSize = 10.sp)
+                        Text(
+                            if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
+                            fontFamily = CairoFont,
+                            color = if (unreadReplies > 0) GoldPrimary else TextSecondary,
+                            fontSize = 10.sp
+                        )
                     }
                 },
                 navigationIcon = {

@@ -42,6 +42,13 @@ fun QabasApp() {
     LaunchedEffect(currentUser?.id) {
         if (currentUser?.id != null) {
             PushTokenManager.syncPending(context)
+            DevChatRealtimeManager.start(
+                context = context,
+                userId = currentUser!!.id,
+                userEmail = currentUser!!.email.orEmpty()
+            )
+        } else {
+            DevChatRealtimeManager.stop()
         }
     }
 
