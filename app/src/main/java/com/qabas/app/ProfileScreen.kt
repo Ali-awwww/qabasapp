@@ -85,6 +85,9 @@ fun ProfileScreen(
         )
     }
     val profilePrefs = remember(userEmail) { accountProfilePreferences(context, userEmail) }
+    val authenticatedUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val authenticatedUid = authenticatedUser?.id?.takeIf { it.isNotBlank() }
+        ?: SupabaseServices.Auth.getCurrentUserId()
 
     // User Profile State with real persistence
     var displayName by remember { 
@@ -121,8 +124,14 @@ fun ProfileScreen(
         mutableStateOf(CreatorFollowManager.FollowerCount(0, isExact = false))
     }
     var isLoadingFollowCommunity by remember { mutableStateOf(true) }
+    var profileSnapshot by remember { mutableStateOf<SupabaseServices.CurrentProfileSnapshot?>(null) }
+    var profileSnapshotOwnerUid by remember { mutableStateOf<String?>(null) }
     var followActionId by remember { mutableStateOf<String?>(null) }
     var showFollowList by remember { mutableStateOf(false) }
+    val hasCurrentProfileSnapshot = authenticatedUid != null && profileSnapshotOwnerUid == authenticatedUid
+    val profileFollowingCountText = if (hasCurrentProfileSnapshot) {
+        profileSnapshot?.followingCount?.toString() ?: "—"
+    } else "—"
 
     // Social Accounts & Analytics State
     var socialAccounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
@@ -138,103 +147,178 @@ fun ProfileScreen(
     var showPublishDialogInProfile by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // ربط الملف بالهوية الحقيقية: إن كانت القيم المحفوظة وهمية/فارغة، اسحبها
-    // من جلسة Supabase الفعلية بدل عرض هوية حساب قديم أو غير موثق
-    LaunchedEffect(userEmail) {
-        val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
-        val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
-            ?: SupabaseServices.Auth.getCurrentUserMeta("name")
-        val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
-            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
-
-        // Only the active Supabase session is authoritative for this profile.
-        val realEmail = sbEmail
-        val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
-        val activeEmail = realEmail ?: userEmail
-        val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
-        val authUid = SupabaseServices.Auth.getCurrentUserId()
-        val cloudProfile = if (!authUid.isNullOrBlank()) {
-            SupabaseServices.Database.getUserByEmail(activeEmail, authUid)
-        } else realEmail?.takeIf { it.isNotBlank() }?.let { email ->
-            SupabaseServices.Database.getUserByEmail(email, null)
+    suspend fun refreshFollowCommunity() {
+        val uid = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() } ?: return
+        isLoadingFollowCommunity = true
+        try {
+            val snapshot = SupabaseServices.Profiles.getCurrentProfileSnapshot(uid) ?: return
+            if (SupabaseServices.Auth.getCurrentUserId() != uid) return
+            val refreshedFollowing = if (snapshot.followingTruncated) null else {
+                CreatorFollowManager.applyProfileSnapshot(
+                    context.applicationContext,
+                    uid,
+                    snapshot.following
+                )
+            }
+            if (SupabaseServices.Auth.getCurrentUserId() != uid) return
+            ReelPreferencesManager.init(context)
+            ReelPreferencesManager.replaceActivityFromCloud(context, snapshot.activity)
+            profileSnapshot = snapshot
+            profileSnapshotOwnerUid = uid
+            followedCreators = refreshedFollowing ?: CreatorFollowManager.followedCreators(context.applicationContext)
+            ownFollowers = CreatorFollowManager.FollowerCount(snapshot.followerCount, isExact = true)
+        } finally {
+            if (SupabaseServices.Auth.getCurrentUserId() == uid) {
+                isLoadingFollowCommunity = false
+            }
         }
-        // The profiles mirror is authoritative for a user-uploaded avatar URL.
-        val cloudProfileMirror = authUid?.takeIf { it.isNotBlank() }?.let {
-            SupabaseServices.Profiles.getUserProfile(it)
-        }
-        val realName = cloudProfile?.name?.takeIf { it.isNotBlank() } ?: sbName
-        val realAvatar = sbAvatar
-        val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
-        val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
-        val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
-            prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
-                ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
-        } else null
-        val nameIsPlaceholder = nameSnapshot.isNullOrBlank() ||
-            nameSnapshot == "صانع المحتوى الدعوي" || nameSnapshot == "مستخدم قبس" || nameSnapshot == "علي وليد"
+    }
 
-        if (identityChanged && realEmail != null) {
-            userEmail = realEmail
-            prefs.edit().putString("user_email", realEmail).apply()
-        }
+    // One owner-scoped RPC supplies all Supabase-backed profile, publishing,
+    // follow, and Reels-activity data for this authenticated UID.
+    LaunchedEffect(authenticatedUid) {
+        isLoadingFollowCommunity = true
+        profileSnapshot = null
+        profileSnapshotOwnerUid = null
+        profileViewer = null
+        followedCreators = emptyList()
+        ownFollowers = CreatorFollowManager.FollowerCount(0, isExact = false)
 
-        // Prioritize authoritative cloud name over local cache
-        val effectiveName = if (!cloudProfile?.name.isNullOrBlank()) {
-            cloudProfile!!.name!!.trim()
-        } else {
-            val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
-            baseName ?: realName ?: "مستخدم قبس"
-        }
-        displayName = effectiveName
-        activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
-        if (identityChanged || globalIdentityMatches) {
-            prefs.edit().putString("user_display_name", effectiveName).putString("user_name", effectiveName).apply()
-        }
+        try {
+            val sbEmail = SupabaseServices.Auth.getCurrentUserEmail()?.takeIf { it.isNotBlank() }
+            val sbName = SupabaseServices.Auth.getCurrentUserMeta("full_name")
+                ?: SupabaseServices.Auth.getCurrentUserMeta("name")
+            val sbAvatar = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
+                ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
 
-        // Fetch cloud bio from user_settings in Supabase
-        val cloudBio = if (!authUid.isNullOrBlank()) {
-            SupabaseServices.UserSettings.getUserBio(authUid)
-        } else null
+            val expectedUid = authenticatedUid?.takeIf { it.isNotBlank() }
+            val realEmail = sbEmail
+            val identityChanged = !realEmail.isNullOrBlank() && !realEmail.equals(userEmail, ignoreCase = true)
+            val activeEmail = realEmail.orEmpty()
+            val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
 
-        if (!cloudBio.isNullOrBlank()) {
-            userBio = cloudBio
-            activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
-        } else {
+            // Clear any previous account's visible identity before awaiting Supabase.
+            displayName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+                ?: sbName?.takeIf { expectedUid != null }
+                ?: "مستخدم قبس"
             userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
-        }
-
-        // Fetch cloud custom ID / tag
-        if (!cloudProfile?.customId.isNullOrBlank()) {
-            userCustomTag = UserIdentifierManager.formatDisplay(cloudProfile.customId!!)
-            UserIdentifierManager.saveCustomId(context, cloudProfile.customId, activeEmail)
-        } else {
-            userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
+            userCustomTag = UserIdentifierManager.getCustomId(context, activeEmail)
                 .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
-        }
+            avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+            userAccountNumber = UserIdentifierManager.getAccountNumber(context, activeEmail)
+            selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
+            if (activeEmail.isBlank() && userEmail.isNotEmpty()) userEmail = ""
 
-        val savedAvatarUri = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
-        val cloudAvatarUrl = cloudProfileMirror?.avatarUrl?.trim()
-            ?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
-        avatarUriString = cloudAvatarUrl ?: savedAvatarUri.ifBlank { realAvatar ?: "" }
-        selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
-        userAccountNumber = cloudProfile?.accountNumber?.takeIf { it.isNotBlank() }
-            ?: UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
+            val fetchedSnapshot = expectedUid?.let {
+                SupabaseServices.Profiles.getCurrentProfileSnapshot(it)
+            }
+            val activeSnapshot = fetchedSnapshot?.takeIf {
+                SupabaseServices.Auth.getCurrentUserId() == expectedUid
+            }
+            if (SupabaseServices.Auth.getCurrentUserId() != expectedUid) return@LaunchedEffect
+            val cloudUser = activeSnapshot?.user
+            val cloudProfileMirror = activeSnapshot?.profile
+            val cloudDisplayName = cloudUser?.name?.takeIf { it.isNotBlank() }
+                ?: cloudProfileMirror?.fullName?.takeIf { it.isNotBlank() }
+            val realName = cloudDisplayName ?: sbName
+            val realAvatar = sbAvatar
+            val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+            val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
+            val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
+                prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
+            } else null
 
-        if (!cloudAvatarUrl.isNullOrBlank()) {
-            activeProfilePrefs.edit().putString("user_avatar_uri", cloudAvatarUrl).putInt("user_avatar_preset", -1).apply()
-            selectedPresetAvatar = -1
-        } else if (avatarUriString.isBlank() && realAvatar != null) {
-            avatarUriString = realAvatar
-            activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
-        }
+            if (identityChanged) {
+                userEmail = activeEmail
+                prefs.edit().putString("user_email", activeEmail).apply()
+            }
 
-        // مزامنة وسحب رقم الحساب الحقيقي من السحابة لضمان الدقة وتحديث العداد
-        val targetEmail = realEmail ?: userEmail
-        if (targetEmail.isNotBlank() && !targetEmail.contains("guest")) {
-            val cloudAcc = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail, displayName)
-            if (cloudAcc.isNotBlank()) {
-                userAccountNumber = cloudAcc
-                prefs.edit().putString("user_account_number", cloudAcc).apply()
+            // Prioritize authoritative cloud name over local cache
+            val effectiveName = if (!cloudDisplayName.isNullOrBlank()) {
+                cloudDisplayName.trim()
+            } else {
+                val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
+                baseName ?: realName ?: "مستخدم قبس"
+            }
+            displayName = effectiveName
+            activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
+            if (identityChanged || globalIdentityMatches) {
+                prefs.edit().putString("user_display_name", effectiveName).putString("user_name", effectiveName).apply()
+            }
+
+            val cloudBio = activeSnapshot?.bio
+            if (activeSnapshot != null && cloudBio != null) {
+                userBio = cloudBio
+                activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
+            } else {
+                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+            }
+
+            if (!cloudUser?.customId.isNullOrBlank()) {
+                userCustomTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)
+                UserIdentifierManager.saveCustomId(context, cloudUser.customId, activeEmail)
+            } else {
+                userCustomTag = UserIdentifierManager.getCustomId(context, realEmail ?: userEmail)
+                    .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
+            }
+
+            val savedAvatarUri = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
+            val cloudAvatarUrl = cloudProfileMirror?.avatarUrl?.trim()
+                ?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
+            avatarUriString = cloudAvatarUrl ?: savedAvatarUri.ifBlank { realAvatar ?: "" }
+            selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
+
+            if (!cloudAvatarUrl.isNullOrBlank()) {
+                activeProfilePrefs.edit().putString("user_avatar_uri", cloudAvatarUrl).putInt("user_avatar_preset", -1).apply()
+                selectedPresetAvatar = -1
+            } else if (avatarUriString.isBlank() && realAvatar != null) {
+                avatarUriString = realAvatar
+                activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
+            }
+
+            userAccountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
+                ?: UserIdentifierManager.getAccountNumber(context, realEmail ?: userEmail)
+
+            if (activeSnapshot != null) {
+                val appliedFollowing = if (activeSnapshot.followingTruncated) null else {
+                    CreatorFollowManager.applyProfileSnapshot(
+                        context.applicationContext,
+                        expectedUid,
+                        activeSnapshot.following
+                    )
+                }
+                if (SupabaseServices.Auth.getCurrentUserId() != expectedUid) return@LaunchedEffect
+                ReelPreferencesManager.init(context)
+                ReelPreferencesManager.replaceActivityFromCloud(context, activeSnapshot.activity)
+                profileSnapshot = activeSnapshot
+                profileSnapshotOwnerUid = expectedUid
+                followedCreators = appliedFollowing ?: CreatorFollowManager.followedCreators(context.applicationContext)
+                ownFollowers = CreatorFollowManager.FollowerCount(activeSnapshot.followerCount, isExact = true)
+            } else {
+                followedCreators = CreatorFollowManager.followedCreators(context.applicationContext)
+            }
+
+            profileViewer = CreatorFollowManager.ViewerIdentity(
+                id = expectedUid.orEmpty(),
+                displayName = effectiveName,
+                email = realEmail,
+                avatarUrl = avatarUriString.takeIf { it.isNotBlank() }
+            )
+
+            // Keep the existing account-number repair only when the snapshot has no cloud value.
+            val targetEmail = activeEmail
+            if (cloudUser?.accountNumber.isNullOrBlank() && targetEmail.isNotBlank() && !targetEmail.contains("guest")) {
+                val cloudAcc = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail, displayName)
+                if (SupabaseServices.Auth.getCurrentUserId() != expectedUid) return@LaunchedEffect
+                if (cloudAcc.isNotBlank()) {
+                    userAccountNumber = cloudAcc
+                    prefs.edit().putString("user_account_number", cloudAcc).apply()
+                }
+            }
+        } finally {
+            if (SupabaseServices.Auth.getCurrentUserId() == authenticatedUid) {
+                isLoadingFollowCommunity = false
             }
         }
     }
@@ -311,41 +395,13 @@ fun ProfileScreen(
                 avatarUriString = finalUri
                 selectedPresetAvatar = -1
                 profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
-                if (cloudUrl != null && profileMirrorSynced) {
+                if (profileMirrorSynced) {
                     Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي 📸", Toast.LENGTH_SHORT).show()
-                } else if (cloudUrl != null) {
+                } else {
                     Toast.makeText(context, "رُفعت الصورة، لكن تعذر مزامنة رابطها مع الملف السحابي", Toast.LENGTH_LONG).show()
                 }
             }
         }
-    }
-
-    suspend fun refreshFollowCommunity() {
-        val viewer = withContext(Dispatchers.IO) {
-            CreatorFollowManager.currentViewer(context.applicationContext)
-        }
-        profileViewer = viewer
-        val cloudFollowing = withContext(Dispatchers.IO) {
-            CreatorFollowManager.refreshFollowedCreatorsFromCloud(context.applicationContext, viewer.id)
-        }
-        followedCreators = cloudFollowing ?: CreatorFollowManager.followedCreators(context.applicationContext)
-        val cloudCount = withContext(Dispatchers.IO) {
-            CreatorFollowManager.cloudFollowerCount(viewer.id)
-        }
-        ownFollowers = if (cloudCount != null) {
-            CreatorFollowManager.FollowerCount(cloudCount, isExact = true)
-        } else {
-            CreatorFollowManager.FollowerCount(
-                CreatorFollowManager.estimatedBaselineFollowers(viewer.id),
-                isExact = false
-            )
-        }
-    }
-
-    LaunchedEffect(displayName, userEmail) {
-        isLoadingFollowCommunity = true
-        refreshFollowCommunity()
-        isLoadingFollowCommunity = false
     }
 
     val totalPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
@@ -1109,9 +1165,13 @@ fun ProfileScreen(
             LaunchedEffect(Unit) {
                 ReelPreferencesManager.init(context)
             }
-            val reelSavedCount = ReelPreferencesManager.savedReels.collectAsState().value.size
-            val reelWatchedCount = ReelPreferencesManager.userStats.collectAsState().value.totalWatched
-            val reelLikedCount = ReelPreferencesManager.likedReels.collectAsState().value.size
+            val reelStats = ReelPreferencesManager.userStats.collectAsState().value
+            val reelSavedCount = if (hasCurrentProfileSnapshot) reelStats.totalSaved.toString() else "—"
+            val reelWatchedCount = if (hasCurrentProfileSnapshot) reelStats.totalWatched.toString() else "—"
+            val reelLikedCount = if (hasCurrentProfileSnapshot) reelStats.totalLikes.toString() else "—"
+            val reelPublishedCount = if (hasCurrentProfileSnapshot) {
+                profileSnapshot?.publishedReelsCount?.toString() ?: "—"
+            } else "—"
 
             Card(
                 modifier = Modifier
@@ -1242,6 +1302,21 @@ fun ProfileScreen(
                                     Text("$reelLikedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF43F5E))
                                 }
                             }
+
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White.copy(alpha = 0.05f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("منشورات قبس", fontFamily = CairoFont, fontSize = 9.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+                                    Text("$reelPublishedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1362,7 +1437,7 @@ fun ProfileScreen(
                             ) {
                                 Text("أتابع", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
                                 Text(
-                                    "${followedCreators.size}",
+                                    if (isLoadingFollowCommunity) "…" else profileFollowingCountText,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1382,7 +1457,7 @@ fun ProfileScreen(
                             ) {
                                 Text("يتابعني", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
                                 Text(
-                                    if (isLoadingFollowCommunity) "…" else "${ownFollowers.value}",
+                                    if (isLoadingFollowCommunity) "…" else if (ownFollowers.isExact) "${ownFollowers.value}" else "—",
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1390,7 +1465,7 @@ fun ProfileScreen(
                                 )
                                 if (!ownFollowers.isExact && !isLoadingFollowCommunity) {
                                     Text(
-                                        "تقدير أولي",
+                                        "غير متاح",
                                         fontFamily = CairoFont,
                                         fontSize = 8.5.sp,
                                         color = Color.White.copy(alpha = 0.45f)
@@ -1417,7 +1492,7 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            if (showFollowList) "إخفاء قائمة المتابَعين" else "عرض قائمة المتابَعين (${followedCreators.size})",
+                            if (showFollowList) "إخفاء قائمة المتابَعين" else "عرض قائمة المتابَعين ($profileFollowingCountText)",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.5.sp,
@@ -1428,14 +1503,30 @@ fun ProfileScreen(
                     if (showFollowList) {
                         Spacer(modifier = Modifier.height(10.dp))
                         if (followedCreators.isEmpty()) {
+                            val emptyFollowMessage = when {
+                                !hasCurrentProfileSnapshot -> "تعذر تأكيد قائمة المتابعة الآن. حدّث الملف وحاول مجددًا."
+                                profileSnapshot?.followingTruncated == true ->
+                                    "لديك ${profileFollowingCountText} متابعة؛ القائمة أكبر من الحد المعروض في هذا الإصدار، والمتابعات كاملة محفوظة سحابيًا."
+                                profileSnapshot?.followingCount == 0 ->
+                                    "لم تتابع أي صانع محتوى بعد. افتح أي ملف منشئ من الريلز وابدأ المتابعة."
+                                else -> "تعذر عرض عناصر قائمة المتابعة الآن؛ حدّث الملف وحاول مجددًا."
+                            }
                             Text(
-                                "لم تتابع أي صانع محتوى بعد. افتح أي ملف منشئ من الريلز وابدأ المتابعة.",
+                                emptyFollowMessage,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.65f)
                             )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (profileSnapshot?.followingTruncated == true) {
+                                    Text(
+                                        "هذه قائمة محدودة؛ العدد الإجمالي الدقيق هو $profileFollowingCountText والمتابعات كاملة محفوظة سحابيًا.",
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp,
+                                        color = GoldPrimary.copy(alpha = 0.85f)
+                                    )
+                                }
                                 followedCreators.sortedByDescending { it.followedAt }.forEach { creator ->
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),

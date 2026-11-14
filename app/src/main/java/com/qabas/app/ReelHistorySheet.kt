@@ -41,6 +41,9 @@ fun ReelHistorySheet(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val authenticatedUser by SupabaseServices.Auth.currentUser.collectAsState()
+    val activeUserId = authenticatedUser?.id?.takeIf { it.isNotBlank() }
+        ?: SupabaseServices.Auth.getCurrentUserId()
 
     val watchHistory by ReelPreferencesManager.watchHistory.collectAsState()
     val savedReels by ReelPreferencesManager.savedReels.collectAsState()
@@ -52,21 +55,25 @@ fun ReelHistorySheet(
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
     var loadFailed by remember { mutableStateOf(false) }
+    var activitySnapshot by remember { mutableStateOf<ReelActivitySnapshot?>(null) }
 
     suspend fun refreshActivity(initialLoad: Boolean = false) {
         if (initialLoad) isLoading = true else isRefreshing = true
         loadFailed = false
 
-        val userId = SupabaseServices.Auth.getCurrentUserId()
-        val activity = userId?.let { SupabaseServices.Profiles.getUserReelActivity(it) }
-        if (activity != null) {
-            ReelPreferencesManager.replaceActivityFromCloud(context, activity)
-        } else {
-            loadFailed = true
+        try {
+            val userId = SupabaseServices.Auth.getCurrentUserId()
+            val activity = userId?.let { SupabaseServices.Profiles.getUserReelActivity(it) }
+            if (activity != null && userId == SupabaseServices.Auth.getCurrentUserId()) {
+                activitySnapshot = activity
+                ReelPreferencesManager.replaceActivityFromCloud(context, activity)
+            } else {
+                loadFailed = true
+            }
+        } finally {
+            isLoading = false
+            isRefreshing = false
         }
-
-        isLoading = false
-        isRefreshing = false
     }
 
     suspend fun removeActivityItem(tab: Int, item: ReelHistoryItem) {
@@ -90,7 +97,10 @@ fun ReelHistorySheet(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(activeUserId) {
+        isLoading = true
+        loadFailed = false
+        activitySnapshot = null
         ReelPreferencesManager.init(context)
         refreshActivity(initialLoad = true)
     }
@@ -177,10 +187,11 @@ fun ReelHistorySheet(
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                val countsReady = !isLoading && !isRefreshing && !loadFailed
                 val tabs = listOf(
-                    Pair("السجل (${watchHistory.size})", Icons.Default.History),
-                    Pair("المحفوظات (${savedReels.size})", Icons.Default.Bookmark),
-                    Pair("الإعجابات (${likedReels.size})", Icons.Default.Favorite),
+                    Pair("السجل (${if (countsReady) userStats.totalWatched else "—"})", Icons.Default.History),
+                    Pair("المحفوظات (${if (countsReady) userStats.totalSaved else "—"})", Icons.Default.Bookmark),
+                    Pair("الإعجابات (${if (countsReady) userStats.totalLikes else "—"})", Icons.Default.Favorite),
                     Pair("الإحصائيات", Icons.Default.BarChart)
                 )
 
@@ -219,6 +230,22 @@ fun ReelHistorySheet(
                         }
                     }
                 }
+            }
+
+            val activityListTruncated = when (selectedTab) {
+                0 -> activitySnapshot?.watchHistoryTruncated == true
+                1 -> activitySnapshot?.savedReelsTruncated == true
+                2 -> activitySnapshot?.likedReelsTruncated == true
+                else -> false
+            }
+            if (activityListTruncated && !isLoading && !isRefreshing && !loadFailed) {
+                Text(
+                    text = "تُعرض أحدث 100 نتيجة؛ بقية النشاط ما زالت محفوظة في حسابك السحابي.",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    fontFamily = CairoFont,
+                    fontSize = 10.sp,
+                    color = GoldPrimary.copy(alpha = 0.85f)
+                )
             }
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

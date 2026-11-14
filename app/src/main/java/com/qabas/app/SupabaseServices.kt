@@ -1490,6 +1490,28 @@ object SupabaseServices {
     // Profiles Operations
     // ==========================================
     object Profiles {
+        /** Fetches one bounded, owner-scoped snapshot with a single PostgREST RPC. */
+        suspend fun getCurrentProfileSnapshot(expectedUserId: String): CurrentProfileSnapshot? {
+            return try {
+                if (expectedUserId.isBlank()) return null
+                val initialUid = Auth.getCurrentUserId() ?: return null
+                if (initialUid != expectedUserId) return null
+                val client = client ?: return null
+
+                val payload = client.postgrest.rpc("get_current_profile_snapshot")
+                    .decodeAs<CurrentProfileSnapshotPayload>()
+
+                // Discard a response if the authenticated account changed while it was in flight.
+                if (Auth.getCurrentUserId() != initialUid) return null
+                payload.toDomain()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(TAG, "getCurrentProfileSnapshot failed (${error.javaClass.simpleName})")
+                null
+            }
+        }
+
         suspend fun syncUserProfile(
             userId: String,
             displayName: String?,
@@ -2123,94 +2145,8 @@ object SupabaseServices {
          * Returns the signed-in user's activity only. RLS is enforced by Supabase as a
          * second boundary; this method also verifies that the supplied UID is the live UID.
          */
-        suspend fun getUserReelActivity(userId: String): ReelActivitySnapshot? = runCatching {
-            val client = client ?: return null
-            val authUid = SupabaseServices.Auth.getCurrentUserId()
-                ?: return null
-            if (authUid != userId) return null
-
-            val historyRows = client.postgrest.from("reel_history").select(
-                columns = io.github.jan.supabase.postgrest.query.Columns.list(
-                    "reel_id, watched_duration_sec, created_at"
-                )
-            ) {
-                filter { eq("user_id", authUid) }
-                order("created_at", Order.DESCENDING)
-                limit(100)
-            }.decodeList<ReelHistoryActivityRow>()
-
-            val savedRows = client.postgrest.from("reel_bookmarks").select(
-                columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id, created_at")
-            ) {
-                filter { eq("user_id", authUid) }
-                order("created_at", Order.DESCENDING)
-                limit(100)
-            }.decodeList<ReelActivityRelationRow>()
-
-            val likedRows = client.postgrest.from("reel_likes").select(
-                columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id, created_at")
-            ) {
-                filter { eq("user_id", authUid) }
-                order("created_at", Order.DESCENDING)
-                limit(100)
-            }.decodeList<ReelActivityRelationRow>()
-
-            val reelIds = (historyRows.map { it.reelId } +
-                savedRows.map { it.reelId } +
-                likedRows.map { it.reelId })
-                .filter { it.isNotBlank() }
-                .distinct()
-
-            if (reelIds.isEmpty()) {
-                return ReelActivitySnapshot()
-            }
-
-            val reelsById = client.postgrest.from("reels").select {
-                filter { isIn("id", reelIds) }
-                limit(100)
-            }.decodeList<ReelRow>().associateBy { it.id }
-
-            fun toActivityItem(
-                reelId: String,
-                createdAt: String?,
-                watchedDurationSec: Int = 0
-            ): ReelHistoryItem? {
-                val reel = reelsById[reelId] ?: return null
-                val timestamp = createdAt?.let { value ->
-                    runCatching {
-                        java.time.OffsetDateTime.parse(value).toInstant().toEpochMilli()
-                    }.getOrNull()
-                } ?: System.currentTimeMillis()
-                return ReelHistoryItem(
-                    reelId = reel.id,
-                    title = reel.title.ifBlank { "ريلز قبس" },
-                    userName = reel.userName.ifBlank { "صانع محتوى قبس" },
-                    userAvatar = reel.userAvatar,
-                    videoUrl = reel.videoUrl,
-                    timestamp = timestamp,
-                    watchedDurationSec = watchedDurationSec.coerceAtLeast(0),
-                    category = reel.tags.firstOrNull()?.takeIf { it.isNotBlank() } ?: "عام",
-                    thumbnailUrl = reel.thumbnailUrl
-                )
-            }
-
-            ReelActivitySnapshot(
-                watchHistory = historyRows.mapNotNull {
-                    toActivityItem(it.reelId, it.createdAt, it.watchedDurationSec)
-                },
-                savedReels = savedRows.mapNotNull {
-                    toActivityItem(it.reelId, it.createdAt)
-                },
-                likedReels = likedRows.mapNotNull {
-                    toActivityItem(it.reelId, it.createdAt)
-                },
-                totalWatchSeconds = historyRows.sumOf {
-                    it.watchedDurationSec.coerceAtLeast(0).toLong()
-                }
-            )
-        }.onFailure {
-            Log.w(TAG, "getUserReelActivity failed (${it.javaClass.simpleName})")
-        }.getOrNull()
+        suspend fun getUserReelActivity(userId: String): ReelActivitySnapshot? =
+            getCurrentProfileSnapshot(userId)?.activity
 
         suspend fun removeReelWatchHistory(reelId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -3081,6 +3017,124 @@ object SupabaseServices {
         @SerialName("reel_id") val reelId: String,
         @SerialName("created_at") val createdAt: String? = null
     )
+
+    @Serializable
+    data class ProfileFollowingSnapshotRow(
+        @SerialName("creator_id") val creatorId: String,
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("full_name") val fullName: String? = null,
+        @SerialName("avatar_url") val avatarUrl: String? = null
+    )
+
+    data class CurrentProfileSnapshot(
+        val user: UserRow?,
+        val profile: ProfileRow?,
+        val bio: String?,
+        val bioParseFailed: Boolean,
+        val publishedReels: List<ReelRow>,
+        val publishedReelsCount: Int,
+        val publishedReelsTruncated: Boolean,
+        val following: List<ProfileFollowingSnapshotRow>,
+        val followingCount: Int,
+        val followingTruncated: Boolean,
+        val followerCount: Int,
+        val activity: ReelActivitySnapshot
+    )
+
+    @Serializable
+    data class ProfileActivityItemPayload(
+        val reelId: String = "",
+        val title: String = "",
+        val userName: String = "",
+        val userAvatar: String? = null,
+        val videoUrl: String = "",
+        val timestamp: Long = 0L,
+        val watchedDurationSec: Int = 0,
+        val category: String = "عام",
+        val thumbnailUrl: String? = null
+    ) {
+        fun toReelHistoryItem(): ReelHistoryItem? {
+            if (reelId.isBlank() || videoUrl.isBlank()) return null
+            return ReelHistoryItem(
+                reelId = reelId,
+                title = title.ifBlank { "ريلز قبس" },
+                userName = userName.ifBlank { "صانع محتوى قبس" },
+                userAvatar = userAvatar,
+                videoUrl = videoUrl,
+                timestamp = timestamp.coerceAtLeast(0L),
+                watchedDurationSec = watchedDurationSec.coerceAtLeast(0),
+                category = category.ifBlank { "عام" },
+                thumbnailUrl = thumbnailUrl
+            )
+        }
+    }
+
+    @Serializable
+    data class ProfileActivityPayload(
+        val watchHistory: List<ProfileActivityItemPayload> = emptyList(),
+        val savedReels: List<ProfileActivityItemPayload> = emptyList(),
+        val likedReels: List<ProfileActivityItemPayload> = emptyList(),
+        val watchHistoryCount: Long = 0L,
+        val savedReelsCount: Long = 0L,
+        val likedReelsCount: Long = 0L,
+        val totalWatchSeconds: Long = 0L,
+        val watchHistoryTruncated: Boolean = false,
+        val savedReelsTruncated: Boolean = false,
+        val likedReelsTruncated: Boolean = false
+    )
+
+    @Serializable
+    data class CurrentProfileSnapshotPayload(
+        val user: UserRow? = null,
+        val profile: ProfileRow? = null,
+        val bio: String? = null,
+        @SerialName("bio_parse_failed") val bioParseFailed: Boolean = false,
+        @SerialName("published_reels") val publishedReels: List<ReelRow> = emptyList(),
+        @SerialName("published_reels_count") val publishedReelsCount: Long = 0L,
+        @SerialName("published_reels_truncated") val publishedReelsTruncated: Boolean = false,
+        val following: List<ProfileFollowingSnapshotRow> = emptyList(),
+        @SerialName("following_count") val followingCount: Long = 0L,
+        @SerialName("following_truncated") val followingTruncated: Boolean = false,
+        @SerialName("follower_count") val followerCount: Long = 0L,
+        val activity: ProfileActivityPayload = ProfileActivityPayload()
+    ) {
+        fun toDomain(): CurrentProfileSnapshot {
+            fun List<ProfileActivityItemPayload>.toItems(): List<ReelHistoryItem> =
+                mapNotNull { it.toReelHistoryItem() }
+            fun Long.toCount(): Int = coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+
+            val history = activity.watchHistory.toItems()
+            val saved = activity.savedReels.toItems()
+            val liked = activity.likedReels.toItems()
+            val snapshotActivity = ReelActivitySnapshot(
+                watchHistory = history,
+                savedReels = saved,
+                likedReels = liked,
+                totalWatchSeconds = activity.totalWatchSeconds.coerceAtLeast(0L),
+                watchHistoryCount = activity.watchHistoryCount.toCount().coerceAtLeast(history.size),
+                savedReelsCount = activity.savedReelsCount.toCount().coerceAtLeast(saved.size),
+                likedReelsCount = activity.likedReelsCount.toCount().coerceAtLeast(liked.size),
+                watchHistoryTruncated = activity.watchHistoryTruncated,
+                savedReelsTruncated = activity.savedReelsTruncated,
+                likedReelsTruncated = activity.likedReelsTruncated
+            )
+
+            return CurrentProfileSnapshot(
+                user = user,
+                profile = profile,
+                bio = bio,
+                bioParseFailed = bioParseFailed,
+                publishedReels = publishedReels,
+                publishedReelsCount = publishedReelsCount.toCount().coerceAtLeast(publishedReels.size),
+                publishedReelsTruncated = publishedReelsTruncated,
+                following = following,
+                followingCount = followingCount.toCount().coerceAtLeast(following.size),
+                followingTruncated = followingTruncated,
+                followerCount = followerCount.toCount(),
+                activity = snapshotActivity
+            )
+        }
+    }
 
     @Serializable
     data class ChatMessageRow(

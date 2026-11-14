@@ -355,6 +355,41 @@ object CreatorFollowManager {
             synced
         }
 
+    /** Applies the owner-scoped following rows returned by the profile snapshot without another request. */
+    fun applyProfileSnapshot(
+        context: Context,
+        userId: String,
+        remoteRows: List<SupabaseServices.ProfileFollowingSnapshotRow>
+    ): List<FollowedCreator>? {
+        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return null
+        if (!sameCanonicalUserId(authUid, userId)) return null
+
+        val existingById = followedCreatorsForUser(context, authUid)
+            .associateBy { it.id.lowercase(Locale.ROOT) }
+        val synced = remoteRows.mapNotNull { row ->
+            val id = row.creatorId.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val previous = existingById[id.lowercase(Locale.ROOT)]
+            val followedAt = row.createdAt?.let { timestamp ->
+                runCatching { java.time.OffsetDateTime.parse(timestamp).toInstant().toEpochMilli() }.getOrNull()
+            } ?: previous?.followedAt ?: 0L
+            FollowedCreator(
+                id = id,
+                displayName = row.fullName?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: previous?.displayName?.takeIf { it.isNotBlank() }
+                    ?: id,
+                avatarUrl = row.avatarUrl?.takeIf { it.isNotBlank() } ?: previous?.avatarUrl,
+                followedAt = followedAt
+            )
+        }
+
+        if (!sameCanonicalUserId(SupabaseServices.Auth.getCurrentUserId(), authUid)) return null
+        saveFollowedCreators(context, authUid, synced)
+        val followedIdsKey = userScopedPreferenceKey(FOLLOW_IDS_KEY, authUid) ?: return null
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit().putStringSet(followedIdsKey, synced.map { it.id }.toSet()).apply()
+        return synced
+    }
+
     /**
      * يطبّق المتابعة/الإلغاء محلياً فوراً، ثم يزامن السحابة في الخلفية.
      * يُعيد الحالة الجديدة أو null عند محاولة متابعة النفس.

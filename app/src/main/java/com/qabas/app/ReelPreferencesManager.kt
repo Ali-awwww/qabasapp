@@ -50,7 +50,13 @@ data class ReelActivitySnapshot(
     val watchHistory: List<ReelHistoryItem> = emptyList(),
     val savedReels: List<ReelHistoryItem> = emptyList(),
     val likedReels: List<ReelHistoryItem> = emptyList(),
-    val totalWatchSeconds: Long = 0L
+    val totalWatchSeconds: Long = 0L,
+    val watchHistoryCount: Int = watchHistory.size,
+    val savedReelsCount: Int = savedReels.size,
+    val likedReelsCount: Int = likedReels.size,
+    val watchHistoryTruncated: Boolean = false,
+    val savedReelsTruncated: Boolean = false,
+    val likedReelsTruncated: Boolean = false
 )
 
 /**
@@ -322,10 +328,10 @@ object ReelPreferencesManager {
         _likedReels.value = liked
 
         val stats = ReelUserStats(
-            totalWatched = history.size,
+            totalWatched = snapshot.watchHistoryCount.coerceAtLeast(history.size),
             totalWatchSeconds = snapshot.totalWatchSeconds.coerceAtLeast(0L),
-            totalLikes = liked.size,
-            totalSaved = saved.size,
+            totalLikes = snapshot.likedReelsCount.coerceAtLeast(liked.size),
+            totalSaved = snapshot.savedReelsCount.coerceAtLeast(saved.size),
             // Share events are currently device-local; keep that count separate from cloud totals.
             totalShares = _userStats.value.totalShares
         )
