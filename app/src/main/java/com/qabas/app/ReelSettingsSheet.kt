@@ -33,7 +33,8 @@ import com.qabas.app.ui.theme.RobotoMonoFont
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReelSettingsSheet(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onHiddenReelsCleared: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -49,6 +50,7 @@ fun ReelSettingsSheet(
 
     var cacheStatus by remember { mutableStateOf<String?>(null) }
     var showAlAtharExplanation by remember { mutableStateOf(false) }
+    var hiddenReelCount by remember { mutableIntStateOf(ReelPreferencesManager.getHiddenReelIds(context).size) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -362,6 +364,42 @@ fun ReelSettingsSheet(
                             )
                         }
                     }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable {
+                        if (hiddenReelCount > 0) {
+                            ReelPreferencesManager.clearHiddenReels(context)
+                            hiddenReelCount = 0
+                            onHiddenReelsCleared()
+                            Toast.makeText(context, "تمت استعادة المقاطع المخفية إلى الخلاصة", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                shape = RoundedCornerShape(10.dp),
+                color = Color.White.copy(alpha = 0.05f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.VisibilityOff, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("إدارة المحتوى المخفي", fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = Color.White)
+                            Text(
+                                if (hiddenReelCount == 0) "لا توجد مقاطع مخفية" else "$hiddenReelCount مقطع مخفي — اضغط للاستعادة",
+                                fontFamily = CairoFont, fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                    Icon(Icons.Default.Restore, contentDescription = null, tint = if (hiddenReelCount > 0) GoldPrimary else Color.White.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
                 }
             }
 

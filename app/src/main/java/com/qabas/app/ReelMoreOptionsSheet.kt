@@ -43,7 +43,6 @@ fun ReelMoreOptionsSheet(
     onNotInterested: () -> Unit,
     onDeleteReel: (() -> Unit)? = null,
     onReportToDevChat: ((reason: String, details: String) -> Unit)? = null,
-    onOpenDevChat: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -117,9 +116,16 @@ fun ReelMoreOptionsSheet(
                         title = reel.title,
                         videoUrl = reel.videoUrl,
                         thumbnailUrl = reel.thumbnailUrl,
-                        author = reel.userName
+                        author = reel.userName,
+                        onComplete = { success ->
+                            Toast.makeText(
+                                context,
+                                if (success) "اكتمل تنزيل الريل بنجاح" else "فشل تنزيل الريل، حاول مرة أخرى",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     )
-                    Toast.makeText(context, "بدأ تنزيل الريل في مركز التنزيلات 🚀", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "بدأ تنزيل الريل للمشاهدة دون إنترنت", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
             )
@@ -142,8 +148,8 @@ fun ReelMoreOptionsSheet(
             // 3. Playback Speed
             OptionRow(
                 icon = Icons.Default.Speed,
-                title = "سرعة تشغيل الفيديو",
-                subtitle = "تعديل سرعة التلاوة أو الشرح",
+                title = "سرعة تشغيل الريلز",
+                subtitle = "تطبيق السرعة على المقاطع أثناء التصفح",
                 onClick = {
                     showSpeedDialog = true
                 }
@@ -189,30 +195,18 @@ fun ReelMoreOptionsSheet(
                 }
             )
 
-            // 6. Report Offensive Content (Directly connected to developer chat)
+            // 6. Report Offensive Content
             OptionRow(
                 icon = Icons.Default.ReportProblem,
-                title = "إبلاغ عن فيديو مسيء (متصل بمحادثة المطور)",
-                subtitle = "إرسال بلاغ فوري ومباشر إلى محادثة المطور لمراجعة المقطع وحذفه",
+                title = "إبلاغ عن مشكلة في المقطع",
+                subtitle = "إرسال البلاغ إلى فريق الإشراف للمراجعة",
                 tint = Color(0xFFEF4444),
                 onClick = {
                     showReportDialog = true
                 }
             )
 
-            // 7. Open Direct Dev Chat
-            OptionRow(
-                icon = Icons.Default.Chat,
-                title = "محادثة حية مع المطور مباشرة",
-                subtitle = "تواصل فوري مع فريق تطوير قبس للاقتراحات والملاحظات",
-                tint = GoldPrimary,
-                onClick = {
-                    onDismiss()
-                    onOpenDevChat?.invoke()
-                }
-            )
-
-            // 8. Delete Option (Enabled for Video Owner OR Developer)
+            // 7. Delete Option (Enabled for Video Owner OR Developer)
             if (canDelete) {
                 HorizontalDivider(
                     color = Color(0xFFEF4444).copy(alpha = 0.35f),
@@ -278,7 +272,7 @@ fun ReelMoreOptionsSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "إبلاغ عن فيديو مسيء للمطور",
+                        text = "إبلاغ عن مشكلة في المقطع",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -314,7 +308,7 @@ fun ReelMoreOptionsSheet(
                     }
 
                     Text(
-                        text = "اختر سبب البلاغ (سيتم توجيهه فوراً لقناة المراسلة مع المطور):",
+                        text = "اختر سبب البلاغ وسيتم توجيهه لفريق الإشراف:",
                         fontFamily = CairoFont,
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 11.5.sp
@@ -384,7 +378,7 @@ fun ReelMoreOptionsSheet(
                     Icon(Icons.Default.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "إرسال لمحادثة المطور 🛰️",
+                        text = "إرسال البلاغ 🛡️",
                         fontFamily = CairoFont,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,

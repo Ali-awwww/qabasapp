@@ -83,6 +83,7 @@ object ReelPreferencesManager {
     private const val KEY_STATS = "reels_stats_json"
     private const val KEY_CACHED_REELS = "reels_cached_reels_json"
     private const val KEY_AL_ATHAR_ENABLED = "reels_al_athar_enabled"
+    private const val KEY_HIDDEN_REELS = "reels_hidden_ids"
 
     // StateFlows for UI observation
     private val _autoplayWifiOnly = MutableStateFlow(false)
@@ -237,6 +238,29 @@ object ReelPreferencesManager {
         _alAtharEnabled.value = enabled
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_AL_ATHAR_ENABLED, enabled).apply()
+    }
+
+    fun getHiddenReelIds(context: Context): Set<String> = context
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getStringSet(KEY_HIDDEN_REELS, emptySet())?.toSet() ?: emptySet()
+
+    fun hideReel(context: Context, reelId: String): Set<String> {
+        val hidden = getHiddenReelIds(context) + reelId
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putStringSet(KEY_HIDDEN_REELS, hidden).apply()
+        return hidden
+    }
+
+    fun unhideReel(context: Context, reelId: String): Set<String> {
+        val hidden = getHiddenReelIds(context) - reelId
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putStringSet(KEY_HIDDEN_REELS, hidden).apply()
+        return hidden
+    }
+
+    fun clearHiddenReels(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_HIDDEN_REELS).apply()
     }
 
     // --- Watch History Operations ---

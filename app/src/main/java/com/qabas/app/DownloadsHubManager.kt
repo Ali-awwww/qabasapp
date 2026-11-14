@@ -150,6 +150,8 @@ data class DownloadedMediaItem(
  */
 object DownloadsHubManager {
     private const val TAG = "DownloadsHubManager"
+    private const val MAX_REEL_DOWNLOAD_BYTES = 250L * 1024L * 1024L
+    private const val MIN_FREE_SPACE_FOR_REEL_BYTES = 60L * 1024L * 1024L
     private const val PREFS_NAME = "qabas_downloads_hub_prefs"
     private const val KEY_DOWNLOADED_REELS = "downloaded_reels_json"
     private const val KEY_DOWNLOADED_MEDIA = "downloaded_media_json"
@@ -455,10 +457,47 @@ object DownloadsHubManager {
         return _downloadedReels.value.any { it.id == reelId && it.fileExists }
     }
 
+    /** تنزيل الريل مع إعادة المحاولة تلقائيًا عند فشل الشبكة. */
+    fun downloadReel(
+        context: Context,
+        reelId: String,
+        title: String,
+        videoUrl: String,
+        thumbnailUrl: String? = null,
+        author: String = "صانع محتوى",
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        var attempt = 0
+        lateinit var startAttempt: () -> Unit
+        startAttempt = {
+            downloadReelOnce(
+                context = context,
+                reelId = reelId,
+                title = title,
+                videoUrl = videoUrl,
+                thumbnailUrl = thumbnailUrl,
+                author = author,
+                onComplete = { success ->
+                    if (success || attempt >= 2) {
+                        onComplete?.invoke(success)
+                    } else {
+                        attempt++
+                        Log.w(TAG, "Reel download failed; retry $attempt/2 for $reelId")
+                        scope.launch {
+                            delay(if (attempt == 1) 2_000L else 5_000L)
+                            startAttempt()
+                        }
+                    }
+                }
+            )
+        }
+        startAttempt()
+    }
+
     /**
      * تنزيل فيديو ريل حقيقي مع تتبع البايتات وحفظه في الذاكرة
      */
-    fun downloadReel(
+    private fun downloadReelOnce(
         context: Context,
         reelId: String,
         title: String,
@@ -479,6 +518,12 @@ object DownloadsHubManager {
             val safeFileName = "reel_${reelId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.mp4"
             val destFile = File(getReelsDirectory(context), safeFileName)
             val tempFile = File(getReelsDirectory(context), "${safeFileName}.tmp")
+
+            if (StatFs(getReelsDirectory(context).path).availableBytes < MIN_FREE_SPACE_FOR_REEL_BYTES) {
+                updateDownloadError(reelId, title, "المساحة الحرة غير كافية لتنزيل الريل")
+                withContext(Dispatchers.Main) { onComplete?.invoke(false) }
+                return@launch
+            }
 
             _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
                 reelId = reelId,
@@ -519,6 +564,12 @@ object DownloadsHubManager {
                     return@launch
                 }
 
+                if (body.contentLength() > MAX_REEL_DOWNLOAD_BYTES) {
+                    updateDownloadError(reelId, title, "حجم الريل يتجاوز الحد المسموح (250MB)")
+                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
+                    return@launch
+                }
+
                 val totalBytes = body.contentLength().takeIf { it > 0 } ?: 15_000_000L
                 var downloadedBytes = 0L
                 val startTime = System.currentTimeMillis()
@@ -531,6 +582,9 @@ object DownloadsHubManager {
                         while (input.read(buffer).also { read = it } != -1) {
                             output.write(buffer, 0, read)
                             downloadedBytes += read
+                            if (downloadedBytes > MAX_REEL_DOWNLOAD_BYTES) {
+                                throw IllegalStateException("حجم الريل يتجاوز الحد المسموح (250MB)")
+                            }
 
                             val now = System.currentTimeMillis()
                             if (now - lastUpdate >= 200) {

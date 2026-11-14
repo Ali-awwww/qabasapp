@@ -438,7 +438,7 @@ object DevChatRepository {
         reelVideoUrl: String,
         reason: String,
         additionalNotes: String = ""
-    ): Pair<DevChatMessage, DevChatMessage> = withContext(Dispatchers.IO) {
+    ): DevChatMessage = withContext(Dispatchers.IO) {
         val cleanEmail = reporterEmail.trim().lowercase()
         val detailsText = if (additionalNotes.isNotBlank()) "\n📝 تفاصيل إضافية: ${additionalNotes.trim()}" else ""
 
@@ -464,22 +464,7 @@ object DevChatRepository {
             isUrgent = true
         )
 
-        // 2. تسجيل رد تأكيدي مباشر من المطور مع الدعاء والشكر
-        val devReplyText = """
-            🛡️ تم استلام بلاغك العاجل بشأن المقطع «$reelTitle» بنجاح!
-            جزاك الله خيراً وكتب أجرك على غيرتك على حرمات الله وطهارة مجتمع قبس 🌿🤲.
-            فريق الإشراف يقوم الآن بمراجعة المقطع فوراً، وسيتم اتخاذ الإجراء الحاسم بحجب أو حذف أي محتوى مخالف للضوابط الشرعية.
-        """.trimIndent()
-
-        val devReplyMsg = sendMessage(
-            context = context,
-            userEmail = cleanEmail,
-            text = devReplyText,
-            sender = "developer",
-            category = "urgent",
-            isUrgent = true
-        )
-
-        Pair(userMsg, devReplyMsg)
+        // لا ننشئ ردًا آليًا باسم المطور؛ نجاح الإرسال يُعرض محليًا للمستخدم فقط.
+        userMsg
     }
 }

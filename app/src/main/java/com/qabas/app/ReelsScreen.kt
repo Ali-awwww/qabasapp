@@ -178,6 +178,10 @@ fun ReelsScreen(
 
     var allReels by remember { mutableStateOf<List<SupabaseServices.ReelRow>>(emptyList()) }
     var hiddenReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var reportedReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(Unit) {
+        hiddenReelIds = ReelPreferencesManager.getHiddenReelIds(context)
+    }
     var isLoading by remember { mutableStateOf(true) }
     var loadingProgress by remember { mutableFloatStateOf(0.12f) }
     // فشل الشبكة (يُميَّز عن القائمة الفارغة فعلاً) — يعرض حالة خطأ مع إعادة محاولة
@@ -1591,6 +1595,10 @@ fun ReelsScreen(
             currentUserEmail = currentUserEmail,
             currentUserId = currentUserId,
             onToggleSave = {
+                val authId = SupabaseServices.Auth.getCurrentUserId()
+                if (authId.isNullOrBlank()) {
+                    Toast.makeText(context, "سجّل الدخول لحفظ الريل في المحفوظات السحابية", Toast.LENGTH_SHORT).show()
+                } else {
                 val wasCloudSaved = cloudBookmarks.contains(reel.id)
                 val nowCloudSaved = !wasCloudSaved
                 cloudBookmarks = if (nowCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
@@ -1600,7 +1608,6 @@ fun ReelsScreen(
                     Toast.LENGTH_SHORT
                 ).show()
 
-                val authId = SupabaseServices.Auth.getCurrentUserId()
                 if (authId != null) {
                     scope.launch {
                         val ok = runCatching {
@@ -1614,13 +1621,15 @@ fun ReelsScreen(
                         }
                     }
                 }
+                }
             },
             onSpeedSelected = { newSpeed ->
                 ReelPreferencesManager.setPlaybackSpeed(context, newSpeed)
                 Toast.makeText(context, "تم ضبط سرعة التشغيل على ${newSpeed}x", Toast.LENGTH_SHORT).show()
             },
             onNotInterested = {
-                hiddenReelIds = hiddenReelIds + reel.id
+                hiddenReelIds = ReelPreferencesManager.hideReel(context, reel.id)
+                Toast.makeText(context, "تم إخفاء المقطع. يمكنك إدارة المحتوى المخفي من إعدادات الريلز", Toast.LENGTH_SHORT).show()
             },
             onDeleteReel = {
                 scope.launch {
@@ -1635,24 +1644,32 @@ fun ReelsScreen(
                 }
             },
             onReportToDevChat = { reason, details ->
-                scope.launch {
-                    DevChatRepository.reportOffensiveReel(
-                        context = context,
-                        reporterEmail = currentUserEmail,
-                        reporterName = currentUserName,
-                        reelId = reel.id,
-                        reelTitle = reel.title,
-                        reelCreator = reel.userName ?: "صانع المحتوى",
-                        reelVideoUrl = reel.videoUrl,
-                        reason = reason,
-                        additionalNotes = details
-                    )
-                    Toast.makeText(context, "تم إرسال بلاغك لمحادثة المطور مباشرة 🛡️", Toast.LENGTH_LONG).show()
-                    showDevChatScreen = true
+                if (reportedReelIds.contains(reel.id)) {
+                    Toast.makeText(context, "تم إرسال بلاغ لهذا المقطع مسبقًا", Toast.LENGTH_SHORT).show()
+                } else {
+                    reportedReelIds = reportedReelIds + reel.id
+                    scope.launch {
+                        val sent = runCatching {
+                            DevChatRepository.reportOffensiveReel(
+                                context = context,
+                                reporterEmail = currentUserEmail,
+                                reporterName = currentUserName,
+                                reelId = reel.id,
+                                reelTitle = reel.title,
+                                reelCreator = reel.userName ?: "صانع المحتوى",
+                                reelVideoUrl = reel.videoUrl,
+                                reason = reason,
+                                additionalNotes = details
+                            )
+                        }.isSuccess
+                        if (!sent) reportedReelIds = reportedReelIds - reel.id
+                        Toast.makeText(
+                            context,
+                            if (sent) "تم إرسال البلاغ وسيتم مراجعته من فريق الإشراف" else "تعذر إرسال البلاغ، حاول مرة أخرى",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
-            },
-            onOpenDevChat = {
-                showDevChatScreen = true
             },
             onDismiss = { activeMoreOptionsReel = null }
         )
@@ -1690,7 +1707,8 @@ fun ReelsScreen(
     // Settings Bottom Sheet
     if (showSettingsSheet) {
         ReelSettingsSheet(
-            onDismiss = { showSettingsSheet = false }
+            onDismiss = { showSettingsSheet = false },
+            onHiddenReelsCleared = { hiddenReelIds = emptySet() }
         )
     }
 
