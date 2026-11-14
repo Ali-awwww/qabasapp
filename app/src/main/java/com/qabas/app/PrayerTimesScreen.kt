@@ -709,7 +709,13 @@ private fun PrayerNotificationConfigDialog(
         mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")
     }
     var backgroundSelection by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
+    var backgroundInfo by remember { mutableStateOf(AdhanBackgroundPreferences.currentMediaInfo(context)) }
     val backgroundScope = rememberCoroutineScope()
+    fun formatBackgroundSize(bytes: Long): String {
+        val mb = bytes / (1024f * 1024f)
+        return if (mb >= 1f) String.format(java.util.Locale.US, "%.1f م.ب", mb)
+        else "${(bytes / 1024f).toInt()} ك.ب"
+    }
     val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
@@ -719,6 +725,7 @@ private fun PrayerNotificationConfigDialog(
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     if (saved) {
                         backgroundSelection = AdhanBackgroundPreferences.get(context)
+                        backgroundInfo = AdhanBackgroundPreferences.currentMediaInfo(context)
                         Toast.makeText(context, "تم حفظ صورة خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
                     } else Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
                 }
@@ -734,6 +741,7 @@ private fun PrayerNotificationConfigDialog(
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     if (saved) {
                         backgroundSelection = AdhanBackgroundPreferences.get(context)
+                        backgroundInfo = AdhanBackgroundPreferences.currentMediaInfo(context)
                         Toast.makeText(context, "تم حفظ فيديو خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
                     } else Toast.makeText(context, "تعذر حفظ الفيديو", Toast.LENGTH_SHORT).show()
                 }
@@ -924,6 +932,30 @@ private fun PrayerNotificationConfigDialog(
                     fontFamily = CairoFont,
                     fontSize = 11.sp
                 )
+                backgroundInfo?.let { info ->
+                    Text(
+                        text = buildString {
+                            append("الحجم: ${formatBackgroundSize(info.sizeBytes)}")
+                            if (backgroundSelection.type == AdhanBackgroundPreferences.TYPE_VIDEO && info.durationMs > 0L) {
+                                append(" • المدة: ${info.durationMs / 1000} ثانية")
+                            }
+                        },
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
+                    TextButton(
+                        onClick = {
+                            AdhanBackgroundPreferences.deleteCustomMedia(context)
+                            backgroundSelection = AdhanBackgroundPreferences.get(context)
+                            backgroundInfo = null
+                            Toast.makeText(context, "تمت استعادة الخلفية الافتراضية", Toast.LENGTH_SHORT).show()
+                        },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("حذف الخلفية واستعادة اللون الافتراضي", color = Color(0xFFFF8A80), fontFamily = CairoFont, fontSize = 10.sp)
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Geo.S_SM)
@@ -966,6 +998,7 @@ private fun PrayerNotificationConfigDialog(
                             onClick = {
                                 AdhanBackgroundPreferences.savePreset(context, preset)
                                 backgroundSelection = AdhanBackgroundPreferences.get(context)
+                                backgroundInfo = null
                             },
                             color = if (selected) GoldPrimary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
                             shape = GeoShape.CardSm,
