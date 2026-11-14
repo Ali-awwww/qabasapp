@@ -325,7 +325,10 @@ fun ProfileScreen(
             CreatorFollowManager.currentViewer(context.applicationContext)
         }
         profileViewer = viewer
-        followedCreators = CreatorFollowManager.followedCreators(context.applicationContext)
+        val cloudFollowing = withContext(Dispatchers.IO) {
+            CreatorFollowManager.refreshFollowedCreatorsFromCloud(context.applicationContext, viewer.id)
+        }
+        followedCreators = cloudFollowing ?: CreatorFollowManager.followedCreators(context.applicationContext)
         val cloudCount = withContext(Dispatchers.IO) {
             CreatorFollowManager.cloudFollowerCount(viewer.id)
         }

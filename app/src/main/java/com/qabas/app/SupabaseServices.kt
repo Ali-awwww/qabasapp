@@ -2117,7 +2117,7 @@ object SupabaseServices {
             client.postgrest.from("reel_likes").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter { eq("user_id", authUid) }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
-        }.onFailure { Log.e(TAG, "getLikedReelIds failed: ${it.message}") }.getOrNull()
+        }.onFailure { Log.w(TAG, "getLikedReelIds failed (${it.javaClass.simpleName})") }.getOrNull()
 
         /**
          * Returns the signed-in user's activity only. RLS is enforced by Supabase as a
@@ -2209,7 +2209,7 @@ object SupabaseServices {
                 }
             )
         }.onFailure {
-            Log.e(TAG, "getUserReelActivity failed: ${it.message}", it)
+            Log.w(TAG, "getUserReelActivity failed (${it.javaClass.simpleName})")
         }.getOrNull()
 
         suspend fun removeReelWatchHistory(reelId: String, userId: String): Boolean = runCatching {

@@ -166,10 +166,77 @@ DO $$ BEGIN
     CREATE POLICY "Allow public access for app anon reels" ON public.reels FOR ALL USING (true) WITH CHECK (true);
     CREATE POLICY "Allow public access for app anon profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
     CREATE POLICY "Allow public access for app anon settings" ON public.user_settings FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon likes" ON public.reel_likes FOR ALL USING (true) WITH CHECK (true);
     CREATE POLICY "Allow public access for app anon comments" ON public.reel_comments FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon creator follows" ON public.creator_follows FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+-- Keep social relationship rows private; users can read/write only their own rows.
+DROP POLICY IF EXISTS "Allow public access for app anon likes" ON public.reel_likes;
+DROP POLICY IF EXISTS "Allow public access for app anon creator follows" ON public.creator_follows;
+DROP POLICY IF EXISTS "Anyone can view likes" ON public.reel_likes;
+DROP POLICY IF EXISTS reel_likes_public_read ON public.reel_likes;
+DROP POLICY IF EXISTS creator_follows_public_read ON public.creator_follows;
+
+DROP POLICY IF EXISTS reel_likes_select_own ON public.reel_likes;
+CREATE POLICY reel_likes_select_own ON public.reel_likes
+    FOR SELECT TO authenticated USING ((SELECT auth.uid())::text = user_id);
+DROP POLICY IF EXISTS reel_likes_insert_own ON public.reel_likes;
+CREATE POLICY reel_likes_insert_own ON public.reel_likes
+    FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid())::text = user_id);
+DROP POLICY IF EXISTS reel_likes_update_own ON public.reel_likes;
+CREATE POLICY reel_likes_update_own ON public.reel_likes
+    FOR UPDATE TO authenticated
+    USING ((SELECT auth.uid())::text = user_id)
+    WITH CHECK ((SELECT auth.uid())::text = user_id);
+DROP POLICY IF EXISTS reel_likes_delete_own ON public.reel_likes;
+CREATE POLICY reel_likes_delete_own ON public.reel_likes
+    FOR DELETE TO authenticated USING ((SELECT auth.uid())::text = user_id);
+
+DROP POLICY IF EXISTS creator_follows_select_own ON public.creator_follows;
+CREATE POLICY creator_follows_select_own ON public.creator_follows
+    FOR SELECT TO authenticated USING ((SELECT auth.uid())::text = follower_id);
+DROP POLICY IF EXISTS creator_follows_insert_self ON public.creator_follows;
+CREATE POLICY creator_follows_insert_self ON public.creator_follows
+    FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid())::text = follower_id);
+DROP POLICY IF EXISTS creator_follows_update_self ON public.creator_follows;
+CREATE POLICY creator_follows_update_self ON public.creator_follows
+    FOR UPDATE TO authenticated
+    USING ((SELECT auth.uid())::text = follower_id)
+    WITH CHECK ((SELECT auth.uid())::text = follower_id);
+DROP POLICY IF EXISTS creator_follows_delete_self ON public.creator_follows;
+CREATE POLICY creator_follows_delete_self ON public.creator_follows
+    FOR DELETE TO authenticated USING ((SELECT auth.uid())::text = follower_id);
+
+REVOKE ALL ON TABLE public.reel_likes FROM PUBLIC, anon;
+REVOKE ALL ON TABLE public.creator_follows FROM PUBLIC, anon;
+GRANT SELECT, INSERT, DELETE ON TABLE public.reel_likes TO authenticated;
+GRANT UPDATE (reel_id, user_id) ON TABLE public.reel_likes TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE public.creator_follows TO authenticated;
+GRANT UPDATE (follower_id, creator_id, created_at) ON TABLE public.creator_follows TO authenticated;
+
+CREATE INDEX IF NOT EXISTS creator_follows_creator_idx
+    ON public.creator_follows (creator_id);
+CREATE OR REPLACE FUNCTION public.get_creator_follower_count(p_creator_id text)
+RETURNS bigint LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog SET row_security = off
+AS $$
+    SELECT CASE
+        WHEN p_creator_id = (SELECT auth.uid())::text
+          OR EXISTS (
+              SELECT 1 FROM public.profiles AS p
+              JOIN public.reels AS r ON r.user_id = p.id
+              WHERE p.id = p_creator_id AND r.is_active IS TRUE
+          )
+        THEN (SELECT count(*) FROM public.creator_follows AS f WHERE f.creator_id = p_creator_id)
+        ELSE 0::bigint
+    END;
+$$;
+REVOKE ALL ON FUNCTION public.get_creator_follower_count(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_creator_follower_count(text) TO anon, authenticated;
+DO $$ BEGIN
+    IF to_regprocedure('public.sync_reel_likes_count()') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL ON FUNCTION public.sync_reel_likes_count() FROM PUBLIC, anon, authenticated';
+    END IF;
 END $$;
     """.trimIndent()
 
