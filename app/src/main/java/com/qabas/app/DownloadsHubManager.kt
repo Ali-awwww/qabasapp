@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -620,6 +621,34 @@ object DownloadsHubManager {
         fileUrl: String,
         extension: String = "mp3",
         onProgress: ((sent: Long, total: Long) -> Unit)? = null
+    ): String? {
+        val retryDelaysMillis = longArrayOf(2_000L, 5_000L, 10_000L)
+        var result: String? = null
+        repeat(3) { attempt ->
+            result = downloadMediaOnce(context, mediaId, title, fileUrl, extension, onProgress)
+            if (!result.isNullOrBlank()) return result
+            if (attempt < retryDelaysMillis.lastIndex) {
+                Log.w(TAG, "Adhan download failed; retry ${attempt + 1}/3 for $mediaId")
+                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                    reelId = mediaId,
+                    title = title,
+                    progress = 0f,
+                    isError = false,
+                    errorMessage = "إعادة المحاولة تلقائيًا (${attempt + 2}/3)…"
+                ))
+                delay(retryDelaysMillis[attempt])
+            }
+        }
+        return result
+    }
+
+    private suspend fun downloadMediaOnce(
+        context: Context,
+        mediaId: String,
+        title: String,
+        fileUrl: String,
+        extension: String = "mp3",
+        onProgress: ((sent: Long, total: Long) -> Unit)? = null
     ): String? = withContext(Dispatchers.IO) {
         try {
             // كاش موجود؟ أعده فوراً
@@ -697,6 +726,7 @@ object DownloadsHubManager {
             } else null
         } catch (e: Exception) {
             Log.e(TAG, "Media download failed: ${e.message}")
+            File(getMediaDirectory(context), "media_${mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.$extension.tmp").delete()
             _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                 reelId = mediaId, title = title, isError = true, errorMessage = e.localizedMessage
             ))
