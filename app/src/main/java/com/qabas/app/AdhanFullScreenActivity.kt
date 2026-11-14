@@ -8,6 +8,15 @@ import android.view.ViewGroup
 import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -31,10 +40,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -46,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
  * شاشة الأذان التي يفتحها Full-Screen Intent فوق شاشة القفل.
@@ -134,6 +148,22 @@ private fun AdhanScreen(
     var dragDistance = 0f
     val context = androidx.compose.ui.platform.LocalContext.current
     val selection = androidx.compose.runtime.remember { AdhanBackgroundPreferences.get(context) }
+    var backgroundReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        backgroundReady = true
+    }
+    val backgroundAlpha by animateFloatAsState(
+        targetValue = if (backgroundReady) 1f else 0f,
+        animationSpec = tween(850),
+        label = "adhan_background_fade"
+    )
+    val pulseTransition = rememberInfiniteTransition(label = "adhan_icon_pulse")
+    val iconScale by pulseTransition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(tween(2200), RepeatMode.Reverse),
+        label = "adhan_icon_scale"
+    )
     val background = when (selection.value) {
         "black_gold" -> Brush.verticalGradient(listOf(Color(0xFF090909), Color(0xFF30250B), Color.Black))
         "green_night" -> Brush.verticalGradient(listOf(Color(0xFF041B17), Color(0xFF0B493A), Color(0xFF03100D)))
@@ -159,7 +189,7 @@ private fun AdhanScreen(
             .padding(horizontal = 28.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.fillMaxSize().background(background))
+        Box(Modifier.fillMaxSize().background(background).alpha(backgroundAlpha))
         if (selection.type == AdhanBackgroundPreferences.TYPE_IMAGE) {
             val bitmap = androidx.compose.runtime.remember(selection.value) {
                 BitmapFactory.decodeFile(selection.value)
@@ -170,6 +200,7 @@ private fun AdhanScreen(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
+                        .alpha(backgroundAlpha)
                 )
             }
         } else if (selection.type == AdhanBackgroundPreferences.TYPE_VIDEO) {
@@ -185,11 +216,25 @@ private fun AdhanScreen(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().alpha(backgroundAlpha),
                 update = { if (!it.isPlaying) it.start() }
             )
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = selection.dim)))
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent, Color.Black.copy(alpha = 0.60f))
+                )
+            )
+        )
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(700)) + slideInVertically(
+                animationSpec = tween(700),
+                initialOffsetY = { it / 12 }
+            )
+        ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -199,7 +244,7 @@ private fun AdhanScreen(
                 imageVector = Icons.Default.NotificationsActive,
                 contentDescription = null,
                 tint = Color(0xFFFFD166),
-                modifier = Modifier.height(54.dp)
+                modifier = Modifier.height(54.dp).scale(iconScale)
             )
             Spacer(Modifier.height(22.dp))
             Text(
@@ -255,6 +300,7 @@ private fun AdhanScreen(
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
+        }
         }
     }
 }
