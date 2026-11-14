@@ -77,9 +77,8 @@ class AdhanFullScreenActivity : ComponentActivity() {
         render()
     }
 
-    override fun onNewIntent(intent: android.content.Intent?) {
+    override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        intent ?: return
         setIntent(intent)
         readIntent(intent)
         render()
