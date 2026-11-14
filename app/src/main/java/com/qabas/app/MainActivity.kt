@@ -403,7 +403,7 @@ class MainActivity : ComponentActivity() {
                         showReportDialog = true
                     },
                     onOpenDevChat = {
-                        showChatScreen = true
+                        AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                     },
                     onOpenMyReports = {
                         showMyReportsDialog = true
@@ -1118,7 +1118,7 @@ fun QabasBottomNavigation(
             Triple(AppState.REELS, Icons.Default.SlowMotionVideo, "ريلز"),
             Triple(AppState.STUDIO_GATEWAY, Icons.Default.AutoAwesome, "الاستوديو"),
             Triple(AppState.HASANAT_HUB, Icons.Default.Mosque, "المِشكاة"),
-            Triple(AppState.SETTINGS, Icons.Default.SettingsSuggest, "الإعدادات")
+            Triple(AppState.REQUEST_CHAT, Icons.Default.Chat, "تواصل")
         )
     }
 

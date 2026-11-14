@@ -781,6 +781,12 @@ fun AppNavigation(
                 onNavigate = { newState -> viewModel.updateState { copy(appState = newState) } }
             )
         }
+        AppState.REQUEST_CHAT -> {
+            DeveloperContactScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                bottomBar = bottomNav
+            )
+        }
         AppState.SAVED_ITEMS -> {
             val savedItemsViewModel = remember {
                 SavedItemsViewModel(SavedItemsRepository())

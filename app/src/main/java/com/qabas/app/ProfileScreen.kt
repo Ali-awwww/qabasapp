@@ -693,8 +693,11 @@ fun ProfileScreen(
                         compact = false
                     )
                     Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(onClick = { onNavigate(AppState.SETTINGS) }) {
+                        Icon(Icons.Default.Settings, contentDescription = "إعدادات التطبيق", tint = qabasPrimary())
+                    }
                     IconButton(onClick = { showEditProfileDialog = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = qabasPrimary())
+                        Icon(Icons.Default.Edit, contentDescription = "تعديل الملف الشخصي", tint = qabasPrimary())
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())

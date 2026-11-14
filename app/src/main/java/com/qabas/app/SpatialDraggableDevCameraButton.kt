@@ -827,7 +827,7 @@ private fun SpatialDevCamHubDialog(
                         ) {
                             Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("محادثة الدعم 💬", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("التواصل مع المطور 💬", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp)
                         }
                     }
 
