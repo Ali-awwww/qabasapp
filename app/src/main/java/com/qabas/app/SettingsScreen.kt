@@ -279,7 +279,6 @@ fun SettingsScreen(
     var updateActiveKey by remember { mutableStateOf<String?>(null) }
     var lastConsumedResult by remember { mutableStateOf<Triple<String, Boolean, String>?>(null) }
     var cacheSizeBytes by remember { mutableStateOf<Long?>(null) }
-    var showUserReportsDialog by remember { mutableStateOf(false) }
 
     // حساب حجم المؤقتات
     LaunchedEffect(Unit) {
@@ -701,8 +700,7 @@ fun SettingsScreen(
                                     onClick = {
                                         if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
                                             AppSoundManager.playClick()
-                                            showUserReportsDialog = true
-                                            coroutineScope.launch { BugReportRepository.markReportsAsRead(context) }
+                                            AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                         } else {
                                             currentSubScreen = item.subScreen
                                         }
@@ -729,8 +727,7 @@ fun SettingsScreen(
                                     onClick = {
                                         if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
                                             AppSoundManager.playClick()
-                                            showUserReportsDialog = true
-                                            coroutineScope.launch { BugReportRepository.markReportsAsRead(context) }
+                                            AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                         } else {
                                             currentSubScreen = item.subScreen
                                         }
@@ -957,7 +954,7 @@ fun SettingsScreen(
                                 subtitle = "متابعة حالة الأعطال والاقتراحات المرسلة وردود فريق التطوير",
                                 icon = Icons.Default.ListAlt,
                                 accentColor = Color(0xFFF59E0B),
-                                onClick = { showUserReportsDialog = true }
+                                onClick = { AppNavigator.navigateTo(AppState.REQUEST_CHAT) }
                             )
                         }
                         if (canViewCrashTelemetry) {
@@ -1049,7 +1046,7 @@ fun SettingsScreen(
             SettingsSubScreen.BUG_CAMERA_CONTROL -> {
                 BugCameraSettingsScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN },
-                    onOpenMyReports = { showUserReportsDialog = true }
+                    onOpenMyReports = { AppNavigator.navigateTo(AppState.REQUEST_CHAT) }
                 )
             }
 
@@ -1069,9 +1066,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showUserReportsDialog) {
-        UserReportsDialog(onDismissRequest = { showUserReportsDialog = false })
-    }
 
     // حوار التحديث: الفحص، عرض التفاصيل، بدء التنزيل، وإظهار التقدم كلها في مسار واحد.
     if (showUpdateDialog && updateInfo != null) {

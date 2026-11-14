@@ -307,8 +307,6 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val currentEmail = prefs.getString("user_email", "") ?: ""
-        val isLoggedIn = prefs.getBoolean("is_logged_in", false)
         val accountAuthState by SupabaseRepository.getInstance().authState.collectAsState()
         val isGuestUser = accountAuthState.requiresInteractiveLogin()
         val isRegisteredUser = accountAuthState is AuthState.Authenticated
@@ -316,8 +314,6 @@ class MainActivity : ComponentActivity() {
 
         var showFab by remember { mutableStateOf(prefs.getBoolean("show_floating_debug_fabs", false)) }
         var showReportDialog by remember { mutableStateOf(false) }
-        var showMyReportsDialog by remember { mutableStateOf(false) }
-        var showChatScreen by remember { mutableStateOf(false) }
         var showCameraChooser by remember { mutableStateOf(false) }
         var screenshotBitmap by remember { mutableStateOf<Bitmap?>(null) }
         var screenshotFile by remember { mutableStateOf<File?>(null) }
@@ -384,17 +380,11 @@ class MainActivity : ComponentActivity() {
         }
 
         Box(modifier = Modifier.fillMaxSize().background(DeepSlate)) {
-            if (!showChatScreen) {
-                content()
-            } else {
-                Box(modifier = Modifier.fillMaxSize().background(Color(0xFF070B14))) {
-                    DevChatScreen(userEmail = currentEmail, onBack = { showChatScreen = false })
-                }
-            }
+            content()
 
             // 🛰️ زر الكاميرا الفضائي العائم لالتقاط لقطات الشاشة وإرسالها للمطور (مزروع في جميع الشاشات وقابل للتحريك لأي زاوية)
             val isDevScreen = BugReportManager.currentScreen.contains("DEVELOPER", ignoreCase = true)
-            if (!isGuestUser && isRegisteredUser && isCameraEnabled && !showChatScreen && !showReportDialog && !showMyReportsDialog && !isDevScreen) {
+            if (!isGuestUser && isRegisteredUser && isCameraEnabled && !showReportDialog && !isDevScreen) {
                 SpatialDraggableDevCameraButton(
                     onScreenshotCaptured = { bitmap, file ->
                         screenshotBitmap = bitmap
@@ -406,7 +396,7 @@ class MainActivity : ComponentActivity() {
                         AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                     },
                     onOpenMyReports = {
-                        showMyReportsDialog = true
+                        AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                     },
                     onOpenDiagnosticReport = { telemetry, bitmap, file ->
                         screenshotBitmap = bitmap
@@ -461,7 +451,7 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         AppSoundManager.playClick()
                                         showReportDialog = false
-                                        showMyReportsDialog = true
+                                        AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                     },
                                     shape = RoundedCornerShape(10.dp),
                                     color = GoldPrimary.copy(alpha = 0.15f),
@@ -701,10 +691,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
-
-            if (showMyReportsDialog) {
-                UserReportsDialog(onDismissRequest = { showMyReportsDialog = false })
             }
 
             if (showCameraChooser) {

@@ -67,7 +67,7 @@ object AiAutonomousRemediationEngine {
             
             المطلوب:
             1. تشخيص سبب الخلل أو الاحتياج بدقة وأمانة علمية دون ادعاءات كاذبة.
-            2. تحديد اسم الملف المتأثر في حزمة com.qabas.app (مثل DevChatScreen.kt, AudioPlaybackManager.kt, etc).
+            2. تحديد اسم الملف المتأثر في حزمة com.qabas.app (مثل DeveloperContactScreen.kt, AudioPlaybackManager.kt, etc).
             3. كتابة الكود المقترح للإصلاح أو التحسين.
             4. اقتراح رسالة Commit احترافية وعنوان Issue/Pull Request.
             
@@ -136,7 +136,7 @@ object AiAutonomousRemediationEngine {
                     originalReport = description,
                     aiDiagnosis = json.optString("diagnosis", "تم تحليل البلاغ ومقارنته بالهندسة المعمارية للنظام."),
                     affectedModule = json.optString("affectedModule", "UI / Core Engine"),
-                    targetFilePath = json.optString("targetFilePath", "app/src/main/java/com/qabas/app/DevChatScreen.kt"),
+                    targetFilePath = json.optString("targetFilePath", "app/src/main/java/com/qabas/app/DeveloperContactScreen.kt"),
                     actionType = actionType,
                     proposedCodeBefore = json.optString("codeBefore", "// المنطق السابق الذي تسبب بالخطأ"),
                     proposedCodeAfter = json.optString("codeAfter", "// التعديل البرمجي الآمن المقترح"),
@@ -167,7 +167,7 @@ object AiAutonomousRemediationEngine {
         val target = when {
             isExoError -> "app/src/main/java/com/qabas/app/AudioPlaybackManager.kt"
             isChatError -> "app/src/main/java/com/qabas/app/DevChatRepository.kt"
-            else -> "app/src/main/java/com/qabas/app/DevChatScreen.kt"
+            else -> "app/src/main/java/com/qabas/app/DeveloperContactScreen.kt"
         }
 
         return AiRemediationProposal(

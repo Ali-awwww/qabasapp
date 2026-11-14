@@ -42,6 +42,7 @@ object DevChatRepository {
         val isUrgent: Boolean = false,
         val duaStamp: String? = null,
         val reactions: Map<String, Int> = emptyMap(),
+        val status: String = "sent", // pending | sent | read | replied
         val audioLengthSec: Int = 0 // > 0 if simulated audio note
     )
 
@@ -148,6 +149,7 @@ object DevChatRepository {
             isUrgent = isUrgent,
             duaStamp = duaStamp,
             reactions = emptyMap(),
+            status = "pending",
             audioLengthSec = audioLengthSec
         )
 
@@ -158,6 +160,7 @@ object DevChatRepository {
 
         // مزامنة الرسالة السحابية عند توفر هوية مالك مؤكدة.
         // رسائل المطور بلا UID مستلم تبقى محلية ولا تُنشئ سجلات يتعذر على المستخدم قراءتها.
+        var cloudDelivered = false
         try {
             if (SupabaseServices.isSupabaseAvailable &&
                 !messageOwnerId.isNullOrBlank() &&
@@ -171,7 +174,7 @@ object DevChatRepository {
                 val accountNumber = UserIdentifierManager.getAccountNumber(context, cleanEmail).ifBlank {
                     UserIdentifierManager.getOrCreateAccountNumber(context, cleanEmail)
                 }
-                SupabaseServices.Database.sendChatMessage(
+                cloudDelivered = SupabaseServices.Database.sendChatMessage(
                     userEmail = cleanEmail,
                     message = prefix + text.trim(),
                     sender = sender,
@@ -183,7 +186,12 @@ object DevChatRepository {
             Log.w(TAG, "Supabase send sync fallback: ${e.message}")
         }
 
-        newMsg
+        val finalMessage = newMsg.copy(status = if (cloudDelivered) "sent" else "pending")
+        val saved = getLocalMessages(context, cleanEmail).map { message ->
+            if (message.id == newMsg.id) finalMessage else message
+        }
+        saveLocalMessages(context, cleanEmail, saved)
+        finalMessage
     }
 
     /** إضافة تفاعل إيموجي على رسالة معينة */

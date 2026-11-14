@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -172,8 +172,15 @@ fun DeveloperContactScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
-                    items(messages, key = { it.id }) { message ->
+                    itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
                         val isUser = message.sender.equals("user", ignoreCase = true)
+                        val hasReplyAfter = messages.drop(index + 1).any { it.sender.equals("developer", ignoreCase = true) }
+                        val statusLabel = when {
+                            !isUser -> ""
+                            hasReplyAfter -> "✓✓ تم الرد"
+                            message.status == "pending" -> "⏳ بانتظار الاتصال"
+                            else -> "✓ مرسلة"
+                        }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.Start else Arrangement.End) {
                             Surface(
                                 color = if (isUser) Color(0xFF1C3B45) else Color(0xFF263449),
@@ -191,7 +198,12 @@ fun DeveloperContactScreen(
                                     Spacer(Modifier.height(4.dp))
                                     Text(message.message, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp, lineHeight = 19.sp)
                                     Spacer(Modifier.height(3.dp))
-                                    Text(message.formattedTime, color = TextSecondary, fontFamily = CairoFont, fontSize = 9.sp)
+                                    Text(
+                                        listOf(message.formattedTime, statusLabel).filter { it.isNotBlank() }.joinToString(" • "),
+                                        color = if (statusLabel.contains("بانتظار")) Color(0xFFFBBF24) else TextSecondary,
+                                        fontFamily = CairoFont,
+                                        fontSize = 9.sp
+                                    )
                                 }
                             }
                         }

@@ -1305,14 +1305,6 @@ fun AboutUsAndVersionScreen(
 @Composable
 fun FeedbackContactForm() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    
-    var feedbackType by remember { mutableStateOf("FEATURE_SUGGESTION") } // BUG_REPORT, FEATURE_SUGGESTION
-    var message by remember { mutableStateOf("") }
-    var userName by remember { mutableStateOf("") }
-    var isSubmitting by remember { mutableStateOf(false) }
-    var showUserReportsDialog by remember { mutableStateOf(false) }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1320,192 +1312,34 @@ fun FeedbackContactForm() {
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF38BDF8).copy(alpha = 0.15f))
-                        .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Mail, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        "تواصل معنا وشاركنا رأيك",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        "اقتراح ميزات جديدة أو الإبلاغ عن مشكلة تقنية",
-                        color = qabasTextSecondary(),
-                        fontFamily = NotoSansFont,
-                        fontSize = 10.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // اختيار نوع الرسالة
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FeedbackTypeChip(
-                    label = "اقتراح ميزة ✨",
-                    isSelected = feedbackType == "FEATURE_SUGGESTION",
-                    color = Color(0xFF10B981),
-                    onClick = { feedbackType = "FEATURE_SUGGESTION" },
-                    modifier = Modifier.weight(1f)
-                )
-                FeedbackTypeChip(
-                    label = "إبلاغ عن خطأ ⚠️",
-                    isSelected = feedbackType == "BUG_REPORT",
-                    color = Color(0xFFEF4444),
-                    onClick = { feedbackType = "BUG_REPORT" },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // حقل الاسم
-            OutlinedTextField(
-                value = userName,
-                onValueChange = { userName = it },
-                label = { Text("الاسم (اختياري)", fontFamily = CairoFont, fontSize = 11.sp) },
-                placeholder = { Text("مثلاً: طالب علم", color = Color.Gray, fontSize = 11.sp) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF2A344A),
-                    focusedLabelColor = GoldPrimary,
-                    cursorColor = GoldPrimary
-                ),
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.sp, color = Color.White),
-                singleLine = true
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.SupportAgent, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("مركز التواصل مع المطور", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Spacer(modifier = Modifier.height(5.dp))
+            Text(
+                "الاقتراحات، البلاغات، الاستفسارات، ومتابعة الردود في مكان واحد.",
+                color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp, textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // حقل الرسالة
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                label = { Text("اكتب رسالتك هنا...", fontFamily = CairoFont, fontSize = 11.sp) },
-                modifier = Modifier.fillMaxWidth().height(100.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF2A344A),
-                    focusedLabelColor = GoldPrimary,
-                    cursorColor = GoldPrimary
-                ),
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.sp, color = Color.White)
-            )
-
             Spacer(modifier = Modifier.height(14.dp))
-
-            // زر الإرسال
             Button(
-                onClick = {
-                    if (message.isBlank()) {
-                        Toast.makeText(context, "يرجى كتابة الرسالة أولاً", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    scope.launch {
-                        isSubmitting = true
-                        val result = SupabaseServices.Feedback.submitFeedback(
-                            type = feedbackType,
-                            message = message,
-                            userName = userName
-                        )
-                        isSubmitting = false
-                        if (result.isSuccess) {
-                            Toast.makeText(context, "تم إرسال رسالتك بنجاح! شكراً لمساهمتك 🌟", Toast.LENGTH_LONG).show()
-                            message = ""
-                        } else {
-                            // Fallback to Email if Supabase fails
-                            Toast.makeText(context, "فشل الإرسال سحابياً، جاري فتح بريد الدعم...", Toast.LENGTH_SHORT).show()
-                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = Uri.parse("mailto:support@qabas.studio")
-                                putExtra(Intent.EXTRA_SUBJECT, "Qabas App Feedback: $feedbackType")
-                                putExtra(Intent.EXTRA_TEXT, "User: $userName\nMessage: $message\nDevice: ${android.os.Build.MODEL}")
-                            }
-                            try {
-                                context.startActivity(Intent.createChooser(intent, "إرسال عبر البريد"))
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "لا يوجد تطبيق بريد مثبت", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                },
+                onClick = { AppNavigator.navigateTo(AppState.REQUEST_CHAT) },
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                enabled = !isSubmitting
+                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
             ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = DeepSlate, strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("إرسال الآن 🚀", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // زر استعراض ومتابعة الطلبات السابقة
-            OutlinedButton(
-                onClick = { showUserReportsDialog = true },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
-            ) {
-                Icon(Icons.Default.ListAlt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Chat, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("📋 متابعة سجل طلباتي وبلاغاتي", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("فتح مركز التواصل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
-        }
-    }
-
-    if (showUserReportsDialog) {
-        UserReportsDialog(onDismissRequest = { showUserReportsDialog = false })
-    }
-}
-
-@Composable
-fun FeedbackTypeChip(
-    label: String,
-    isSelected: Boolean,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        color = if (isSelected) color.copy(alpha = 0.2f) else Color(0xFF151D2C),
-        border = BorderStroke(1.dp, if (isSelected) color else Color(0xFF2A344A)),
-        shape = RoundedCornerShape(10.dp),
-        modifier = modifier
-    ) {
-        Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                color = if (isSelected) color else Color.Gray,
-                fontFamily = CairoFont,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&mlu=4&ilr=4"))
+                runCatching { context.startActivity(intent) }
+                    .onFailure { Toast.makeText(context, "تعذر فتح رابط المجتمع حالياً", Toast.LENGTH_SHORT).show() }
+            }) {
+                Text("أو الانضمام إلى مجتمع قبس الرسمي", color = Color(0xFF25D366), fontFamily = CairoFont, fontSize = 11.sp)
+            }
         }
     }
 }

@@ -225,7 +225,6 @@ fun ReelsScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showHistorySheet by remember { mutableStateOf(false) }
     var showPublishDialog by remember { mutableStateOf(false) }
-    var showDevChatScreen by remember { mutableStateOf(false) }
     var activeDetailsReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeCommentReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
     var activeMoreOptionsReel by remember { mutableStateOf<SupabaseServices.ReelRow?>(null) }
@@ -324,7 +323,6 @@ fun ReelsScreen(
     // Graceful Back Handling (DevChat -> Sheets -> Search -> Home)
     BackHandler {
         when {
-            showDevChatScreen -> showDevChatScreen = false
             showSoundscapeBar -> showSoundscapeBar = false
             showTadabburCard -> showTadabburCard = false
             isKhushuMode -> isKhushuMode = false
@@ -1807,13 +1805,6 @@ fun ReelsScreen(
         )
     }
 
-    // Direct Dev Chat Overlay
-    if (showDevChatScreen) {
-        DevChatScreen(
-            userEmail = currentUserEmail,
-            onBack = { showDevChatScreen = false }
-        )
-    }
 
     // 🛡️ Guest Interaction Dialog
     if (showGuestLoginPrompt) {
