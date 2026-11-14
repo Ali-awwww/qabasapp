@@ -1,6 +1,0 @@
-{
-  "summary": "خطة الحذف الكلي لكود وشاشات طلبات التطبيقات القديمة والاعتماد التام على الوكيل الذكي (AiStudioAgent):\n1. حذف الملفات القديمة لطلبات التطبيقات (AppIdeaFormScreen, RequestChatScreen, RequestDetailsScreen, AppRequestService).\n2. إزالة تبويب \"طلبات التطبيقات\" من لوحة المطورين والتركيز على المال والإحصائيات.\n3. تنظيف شجرة الملاحة والأزرار التي كانت تفتح نظام الطلبات القديم.",
-  "updatedAt": "2026-11-03T17:07:58.197498417Z",
-  "requestFeedback": true,
-  "userFacing": true
-}
