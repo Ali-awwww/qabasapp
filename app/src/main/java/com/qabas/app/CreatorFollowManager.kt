@@ -127,6 +127,12 @@ object CreatorFollowManager {
         return false
     }
 
+    fun sameCanonicalUserId(firstId: String?, secondId: String?): Boolean {
+        val firstUid = firstId?.trim().orEmpty()
+        val secondUid = secondId?.trim().orEmpty()
+        return firstUid.isNotEmpty() && secondUid.isNotEmpty() && firstUid == secondUid
+    }
+
     /**
      * مطابقة صارمة لسجل المنشئ نفسه عبر المعرّف أو اسم المستخدم، دون دمج
      * الأسماء المعروضة المتشابهة الخاصة بأشخاص مختلفين.
@@ -426,24 +432,12 @@ object CreatorFollowManager {
     ): CreatorCommunity = withContext(Dispatchers.IO) {
         val viewer = currentViewer(context.applicationContext)
         val profile = withTimeoutOrNull(6_000L) {
-            if (creatorId.isBlank()) null else SupabaseServices.Profiles.getUserProfile(creatorId)
+            if (creatorId.isBlank()) null else SupabaseServices.Profiles.getPublicCreatorProfile(creatorId)
         }
         val resolvedName = profile?.fullName?.takeIf { it.isNotBlank() }
             ?: creatorName.ifBlank { creatorId }
         val resolvedAvatar = profile?.avatarUrl?.takeIf { it.isNotBlank() } ?: creatorAvatar
-        val isOwn = isSameAccount(
-            creatorId,
-            resolvedName,
-            viewer.id,
-            viewer.displayName,
-            viewer.email
-        ) || (!profile?.email.isNullOrBlank() && isSameAccount(
-            profile?.email,
-            resolvedName,
-            viewer.id,
-            viewer.displayName,
-            viewer.email
-        ))
+        val isOwn = sameCanonicalUserId(creatorId, viewer.id)
 
         var localFollowing = isFollowing(context.applicationContext, creatorId)
         val remoteFollowing = if (isOwn) null else cloudIsFollowing(viewer.id, creatorId)

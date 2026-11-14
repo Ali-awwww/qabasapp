@@ -83,13 +83,7 @@ fun ReelCreatorProfileSheet(
     val displayName = resolvedCommunity?.displayName ?: creatorName.ifBlank { creatorId }
     val displayAvatar = resolvedCommunity?.avatarUrl ?: creatorAvatar
     val isOwnProfile = resolvedCommunity?.isOwnProfile
-        ?: CreatorFollowManager.identitiesMatch(
-            creatorId,
-            creatorName,
-            resolvedViewer.id,
-            resolvedViewer.displayName,
-            resolvedViewer.email
-        )
+        ?: CreatorFollowManager.sameCanonicalUserId(creatorId, resolvedViewer.id)
     val isFollowing = resolvedCommunity?.isFollowing
         ?: CreatorFollowManager.isFollowing(context, creatorId)
     val followers = resolvedCommunity?.followers
@@ -114,18 +108,8 @@ fun ReelCreatorProfileSheet(
     val profileHandle = profileCustomId.takeIf { it.isNotBlank() }
         ?.let { "@$it" } ?: "يوزر غير متاح"
 
-    val creatorReels = remember(allReels, creatorId, displayName, isOwnProfile, resolvedViewer) {
-        allReels.filter { reel ->
-            reel.userId == creatorId ||
-                CreatorFollowManager.identitiesMatch(reel.userId, reel.userName, creatorId, displayName, null) ||
-                (isOwnProfile && CreatorFollowManager.identitiesMatch(
-                    reel.userId,
-                    reel.userName,
-                    resolvedViewer.id,
-                    resolvedViewer.displayName,
-                    resolvedViewer.email
-                ))
-        }
+    val creatorReels = remember(allReels, creatorId) {
+        allReels.filter { CreatorFollowManager.sameCanonicalUserId(it.userId, creatorId) }
     }
 
     val totalLikes = remember(creatorReels) {

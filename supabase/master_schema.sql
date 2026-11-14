@@ -1112,3 +1112,18 @@ WITH CHECK (bucket_id = 'project-recordings' AND (storage.foldername(name))[1] =
 DROP POLICY IF EXISTS "qabas_project_recordings_delete_own" ON storage.objects;
 CREATE POLICY "qabas_project_recordings_delete_own" ON storage.objects FOR DELETE TO authenticated
 USING (bucket_id = 'project-recordings' AND (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Public creator identity is a restricted projection, not public access to profiles.
+CREATE OR REPLACE VIEW public.community_profiles_public
+WITH (security_barrier = true, security_invoker = false)
+AS
+SELECT p.id, p.full_name, p.avatar_url
+FROM public.profiles AS p
+WHERE EXISTS (
+    SELECT 1
+    FROM public.reels AS r
+    WHERE r.user_id = p.id
+      AND r.is_active IS TRUE
+);
+REVOKE ALL PRIVILEGES ON TABLE public.community_profiles_public FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.community_profiles_public TO anon, authenticated, service_role;

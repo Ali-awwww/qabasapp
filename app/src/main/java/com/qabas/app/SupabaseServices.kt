@@ -1576,6 +1576,20 @@ object SupabaseServices {
             }.getOrNull()
         }
 
+        /** Reads only the allowlisted public fields from the community creator view. */
+        suspend fun getPublicCreatorProfile(creatorId: String): PublicCreatorProfileRow? {
+            if (isSyntheticOrLocalUserId(creatorId)) return null
+            return runCatching {
+                val client = client ?: return null
+                client.postgrest.from("community_profiles_public").select {
+                    filter { eq("id", creatorId) }
+                    limit(1)
+                }.decodeSingleOrNull<PublicCreatorProfileRow>()
+            }.onFailure {
+                Log.w(TAG, "getPublicCreatorProfile failed")
+            }.getOrNull()
+        }
+
         /**
          * Read a public custom handle from the author's public reel snapshot.
          * This avoids querying private user rows belonging to another account.
@@ -2842,6 +2856,13 @@ object SupabaseServices {
         @SerialName("avatar_url") val avatarUrl: String? = null,
         val role: String = "user",
         @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
+    data class PublicCreatorProfileRow(
+        val id: String = "",
+        @SerialName("full_name") val fullName: String? = null,
+        @SerialName("avatar_url") val avatarUrl: String? = null
     )
 
     @Serializable

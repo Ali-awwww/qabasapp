@@ -38,6 +38,24 @@ class CreatorFollowManagerTest {
     }
 
     @Test
+    fun `creator relationships require the exact canonical user id`() {
+        assertTrue(CreatorFollowManager.sameCanonicalUserId("auth-uid", "auth-uid"))
+        assertFalse(CreatorFollowManager.sameCanonicalUserId("same-display-name", "auth-uid"))
+        assertFalse(CreatorFollowManager.sameCanonicalUserId("", "auth-uid"))
+        assertFalse(CreatorFollowManager.sameCanonicalUserId("auth-uid", ""))
+    }
+
+    @Test
+    fun `public creator profile contract contains only public fields`() {
+        val descriptor = SupabaseServices.PublicCreatorProfileRow.serializer().descriptor
+        val fields = (0 until descriptor.elementsCount)
+            .map { descriptor.getElementName(it) }
+            .toSet()
+
+        assertEquals(setOf("id", "full_name", "avatar_url"), fields)
+    }
+
+    @Test
     fun `baseline follower estimate is stable and bounded`() {
         val first = CreatorFollowManager.estimatedBaselineFollowers("creator-1")
         val second = CreatorFollowManager.estimatedBaselineFollowers("creator-1")
