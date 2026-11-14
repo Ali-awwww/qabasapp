@@ -708,6 +708,38 @@ private fun PrayerNotificationConfigDialog(
     var soundMode by remember {
         mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")
     }
+    var backgroundSelection by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
+    val backgroundScope = rememberCoroutineScope()
+    val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            backgroundScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val saved = AdhanBackgroundPreferences.saveMedia(context, AdhanBackgroundPreferences.TYPE_IMAGE, uri)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (saved) {
+                        backgroundSelection = AdhanBackgroundPreferences.get(context)
+                        Toast.makeText(context, "تم حفظ صورة خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    val videoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            backgroundScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val saved = AdhanBackgroundPreferences.saveMedia(context, AdhanBackgroundPreferences.TYPE_VIDEO, uri)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (saved) {
+                        backgroundSelection = AdhanBackgroundPreferences.get(context)
+                        Toast.makeText(context, "تم حفظ فيديو خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(context, "تعذر حفظ الفيديو", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     // أنماط الصوت — مطابقة تماماً لما يتعامل معه PrayerAzanReceiver
     data class SoundOption(val value: String, val label: String, val icon: ImageVector, val hint: String)
@@ -856,6 +888,101 @@ private fun PrayerNotificationConfigDialog(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onOpenVoices
                 )
+
+                GeoDivider()
+
+                Text(
+                    text = "شاشة الأذان المنبثقة",
+                    color = GeoColor.textPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "جرّب الـ Full-Screen واختر خلفية مستقلة عن إشعار الصلاة مباشر.",
+                    color = GeoColor.textMuted(),
+                    fontFamily = NotoSansFont,
+                    fontSize = 10.sp
+                )
+                GeoButton(
+                    text = "تجربة الإشعار والشاشة الكاملة",
+                    icon = Icons.Default.NotificationsActive,
+                    accent = GeoColor.Quran,
+                    variant = GeoButtonStyle.Filled,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        AzanPlaybackService.startAzan(context, "", "تجربة $prayerLabel")
+                    }
+                )
+                Text(
+                    text = "الخلفية الحالية: ${when (backgroundSelection.type) {
+                        AdhanBackgroundPreferences.TYPE_IMAGE -> "صورة"
+                        AdhanBackgroundPreferences.TYPE_VIDEO -> "فيديو"
+                        else -> "لون جاهز"
+                    }}",
+                    color = GoldPrimary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Geo.S_SM)
+                ) {
+                    GeoButton(
+                        text = "صورة",
+                        icon = Icons.Default.Image,
+                        accent = GeoColor.Quran,
+                        variant = GeoButtonStyle.Outline,
+                        modifier = Modifier.weight(1f),
+                        onClick = { imagePicker.launch("image/*") }
+                    )
+                    GeoButton(
+                        text = "فيديو",
+                        icon = Icons.Default.Videocam,
+                        accent = GeoColor.Prayer,
+                        variant = GeoButtonStyle.Outline,
+                        modifier = Modifier.weight(1f),
+                        onClick = { videoPicker.launch("video/*") }
+                    )
+                }
+                Text(
+                    text = "ألوان جاهزة",
+                    color = GeoColor.textSecondary(),
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Geo.S_SM)
+                ) {
+                    listOf(
+                        "night_blue" to "كحلي",
+                        "black_gold" to "ذهبي",
+                        "green_night" to "أخضر",
+                        "sky_night" to "سماوي"
+                    ).forEach { (preset, label) ->
+                        val selected = backgroundSelection.type == AdhanBackgroundPreferences.TYPE_PRESET && backgroundSelection.value == preset
+                        Surface(
+                            onClick = {
+                                AdhanBackgroundPreferences.savePreset(context, preset)
+                                backgroundSelection = AdhanBackgroundPreferences.get(context)
+                            },
+                            color = if (selected) GoldPrimary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                            shape = GeoShape.CardSm,
+                            border = BorderStroke(Geo.B_HAIRLINE, if (selected) GoldPrimary else GeoColor.hairline()),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selected) GoldPrimary else GeoColor.textSecondary(),
+                                fontFamily = CairoFont,
+                                fontSize = 9.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {

@@ -1,7 +1,11 @@
 package com.qabas.app
 
 import android.app.NotificationManager
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
+import android.view.ViewGroup
+import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -33,6 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -124,14 +132,18 @@ private fun AdhanScreen(
     onStop: () -> Unit
 ) {
     var dragDistance = 0f
-    val background = Brush.verticalGradient(
-        colors = listOf(Color(0xFF07162B), Color(0xFF0B2940), Color(0xFF06101E))
-    )
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val selection = androidx.compose.runtime.remember { AdhanBackgroundPreferences.get(context) }
+    val background = when (selection.value) {
+        "black_gold" -> Brush.verticalGradient(listOf(Color(0xFF090909), Color(0xFF30250B), Color.Black))
+        "green_night" -> Brush.verticalGradient(listOf(Color(0xFF041B17), Color(0xFF0B493A), Color(0xFF03100D)))
+        "sky_night" -> Brush.verticalGradient(listOf(Color(0xFF071D36), Color(0xFF126080), Color(0xFF06101E)))
+        else -> Brush.verticalGradient(listOf(Color(0xFF07162B), Color(0xFF0B2940), Color(0xFF06101E)))
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .pointerInput(Unit) {
@@ -147,6 +159,37 @@ private fun AdhanScreen(
             .padding(horizontal = 28.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
+        Box(Modifier.fillMaxSize().background(background))
+        if (selection.type == AdhanBackgroundPreferences.TYPE_IMAGE) {
+            val bitmap = androidx.compose.runtime.remember(selection.value) {
+                BitmapFactory.decodeFile(selection.value)
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else if (selection.type == AdhanBackgroundPreferences.TYPE_VIDEO) {
+            AndroidView(
+                factory = { viewContext ->
+                    VideoView(viewContext).apply {
+                        layoutParams = ViewGroup.LayoutParams(-1, -1)
+                        setVideoURI(Uri.fromFile(java.io.File(selection.value)))
+                        setOnPreparedListener { player ->
+                            player.isLooping = true
+                            player.setVolume(0f, 0f)
+                            start()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { if (!it.isPlaying) it.start() }
+            )
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = selection.dim)))
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
