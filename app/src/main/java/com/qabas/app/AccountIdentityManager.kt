@@ -46,7 +46,7 @@ object AccountIdentityManager {
         } else {
             "user"
         }
-        val profile = userId?.let { SupabaseServices.Database.getUserProfile(it) }
+        val profile = userId?.let { SupabaseServices.Profiles.getUserProfile(it) }
         val displayName = profile?.fullName?.trim()?.takeIf { it.isNotBlank() } ?: localName
         val avatarUrl = profile?.avatarUrl?.trim()?.takeIf { it.isNotBlank() } ?: localAvatar
         val cleanEmail = email.trim().lowercase().takeIf { it.isNotBlank() }.orEmpty()

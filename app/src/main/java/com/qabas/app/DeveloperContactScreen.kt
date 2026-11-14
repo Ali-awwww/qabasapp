@@ -174,7 +174,7 @@ fun DeveloperContactScreen(
                 .distinct()
             if (userIds.isNotEmpty()) {
                 val profiles = userIds.mapNotNull { id ->
-                    SupabaseServices.Database.getUserProfile(id)?.let { id to it }
+                    SupabaseServices.Profiles.getUserProfile(id)?.let { id to it }
                 }.toMap()
                 if (profiles.isNotEmpty()) {
                     messages = messages.map { message ->
@@ -195,7 +195,7 @@ fun DeveloperContactScreen(
             val profileMap = mutableMapOf<String, AccountIdentity>()
             threads.forEach { (email, thread) ->
                 val firstUserMessage = thread.firstOrNull { it.sender.equals("user", ignoreCase = true) }
-                val profile = firstUserMessage?.userId?.let { SupabaseServices.Database.getUserProfile(it) }
+                val profile = firstUserMessage?.userId?.let { SupabaseServices.Profiles.getUserProfile(it) }
                 profileMap[email] = AccountIdentity(
                     userId = firstUserMessage?.userId,
                     email = email,
@@ -323,7 +323,7 @@ fun DeveloperContactScreen(
                     }
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                    listOf("الكل", "بانتظار الرد", "أعطال", "بلاغات محتوى").forEachIndexed { index, label ->
+                    itemsIndexed(listOf("الكل", "بانتظار الرد", "أعطال", "بلاغات محتوى")) { index, label ->
                         val selected = developerFilter == index
                         Surface(
                             onClick = { developerFilter = index },
