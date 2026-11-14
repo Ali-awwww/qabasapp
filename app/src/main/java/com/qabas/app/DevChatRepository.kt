@@ -7,7 +7,6 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -16,8 +15,7 @@ import java.util.UUID
 
 /**
  * 🛰️ DevChatRepository — مستودع المراسلة السيبراني المتقدم بين المستخدم والمطور
- * يدعم التخزين المحلي الفوري، التزامن السحابي مع Supabase، وتوليد تقارير التيليمتري
- * مع محاكي الرد الذكي التفاعلي ليمنح المستخدم تجربة حية ونابضة بالحياة.
+ * يدعم التخزين المحلي الفوري، التزامن السحابي مع Supabase، وتوليد تقارير التيليمتري.
  */
 object DevChatRepository {
     private const val TAG = "DevChatRepo"
@@ -361,76 +359,6 @@ object DevChatRepository {
             |══════════════════════════════════
             |الحالة: النظام يعمل بكفاءة كاملة وجاهز للفحص المباشر ⚡
         """.trimMargin()
-    }
-
-    /**
-     * 🤖 محاكي الرد الذكي التفاعلي للمطور:
-     * - يقتصر على الحاجات الطارئة ورسائل الشكر والدعاء للمستخدم على مساهمته الطيبة
-     * - يمتنع تماماً عن الردود التلقائية المضللة التي تزعم حل المشكلة قبل فحصها
-     */
-    suspend fun simulateSmartDeveloperReply(
-        context: Context,
-        userEmail: String,
-        userMessage: String,
-        isUrgent: Boolean = false,
-        onTyping: (Boolean) -> Unit,
-        onReplyReceived: (DevChatMessage) -> Unit
-    ) = withContext(Dispatchers.Main) {
-        // بدء إشارة الكتابة التفاعلية
-        onTyping(true)
-        delay(1800) // وقت واقعي للتفكير والكتابة
-        onTyping(false)
-
-        val clean = userMessage.trim().lowercase()
-
-        val (replyText, replyCategory) = when {
-            isUrgent || clean.contains("عاجل") || clean.contains("مسيء") || clean.contains("مخالف") || clean.contains("طارئ") || clean.contains("urgent") -> {
-                Pair(
-                    "🚨 تم استلام ندائك العاجل بعناية فائقة 🛡️\nجزاك الله خيراً على غيرتك وحرصك المبارك على نقاء التطبيق وسلامة المستخدمين. تم تصعيد هذا البلاغ الطارئ مباشرة إلى مهندسي التطوير والإشراف الشرعي لمتابعته كأولوية قصوى.",
-                    "urgent"
-                )
-            }
-            clean.contains("خلل") || clean.contains("خطأ") || clean.contains("مشكلة") || clean.contains("bug") || clean.contains("تهنيج") -> {
-                Pair(
-                    "جزاك الله خير الجزاء وبارك فيك على حرصك ومساهمتك الطيبة في إبلاغنا 🌿🤲\nنسأل الله أن يكتب سعيك في ميزان حسناتك؛ تم تدوين ملاحظتك بدقة وتحويلها لجدول الفحص البرمجي للتحقق منها وتلافيها بعون الله.",
-                    "dua"
-                )
-            }
-            clean.contains("ميزة") || clean.contains("اقتراح") || clean.contains("فكرة") || clean.contains("feature") || clean.contains("تطوير") -> {
-                Pair(
-                    "بارك الله فيك وفي عقلك النيّر 💡✨\nشكر الله لك هذا الاقتراح الثري وحرصك على المساهمة في الارتقاء بقبس. أفكاركم ومشاركاتكم هي الأساس في تطوير هذا المشروع المبارك.",
-                    "dua"
-                )
-            }
-            clean.contains("شكرا") || clean.contains("جزاك") || clean.contains("بارك") || clean.contains("دعاء") || clean.contains("وفقك") -> {
-                Pair(
-                    "ولكم بالمثل وزيادة، وتقبل الله منا ومنكم صالح الأعمال والنيات ❤️🤲\nوجودكم ودعاؤكم الصادق بظهر الغيب هو أعظم ما نرجوه ونستعين به في رحلة خدمة كتاب الله.",
-                    "dua"
-                )
-            }
-            clean.contains("telemetry") || clean.contains("تقرير") || clean.contains("مواصفات") -> {
-                Pair(
-                    "تم استلام التقرير التشخيصي بنجاح 🛰️\nأحسن الله إليك ونفع بك؛ مساهمتك التقنية تساعدنا في تحسين التوافقية والأداء على مختلف الأجهزة.",
-                    "dua"
-                )
-            }
-            else -> {
-                Pair(
-                    "أهلاً وسهلاً بك يا أخي المبارك 🌿\nشكر الله لك مساهمتك وتواصلك الكريم، ونسأل الله أن يجريك خير الجزاء على وقتك وحرصك على نفع إخوانك. رسالتك محفوظة ومحل اهتمام فريق التطوير.",
-                    "dua"
-                )
-            }
-        }
-
-        val devMsg = sendMessage(
-            context = context,
-            userEmail = userEmail,
-            text = replyText,
-            sender = "developer",
-            category = replyCategory,
-            isUrgent = isUrgent
-        )
-        onReplyReceived(devMsg)
     }
 
     /**
