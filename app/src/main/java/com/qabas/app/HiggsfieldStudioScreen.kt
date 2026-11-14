@@ -70,6 +70,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.qabasPrimary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -82,7 +84,6 @@ private enum class HiggsfieldMode(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HiggsfieldStudioScreen(onBack: () -> Unit) {
-    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val primary = qabasPrimary()
@@ -101,6 +102,15 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     var progressMessage by remember { mutableStateOf("") }
     var resultFile by remember { mutableStateOf<File?>(null) }
     var resultMessage by remember { mutableStateOf("") }
+    var generationJob by remember { mutableStateOf<Job?>(null) }
+
+    BackHandler {
+        if (isGenerating) {
+            generationJob?.cancel()
+        } else {
+            onBack()
+        }
+    }
 
     val activeMode = HiggsfieldMode.valueOf(mode)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -126,7 +136,8 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     }
 
     val submitGeneration: () -> Unit = {
-        scope.launch {
+        generationJob?.cancel()
+        generationJob = scope.launch {
             isGenerating = true
             progress = 0f
             progressMessage = "تهيئة الطلب..."
@@ -165,10 +176,14 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                 } else {
                     "تعذر إكمال الطلب. تحقق من حالة الربط والمفتاح ثم حاول لاحقًا."
                 }
+            } catch (_: CancellationException) {
+                resultMessage = "تم إلغاء طلب التوليد."
+                throw CancellationException("Higgsfield generation cancelled")
             } catch (_: Exception) {
                 resultMessage = "تعذر إكمال الطلب. تحقق من الاتصال ببوابة قبس ومفتاح Higgsfield."
             } finally {
                 isGenerating = false
+                generationJob = null
             }
         }
     }
@@ -258,6 +273,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                     val selected = activeMode == option
                     Surface(
                         onClick = { mode = option.name },
+                        enabled = !isGenerating,
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = RoundedCornerShape(10.dp),
                         color = if (selected) primary else Color(0xFF111827),
@@ -309,6 +325,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                     val selected = durationSeconds == seconds
                     Surface(
                         onClick = { durationSeconds = seconds },
+                        enabled = !isGenerating,
                         shape = RoundedCornerShape(8.dp),
                         color = if (selected) primary.copy(alpha = 0.2f) else Color(0xFF111827),
                         border = BorderStroke(1.dp, if (selected) primary else Color(0xFF334155))
@@ -330,6 +347,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                     val selected = cameraMotion == value
                     Surface(
                         onClick = { cameraMotion = value },
+                        enabled = !isGenerating,
                         shape = RoundedCornerShape(8.dp),
                         color = if (selected) primary.copy(alpha = 0.18f) else Color(0xFF111827),
                         border = BorderStroke(1.dp, if (selected) primary else Color(0xFF334155))
@@ -369,6 +387,13 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
             if (isGenerating) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = primary)
                 Text(progressMessage, color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 11.sp)
+                OutlinedButton(
+                    onClick = { generationJob?.cancel() },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text("إلغاء التوليد", color = Color(0xFFFCA5A5), fontFamily = CairoFont, fontSize = 11.sp)
+                }
             }
 
             if (resultMessage.isNotBlank()) {
