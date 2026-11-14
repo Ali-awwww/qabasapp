@@ -624,7 +624,19 @@ object DownloadsHubManager {
         try {
             // كاش موجود؟ أعده فوراً
             val existing = File(getMediaDirectory(context), "media_${mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.$extension")
-            if (existing.exists() && existing.length() > 0) return@withContext existing.absolutePath
+            if (existing.exists() && existing.length() > 0) {
+                addDownloadedMedia(
+                    context,
+                    DownloadedMediaItem(
+                        id = mediaId,
+                        title = title,
+                        subtitle = "صوت أذان",
+                        localFilePath = existing.absolutePath,
+                        fileSizeBytes = existing.length()
+                    )
+                )
+                return@withContext existing.absolutePath
+            }
             // ملف محلي أصلاً (file://) — لا تنزيل needed
             if (fileUrl.startsWith("file://") || fileUrl.startsWith("/")) return@withContext fileUrl
 
@@ -669,6 +681,16 @@ object DownloadsHubManager {
             if (tmp.exists() && tmp.length() > 0) {
                 if (existing.exists()) existing.delete()
                 tmp.renameTo(existing)
+                addDownloadedMedia(
+                    context,
+                    DownloadedMediaItem(
+                        id = mediaId,
+                        title = title,
+                        subtitle = "صوت أذان",
+                        localFilePath = existing.absolutePath,
+                        fileSizeBytes = existing.length()
+                    )
+                )
                 _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
                 refreshStorageMetrics(context)
                 existing.absolutePath

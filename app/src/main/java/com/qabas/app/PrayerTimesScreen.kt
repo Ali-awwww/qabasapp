@@ -2117,6 +2117,7 @@ fun AzanVoicesDialog(
     val isDeveloper = remember { AdminGuard.isDashboardAccessAllowed(context) }
     val scope = rememberCoroutineScope()
     val mediaDownloads by DownloadsHubManager.activeMediaDownloads.collectAsState()
+    val downloadedMedia by DownloadsHubManager.downloadedMedia.collectAsState()
 
     fun reloadVoices() {
         voicesList = MuezzinVoiceManager.getAllVoices(context)
@@ -2138,6 +2139,7 @@ fun AzanVoicesDialog(
 
     // مزامنة أصوات السحابة (قراءة للجميع)
     LaunchedEffect(Unit) {
+        DownloadsHubManager.init(context)
         SupabaseServices.Auth.getCurrentUserId()
         reloadVoices()
         if (SupabaseServices.isSupabaseAvailable) {
@@ -2490,6 +2492,11 @@ fun AzanVoicesDialog(
                             // عدّاد تنزيل الأذان السحابي — عبر مدير التنزيلات نفسه
                             val isCloudVoice = voice.id.startsWith("cloud_") && voice.streamUrl.startsWith("http")
                             val dlProgress = mediaDownloads[voice.id]
+                            val isDownloaded = downloadedMedia.any {
+                                it.id == voice.id && java.io.File(it.localFilePath).let { file ->
+                                    file.isFile && file.length() > 0L
+                                }
+                            }
                             if (isCloudVoice) {
                                 if (dlProgress != null && !dlProgress.isError && !dlProgress.isCompleted) {
                                     TransferCounterBar(
@@ -2498,6 +2505,16 @@ fun AzanVoicesDialog(
                                         totalBytes = dlProgress.totalBytes,
                                         isUpload = false,
                                         speedText = if (dlProgress.speedKbps > 0) "${dlProgress.speedKbps} KB/ث" else null
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                } else if (isDownloaded) {
+                                    Text(
+                                        text = "تم تنزيل صوت الأذان — جاهز للعمل دون إنترنت ✅",
+                                        color = Color(0xFF7BE495),
+                                        fontSize = 10.5.sp,
+                                        fontFamily = CairoFont,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                 } else {

@@ -15,7 +15,12 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * خدمة تشغيل صوت الأذان في الخلفية مع FullScreenIntent (تظهر شاشة الأذان فوق أي تطبيق)
@@ -63,6 +68,7 @@ class AzanPlaybackService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var audioFocusRequest: android.media.AudioFocusRequest? = null
     private var audioManager: android.media.AudioManager? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -125,6 +131,8 @@ class AzanPlaybackService : Service() {
         if (action == ACTION_START_AZAN) {
             val voiceId = intent.getStringExtra("voice_id") ?: "makkah_mulla"
             val prayerName = intent.getStringExtra("prayer_name") ?: "الصلاة"
+            // نرفع الخدمة فورًا قبل أي اتصال أو تنزيل حتى لا يقتل النظام الخدمة أثناء التجهيز.
+            startForegroundForAzan(prayerName, "جاري تجهيز صوت الأذان")
             playAzanAudio(voiceId, prayerName)
         }
 
@@ -132,39 +140,30 @@ class AzanPlaybackService : Service() {
     }
 
     private fun playAzanAudio(voiceId: String, prayerName: String) {
-        val selectedVoice = MuezzinVoiceManager.getVoiceById(applicationContext, voiceId)
-        if (selectedVoice == null) {
-            Log.w(TAG, "No real adhan voice is configured for id=$voiceId; playback skipped")
-            stopSelf()
-            return
-        }
-
-        if (voiceId.startsWith("usercloud_")) {
-            val initialNotification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(
-                    NOTIFICATION_ID,
-                    initialNotification,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                )
-            } else {
-                startForeground(NOTIFICATION_ID, initialNotification)
+        serviceScope.launch {
+            val selectedVoice = AzanVoiceResolver.resolveVoice(applicationContext, voiceId)
+            if (selectedVoice == null) {
+                Log.w(TAG, "No adhan voice is available for id=$voiceId")
+                stopPlayingAndSelf()
+                return@launch
             }
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                val signedUrl = UserAzanCloudRepository.resolveStreamUrl(voiceId)
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    if (signedUrl.isNullOrBlank()) {
-                        Log.e(TAG, "Could not resolve owner-authorized signed URL for personal adhan")
-                        stopSelf()
-                    } else {
-                        playAzanAudioResolved(selectedVoice, prayerName, signedUrl)
-                    }
+
+            val source = if (selectedVoice.id.startsWith("usercloud_")) {
+                withContext(Dispatchers.IO) {
+                    UserAzanCloudRepository.resolveStreamUrl(selectedVoice.id)
                 }
+            } else {
+                // لصوت المطور السحابي: تنزيل تلقائي إلى كاش دائم عند غيابه.
+                AzanVoiceResolver.ensurePlayableSource(applicationContext, selectedVoice)
             }
-            return
-        }
 
-        playAzanAudioResolved(selectedVoice, prayerName, selectedVoice.streamUrl)
+            if (source.isNullOrBlank()) {
+                Log.e(TAG, "No playable source for adhan voice ${selectedVoice.id}")
+                stopPlayingAndSelf()
+            } else {
+                playAzanAudioResolved(selectedVoice, prayerName, source)
+            }
+        }
     }
 
     private fun playAzanAudioResolved(selectedVoice: AzanVoice, prayerName: String, streamUrl: String) {
@@ -176,17 +175,16 @@ class AzanPlaybackService : Service() {
 
         wakeLock?.acquire(300000L) // 5 minutes max
 
-        val notification = buildForegroundNotification(prayerName, selectedVoice.nameAr)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForegroundForAzan(prayerName, selectedVoice.nameAr)
 
-        val localFile = java.io.File(getExternalFilesDir(null), "azan_${selectedVoice.id}.mp3")
-        val dataSource: String = if (localFile.exists() && localFile.length() > 0) {
-            Log.d(TAG, "Using cached azan file: ${localFile.absolutePath}")
-            localFile.absolutePath
+        val downloadedFile = if (!streamUrl.startsWith("http")) java.io.File(streamUrl) else null
+        val legacyFile = java.io.File(getExternalFilesDir(null), "azan_${selectedVoice.id}.mp3")
+        val dataSource: String = if (downloadedFile?.isFile == true && downloadedFile.length() > 0) {
+            Log.d(TAG, "Using downloaded azan file: ${downloadedFile.absolutePath}")
+            downloadedFile.absolutePath
+        } else if (legacyFile.exists() && legacyFile.length() > 0) {
+            Log.d(TAG, "Using legacy cached azan file: ${legacyFile.absolutePath}")
+            legacyFile.absolutePath
         } else {
             Log.d(TAG, "Streaming configured adhan source")
             streamUrl
@@ -218,6 +216,19 @@ class AzanPlaybackService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error playing azan: ${e.message}", e)
             stopPlayingAndSelf()
+        }
+    }
+
+    private fun startForegroundForAzan(prayerName: String, muezzinName: String) {
+        val notification = buildForegroundNotification(prayerName, muezzinName)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
@@ -287,6 +298,7 @@ class AzanPlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        serviceScope.cancel()
         stopPlayingAndSelf()
         super.onDestroy()
     }
