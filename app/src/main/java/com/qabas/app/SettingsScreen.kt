@@ -223,19 +223,24 @@ fun SettingsScreen(
             SearchableSetting("مركز الأذونات وحماية النظام", "صلاحيات الميكروفون، الكاميرا، دقة الأذان، ودرع حماية الخلفية", Icons.Default.Shield, SettingsSubScreen.PERMISSIONS_HUB, listOf("أمان", "صلاحية"), badge = "درع فضائي 🛡️", accentColor = Color(0xFF00E5FF)),
             SearchableSetting("إعدادات سهولة الوصول", "التباين العالي، تقليل الحركة، حجم خط واجهة التطبيق", Icons.Default.AccessibilityNew, SettingsSubScreen.ACCESSIBILITY, listOf("سهولة الوصول", "تباين", "خط", "حركة"), badge = "Accessibility ♿", accentColor = Color(0xFF10B981))
         ).let { base ->
-            if (isDeveloperAccount) {
-                base + listOf(
-                    SearchableSetting("النظام والبيانات والمجتمع", "النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية", Icons.Default.SettingsSuggest, SettingsSubScreen.COMMUNITY_SUPPORT, listOf("كاش", "نظام", "بيانات", "احتياطي"), badge = "الاستدامة ⚙️", accentColor = GoldPrimary),
-                    SearchableSetting("تحديثات xdelta ومستودع GitHub المباشر", "اتصال مباشر بمستودع قبس، فحص إصدارات xdelta وتثبيت تفاضلي", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta"), badge = "تحديث تفاضلي ⚡", accentColor = Color(0xFF00E5FF))
-                )
+            val withDeveloperSettings = if (isDeveloperAccount) {
+                base + SearchableSetting("أدوات المطور وتحديثات xdelta", "فحص إصدارات xdelta والتشخيص المتقدم لمستودع قبس", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta", "مطور"), badge = "للمطور فقط ⚡", accentColor = Color(0xFF00E5FF))
             } else base
-        }.let { base ->
+            val withCommonSettings = withDeveloperSettings + SearchableSetting(
+                "النظام والبيانات والمجتمع",
+                "النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية",
+                Icons.Default.SettingsSuggest,
+                SettingsSubScreen.COMMUNITY_SUPPORT,
+                listOf("كاش", "نظام", "بيانات", "احتياطي"),
+                badge = "إدارة التطبيق ⚙️",
+                accentColor = GoldPrimary
+            )
             if (isLoggedInAccount) {
-                base + listOf(
-                    SearchableSetting("مركز الدعم والدردشة المباشرة", "متابعة بلاغاتك، التواصل مع المطور، والحصول على مساعدة تقنية حية", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "الدعم الفني 💬", accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8), badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else null),
-                    SearchableSetting("زر الكاميرا الفضائي للبلاغات والمشاكل", "التحكم الكامل بزر الكاميرا العائم للبلاغات والمشاكل", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "خاص بالحسابات 📸", accentColor = Color(0xFF00E5FF))
+                withCommonSettings + listOf(
+                    SearchableSetting("مركز التواصل مع المطور", "متابعة بلاغاتك والتواصل مع المطور داخل محادثة موحدة", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "التواصل 💬", accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8), badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else null),
+                    SearchableSetting("إعدادات كاميرا البلاغات", "التحكم بزر الكاميرا العائم المستخدم لإرسال البلاغات", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "للحسابات المسجلة 📸", accentColor = Color(0xFF00E5FF))
                 )
-            } else base
+            } else withCommonSettings
         }
     }
 
@@ -836,7 +841,7 @@ fun SettingsScreen(
                         )
                         SettingsActionCard(
                             title = "الأذان ومواقيت الصلاة",
-                            subtitle = "حساب المواقيت، اختيار المؤذن، وتنبيهات الأذكار",
+                            subtitle = "حساب المواقيت، اختيار المؤذن، وتنبيهات الصلاة",
                             icon = Icons.Default.Mosque,
                             accentColor = Color(0xFFF59E0B),
                             content = { SpiritualPreferencesSection() }
@@ -878,9 +883,6 @@ fun SettingsScreen(
             // ⚙️ 4. النظام، البيانات والمجتمع
             // ==========================================
             SettingsSubScreen.COMMUNITY_SUPPORT -> {
-                if (!isDeveloperAccount) {
-                    currentSubScreen = SettingsSubScreen.MAIN
-                } else {
                     SubScreenScaffold(
                         title = "النظام والبيانات والمجتمع",
                         icon = Icons.Default.SettingsSuggest,
@@ -915,7 +917,7 @@ fun SettingsScreen(
                         SettingsGroupHeader(Translator.tr("المجتمع والتواصل ✦"))
                         SettingsActionCard(
                             title = "ملتقى قبس والمجتمعات الرسمية",
-                            subtitle = "قنوات التواصل، مجتمع المبدعين، والدعم الفني المباشر",
+                            subtitle = "القنوات الرسمية، مجتمع المبدعين، وتقييمات المستخدمين",
                             icon = Icons.Default.Hub,
                             accentColor = GoldPrimary,
                             content = { CommunityAndLinksSection() }
@@ -969,7 +971,6 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
 
             // ==========================================
             // 🎨 شاشة معاينة نظام الألوان (Design Studio Preview)
@@ -2255,7 +2256,13 @@ fun AboutAppSection(onShowPrivacy: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text(Translator.tr("إصدار التطبيق"), color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
-            Text("v2.5.0-HUD", color = GoldPrimary, fontFamily = RobotoMonoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                color = GoldPrimary,
+                fontFamily = RobotoMonoFont,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
         Button(
             onClick = onShowPrivacy,
@@ -3297,14 +3304,6 @@ fun ProfileSettingsCard(
                             }
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF10B981))
-                            .border(2.dp, Color(0xFF070B14), CircleShape)
-                            .align(Alignment.BottomEnd)
-                    )
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
