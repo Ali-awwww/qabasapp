@@ -196,7 +196,6 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.ui.text.google.fonts)
   implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.core.splashscreen)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.play.services.location)
