@@ -274,6 +274,30 @@ fun SpiritualPreferencesSection() {
     val context = LocalContext.current
     val calculationMethod by UserPreferencesManager.calculationMethod.collectAsState()
     val athanVoice by UserPreferencesManager.athanVoice.collectAsState()
+    val backgroundScope = rememberCoroutineScope()
+    var adhanBackground by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) backgroundScope.launch(Dispatchers.IO) {
+            val saved = AdhanBackgroundPreferences.saveMedia(context, AdhanBackgroundPreferences.TYPE_IMAGE, uri)
+            withContext(Dispatchers.Main) {
+                if (saved) {
+                    adhanBackground = AdhanBackgroundPreferences.get(context)
+                    Toast.makeText(context, "تم حفظ صورة خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) backgroundScope.launch(Dispatchers.IO) {
+            val saved = AdhanBackgroundPreferences.saveMedia(context, AdhanBackgroundPreferences.TYPE_VIDEO, uri)
+            withContext(Dispatchers.Main) {
+                if (saved) {
+                    adhanBackground = AdhanBackgroundPreferences.get(context)
+                    Toast.makeText(context, "تم حفظ فيديو خلفية شاشة الأذان", Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(context, "تعذر حفظ الفيديو. الحد الأقصى 30 ثانية و50 م.ب", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -358,6 +382,59 @@ fun SpiritualPreferencesSection() {
                     )
                 }
             }
+        }
+
+        HorizontalDivider(color = Color(0xFF1E293B))
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Fullscreen, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("خلفية شاشة إشعار الأذان:", color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("تظهر عند دخول وقت الأذان، ومستقلة عن إشعار صلاة مباشر.", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(listOf("night_blue" to "كحلي", "black_gold" to "ذهبي", "green_night" to "أخضر", "sky_night" to "سماوي")) { (preset, label) ->
+                    val selected = adhanBackground.type == AdhanBackgroundPreferences.TYPE_PRESET && adhanBackground.value == preset
+                    FilterChip(
+                        selected = selected,
+                        onClick = {
+                            AdhanBackgroundPreferences.savePreset(context, preset)
+                            adhanBackground = AdhanBackgroundPreferences.get(context)
+                        },
+                        label = { Text(label, fontFamily = CairoFont, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFF151B2B),
+                            labelColor = TextSecondary,
+                            selectedContainerColor = GoldPrimary,
+                            selectedLabelColor = DeepSlate
+                        ),
+                        border = BorderStroke(1.dp, if (selected) GoldPrimary else Color(0xFF1E293B)),
+                        shape = androidx.compose.foundation.shape.CutCornerShape(6.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Color(0xFF38BDF8))) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("صورة", fontFamily = CairoFont, fontSize = 11.sp)
+                }
+                OutlinedButton(onClick = { videoPicker.launch("video/*") }, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Color(0xFF10B981))) {
+                    Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("فيديو", fontFamily = CairoFont, fontSize = 11.sp)
+                }
+            }
+            Text(
+                "المحدد حاليًا: ${if (adhanBackground.type == AdhanBackgroundPreferences.TYPE_IMAGE) "صورة" else if (adhanBackground.type == AdhanBackgroundPreferences.TYPE_VIDEO) "فيديو" else "لون جاهز"}",
+                color = GoldPrimary,
+                fontFamily = CairoFont,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 5.dp)
+            )
         }
 
         HorizontalDivider(color = Color(0xFF1E293B))
