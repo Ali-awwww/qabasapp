@@ -2,8 +2,12 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,8 +68,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -90,14 +99,31 @@ private val contactCategories = listOf(
     ContactCategory("general_question", "استفسار عام", Icons.Default.HelpOutline)
 )
 
+private val DeveloperInboxBackground = Color(0xFF070B14)
+private val DeveloperInboxCard = Color(0xFF14213A)
+private val DeveloperInboxBorder = Color(0xFF263550)
+private val DeveloperInboxAccent = Color(0xFF19CFE0)
+private val DeveloperInboxPrimaryText = Color(0xFFEAF2FF)
+private val DeveloperInboxSecondaryText = Color(0xFF9AA9BE)
+
+private fun formatContactTime(message: DevChatRepository.DevChatMessage?): String {
+    if (message == null) return ""
+    return if (message.createdAt > 0L) {
+        SimpleDateFormat("HH:mm", Locale.US).format(Date(message.createdAt))
+    } else {
+        message.formattedTime
+    }
+}
+
 @Composable
 private fun ContactAvatar(
     name: String,
     avatarUrl: String?,
-    accent: Color
+    accent: Color,
+    size: Dp = 38.dp
 ) {
     Surface(
-        modifier = Modifier.size(38.dp),
+        modifier = Modifier.size(size),
         shape = CircleShape,
         color = accent.copy(alpha = 0.18f)
     ) {
@@ -105,7 +131,7 @@ private fun ContactAvatar(
             AsyncImage(
                 model = avatarUrl,
                 contentDescription = name,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(size)
             )
         } else {
             Box(contentAlignment = Alignment.Center) {
@@ -138,6 +164,12 @@ fun DeveloperContactScreen(
     val developerDisplayName = if (accountIdentity.isDeveloper) accountIdentity.displayName else "المطور"
     val developerAvatarUrl = if (accountIdentity.isDeveloper) accountIdentity.avatarUrl else null
     val isDeveloper = accountIdentity.isDeveloper
+    val contactBackground = if (isDeveloper) DeveloperInboxBackground else DeepSlate
+    val contactCard = if (isDeveloper) DeveloperInboxCard else Color(0xFF132238)
+    val contactBorder = if (isDeveloper) DeveloperInboxBorder else Color.White.copy(alpha = 0.12f)
+    val contactAccent = if (isDeveloper) DeveloperInboxAccent else GoldPrimary
+    val contactPrimaryText = if (isDeveloper) DeveloperInboxPrimaryText else Color.White
+    val contactSecondaryText = if (isDeveloper) DeveloperInboxSecondaryText else TextSecondary
     var identityLoading by remember { mutableStateOf(true) }
     var threads by remember { mutableStateOf<Map<String, List<DevChatRepository.DevChatMessage>>>(emptyMap()) }
     var selectedThreadEmail by remember { mutableStateOf(userEmail) }
@@ -304,31 +336,31 @@ fun DeveloperContactScreen(
     }
 
     if (identityLoading) {
-        Box(modifier = Modifier.fillMaxSize().background(DeepSlate), contentAlignment = Alignment.Center) {
-            Text("جارٍ التحقق من هوية الحساب...", color = TextSecondary, fontFamily = CairoFont, fontSize = 13.sp)
+        Box(modifier = Modifier.fillMaxSize().background(contactBackground), contentAlignment = Alignment.Center) {
+            Text("جارٍ التحقق من هوية الحساب...", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 13.sp)
         }
         return
     }
 
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = contactBackground,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 17.sp)
+                        Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = contactPrimaryText, fontSize = 18.sp)
                         Text(
                             if (isDeveloper) "لوحة المحادثات — ${threads.size} محادثة"
                             else if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
                             fontFamily = CairoFont,
-                            color = if (unreadReplies > 0) GoldPrimary else TextSecondary,
-                            fontSize = 10.sp
+                            color = if (unreadReplies > 0) contactAccent else contactSecondaryText,
+                            fontSize = 11.sp
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = contactAccent)
                     }
                 },
                 actions = {
@@ -347,30 +379,32 @@ fun DeveloperContactScreen(
                             }
                         }
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "تحديث المحادثة", tint = GoldPrimary)
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث المحادثة", tint = contactAccent)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = contactBackground)
             )
         },
         bottomBar = bottomBar
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF132238),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, contactBorder, RoundedCornerShape(18.dp)),
+                color = contactCard,
+                shape = RoundedCornerShape(18.dp)
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Chat, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Chat, contentDescription = null, tint = contactAccent, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(
                         if (isDeveloper) "اختر محادثة للرد عليها، وستظهر رسالتك للمستخدم مباشرة."
                         else "اختر تصنيف الرسالة ثم اكتب ملاحظتك. ستظهر رسالتك في لوحة المطور للمراجعة والرد.",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = contactPrimaryText.copy(alpha = 0.92f),
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
@@ -381,7 +415,7 @@ fun DeveloperContactScreen(
             if (isDeveloper) {
                 Text(
                     if (selectedThreadEmail.isBlank()) "المحادثات — الأحدث أولاً" else "المحادثة الحالية",
-                    color = TextSecondary,
+                    color = contactSecondaryText,
                     fontFamily = CairoFont,
                     fontSize = 11.sp
                 )
@@ -390,12 +424,17 @@ fun DeveloperContactScreen(
                         val selected = developerFilter == index
                         Surface(
                             onClick = { developerFilter = index },
-                            color = if (selected) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(16.dp)
+                            modifier = Modifier.border(
+                                1.dp,
+                                if (selected) contactAccent.copy(alpha = 0.75f) else contactBorder,
+                                RoundedCornerShape(18.dp)
+                            ),
+                            color = if (selected) contactAccent else contactCard,
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Text(
                                 label,
-                                color = if (selected) DeepSlate else Color.White.copy(alpha = 0.85f),
+                                color = if (selected) DeveloperInboxBackground else contactPrimaryText.copy(alpha = 0.9f),
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -406,20 +445,20 @@ fun DeveloperContactScreen(
                 if (selectedThreadEmail.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { selectedThreadEmail = "" }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة للمحادثات", tint = GoldPrimary)
-                            Text("المحادثات", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة للمحادثات", tint = contactAccent)
+                            Text("المحادثات", color = contactAccent, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         Text(
                             threadProfiles[selectedThreadEmail]?.displayName
                                 ?: selectedThreadEmail.substringBefore("@").ifBlank { "المستخدم" },
-                            color = Color.White,
+                            color = contactPrimaryText,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
                     }
                 } else if (sortedThreadEmails.isEmpty()) {
-                    Text("لا توجد محادثات مطابقة للفلتر", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("لا توجد محادثات مطابقة للفلتر", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 12.sp)
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -432,31 +471,73 @@ fun DeveloperContactScreen(
                             val profile = threadProfiles[email]
                             val displayName = profile?.displayName
                                 ?: email.substringBefore("@").ifBlank { "المستخدم" }
+                            val waitingForReply = lastMessage?.sender.equals("user", ignoreCase = true)
                             Surface(
                                 onClick = { selectedThreadEmail = email },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xFF132238),
-                                shape = RoundedCornerShape(14.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, contactBorder, RoundedCornerShape(18.dp)),
+                                color = contactCard,
+                                shape = RoundedCornerShape(18.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(11.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    ContactAvatar(displayName, profile?.avatarUrl, Color(0xFF7DD3FC))
-                                    Spacer(Modifier.width(9.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    ContactAvatar(displayName, profile?.avatarUrl, contactAccent, size = 44.dp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(displayName, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                            Text(lastMessage?.formattedTime ?: "", color = TextSecondary, fontFamily = CairoFont, fontSize = 9.sp)
+                                            Text(
+                                                displayName,
+                                                color = contactPrimaryText,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (waitingForReply) {
+                                                Surface(
+                                                    color = contactAccent.copy(alpha = 0.14f),
+                                                    shape = RoundedCornerShape(50)
+                                                ) {
+                                                    Text(
+                                                        "بانتظار ردك",
+                                                        color = contactAccent,
+                                                        fontFamily = CairoFont,
+                                                        fontSize = 9.sp,
+                                                        maxLines = 1,
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                                Spacer(Modifier.width(8.dp))
+                                            }
+                                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                                Text(
+                                                    formatContactTime(lastMessage),
+                                                    color = contactSecondaryText,
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 10.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
-                                        Spacer(Modifier.height(3.dp))
-                                        Text(lastMessage?.message.orEmpty(), color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp, maxLines = 1)
-                                    }
-                                    if (lastMessage?.sender.equals("user", ignoreCase = true)) {
-                                        Spacer(Modifier.width(7.dp))
-                                        Surface(color = Color(0xFFFBBF24), shape = CircleShape) {
-                                            Box(modifier = Modifier.size(8.dp))
-                                        }
+                                        Text(
+                                            lastMessage?.message?.takeIf { it.isNotBlank() } ?: "لا توجد رسائل بعد",
+                                            color = contactSecondaryText,
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.sp,
+                                            lineHeight = 16.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
                             }
@@ -524,11 +605,17 @@ fun DeveloperContactScreen(
                             verticalAlignment = Alignment.Bottom
                         ) {
                             if (!isMine) {
-                                ContactAvatar(senderName, senderAvatar, Color(0xFF7DD3FC))
+                                ContactAvatar(senderName, senderAvatar, contactAccent)
                                 Spacer(Modifier.width(6.dp))
                             }
                             Surface(
-                                color = if (isMine) Color(0xFF1C3B45) else Color(0xFF263449),
+                                color = if (isMine) {
+                                    if (isDeveloper) Color(0xFF12333D) else Color(0xFF1C3B45)
+                                } else if (isDeveloper) {
+                                    DeveloperInboxCard
+                                } else {
+                                    Color(0xFF263449)
+                                },
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth(0.78f)
                             ) {
@@ -536,7 +623,7 @@ fun DeveloperContactScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             if (isMine) "أنت" else senderName,
-                                            color = if (isMine) GoldPrimary else Color(0xFF7DD3FC),
+                                            color = if (isMine) contactAccent else contactAccent.copy(alpha = 0.9f),
                                             fontFamily = CairoFont,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
@@ -552,14 +639,26 @@ fun DeveloperContactScreen(
                                         }
                                     }
                                     Spacer(Modifier.height(4.dp))
-                                    Text(message.message, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp, lineHeight = 19.sp)
+                                    Text(message.message, color = contactPrimaryText, fontFamily = CairoFont, fontSize = 13.sp, lineHeight = 19.sp)
                                     Spacer(Modifier.height(3.dp))
-                                    Text(
-                                        listOf(message.formattedTime, statusLabel).filter { it.isNotBlank() }.joinToString(" • "),
-                                        color = if (statusLabel.contains("بانتظار")) Color(0xFFFBBF24) else TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 9.sp
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                            Text(
+                                                formatContactTime(message),
+                                                color = contactSecondaryText,
+                                                fontFamily = CairoFont,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                        if (statusLabel.isNotBlank()) {
+                                            Text(
+                                                " • $statusLabel",
+                                                color = if (statusLabel.contains("بانتظار")) Color(0xFFFBBF24) else contactSecondaryText,
+                                                fontFamily = CairoFont,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
                                     if (isMine && message.status == "pending") {
                                         TextButton(
                                             onClick = {
@@ -578,7 +677,7 @@ fun DeveloperContactScreen(
                             }
                             if (isMine) {
                                 Spacer(Modifier.width(6.dp))
-                                ContactAvatar(senderName, senderAvatar, GoldPrimary)
+                                ContactAvatar(senderName, senderAvatar, contactAccent)
                             }
                         }
                     }
@@ -596,11 +695,11 @@ fun DeveloperContactScreen(
                     maxLines = 4,
                     placeholder = { Text("اكتب رسالتك...", fontFamily = CairoFont, fontSize = 12.sp) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
+                        focusedBorderColor = contactAccent,
                         unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        cursorColor = GoldPrimary
+                        cursorColor = contactAccent
                     ),
                     shape = RoundedCornerShape(14.dp)
                 )
@@ -620,9 +719,13 @@ fun DeveloperContactScreen(
                     shape = CircleShape,
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.size(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = contactAccent)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "إرسال", tint = DeepSlate)
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "إرسال",
+                        tint = if (isDeveloper) DeveloperInboxBackground else DeepSlate
+                    )
                 }
             }
         }
