@@ -2,7 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.util.Log
-import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.UUID
 
 @Serializable
@@ -44,9 +46,13 @@ object BroadcastCloudRepository {
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val client = SupabaseServices.client ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
-            val row = BroadcastRow(title = title, message = message, target = target)
-            client.from(TABLE).insert(row)
-            Result.success(row.id)
+            val params = buildJsonObject {
+                put("p_title", title)
+                put("p_message", message)
+                put("p_target", target)
+            }
+            val broadcastId = client.postgrest.rpc("create_broadcast", params).decodeAs<String>()
+            Result.success(broadcastId)
         } catch (e: Exception) {
             Log.e(TAG, "insert failed", e)
             Result.failure(e)
@@ -100,9 +106,10 @@ object BroadcastCloudRepository {
     suspend fun markAsSent(broadcastId: String) = withContext(Dispatchers.IO) {
         try {
             val client = SupabaseServices.client ?: return@withContext
-            client.from(TABLE).update(mapOf("status" to "sent", "sent_at" to java.time.Instant.now().toString())) {
-                filter { eq("id", broadcastId) }
+            val params = buildJsonObject {
+                put("p_broadcast_id", broadcastId)
             }
+            client.postgrest.rpc("mark_broadcast_sent", params)
         } catch (e: Exception) {
             Log.e(TAG, "markAsSent failed", e)
         }

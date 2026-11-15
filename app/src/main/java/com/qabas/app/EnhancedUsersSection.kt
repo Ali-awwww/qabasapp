@@ -53,6 +53,7 @@ fun EnhancedUsersSection(
     var confirmSuspendUser by remember { mutableStateOf<DevUser?>(null) }
     var confirmNewRole by remember { mutableStateOf<String?>(null) }
     var roleMenuUser by remember { mutableStateOf<DevUser?>(null) }
+    var updatingUserId by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     var isGeneratingHadiths by remember { mutableStateOf(false) }
@@ -122,33 +123,39 @@ fun EnhancedUsersSection(
                     onClick = {
                         val newType = confirmNewRole ?: return@Button
                         AppSoundManager.playSuccess()
+                        updatingUserId = user.id
                         coroutineScope.launch {
-                            var success = false
-                            if (SupabaseServices.isSupabaseAvailable) {
-                                val sbOk = SupabaseServices.Database.updateUserRole(user.id, newType)
-                                if (sbOk) success = true
-                            }
-                            if (success) {
-                                val idx = devUsers.indexOf(user)
-                                if (idx != -1) {
-                                    devUsers[idx] = devUsers[idx].copy(type = newType)
+                            try {
+                                var success = false
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    val sbOk = SupabaseServices.Database.updateUserRole(user.id, newType)
+                                    if (sbOk) success = true
                                 }
-                                if (user.email.equals(SupabaseServices.Auth.getCurrentUserEmail(), ignoreCase = true)) {
-                                    AdminGuard.isDashboardAccessAllowed(context)
+                                if (success) {
+                                    val idx = devUsers.indexOf(user)
+                                    if (idx != -1) {
+                                        devUsers[idx] = devUsers[idx].copy(type = newType)
+                                    }
+                                    if (user.email.equals(SupabaseServices.Auth.getCurrentUserEmail(), ignoreCase = true)) {
+                                        AdminGuard.isDashboardAccessAllowed(context)
+                                    }
+                                    AuditLogger.log(context, "user_role_change", "${user.email} -> $newType")
+                                    Toast.makeText(context, "تم ترقية الحساب وحفظ الرتبة ($newType) في السحابة بنجاح 🚀", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "فشل تغيير الرتبة: تحقق من الاتصال بالسحابة", Toast.LENGTH_LONG).show()
                                 }
-                                AuditLogger.log(context, "user_role_change", "${user.email} -> $newType")
-                                Toast.makeText(context, "تم ترقية الحساب وحفظ الرتبة ($newType) في السحابة بنجاح 🚀", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "فشل تغيير الرتبة: تحقق من الاتصال بالسحابة", Toast.LENGTH_LONG).show()
+                            } finally {
+                                updatingUserId = null
                             }
                         }
                         confirmRoleUser = null
                         confirmNewRole = null
                     },
+                    enabled = updatingUserId == null,
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("تأكيد التغيير", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else "تأكيد التغيير", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -196,31 +203,37 @@ fun EnhancedUsersSection(
                     onClick = {
                         val newStatus = willSuspend
                         AppSoundManager.playToggle()
+                        updatingUserId = user.id
                         coroutineScope.launch {
-                            var success = false
-                            if (SupabaseServices.isSupabaseAvailable) {
-                                val sbOk = SupabaseServices.Database.updateUserSuspension(user.id, newStatus)
-                                if (sbOk) success = true
-                            }
-                            if (success) {
-                                val idx = devUsers.indexOf(user)
-                                if (idx != -1) {
-                                    devUsers[idx] = devUsers[idx].copy(isSuspended = newStatus)
+                            try {
+                                var success = false
+                                if (SupabaseServices.isSupabaseAvailable) {
+                                    val sbOk = SupabaseServices.Database.updateUserSuspension(user.id, newStatus)
+                                    if (sbOk) success = true
                                 }
-                                AuditLogger.log(context, "user_suspend_toggle", "${user.email} -> ${if (newStatus) "موقوف" else "نشط"}")
-                                Toast.makeText(context, if (newStatus) "تم إيقاف الحساب وحفظه سحابياً" else "تم إعادة تنشيط الحساب وحفظه سحابياً 🟢", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "فشل تحديث الحالة: تحقق من الاتصال", Toast.LENGTH_LONG).show()
+                                if (success) {
+                                    val idx = devUsers.indexOf(user)
+                                    if (idx != -1) {
+                                        devUsers[idx] = devUsers[idx].copy(isSuspended = newStatus)
+                                    }
+                                    AuditLogger.log(context, "user_suspend_toggle", "${user.email} -> ${if (newStatus) "موقوف" else "نشط"}")
+                                    Toast.makeText(context, if (newStatus) "تم إيقاف الحساب وحفظه سحابياً" else "تم إعادة تنشيط الحساب وحفظه سحابياً 🟢", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "فشل تحديث الحالة: تحقق من الاتصال", Toast.LENGTH_LONG).show()
+                                }
+                            } finally {
+                                updatingUserId = null
                             }
                         }
                         confirmSuspendUser = null
                     },
+                    enabled = updatingUserId == null,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (willSuspend) Color(0xFFEF4444) else Color(0xFF10B981)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(if (willSuspend) "إيقاف الحساب" else "إعادة التفعيل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else if (willSuspend) "إيقاف الحساب" else "إعادة التفعيل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

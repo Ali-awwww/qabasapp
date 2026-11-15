@@ -1813,6 +1813,8 @@ fun NotificationsSection(context: Context) {
     var notifMessage by remember { mutableStateOf("") }
     var sentNotifications by remember { mutableStateOf(AppNotificationService.getNotifications(context)) }
     var isDailyHadithEnabled by remember { mutableStateOf(AppNotificationService.isDailyHadithEnabled(context)) }
+    var isSendingHadith by remember { mutableStateOf(false) }
+    var isSendingBroadcast by remember { mutableStateOf(false) }
     val notificationScope = rememberCoroutineScope()
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1864,6 +1866,8 @@ fun NotificationsSection(context: Context) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
+                        if (isSendingHadith) return@Button
+                        isSendingHadith = true
                         notificationScope.launch {
                             runCatching {
                                 AppNotificationService.triggerDailyHadithNow(context, force = true)
@@ -1872,9 +1876,12 @@ fun NotificationsSection(context: Context) {
                                 Toast.makeText(context, "تم تجهيز حديث اليوم وإضافته إلى سجل الإشعارات بنجاح ✨", Toast.LENGTH_SHORT).show()
                             }.onFailure { error ->
                                 Toast.makeText(context, "فشل إرسال الحديث: ${error.message ?: "خطأ غير معروف"}", Toast.LENGTH_LONG).show()
+                            }.also {
+                                isSendingHadith = false
                             }
                         }
                     },
+                    enabled = !isSendingHadith,
                     modifier = Modifier.fillMaxWidth().height(42.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
@@ -1882,7 +1889,7 @@ fun NotificationsSection(context: Context) {
                 ) {
                     Icon(Icons.Default.Send, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("إرسال حديث نبوي صحيح الآن للمستخدمين 🚀", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(if (isSendingHadith) "جارٍ تجهيز الحديث…" else "إرسال حديث نبوي صحيح الآن للمستخدمين 🚀", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -1927,27 +1934,34 @@ fun NotificationsSection(context: Context) {
                 Button(
                     onClick = {
                         if (notifTitle.isNotBlank() && notifMessage.isNotBlank()) {
+                            if (isSendingBroadcast) return@Button
                             val title = notifTitle
                             val message = notifMessage
+                            isSendingBroadcast = true
                             notificationScope.launch {
                                 val id = RemoteNotificationsManager.sendBroadcast(context, title, message)
-                                val toast = if (id != null) "تم إرسال الإشعار بنجاح ✅" else "فشل الإرسال: ${RemoteNotificationsManager.lastSendResult.value}"
-                                Toast.makeText(context, toast, Toast.LENGTH_LONG).show()
-                                sentNotifications = AppNotificationService.getNotifications(context)
+                                if (id != null) {
+                                    Toast.makeText(context, "تم إرسال الإشعار بنجاح ✅", Toast.LENGTH_LONG).show()
+                                    sentNotifications = AppNotificationService.getNotifications(context)
+                                    notifTitle = ""
+                                    notifMessage = ""
+                                } else {
+                                    Toast.makeText(context, "فشل الإرسال: ${RemoteNotificationsManager.lastSendResult.value}", Toast.LENGTH_LONG).show()
+                                }
+                                isSendingBroadcast = false
                             }
-                            notifTitle = ""
-                            notifMessage = ""
                         } else {
                             Toast.makeText(context, "الرجاء تعبئة العنوان والنص", Toast.LENGTH_SHORT).show()
                         }
                     },
+                    enabled = !isSendingBroadcast,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
                 ) {
                     Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("إرسال الإشعار الآن", color = Color.Black, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (isSendingBroadcast) "جارٍ الإرسال…" else "إرسال الإشعار الآن", color = Color.Black, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }

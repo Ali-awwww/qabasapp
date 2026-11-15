@@ -623,14 +623,13 @@ object SupabaseServices {
 
         suspend fun updateUserSuspension(userId: String, isSuspended: Boolean): Boolean = runCatching {
             val client = client ?: return false
-            val status = if (isSuspended) "suspended" else "active"
-            client.postgrest.from("users").update(mapOf("status" to status)) {
-                filter {
-                    eq("id", userId)
-                }
+            val params = buildJsonObject {
+                put("p_target_user_id", userId)
+                put("p_is_suspended", isSuspended)
             }
+            client.postgrest.rpc("set_user_suspension", params)
             true
-        }.onFailure { Log.e(TAG, "updateUserSuspension failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { Log.e(TAG, "set_user_suspension RPC failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun saveProject(
             title: String,
