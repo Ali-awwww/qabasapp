@@ -133,8 +133,7 @@ object DevDashboardFormatters {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = {}, onNavigateTo: (AppState) -> Unit = {}) {
-    val coroutineScope = rememberCoroutineScope()
+fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = {}) {
     var currentSection by remember { mutableStateOf(DashboardSection.MAIN) }
 
     // قفزة قادمة من شاشة المحادثة (شريط الإجراءات الذكي): انتقال مباشر للقسم المطلوب
@@ -446,82 +445,6 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 // =========================================================================
 
 @Composable
-fun SpatialHubNavigationStrip(
-    currentHub: DashboardSection,
-    onSelectHub: (DashboardSection) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hub_strip_pulse")
-    val pulseGlow by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseGlow"
-    )
-
-    val hubs = listOf(
-        Triple(DashboardSection.CLOUD_API_HUB, "⚡ المفاتيح والسحابة", GoldPrimary),
-        Triple(DashboardSection.HEALTH_DIAGNOSTICS_HUB, "🩺 التشخيص والصحة", Color(0xFF0EA5E9)),
-        Triple(DashboardSection.USERS_COMMUNITY_HUB, "👥 المستخدمون", Color(0xFF10B981)),
-        Triple(DashboardSection.BUSINESS_REVENUE_HUB, "💰 الأعمال والطلبات", Color(0xFFF59E0B)),
-        Triple(DashboardSection.SYSTEM_IDENTITY_HUB, "⚙️ النظام والهوية", Color(0xFFEC4899))
-    )
-    Surface(
-        color = Color(0xFF070B14).copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.6f)),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            hubs.forEach { (section, label, color) ->
-                val isSelected = currentHub == section
-                Surface(
-                    color = if (isSelected) color.copy(alpha = 0.22f) else CardSurface.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(
-                        if (isSelected) 1.2.dp else 1.dp,
-                        if (isSelected) color.copy(alpha = 0.7f + (0.3f * pulseGlow)) else Color.White.copy(alpha = 0.1f)
-                    ),
-                    modifier = Modifier.clickable { onSelectHub(section) }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-                        Text(
-                            text = label,
-                            color = if (isSelected) Color.White else TextSecondary,
-                            fontFamily = CairoFont,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 fun DevHubScaffold(
     title: String,
     subtitle: String,
@@ -829,24 +752,7 @@ fun DashboardMainGrid(
     onSystemIdentityHub: () -> Unit = {},
     onMishkatReminder: () -> Unit = onSystemIdentityHub,
     onAudioLibraryManagement: () -> Unit = onSystemIdentityHub,
-    // توافقية كاملة مع الروابط السابقة
-    onLiveKeyHub: () -> Unit = onCloudApiHub,
     onAiModelSwitcher: () -> Unit = onCloudApiHub,
-    onRequestSection: () -> Unit = onBusinessRevenueHub,
-    onSystemControls: () -> Unit = onSystemIdentityHub,
-    onNotifications: () -> Unit = onUsersCommunityHub,
-    onUsers: () -> Unit = onUsersCommunityHub,
-    onStats: () -> Unit = onBusinessRevenueHub,
-    onHealthCenter: () -> Unit = onHealthDiagnosticsHub,
-    onConnectors: () -> Unit = onCloudApiHub,
-    onAccountSettings: () -> Unit = onSystemIdentityHub,
-    onMoneyCenter: () -> Unit = onBusinessRevenueHub,
-    onDevStudioSignature: () -> Unit = onSystemIdentityHub,
-    onStyleBrain: () -> Unit = onSystemIdentityHub,
-    onApiKeys: () -> Unit = onCloudApiHub,
-    onAuditLog: () -> Unit = onHealthDiagnosticsHub,
-    onBackup: () -> Unit = onSystemIdentityHub,
-    onProductionPipeline: () -> Unit = onHealthDiagnosticsHub,
     userCount: Int = 0
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
@@ -1309,7 +1215,7 @@ fun DashboardMainGrid(
                                     title = "14 مفتاح",
                                     icon = Icons.Default.Sensors,
                                     accent = GoldPrimary,
-                                    onClick = onLiveKeyHub
+                                    onClick = onCloudApiHub
                                 )
 
                                 Box(modifier = Modifier.width(1.dp).height(18.dp).background(Color.White.copy(alpha = 0.08f)))
@@ -1680,274 +1586,6 @@ private fun DashGroupHeader(title: String, count: Int) {
             color = Color.White.copy(alpha = 0.12f),
             thickness = 1.dp
         )
-    }
-}
-
-@Composable
-fun OperationalHubCard(isInternetOnline: Boolean, isSupabaseConfigured: Boolean) {
-    val coroutineScope = rememberCoroutineScope()
-    var cloudLatency by remember { mutableLongStateOf(-1L) }
-    var cloudStatus by remember { mutableStateOf(if (isSupabaseConfigured) "جاري الفحص..." else "غير مهيأ") }
-    var isChecking by remember { mutableStateOf(false) }
-
-    fun checkCloud() {
-        if (!isSupabaseConfigured) return
-        isChecking = true
-        coroutineScope.launch {
-            val t0 = System.currentTimeMillis()
-            val ok = SupabaseServices.Database.ping()
-            val t1 = System.currentTimeMillis()
-            cloudLatency = if (ok) (t1 - t0) else -1L
-            cloudStatus = if (ok) "مستقر ✓" else "فشل الاتصال ✗"
-            isChecking = false
-        }
-    }
-
-    LaunchedEffect(isInternetOnline, isSupabaseConfigured) {
-        if (isInternetOnline && isSupabaseConfigured) {
-            checkCloud()
-        }
-    }
-
-    Surface(
-        color = Color(0xFF070B14).copy(alpha = 0.65f),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isInternetOnline) GoldPrimary.copy(alpha = 0.3f) else Color(0xFFEF4444).copy(alpha = 0.3f)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Internet Part
-            DigitalSpeedCounter()
-
-            // Separator
-            Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.1f)))
-
-            // Cloud Part
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (cloudLatency > 0) Color(0xFF10B981).copy(alpha = 0.05f) else Color.Transparent)
-                    .clickable(enabled = !isChecking && isInternetOnline) { checkCloud() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "Supabase Cloud",
-                        color = TextSecondary,
-                        fontSize = 9.sp,
-                        fontFamily = NotoSansFont
-                    )
-                    Text(
-                        text = if (isChecking) "فحص..." else cloudStatus,
-                        color = when {
-                            !isSupabaseConfigured -> Color(0xFF94A3B8)
-                            cloudLatency > 0 -> Color(0xFF10B981)
-                            else -> Color(0xFFEF4444)
-                        },
-                        fontSize = 11.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                
-                if (cloudLatency > 0) {
-                    Text(
-                        text = "${cloudLatency}ms",
-                        color = Color(0xFF10B981).copy(alpha = 0.7f),
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else if (isSupabaseConfigured) {
-                    Icon(
-                        Icons.Default.Refresh, 
-                        contentDescription = null, 
-                        tint = GoldPrimary.copy(alpha = 0.6f),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun InsightMetricsRow(
-    diagnosticSummary: String,
-    isGridOnline: Boolean,
-    userCount: Int,
-    onRefreshHealth: () -> Unit
-) {
-    val context = LocalContext.current
-    var connectionType by remember { mutableStateOf("متصلة") }
-    
-    LaunchedEffect(isGridOnline) {
-        connectionType = if (!isGridOnline) "منقطعة"
-        else {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
-            val activeNetwork = cm?.activeNetwork
-            val capabilities = cm?.getNetworkCapabilities(activeNetwork)
-            when {
-                capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
-                capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "4G/5G"
-                else -> "متصلة"
-            }
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF0F172A).copy(alpha = 0.85f), RoundedCornerShape(14.dp))
-            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
-            .padding(horizontal = 8.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // App Health
-        MetricItem(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.MedicalServices,
-            title = "صحة النظام",
-            value = if (diagnosticSummary.contains("حرجة")) "تنبيه ⚠️" else "مستقرة ✓",
-            subtitle = diagnosticSummary,
-            accent = if (diagnosticSummary.contains("حرجة")) Color(0xFFEF4444) else GoldSecondary,
-            clickable = true,
-            onClick = onRefreshHealth
-        )
-
-        Box(Modifier.width(1.dp).height(36.dp).align(Alignment.CenterVertically).background(Color.White.copy(alpha = 0.08f)))
-
-        // Network
-        MetricItem(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.CloudSync,
-            title = "حالة الشبكة",
-            value = if (isGridOnline) "متصل 🌐" else "منقطع ✗",
-            subtitle = connectionType,
-            accent = if (isGridOnline) Color(0xFF10B981) else Color(0xFFEF4444)
-        )
-
-        Box(Modifier.width(1.dp).height(36.dp).align(Alignment.CenterVertically).background(Color.White.copy(alpha = 0.08f)))
-
-        // Users
-        MetricItem(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.Group,
-            title = "المستخدمين",
-            value = "$userCount",
-            subtitle = "حساب مسجل",
-            accent = Color(0xFF38BDF8)
-        )
-    }
-}
-
-@Composable
-private fun MetricItem(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    title: String,
-    value: String,
-    subtitle: String = "",
-    accent: Color,
-    clickable: Boolean = false,
-    onClick: () -> Unit = {}
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .then(if (clickable) Modifier.clickable { onClick() } else Modifier)
-            .padding(vertical = 4.dp, horizontal = 2.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = title,
-                color = TextSecondary,
-                fontFamily = CairoFont,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1
-            )
-        }
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(
-            text = value,
-            color = Color.White,
-            fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.5.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-        if (subtitle.isNotBlank()) {
-            Spacer(modifier = Modifier.height(1.dp))
-            Text(
-                text = subtitle,
-                color = accent.copy(alpha = 0.85f),
-                fontFamily = NotoSansFont,
-                fontSize = 9.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun QuickMetric(icon: ImageVector, title: String, value: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(icon, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            value, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold,
-            fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 2, lineHeight = 16.sp,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            title, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1,
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-}
-
-
-
-/** وقت نسبي عربي: منذ 5 دقائق / ساعتين / 3 أيام… */
-private fun relativeTime(timestamp: Long): String {
-    val diff = System.currentTimeMillis() - timestamp
-    val minutes = diff / 60_000
-    val hours = diff / 3_600_000
-    val days = diff / 86_400_000
-    return when {
-        minutes < 1 -> "الآن"
-        minutes < 60 -> "منذ $minutes د"
-        hours < 24 -> "منذ $hours س"
-        days == 1L -> "أمس"
-        days < 30 -> "منذ $days يوم"
-        else -> "منذ ${days / 30} شهر"
     }
 }
 
@@ -2479,10 +2117,8 @@ fun ConfigOverridesEditor(context: Context) {
 @Composable
 fun StatsSection(userCount: Int) {
     val context = LocalContext.current
-    val totalRevenue = "غير متاح"
-    val activeProjects = "غير متاح"
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("🔑 الاستهلاك", "📈 التفاعل والمبيعات", "☁️ السحابة")
+    val tabs = listOf("🔑 الاستهلاك", "📈 التفاعل", "☁️ السحابة")
 
     Column(modifier = Modifier.fillMaxSize()) {
         CenterTabRow(
@@ -2533,153 +2169,20 @@ fun StatsSection(userCount: Int) {
                         Spacer(modifier = Modifier.height(8.dp))
                         WeeklyEngagementTrendsChart(context = context)
                     }
-                    item {
-                        Text("المشاريع والمبيعات — المصدر غير موصول", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            StatCard(
-                                title = "الأرباح الإجمالية",
-                                value = totalRevenue,
-                                icon = Icons.Default.AttachMoney,
-                                modifier = Modifier.weight(1f)
-                            )
-                            StatCard(
-                                title = "المشاريع النشطة",
-                                value = activeProjects,
-                                icon = Icons.Default.Build,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                    item {
-                        Text("قمع التحويل والاحتفاظ — لا توجد بيانات موصولة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        RequestFunnelCard()
-                    }
                 }
                 else -> {
-                    item {
-                        Text("حالة التحليلات السحابية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        AnalyticsAvailabilityCard(context = context)
-                    }
                     item {
                         Text("سجلات حارس المحتوى السحابية المباشرة (Cloud Guard Activity)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         LiveCloudGuardLogsCard(context = context)
                     }
                     item {
-                        Text("المساحة السحابية والسيرفر (Firebase & Cloud Storage)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("مساحة التطبيق والتخزين المحلي", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         FirebaseStorageCapacityCard(context = context)
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun RequestFunnelCard() {
-    val total = 0
-    val started = 0
-    val completed = 0
-    val paid = 0
-    val stages = listOf(
-        "إجمالي الطلبات" to total,
-        "بدأ التنفيذ" to started,
-        "اكتمل" to completed,
-        "مدفوع" to paid
-    )
-    val repeatPct = 0.0
-    val active7 = 0
-    val active30 = 0
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f))
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "لا يوجد مصدر طلبات/مدفوعات موصول حالياً؛ الأرقام التالية ليست قياسات إنتاجية.",
-                color = Color(0xFFF59E0B), fontFamily = NotoSansFont, fontSize = 11.sp
-            )
-            stages.forEachIndexed { i, (label, count) ->
-                val pct = if (total > 0) count * 100.0 / total else 0.0
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(label, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("$count • ${"%.0f".format(pct)}٪", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(8.dp)
-                            .background(Color(0xFF1E293B), RoundedCornerShape(4.dp))
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxHeight()
-                                .fillMaxWidth((pct / 100).toFloat().coerceIn(0f, 1f))
-                                .background(
-                                    when (i) {
-                                        0 -> Color(0xFF38BDF8)
-                                        1 -> Color(0xFF8B5CF6)
-                                        2 -> Color(0xFF10B981)
-                                        else -> GoldPrimary
-                                    },
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                    }
-                }
-            }
-            HorizontalDivider(color = Color(0xFF1E293B))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                FunnelMiniStat("${"%.0f".format(repeatPct)}٪", "طلب متكرر")
-                FunnelMiniStat("$active7", "نشط 7 أيام")
-                FunnelMiniStat("$active30", "نشط 30 يوم")
-            }
-        }
-    }
-}
-
-@Composable
-private fun FunnelMiniStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        Text(label, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.sp)
-    }
-}
-
-@Composable
-fun AnalyticsAvailabilityCard(context: Context) {
-    val analyticsEnabled = remember(context) {
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getBoolean("analytics_enabled", true)
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Analytics, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("التحليلات السحابية", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-            Text(
-                if (analyticsEnabled) "التسجيل المحلي مفعّل — لا يوجد مصدر تحليلات سحابي موصول"
-                else "التسجيل المحلي متوقف",
-                color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp
-            )
-            Text(
-                "لا تُعرض أرقام أو رسوم تجريبية. ستظهر المؤشرات فقط بعد ربط مصدر تحليلات فعلي بلوحة المطور.",
-                color = Color.Gray, fontFamily = NotoSansFont, fontSize = 11.sp
-            )
         }
     }
 }
@@ -3578,13 +3081,6 @@ fun exportCrashesZip(context: Context): File? {
         }
         out
     }.getOrNull()
-}
-
-/**
- * يحاكي انهياراً اختبارياً بأمان عبر نفس مسار الإنتاج (بلا قتل العملية).
- */
-fun simulateCrashForTesting(context: android.content.Context) {
-    QabasCrashGuard.simulateCrash(context)
 }
 
 class CrashDiagnosis(

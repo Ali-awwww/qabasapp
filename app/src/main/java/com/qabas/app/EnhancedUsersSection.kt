@@ -394,7 +394,7 @@ fun EnhancedUsersSection(
                             )
                         }
                     } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
                                     AppSoundManager.playActivate()
@@ -422,28 +422,13 @@ fun EnhancedUsersSection(
                                         }
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(40.dp),
+                                modifier = Modifier.fillMaxWidth().height(40.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
                             ) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("توليد 365 حديثاً (AI)", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                            
-                            OutlinedButton(
-                                onClick = {
-                                    AppSoundManager.playClick()
-                                    coroutineScope.launch {
-                                        AppNotificationService.triggerDailyHadithNow(context, force = true)
-                                        Toast.makeText(context, "تم إرسال إشعار تجريبي بنجاح 🔔", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier.height(40.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
-                            ) {
-                                Text("إشعار تجريبي", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
                             }
                         }
                     }

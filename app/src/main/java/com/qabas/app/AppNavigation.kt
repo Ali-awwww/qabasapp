@@ -459,8 +459,7 @@ fun AppNavigation(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onOpenChat = { _ ->
                     viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
-                },
-                onNavigateTo = { viewModel.updateState { copy(appState = it) } }
+                }
             )
         }
         AppState.QURAN_HUB -> {
