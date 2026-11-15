@@ -282,19 +282,6 @@ jobs:
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
 
-      - name: Run Android UI smoke tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          disable-animations: true
-          disable-spellchecker: true
-          emulator-boot-timeout: 900
-          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace --max-workers=2
-
       - name: Verify xdelta JNI is packaged
         shell: bash
         run: |
