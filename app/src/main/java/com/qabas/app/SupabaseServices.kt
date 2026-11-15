@@ -1095,31 +1095,38 @@ object SupabaseServices {
         }.onFailure { Log.e(TAG, "deleteBugReport failed: ${it.message}") }.getOrDefault(false)
 
         // ── Chat Messages Operations ──
-        suspend fun getAllChatThreads(): Map<String, List<ChatMessageRow>> = runCatching {
-            val client = client ?: return emptyMap()
+        suspend fun getAllChatThreadsOrNull(): Map<String, List<ChatMessageRow>>? = runCatching {
+            val client = client ?: return null
             val list = client.postgrest.from("dev_chat_messages").select {
                 order("created_at", Order.ASCENDING)
             }.decodeList<ChatMessageRow>()
             list.groupBy { it.userEmail.lowercase().trim() }
-        }.onFailure { Log.e(TAG, "getAllChatThreads failed: ${it.message}") }.getOrDefault(emptyMap())
+        }.onFailure { Log.e(TAG, "getAllChatThreads failed: ${it.message}") }.getOrNull()
 
-        suspend fun getChatMessagesForCurrentUser(): List<ChatMessageRow> = runCatching {
+        suspend fun getAllChatThreads(): Map<String, List<ChatMessageRow>> =
+            getAllChatThreadsOrNull().orEmpty()
+
+        suspend fun getChatMessagesForCurrentUserOrNull(): List<ChatMessageRow>? = runCatching {
             val activeUserId = Auth.getCurrentUserId() ?: return emptyList()
-            val client = client ?: return emptyList()
+            val client = client ?: return null
             client.postgrest.from("dev_chat_messages").select {
                 filter {
                     eq("user_id", activeUserId)
                 }
                 order("created_at", Order.ASCENDING)
             }.decodeList<ChatMessageRow>()
-        }.onFailure { Log.e(TAG, "getChatMessagesForCurrentUser failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { Log.e(TAG, "getChatMessagesForCurrentUser failed: ${it.message}") }.getOrNull()
+
+        suspend fun getChatMessagesForCurrentUser(): List<ChatMessageRow> =
+            getChatMessagesForCurrentUserOrNull().orEmpty()
 
         suspend fun sendChatMessage(
             userEmail: String,
             message: String,
             sender: String = "developer",
             targetUserId: String? = null,
-            accountNumber: String? = null
+            accountNumber: String? = null,
+            messageId: String? = null
         ): Boolean = runCatching {
             val client = client ?: return false
             val isUserMessage = sender.equals("user", ignoreCase = true)
@@ -1139,7 +1146,7 @@ object SupabaseServices {
                     ?: return false
             }
             val row = ChatMessageRow(
-                id = UUID.randomUUID().toString(),
+                id = messageId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
                 userId = effectiveUserId,
                 userEmail = effectiveEmail,
                 accountNumber = accountNumber,
@@ -1147,9 +1154,53 @@ object SupabaseServices {
                 message = message,
                 createdAt = java.time.Instant.now().toString()
             )
-            client.postgrest.from("dev_chat_messages").insert(row)
-            true
+            runCatching {
+                client.postgrest.from("dev_chat_messages").insert(row)
+                true
+            }.getOrElse { insertError ->
+                // A retry may follow a successful insert whose response was lost.
+                val alreadyPersisted = runCatching {
+                    client.postgrest.from("dev_chat_messages").select {
+                        filter {
+                            eq("id", row.id)
+                            eq("user_id", effectiveUserId)
+                            eq("sender", row.sender)
+                            eq("message", row.message)
+                        }
+                        limit(1)
+                    }.decodeList<ChatMessageRow>().isNotEmpty()
+                }.getOrDefault(false)
+                if (alreadyPersisted) true else throw insertError
+            }
         }.onFailure { Log.e(TAG, "sendChatMessage failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun editDevChatMessage(messageId: String, userId: String, message: String): Boolean = runCatching {
+            val client = client ?: return false
+            if (messageId.isBlank() || userId.isBlank() || message.isBlank() || message.length > 10000) return false
+            val params = buildJsonObject {
+                put("p_message_id", messageId)
+                put("p_user_id", userId)
+                put("p_message", message)
+            }
+            client.postgrest.rpc("qabas_edit_dev_chat_message", params).decodeAs<Boolean>()
+        }.onFailure { Log.e(TAG, "editDevChatMessage failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun deleteDevChatMessage(messageId: String, userId: String): Boolean = runCatching {
+            val client = client ?: return false
+            if (messageId.isBlank() || userId.isBlank()) return false
+            val params = buildJsonObject {
+                put("p_message_id", messageId)
+                put("p_user_id", userId)
+            }
+            client.postgrest.rpc("qabas_delete_dev_chat_message", params).decodeAs<Boolean>()
+        }.onFailure { Log.e(TAG, "deleteDevChatMessage failed: ${it.message}") }.getOrDefault(false)
+
+        suspend fun deleteDevChatThread(userId: String): Int? = runCatching {
+            val client = client ?: return null
+            if (userId.isBlank()) return null
+            val params = buildJsonObject { put("p_user_id", userId) }
+            client.postgrest.rpc("qabas_delete_dev_chat_thread", params).decodeAs<Int>()
+        }.onFailure { Log.e(TAG, "deleteDevChatThread failed: ${it.message}") }.getOrNull()
 
         suspend fun upsertPushToken(userId: String, token: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1786,6 +1837,19 @@ object SupabaseServices {
             limit: Int = 20,
             offset: Int = 0
         ): List<ReelRow>? = getActiveReelsDiagnosed(limit, offset).reels
+
+        suspend fun getPublicCreatorReels(creatorId: String, maxItems: Int = 60): List<ReelRow> = runCatching {
+            val client = client ?: return emptyList()
+            if (creatorId.isBlank()) return emptyList()
+            client.postgrest.from("reels").select {
+                filter {
+                    eq("user_id", creatorId)
+                    eq("is_active", true)
+                }
+                order("created_at", Order.DESCENDING)
+                limit(maxItems.coerceIn(1, 100))
+            }.decodeList<ReelRow>()
+        }.onFailure { Log.w(TAG, "getPublicCreatorReels failed: ${it.message}") }.getOrDefault(emptyList())
 
 
         /** جلب الفيديوهات المخصصة لوضع الأثر (المحقونة صامتاً) */
@@ -3157,7 +3221,8 @@ object SupabaseServices {
         @SerialName("account_number") val accountNumber: String? = null,
         val sender: String = "user",
         val message: String = "",
-        @SerialName("created_at") val createdAt: String? = null
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("updated_at") val updatedAt: String? = null
     )
 
     @Serializable

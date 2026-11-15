@@ -33,8 +33,11 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -42,9 +45,13 @@ import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -81,7 +88,9 @@ import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.TextSecondary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class ContactCategory(val key: String, val label: String, val icon: ImageVector)
 
@@ -189,6 +198,18 @@ fun DeveloperContactScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var developerFilter by remember { mutableStateOf(0) }
     var threadProfiles by remember { mutableStateOf<Map<String, AccountIdentity>>(emptyMap()) }
+    var threadMenuEmail by remember { mutableStateOf<String?>(null) }
+    var messageMenuId by remember { mutableStateOf<String?>(null) }
+    var messageToEdit by remember { mutableStateOf<DevChatRepository.DevChatMessage?>(null) }
+    var editDraft by remember { mutableStateOf("") }
+    var messageToDelete by remember { mutableStateOf<DevChatRepository.DevChatMessage?>(null) }
+    var conversationToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var profileToOpen by remember { mutableStateOf<AccountIdentity?>(null) }
+    var publicProfile by remember { mutableStateOf<SupabaseServices.PublicCreatorProfileRow?>(null) }
+    var publicProfileHandle by remember { mutableStateOf<String?>(null) }
+    var publicProfileReelCount by remember { mutableStateOf<Int?>(null) }
+    var isPublicProfileLoading by remember { mutableStateOf(false) }
+    var isChatActionInProgress by remember { mutableStateOf(false) }
 
     BackHandler {
         if (isDeveloper && selectedThreadEmail.isNotBlank()) {
@@ -264,6 +285,32 @@ fun DeveloperContactScreen(
                 )
             }
             threadProfiles = profileMap
+        }
+    }
+
+    LaunchedEffect(profileToOpen?.userId) {
+        val targetUserId = profileToOpen?.userId?.takeIf { it.isNotBlank() }
+        publicProfile = null
+        publicProfileHandle = null
+        publicProfileReelCount = null
+        if (targetUserId == null) {
+            isPublicProfileLoading = false
+        } else {
+            isPublicProfileLoading = true
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    Triple(
+                        SupabaseServices.Profiles.getPublicCreatorProfile(targetUserId),
+                        SupabaseServices.Profiles.getCreatorCustomId(targetUserId),
+                        SupabaseServices.Profiles.getPublicCreatorReels(targetUserId).size
+                    )
+                }
+            }.onSuccess { (profile, handle, reelCount) ->
+                publicProfile = profile
+                publicProfileHandle = handle
+                publicProfileReelCount = reelCount
+            }
+            isPublicProfileLoading = false
         }
     }
 
@@ -603,6 +650,38 @@ fun DeveloperContactScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
+                                    Box {
+                                        IconButton(
+                                            onClick = { threadMenuEmail = email },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "إجراءات المحادثة", tint = contactSecondaryText)
+                                        }
+                                        DropdownMenu(
+                                            expanded = threadMenuEmail == email,
+                                            onDismissRequest = { threadMenuEmail = null },
+                                            containerColor = contactCard
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("فتح ملف المستخدم", color = contactPrimaryText, fontFamily = CairoFont) },
+                                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = contactAccent) },
+                                                enabled = !profile?.userId.isNullOrBlank(),
+                                                onClick = {
+                                                    profile?.let { profileToOpen = it }
+                                                    threadMenuEmail = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("حذف المحادثة", color = Color(0xFFFF8A8A), fontFamily = CairoFont) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF8A8A)) },
+                                                enabled = !profile?.userId.isNullOrBlank(),
+                                                onClick = {
+                                                    profile?.userId?.let { conversationToDelete = email to it }
+                                                    threadMenuEmail = null
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -695,7 +774,7 @@ fun DeveloperContactScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth(0.78f)
                             ) {
-                                Column(modifier = Modifier.padding(11.dp)) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(11.dp)) {
                                     if (startsNewGroup) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
@@ -737,6 +816,42 @@ fun DeveloperContactScreen(
                                                 fontFamily = CairoFont,
                                                 fontSize = 9.sp
                                             )
+                                        }
+                                        if (isDeveloper && message.updatedAt != null) {
+                                            Text(" • معدّلة", color = contactAccent, fontFamily = CairoFont, fontSize = 9.sp)
+                                        }
+                                        if (isDeveloper) {
+                                            Box {
+                                                IconButton(
+                                                    onClick = { messageMenuId = message.id },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.MoreVert, contentDescription = "خيارات الرسالة", tint = contactSecondaryText, modifier = Modifier.size(16.dp))
+                                                }
+                                                DropdownMenu(
+                                                    expanded = messageMenuId == message.id,
+                                                    onDismissRequest = { messageMenuId = null },
+                                                    containerColor = contactCard
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("تعديل الرسالة", color = contactPrimaryText, fontFamily = CairoFont) },
+                                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = contactAccent) },
+                                                        onClick = {
+                                                            messageToEdit = message
+                                                            editDraft = message.message
+                                                            messageMenuId = null
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("حذف الرسالة", color = Color(0xFFFF8A8A), fontFamily = CairoFont) },
+                                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF8A8A)) },
+                                                        onClick = {
+                                                            messageToDelete = message
+                                                            messageMenuId = null
+                                                        }
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                     if (isMine && message.status == "pending") {
@@ -856,5 +971,130 @@ fun DeveloperContactScreen(
             }
         )
     }
-}
+
+    messageToEdit?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!isChatActionInProgress) messageToEdit = null },
+            containerColor = contactCard,
+            title = { Text("تعديل الرسالة", color = contactPrimaryText, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editDraft,
+                    onValueChange = { editDraft = it.take(10000) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 6,
+                    label = { Text("نص الرسالة", fontFamily = CairoFont) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = contactAccent,
+                        unfocusedBorderColor = contactBorder,
+                        focusedTextColor = contactPrimaryText,
+                        unfocusedTextColor = contactPrimaryText,
+                        cursorColor = contactAccent
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = editDraft.isNotBlank() && !isChatActionInProgress, onClick = {
+                    isChatActionInProgress = true
+                    scope.launch {
+                        val updated = DevChatRepository.editMessage(context, target.userEmail.ifBlank { selectedThreadEmail }, target.id, editDraft)
+                        if (updated != null) {
+                            threads = DevChatRepository.getAllThreads(context)
+                            messages = threads[selectedThreadEmail].orEmpty()
+                            Toast.makeText(context, "تم تعديل الرسالة", Toast.LENGTH_SHORT).show()
+                        } else Toast.makeText(context, "تعذر تعديل الرسالة؛ لم يتغير سجلها السحابي", Toast.LENGTH_LONG).show()
+                        isChatActionInProgress = false
+                        messageToEdit = null
+                    }
+                }) {
+                    Text(if (isChatActionInProgress) "جارٍ الحفظ…" else "حفظ التعديل", color = contactAccent, fontFamily = CairoFont)
+                }
+            },
+            dismissButton = { TextButton(enabled = !isChatActionInProgress, onClick = { messageToEdit = null }) { Text("إلغاء", color = contactSecondaryText, fontFamily = CairoFont) } }
+        )
+    }
+
+    messageToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!isChatActionInProgress) messageToDelete = null },
+            containerColor = contactCard,
+            title = { Text("حذف الرسالة؟", color = contactPrimaryText, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيتم حذف هذه الرسالة من المحادثة السحابية.\n\n${target.message.take(220)}", color = contactSecondaryText, fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(enabled = !isChatActionInProgress, onClick = {
+                    isChatActionInProgress = true
+                    scope.launch {
+                        val deleted = DevChatRepository.deleteMessage(context, target.userEmail, target.id)
+                        if (deleted) {
+                            threads = DevChatRepository.getAllThreads(context)
+                            messages = threads[selectedThreadEmail].orEmpty()
+                            Toast.makeText(context, "تم حذف الرسالة", Toast.LENGTH_SHORT).show()
+                        } else Toast.makeText(context, "تعذر حذف الرسالة؛ لم يتغير سجلها السحابي", Toast.LENGTH_LONG).show()
+                        isChatActionInProgress = false
+                        messageToDelete = null
+                    }
+                }) {
+                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف", color = Color(0xFFFF8A8A), fontFamily = CairoFont)
+                }
+            },
+            dismissButton = { TextButton(enabled = !isChatActionInProgress, onClick = { messageToDelete = null }) { Text("إلغاء", color = contactSecondaryText, fontFamily = CairoFont) } }
+        )
+    }
+
+    conversationToDelete?.let { (email, userId) ->
+        AlertDialog(
+            onDismissRequest = { if (!isChatActionInProgress) conversationToDelete = null },
+            containerColor = contactCard,
+            title = { Text("حذف المحادثة؟", color = contactPrimaryText, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيتم حذف جميع رسائل هذه المحادثة من Supabase نهائيًا، ولا يمكن التراجع عن ذلك.", color = contactSecondaryText, fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(enabled = !isChatActionInProgress, onClick = {
+                    isChatActionInProgress = true
+                    scope.launch {
+                        val deleted = DevChatRepository.deleteConversation(context, email, userId)
+                        if (deleted) {
+                            threads = DevChatRepository.getAllThreads(context)
+                            messages = emptyList()
+                            Toast.makeText(context, "تم حذف المحادثة", Toast.LENGTH_SHORT).show()
+                        } else Toast.makeText(context, "تعذر حذف المحادثة؛ لم يتغير سجلها", Toast.LENGTH_LONG).show()
+                        isChatActionInProgress = false
+                        conversationToDelete = null
+                    }
+                }) {
+                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف المحادثة", color = Color(0xFFFF8A8A), fontFamily = CairoFont)
+                }
+            },
+            dismissButton = { TextButton(enabled = !isChatActionInProgress, onClick = { conversationToDelete = null }) { Text("إلغاء", color = contactSecondaryText, fontFamily = CairoFont) } }
+        )
+    }
+
+    profileToOpen?.let { target ->
+        ModalBottomSheet(onDismissRequest = { profileToOpen = null }, containerColor = contactCard, contentColor = contactPrimaryText) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val targetName = publicProfile?.fullName?.takeIf { it.isNotBlank() } ?: target.displayName
+                ContactAvatar(targetName, publicProfile?.avatarUrl ?: target.avatarUrl, contactAccent, size = 76.dp)
+                Text(targetName, color = contactPrimaryText, fontFamily = CairoFont, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                publicProfileHandle?.takeIf { it.isNotBlank() }?.let {
+                    Text("@${it.removePrefix("@")}", color = contactAccent, fontFamily = CairoFont, fontSize = 12.sp)
+                }
+                when {
+                    isPublicProfileLoading -> CircularProgressIndicator(color = contactAccent, modifier = Modifier.size(28.dp))
+                    publicProfile == null -> Text("لا تتوفر بيانات ملف عام إضافية لهذا الحساب حاليًا.", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    else -> Surface(color = contactBackground, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("ملف المستخدم في قبس", color = contactAccent, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("المقاطع المنشورة: ${publicProfileReelCount ?: 0}", color = contactPrimaryText, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("تُعرض هنا المعلومات العامة المتاحة فقط.", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 10.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
 }

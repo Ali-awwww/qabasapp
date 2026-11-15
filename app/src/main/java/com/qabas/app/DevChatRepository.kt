@@ -43,6 +43,7 @@ object DevChatRepository {
         val duaStamp: String? = null,
         val reactions: Map<String, Int> = emptyMap(),
         val status: String = "sent", // pending | sent | read | replied
+        val updatedAt: Long? = null,
         val audioLengthSec: Int = 0 // > 0 if simulated audio note
     )
 
@@ -53,19 +54,80 @@ object DevChatRepository {
         runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
     } ?: 0L
 
+    private fun normalizeCloudMessage(value: String): String = value
+        .removePrefix("[URGENT] ")
+        .removePrefix("[TELEMETRY] ")
+        .trim()
+
+    private fun findLocalMatch(
+        row: SupabaseServices.ChatMessageRow,
+        candidates: List<DevChatMessage>
+    ): DevChatMessage? {
+        candidates.firstOrNull { it.id == row.id }?.let { return it }
+        val normalizedRemote = normalizeCloudMessage(row.message)
+        candidates.firstOrNull {
+            it.sender.equals(row.sender, ignoreCase = true) &&
+                normalizeCloudMessage(it.message) == normalizedRemote
+        }?.let { return it }
+
+        val remoteAt = parseCreatedAt(row.createdAt)
+        if (remoteAt <= 0L) return null
+        return candidates.asSequence()
+            .filter { candidate ->
+                candidate.sender.equals(row.sender, ignoreCase = true) &&
+                    candidate.userId == row.userId &&
+                    candidate.createdAt > 0L &&
+                    kotlin.math.abs(candidate.createdAt - remoteAt) <= 120_000L
+            }
+            .minByOrNull { kotlin.math.abs(it.createdAt - remoteAt) }
+    }
+
+    private fun fromCloudMessage(
+        row: SupabaseServices.ChatMessageRow,
+        localMatch: DevChatMessage?
+    ): DevChatMessage {
+        val createdAt = parseCreatedAt(row.createdAt).takeIf { it > 0L }
+            ?: localMatch?.createdAt ?: 0L
+        return DevChatMessage(
+            id = row.id,
+            userId = row.userId ?: localMatch?.userId,
+            userEmail = row.userEmail,
+            sender = row.sender,
+            senderDisplayName = localMatch?.senderDisplayName,
+            senderAvatarUrl = localMatch?.senderAvatarUrl,
+            message = normalizeCloudMessage(row.message),
+            createdAt = createdAt,
+            formattedTime = row.createdAt?.takeLast(8)?.take(5)
+                ?: localMatch?.formattedTime.orEmpty(),
+            category = localMatch?.category ?: "general",
+            isTelemetry = localMatch?.isTelemetry == true || row.message.startsWith("[TELEMETRY] "),
+            isUrgent = localMatch?.isUrgent == true || row.message.startsWith("[URGENT] "),
+            duaStamp = localMatch?.duaStamp,
+            reactions = localMatch?.reactions ?: emptyMap(),
+            status = "sent",
+            updatedAt = parseCreatedAt(row.updatedAt).takeIf { it > 0L },
+            audioLengthSec = localMatch?.audioLengthSec ?: 0
+        )
+    }
+
     /** قراءة جميع الرسائل لمستخدم معين (محلياً) */
-    fun getLocalMessages(context: Context, userEmail: String): List<DevChatMessage> {
+    fun getLocalMessages(
+        context: Context,
+        userEmail: String,
+        includeWelcomeSeed: Boolean = true
+    ): List<DevChatMessage> {
         val cleanEmail = userEmail.trim().lowercase()
         if (cleanEmail.isBlank()) return emptyList()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_MESSAGES_PREFIX + cleanEmail, null) ?: return getWelcomeSeedMessages(cleanEmail)
+        val json = prefs.getString(KEY_MESSAGES_PREFIX + cleanEmail, null)
+            ?: return if (includeWelcomeSeed) getWelcomeSeedMessages(cleanEmail) else emptyList()
         return try {
             val type = Types.newParameterizedType(List::class.java, DevChatMessage::class.java)
             val adapter = moshi.adapter<List<DevChatMessage>>(type)
-            adapter.fromJson(json) ?: getWelcomeSeedMessages(cleanEmail)
+            adapter.fromJson(json) ?: if (includeWelcomeSeed) getWelcomeSeedMessages(cleanEmail) else emptyList()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse local messages: ${e.message}")
-            getWelcomeSeedMessages(cleanEmail)
+            if (includeWelcomeSeed) getWelcomeSeedMessages(cleanEmail) else emptyList()
         }
     }
 
@@ -183,7 +245,8 @@ object DevChatRepository {
                     message = prefix + text.trim(),
                     sender = sender,
                     targetUserId = targetUserId,
-                    accountNumber = accountNumber.takeIf { it.isNotBlank() }
+                    accountNumber = accountNumber.takeIf { it.isNotBlank() },
+                    messageId = newMsg.id
                 )
             }
         } catch (e: Exception) {
@@ -218,7 +281,8 @@ object DevChatRepository {
                     message = prefix + message.message,
                     sender = message.sender,
                     targetUserId = if (isUserMessage) null else message.userId,
-                    accountNumber = accountNumber.takeIf { it.isNotBlank() }
+                    accountNumber = accountNumber.takeIf { it.isNotBlank() },
+                    messageId = message.id
                 )
         }.getOrDefault(false)
         val updated = message.copy(status = if (delivered) "sent" else "pending")
@@ -254,6 +318,79 @@ object DevChatRepository {
         prefs.edit().remove(KEY_MESSAGES_PREFIX + cleanEmail).apply()
     }
 
+    private fun removeLocalConversation(context: Context, userEmail: String) {
+        val cleanEmail = userEmail.trim().lowercase()
+        if (cleanEmail.isBlank()) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val remainingEmails = HashSet(prefs.getStringSet(KEY_ALL_EMAILS, emptySet()) ?: emptySet())
+        remainingEmails.remove(cleanEmail)
+        prefs.edit()
+            .remove(KEY_MESSAGES_PREFIX + cleanEmail)
+            .putStringSet(KEY_ALL_EMAILS, remainingEmails)
+            .apply()
+    }
+
+    suspend fun editMessage(
+        context: Context,
+        userEmail: String,
+        messageId: String,
+        updatedText: String
+    ): DevChatMessage? = withContext(Dispatchers.IO) {
+        val cleanEmail = userEmail.trim().lowercase()
+        val cleanText = updatedText.trim()
+        if (cleanEmail.isBlank() || messageId.isBlank() || cleanText.isBlank() || cleanText.length > 10000) {
+            return@withContext null
+        }
+        val current = getLocalMessages(context, cleanEmail, includeWelcomeSeed = false).toMutableList()
+        val index = current.indexOfFirst { it.id == messageId }
+        if (index < 0) return@withContext null
+        val existing = current[index]
+        if (existing.status != "pending") {
+            val ownerId = existing.userId?.takeIf { it.isNotBlank() } ?: return@withContext null
+            if (!SupabaseServices.Database.editDevChatMessage(existing.id, ownerId, cleanText)) {
+                return@withContext null
+            }
+        }
+        val updated = existing.copy(
+            message = cleanText,
+            updatedAt = if (existing.status == "pending") existing.updatedAt else System.currentTimeMillis()
+        )
+        current[index] = updated
+        saveLocalMessages(context, cleanEmail, current)
+        updated
+    }
+
+    suspend fun deleteMessage(
+        context: Context,
+        userEmail: String,
+        messageId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        val cleanEmail = userEmail.trim().lowercase()
+        if (cleanEmail.isBlank() || messageId.isBlank()) return@withContext false
+        val current = getLocalMessages(context, cleanEmail, includeWelcomeSeed = false).toMutableList()
+        val existing = current.firstOrNull { it.id == messageId } ?: return@withContext false
+        if (existing.status != "pending") {
+            val ownerId = existing.userId?.takeIf { it.isNotBlank() } ?: return@withContext false
+            if (!SupabaseServices.Database.deleteDevChatMessage(existing.id, ownerId)) {
+                return@withContext false
+            }
+        }
+        saveLocalMessages(context, cleanEmail, current.filterNot { it.id == messageId })
+        true
+    }
+
+    suspend fun deleteConversation(
+        context: Context,
+        userEmail: String,
+        userId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        val cleanEmail = userEmail.trim().lowercase()
+        if (cleanEmail.isBlank() || userId.isBlank()) return@withContext false
+        if (SupabaseServices.Database.deleteDevChatThread(userId) == null) return@withContext false
+        removeLocalConversation(context, cleanEmail)
+        true
+    }
+
     /** جلب كافة المحادثات للمطور (دمج المحلي والسحابي الشامل المضمون) */
     suspend fun getAllThreads(context: Context): Map<String, List<DevChatMessage>> = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -268,54 +405,31 @@ object DevChatRepository {
             if (email.isNotBlank()) allEmails.add(email)
         }
 
-        // 3. تضمين البريد النشط والافتراضي
-        allEmails.add("user@qabas.app")
-        val currentAppEmail = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            .getString("user_email", null)
-        if (!currentAppEmail.isNullOrBlank()) {
-            allEmails.add(currentAppEmail.trim().lowercase())
-        }
-        SupabaseServices.Auth.currentUser.value?.email?.let {
-            if (it.isNotBlank()) allEmails.add(it.trim().lowercase())
-        }
-
         val result = mutableMapOf<String, List<DevChatMessage>>()
 
         for (email in allEmails) {
-            val msgs = getLocalMessages(context, email)
+            val msgs = getLocalMessages(context, email, includeWelcomeSeed = false)
             if (msgs.isNotEmpty()) {
                 result[email] = msgs
             }
         }
 
-        // 4. دمج رسائل Supabase
-        try {
-            if (SupabaseServices.isSupabaseAvailable) {
-                val cloudThreads = SupabaseServices.Database.getAllChatThreads()
-                for ((cloudEmail, cloudMsgs) in cloudThreads) {
-                    val cleanCloudEmail = cloudEmail.trim().lowercase()
-                    val existing = result[cleanCloudEmail]?.toMutableList() ?: mutableListOf()
-                    val existingTexts = existing.map { it.message.trim() }.toSet()
-                    for (cMsg in cloudMsgs) {
-                        if (cMsg.message.trim() !in existingTexts) {
-                            existing.add(
-                                DevChatMessage(
-                                    id = cMsg.id,
-                                    userId = cMsg.userId,
-                                    userEmail = cleanCloudEmail,
-                                    sender = cMsg.sender,
-                                    message = cMsg.message,
-                                    createdAt = parseCreatedAt(cMsg.createdAt),
-                                    formattedTime = cMsg.createdAt?.takeLast(8)?.take(5) ?: "الآن"
-                                )
-                            )
-                        }
-                    }
-                    result[cleanCloudEmail] = existing.sortedBy { it.createdAt }
+        // A successful cloud read is authoritative, so edits and deletions replace stale sent cache rows.
+        val cloudThreads = SupabaseServices.Database.getAllChatThreadsOrNull()
+        if (cloudThreads != null) {
+            val allThreadEmails = (result.keys + cloudThreads.keys).toSet()
+            for (email in allThreadEmails) {
+                val local = result[email].orEmpty()
+                val unmatchedLocal = local.toMutableList()
+                val remote = cloudThreads[email].orEmpty().map { row ->
+                    val match = findLocalMatch(row, unmatchedLocal)
+                    if (match != null) unmatchedLocal.remove(match)
+                    fromCloudMessage(row, match)
                 }
+                val merged = (remote + unmatchedLocal.filter { it.status == "pending" })
+                    .sortedBy { it.createdAt }
+                if (merged.isEmpty()) result.remove(email) else result[email] = merged
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to merge cloud threads: ${e.message}")
         }
 
         result
@@ -323,7 +437,10 @@ object DevChatRepository {
 
     /** مزامنة سحابية كاملة لمستخدم معين */
     suspend fun syncMessages(context: Context, userEmail: String): List<DevChatMessage> = withContext(Dispatchers.IO) {
-        val local = getLocalMessages(context, userEmail).toMutableList()
+        val cleanEmail = userEmail.trim().lowercase()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val hadPersistedSnapshot = prefs.contains(KEY_MESSAGES_PREFIX + cleanEmail)
+        val local = getLocalMessages(context, cleanEmail).toMutableList()
         if (!SupabaseServices.isSupabaseAvailable || userEmail.isBlank() ||
             SupabaseServices.Auth.getCurrentUserId().isNullOrBlank()
         ) {
@@ -331,31 +448,26 @@ object DevChatRepository {
         }
 
         try {
-            val remote = SupabaseServices.Database.getChatMessagesForCurrentUser()
-            if (remote.isNotEmpty()) {
-                val localTexts = local.map { it.message.trim() }.toSet()
-                var updated = false
-                for (r in remote) {
-                    if (r.message.trim() !in localTexts) {
-                        local.add(
-                            DevChatMessage(
-                                id = r.id,
-                                userId = r.userId,
-                                userEmail = userEmail,
-                                sender = r.sender,
-                                message = r.message,
-                                formattedTime = r.createdAt?.takeLast(8)?.take(5) ?: "الآن"
-                            )
-                        )
-                        updated = true
-                    }
-                }
-                if (updated) {
-                    val sorted = local.sortedBy { it.createdAt }
-                    saveLocalMessages(context, userEmail, sorted)
-                    return@withContext sorted
-                }
+            val remote = SupabaseServices.Database.getChatMessagesForCurrentUserOrNull()
+                ?: return@withContext local
+            val unmatchedLocal = local.toMutableList()
+            val cloudMessages = remote.map { row ->
+                val match = findLocalMatch(row, unmatchedLocal)
+                if (match != null) unmatchedLocal.remove(match)
+                fromCloudMessage(row, match)
             }
+            val pending = unmatchedLocal.filter { it.status == "pending" }
+            val firstRunWelcome = if (remote.isEmpty() && !hadPersistedSnapshot) {
+                local.filter { it.id.startsWith("welcome_") }
+            } else {
+                emptyList()
+            }
+            val merged = (cloudMessages + pending + firstRunWelcome).distinctBy { it.id }
+                .sortedBy { it.createdAt }
+            if (remote.isNotEmpty() || hadPersistedSnapshot || pending.isNotEmpty()) {
+                saveLocalMessages(context, cleanEmail, merged)
+            }
+            return@withContext merged
         } catch (e: Exception) {
             Log.w(TAG, "Sync with Supabase failed: ${e.message}")
         }
