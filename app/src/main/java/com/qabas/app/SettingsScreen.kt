@@ -107,6 +107,18 @@ data class SearchableSetting(
     val group: String = "عام"
 )
 
+internal sealed class SettingsItemAction {
+    data class OpenSubScreen(val screen: SettingsSubScreen) : SettingsItemAction()
+    object OpenContact : SettingsItemAction()
+}
+
+internal fun settingsItemAction(item: SearchableSetting): SettingsItemAction =
+    if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
+        SettingsItemAction.OpenContact
+    } else {
+        SettingsItemAction.OpenSubScreen(item.subScreen)
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -707,11 +719,14 @@ fun SettingsScreen(
                                     badgeColor = item.badgeColor ?: item.accentColor,
                                     accentColor = item.accentColor,
                                     onClick = {
-                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
-                                            AppSoundManager.playClick()
-                                            AppNavigator.navigateTo(AppState.REQUEST_CHAT)
-                                        } else {
-                                            currentSubScreen = item.subScreen
+                                        when (val action = settingsItemAction(item)) {
+                                            SettingsItemAction.OpenContact -> {
+                                                AppSoundManager.playClick()
+                                                AppNavigator.navigateTo(AppState.REQUEST_CHAT)
+                                            }
+                                            is SettingsItemAction.OpenSubScreen -> {
+                                                currentSubScreen = action.screen
+                                            }
                                         }
                                     }
                                 )
@@ -734,11 +749,14 @@ fun SettingsScreen(
                                         badgeColor = item.badgeColor ?: item.accentColor,
                                         accentColor = item.accentColor,
                                         onClick = {
-                                            if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
-                                                AppSoundManager.playClick()
-                                                AppNavigator.navigateTo(AppState.REQUEST_CHAT)
-                                            } else {
-                                                currentSubScreen = item.subScreen
+                                            when (val action = settingsItemAction(item)) {
+                                                SettingsItemAction.OpenContact -> {
+                                                    AppSoundManager.playClick()
+                                                    AppNavigator.navigateTo(AppState.REQUEST_CHAT)
+                                                }
+                                                is SettingsItemAction.OpenSubScreen -> {
+                                                    currentSubScreen = action.screen
+                                                }
                                             }
                                         }
                                     )
