@@ -286,6 +286,18 @@ fun DeveloperContactScreen(
     val sortedThreadEmails = visibleThreadEmails.sortedByDescending { email ->
         threads[email].orEmpty().maxOfOrNull { it.createdAt } ?: 0L
     }
+    val selectedThreadMessages = threads[selectedThreadEmail].orEmpty()
+    val selectedThreadDisplayName = threadProfiles[selectedThreadEmail]?.displayName
+        ?: selectedThreadEmail.substringBefore("@").ifBlank { "المستخدم" }
+    val selectedThreadCategoryKey = selectedThreadMessages
+        .filter { it.sender.equals("user", ignoreCase = true) && it.category.isNotBlank() }
+        .maxByOrNull { it.createdAt }
+        ?.category
+        ?: selectedThreadMessages.maxByOrNull { it.createdAt }?.category
+    val selectedThreadCategoryLabel = selectedThreadCategoryKey?.let { categoryKey ->
+        contactCategories.firstOrNull { it.key == categoryKey }?.label
+            ?: categoryKey.takeIf { it.isNotBlank() }
+    }
 
     fun sendMessageNow(text: String, category: ContactCategory) {
         val conversationEmail = if (isDeveloper) selectedThreadEmail else userEmail
@@ -347,20 +359,85 @@ fun DeveloperContactScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = contactPrimaryText, fontSize = 18.sp)
-                        Text(
-                            if (isDeveloper) "لوحة المحادثات — ${threads.size} محادثة"
-                            else if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
-                            fontFamily = CairoFont,
-                            color = if (unreadReplies > 0) contactAccent else contactSecondaryText,
-                            fontSize = 11.sp
-                        )
+                    if (isDeveloper && selectedThreadEmail.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ContactAvatar(
+                                selectedThreadDisplayName,
+                                threadProfiles[selectedThreadEmail]?.avatarUrl,
+                                contactAccent,
+                                size = 34.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "التواصل مع المطور",
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contactPrimaryText,
+                                    fontSize = 14.sp
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        selectedThreadDisplayName,
+                                        color = contactSecondaryText,
+                                        fontFamily = CairoFont,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    selectedThreadCategoryLabel?.let { categoryLabel ->
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(
+                                            color = contactAccent.copy(alpha = 0.14f),
+                                            shape = RoundedCornerShape(50)
+                                        ) {
+                                            Text(
+                                                categoryLabel,
+                                                color = contactAccent,
+                                                fontFamily = CairoFont,
+                                                fontSize = 9.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column {
+                            Text("التواصل مع المطور", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = contactPrimaryText, fontSize = 18.sp)
+                            Text(
+                                if (isDeveloper) "لوحة المحادثات — ${threads.size} محادثة"
+                                else if (unreadReplies > 0) "لديك $unreadReplies ردود جديدة" else "رسالتك تصل إلى لوحة المطور",
+                                fontFamily = CairoFont,
+                                color = if (unreadReplies > 0) contactAccent else contactSecondaryText,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = contactAccent)
+                    IconButton(
+                        onClick = {
+                            if (isDeveloper && selectedThreadEmail.isNotBlank()) {
+                                selectedThreadEmail = ""
+                                messages = emptyList()
+                            } else {
+                                onBack()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (isDeveloper && selectedThreadEmail.isNotBlank()) "العودة للمحادثات" else "رجوع",
+                            tint = contactAccent
+                        )
                     }
                 },
                 actions = {
@@ -391,30 +468,32 @@ fun DeveloperContactScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, contactBorder, RoundedCornerShape(18.dp)),
-                color = contactCard,
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Chat, contentDescription = null, tint = contactAccent, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        if (isDeveloper) "اختر محادثة للرد عليها، وستظهر رسالتك للمستخدم مباشرة."
-                        else "اختر تصنيف الرسالة ثم اكتب ملاحظتك. ستظهر رسالتك في لوحة المطور للمراجعة والرد.",
-                        color = contactPrimaryText.copy(alpha = 0.92f),
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
+            if (!isDeveloper || selectedThreadEmail.isBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, contactBorder, RoundedCornerShape(18.dp)),
+                    color = contactCard,
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Chat, contentDescription = null, tint = contactAccent, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            if (isDeveloper) "اختر محادثة للرد عليها، وستظهر رسالتك للمستخدم مباشرة."
+                            else "اختر تصنيف الرسالة ثم اكتب ملاحظتك. ستظهر رسالتك في لوحة المطور للمراجعة والرد.",
+                            color = contactPrimaryText.copy(alpha = 0.92f),
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
                 }
             }
 
-            if (isDeveloper) {
+            if (isDeveloper && selectedThreadEmail.isBlank()) {
                 Text(
-                    if (selectedThreadEmail.isBlank()) "المحادثات — الأحدث أولاً" else "المحادثة الحالية",
+                    "المحادثات — الأحدث أولاً",
                     color = contactSecondaryText,
                     fontFamily = CairoFont,
                     fontSize = 11.sp
@@ -442,22 +521,7 @@ fun DeveloperContactScreen(
                         }
                     }
                 }
-                if (selectedThreadEmail.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { selectedThreadEmail = "" }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة للمحادثات", tint = contactAccent)
-                            Text("المحادثات", color = contactAccent, fontFamily = CairoFont, fontSize = 11.sp)
-                        }
-                        Text(
-                            threadProfiles[selectedThreadEmail]?.displayName
-                                ?: selectedThreadEmail.substringBefore("@").ifBlank { "المستخدم" },
-                            color = contactPrimaryText,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-                } else if (sortedThreadEmails.isEmpty()) {
+                if (sortedThreadEmails.isEmpty()) {
                     Text("لا توجد محادثات مطابقة للفلتر", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 12.sp)
                 } else {
                     LazyColumn(
@@ -576,12 +640,18 @@ fun DeveloperContactScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
                         val isUserMessage = message.sender.equals("user", ignoreCase = true)
                         val isMine = if (isDeveloper) !isUserMessage else isUserMessage
+                        val previousMessage = messages.getOrNull(index - 1)
+                        val nextMessage = messages.getOrNull(index + 1)
+                        val startsNewGroup = previousMessage == null ||
+                            !previousMessage.sender.equals(message.sender, ignoreCase = true)
+                        val endsGroup = nextMessage == null ||
+                            !nextMessage.sender.equals(message.sender, ignoreCase = true)
                         val senderName = when {
                             isDeveloper && isUserMessage -> message.senderDisplayName ?: message.userEmail.ifBlank { "المستخدم" }
                             isUserMessage -> localDisplayName
@@ -600,12 +670,18 @@ fun DeveloperContactScreen(
                             else -> "✓ مرسلة"
                         }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = if (startsNewGroup) 6.dp else 0.dp),
                             horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
                             verticalAlignment = Alignment.Bottom
                         ) {
                             if (!isMine) {
-                                ContactAvatar(senderName, senderAvatar, contactAccent)
+                                if (endsGroup) {
+                                    ContactAvatar(senderName, senderAvatar, contactAccent, size = 34.dp)
+                                } else {
+                                    Spacer(Modifier.size(34.dp))
+                                }
                                 Spacer(Modifier.width(6.dp))
                             }
                             Surface(
@@ -620,25 +696,29 @@ fun DeveloperContactScreen(
                                 modifier = Modifier.fillMaxWidth(0.78f)
                             ) {
                                 Column(modifier = Modifier.padding(11.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            if (isMine) "أنت" else senderName,
-                                            color = if (isMine) contactAccent else contactAccent.copy(alpha = 0.9f),
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (isUserMessage && message.category.isNotBlank()) {
+                                    if (startsNewGroup) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                contactCategories.firstOrNull { it.key == message.category }?.label ?: message.category,
-                                                color = TextSecondary,
+                                                if (isMine) "أنت" else senderName,
+                                                color = if (isMine) contactAccent else contactAccent.copy(alpha = 0.9f),
                                                 fontFamily = CairoFont,
-                                                fontSize = 9.sp
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
                                             )
+                                            if (isUserMessage && message.category.isNotBlank()) {
+                                                Text(
+                                                    contactCategories.firstOrNull { it.key == message.category }?.label ?: message.category,
+                                                    color = TextSecondary,
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 9.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                         }
+                                        Spacer(Modifier.height(4.dp))
                                     }
-                                    Spacer(Modifier.height(4.dp))
                                     Text(message.message, color = contactPrimaryText, fontFamily = CairoFont, fontSize = 13.sp, lineHeight = 19.sp)
                                     Spacer(Modifier.height(3.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -677,7 +757,11 @@ fun DeveloperContactScreen(
                             }
                             if (isMine) {
                                 Spacer(Modifier.width(6.dp))
-                                ContactAvatar(senderName, senderAvatar, contactAccent)
+                                if (endsGroup) {
+                                    ContactAvatar(senderName, senderAvatar, contactAccent, size = 34.dp)
+                                } else {
+                                    Spacer(Modifier.size(34.dp))
+                                }
                             }
                         }
                     }
