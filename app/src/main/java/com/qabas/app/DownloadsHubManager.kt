@@ -109,10 +109,11 @@ data class DownloadedReelItem(
     val localFilePath: String,
     val thumbnailUrl: String? = null,
     val fileSizeBytes: Long = 0L,
-    val downloadedAt: Long = System.currentTimeMillis()
+    val downloadedAt: Long = System.currentTimeMillis(),
+    val fileExistsAtLoad: Boolean = File(localFilePath).exists()
 ) {
     val formattedSize: String get() = StorageMetrics.formatBytes(fileSizeBytes)
-    val fileExists: Boolean get() = File(localFilePath).exists()
+    val fileExists: Boolean get() = fileExistsAtLoad && File(localFilePath).exists()
 }
 
 /**
@@ -140,9 +141,12 @@ data class DownloadedMediaItem(
     val localFilePath: String,
     val fileSizeBytes: Long = 0L,
     val category: String = "audio",
-    val downloadedAt: Long = System.currentTimeMillis()
+    val downloadedAt: Long = System.currentTimeMillis(),
+    val sourceUrl: String? = null,
+    val fileExistsAtLoad: Boolean = File(localFilePath).exists()
 ) {
     val formattedSize: String get() = StorageMetrics.formatBytes(fileSizeBytes)
+    val fileExists: Boolean get() = fileExistsAtLoad && File(localFilePath).exists()
 }
 
 /**
@@ -418,9 +422,8 @@ object DownloadsHubManager {
                         fileSizeBytes = obj.optLong("fileSizeBytes", 0L),
                         downloadedAt = obj.optLong("downloadedAt", System.currentTimeMillis())
                     )
-                    if (item.fileExists) {
-                        list.add(item)
-                    }
+                    // احتفظ بالسجل حتى لو حُذف الملف خارجيًا لعرض حالة «مفقود» وخياراتها.
+                    list.add(item)
                 }
                 _downloadedReels.value = list
             } catch (e: Exception) {
@@ -443,11 +446,10 @@ object DownloadsHubManager {
                         localFilePath = obj.getString("localFilePath"),
                         fileSizeBytes = obj.optLong("fileSizeBytes", 0L),
                         category = obj.optString("category", "audio"),
-                        downloadedAt = obj.optLong("downloadedAt", System.currentTimeMillis())
+                        downloadedAt = obj.optLong("downloadedAt", System.currentTimeMillis()),
+                        sourceUrl = obj.optString("sourceUrl").takeIf { it.isNotBlank() }
                     )
-                    if (File(item.localFilePath).exists()) {
-                        list.add(item)
-                    }
+                    list.add(item)
                 }
                 _downloadedMedia.value = list
             } catch (e: Exception) {
@@ -590,7 +592,17 @@ object DownloadsHubManager {
                 }
 
                 if (body.contentLength() > MAX_REEL_DOWNLOAD_BYTES) {
+                    response.close()
                     updateDownloadError(reelId, title, "حجم الريل يتجاوز الحد المسموح (250MB)")
+                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
+                    return@launch
+                }
+
+                val reelLength = body.contentLength()
+                val reelAvailableBytes = StatFs(getReelsDirectory(context).path).availableBytes
+                if (reelLength > 0 && reelAvailableBytes < reelLength + 32L * 1024L * 1024L) {
+                    response.close()
+                    updateDownloadError(reelId, title, "المساحة الحرة لا تكفي لهذا الريل مع هامش أمان")
                     withContext(Dispatchers.Main) { onComplete?.invoke(false) }
                     return@launch
                 }
@@ -740,7 +752,8 @@ object DownloadsHubManager {
                         title = title,
                         subtitle = "صوت أذان",
                         localFilePath = existing.absolutePath,
-                        fileSizeBytes = existing.length()
+                        fileSizeBytes = existing.length(),
+                        sourceUrl = fileUrl
                     )
                 )
                 return@withContext existing.absolutePath
@@ -761,6 +774,18 @@ object DownloadsHubManager {
                 return@withContext null
             }
             val body = response.body ?: return@withContext null
+            val mediaLength = body.contentLength()
+            val mediaAvailableBytes = StatFs(getMediaDirectory(context).path).availableBytes
+            if (mediaLength > 0 && mediaAvailableBytes < mediaLength + 16L * 1024L * 1024L) {
+                response.close()
+                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                    reelId = mediaId,
+                    title = title,
+                    isError = true,
+                    errorMessage = "المساحة الحرة لا تكفي لهذا الملف الصوتي"
+                ))
+                return@withContext null
+            }
             val total = body.contentLength().takeIf { it > 0 } ?: 5_000_000L
             var done = 0L
             var last = System.currentTimeMillis()
@@ -796,7 +821,8 @@ object DownloadsHubManager {
                         title = title,
                         subtitle = "صوت أذان",
                         localFilePath = existing.absolutePath,
-                        fileSizeBytes = existing.length()
+                        fileSizeBytes = existing.length(),
+                        sourceUrl = fileUrl
                     )
                 )
                 _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
@@ -852,6 +878,7 @@ object DownloadsHubManager {
                 put("fileSizeBytes", item.fileSizeBytes)
                 put("category", item.category)
                 put("downloadedAt", item.downloadedAt)
+                put("sourceUrl", item.sourceUrl ?: "")
             }
             arr.put(obj)
         }
@@ -871,29 +898,42 @@ object DownloadsHubManager {
         return true
     }
 
+    /** إعادة قراءة السجل المحلي كي تظهر الملفات المحذوفة من خارج التطبيق كعناصر مفقودة. */
+    fun refreshSavedDownloads(context: Context) {
+        loadSavedDownloads(context.applicationContext)
+        refreshStorageMetrics(context.applicationContext)
+    }
+
     /**
-     * تنظيف الكاش والملفات المؤقتة لتحرير المساحة
+     * تقدير الملفات الجزئية غير النشطة التي يمكن حذفها بأمان.
      */
+    fun estimateSafeTempDownloadBytes(context: Context): Long =
+        collectSafeTempDownloadFiles(context).sumOf { it.length() }
+
+    private fun collectSafeTempDownloadFiles(context: Context): List<File> = buildList {
+        // لا تلمس ملفات التحديث أو النماذج؛ قد تكون مكتملة أو قابلة للاستئناف.
+        if (_activeReelDownloads.value.isEmpty() && activeDownloadJobs.isEmpty()) {
+            getReelsDirectory(context).walkTopDown()
+                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) }
+                .forEach(::add)
+        }
+        if (_activeMediaDownloads.value.isEmpty()) {
+            getMediaDirectory(context).walkTopDown()
+                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) }
+                .forEach(::add)
+        }
+    }.distinct()
+
+    /** تنظيف الملفات الجزئية غير النشطة في مجلدي الريلز والوسائط فقط. */
     fun clearTempCache(context: Context): Long {
         var freedBytes = 0L
-        runCatching {
-            context.cacheDir?.walkTopDown()?.forEach { file ->
-                if (file.isFile) {
-                    val len = file.length()
-                    if (file.delete()) freedBytes += len
-                }
-            }
-            // حذف ملفات .tmp داخل مجلدات النماذج والريلز
-            getReelsDirectory(context).walkTopDown().filter { it.extension == "tmp" }.forEach {
-                val len = it.length()
-                if (it.delete()) freedBytes += len
-            }
-            OnDeviceModelManager.getModelsDirectory(context).walkTopDown().filter { it.extension == "tmp" }.forEach {
-                val len = it.length()
-                if (it.delete()) freedBytes += len
+        collectSafeTempDownloadFiles(context.applicationContext).forEach { file ->
+            runCatching {
+                val length = file.length()
+                if (file.delete()) freedBytes += length
             }
         }
-        refreshStorageMetrics(context)
+        refreshStorageMetrics(context.applicationContext)
         return freedBytes
     }
 

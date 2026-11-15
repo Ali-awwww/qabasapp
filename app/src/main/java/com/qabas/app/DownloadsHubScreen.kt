@@ -3,6 +3,7 @@ package com.qabas.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -121,6 +122,19 @@ private data class ActiveDownloadEntry(
     val detailText: String = "",
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null
+)
+
+private enum class DownloadSortMode(val label: String) {
+    Newest("الأحدث"),
+    Largest("الأكبر"),
+    Name("الاسم")
+}
+
+private data class DownloadSpaceWarning(
+    val title: String,
+    val requiredBytes: Long,
+    val availableBytes: Long,
+    val onContinue: () -> Unit
 )
 
 /**
@@ -458,6 +472,80 @@ private fun ActiveDownloadsPanel(
     }
 }
 
+@Composable
+private fun SavedDownloadSearchControls(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    sortMode: DownloadSortMode,
+    onSortModeChange: (DownloadSortMode) -> Unit
+) {
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    Surface(
+        color = CardSurface.copy(alpha = 0.82f),
+        shape = SpatialCardShape,
+        border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.12f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("ابحث في الملفات المحفوظة", fontFamily = CairoFont, fontSize = 11.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF00E5FF)) },
+                trailingIcon = if (query.isNotBlank()) {
+                    {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "مسح البحث", tint = TextSecondary)
+                        }
+                    }
+                } else null,
+                shape = SpatialInsetShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF00E5FF),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color(0xFF00E5FF)
+                )
+            )
+            Box {
+                IconButton(onClick = { sortMenuExpanded = true }) {
+                    Icon(
+                        Icons.Default.Sort,
+                        contentDescription = "ترتيب حسب ${sortMode.label}",
+                        tint = GoldPrimary
+                    )
+                }
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false }
+                ) {
+                    DownloadSortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (mode == sortMode) "✓ ${mode.label}" else mode.label,
+                                    fontFamily = CairoFont
+                                )
+                            },
+                            onClick = {
+                                onSortModeChange(mode)
+                                sortMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * شاشة التنزيلات والتخزين: واجهة موحدة وبسيطة للملفات المحفوظة والتنزيلات الجارية.
  */
@@ -495,6 +583,21 @@ fun DownloadsHubScreen(
 
     // 0: نماذج الذكاء (GGUF), 1: تحديثات التطبيق (OTA), 2: فيديوهات الريلز, 3: الصوتيات والوسائط
     var selectedTab by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var sortMode by remember { mutableStateOf(DownloadSortMode.Newest) }
+    var tempCacheEstimate by remember { mutableLongStateOf(0L) }
+    var pendingSpaceWarning by remember { mutableStateOf<DownloadSpaceWarning?>(null) }
+
+    fun startAfterSpaceCheck(title: String, expectedBytes: Long, action: () -> Unit) {
+        val available = android.os.StatFs(context.filesDir.absolutePath).availableBytes
+        val reserveBytes = 32L * 1024L * 1024L
+        val required = expectedBytes.coerceAtLeast(0L) + reserveBytes
+        if (available < required) {
+            pendingSpaceWarning = DownloadSpaceWarning(title, required, available, action)
+        } else {
+            action()
+        }
+    }
 
     // Dialogs
     var showClearCacheDialog by remember { mutableStateOf(false) }
@@ -524,6 +627,37 @@ fun DownloadsHubScreen(
         DownloadCategory.Media to (downloadedMedia.map { it.id } + activeMediaDownloads.keys).toSet().size
     )
     val visibleCategories = DownloadCategory.entries.filter { (categoryCounts[it] ?: 0) > 0 }
+
+    val normalizedQuery = searchQuery.trim()
+    val matchingModels = installedModels
+        .filter { normalizedQuery.isBlank() || it.name.contains(normalizedQuery, ignoreCase = true) || it.description.contains(normalizedQuery, ignoreCase = true) }
+        .let { models ->
+            when (sortMode) {
+                DownloadSortMode.Largest -> models.sortedByDescending { it.sizeBytes }
+                DownloadSortMode.Name -> models.sortedBy { it.name.lowercase() }
+                DownloadSortMode.Newest -> models.sortedByDescending {
+                    OnDeviceModelManager.getModelFile(context, it).lastModified()
+                }
+            }
+        }
+    val matchingReels = downloadedReels
+        .filter { normalizedQuery.isBlank() || it.title.contains(normalizedQuery, ignoreCase = true) || it.author.contains(normalizedQuery, ignoreCase = true) }
+        .let { reels ->
+            when (sortMode) {
+                DownloadSortMode.Largest -> reels.sortedByDescending { it.fileSizeBytes }
+                DownloadSortMode.Name -> reels.sortedBy { it.title.lowercase() }
+                DownloadSortMode.Newest -> reels.sortedByDescending { it.downloadedAt }
+            }
+        }
+    val matchingMedia = downloadedMedia
+        .filter { normalizedQuery.isBlank() || it.title.contains(normalizedQuery, ignoreCase = true) || it.subtitle.contains(normalizedQuery, ignoreCase = true) }
+        .let { media ->
+            when (sortMode) {
+                DownloadSortMode.Largest -> media.sortedByDescending { it.fileSizeBytes }
+                DownloadSortMode.Name -> media.sortedBy { it.title.lowercase() }
+                DownloadSortMode.Newest -> media.sortedByDescending { it.downloadedAt }
+            }
+        }
 
     LaunchedEffect(visibleCategories, selectedTab) {
         if (visibleCategories.isNotEmpty() && visibleCategories.none { it.tabIndex == selectedTab }) {
@@ -730,7 +864,7 @@ fun DownloadsHubScreen(
                     // زر تحديث الذاكرة والكاش
                     IconButton(
                         onClick = {
-                            DownloadsHubManager.refreshStorageMetrics(context)
+                            DownloadsHubManager.refreshSavedDownloads(context)
                             Toast.makeText(context, "تم تحديث قياسات الذاكرة التخزينية 🔄", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier
@@ -780,7 +914,14 @@ fun DownloadsHubScreen(
                         }
                     },
                     onOpenAssistant = onOpenAiAssistant,
-                    onCleanCache = { showClearCacheDialog = true },
+                    onCleanCache = {
+                        scope.launch {
+                            tempCacheEstimate = withContext(Dispatchers.IO) {
+                                DownloadsHubManager.estimateSafeTempDownloadBytes(context)
+                            }
+                            showClearCacheDialog = true
+                        }
+                    },
                     onOpenCategory = { selectedTab = it },
                     categoryCounts = categoryCounts,
                     visibleCategories = visibleCategories,
@@ -793,6 +934,23 @@ fun DownloadsHubScreen(
                         Toast.makeText(context, UpdateChannelFacade.checkingToast(context), Toast.LENGTH_SHORT).show()
                     }
                 )
+            }
+
+            val hasSearchableItems = when (selectedTab) {
+                0 -> installedModels.isNotEmpty()
+                2 -> downloadedReels.isNotEmpty()
+                3 -> downloadedMedia.isNotEmpty()
+                else -> false
+            }
+            if (hasSearchableItems) {
+                item(key = "download_search_sort") {
+                    SavedDownloadSearchControls(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        sortMode = sortMode,
+                        onSortModeChange = { sortMode = it }
+                    )
+                }
             }
 
             // محتويات التبويب المختار — تُعرض فقط للتصنيفات غير الفارغة
@@ -811,8 +969,8 @@ fun DownloadsHubScreen(
                         // تبويب نماذج LLM الأوفلاين (GGUF) — يعرض المكتمل فقط؛ النشط في اللوحة أعلاه
                         if (installedModels.isEmpty()) {
                             item(key = "empty_models") {
-                                EmptyDownloadsPlaceholder(
-                                    title = if (activeModel != null) "جارٍ تنزيل النموذج..." else "لا توجد نماذج منزّلة حالياً",
+                                    EmptyDownloadsPlaceholder(
+                                        title = if (activeModel != null) "جارٍ تنزيل النموذج..." else "لا توجد نماذج منزّلة حالياً",
                                     subtitle = if (activeModel != null) {
                                         "تابع تقدم التنزيل وإجراءاته من لوحة التنزيلات النشطة أعلاه؛ سيظهر النموذج هنا فور اكتماله."
                                     } else {
@@ -822,9 +980,18 @@ fun DownloadsHubScreen(
                                     onAction = onOpenAiAssistant
                                 )
                             }
+                        } else if (matchingModels.isEmpty()) {
+                            item(key = "empty_model_search") {
+                                EmptyDownloadsPlaceholder(
+                                    title = "لا توجد نماذج مطابقة",
+                                    subtitle = "جرّب كلمة بحث مختلفة أو غيّر ترتيب العناصر.",
+                                    actionText = "مسح البحث",
+                                    onAction = { searchQuery = "" }
+                                )
+                            }
                         } else {
                             items(
-                                items = installedModels,
+                                items = matchingModels,
                                 key = { "model_${it.id}" }
                             ) { model ->
                                 val isSelected = selectedModel.id == model.id
@@ -837,8 +1004,10 @@ fun DownloadsHubScreen(
                                     installedSizeBytes = installedSize,
                                     downloadState = modelDownloadState,
                                     onDownloadClick = {
-                                        ModelDownloadService.start(context, model.id)
-                                        Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
+                                        startAfterSpaceCheck(model.name, model.sizeBytes) {
+                                            ModelDownloadService.start(context, model.id)
+                                            Toast.makeText(context, "بدأ تنزيل نموذج ${model.name} مع إشعار خلفي 📥", Toast.LENGTH_SHORT).show()
+                                        }
                                     },
                                     onCancelClick = {
                                         ModelDownloadService.cancel(context)
@@ -907,13 +1076,36 @@ fun DownloadsHubScreen(
                                     onAction = onOpenReels
                                 )
                             }
+                        } else if (matchingReels.isEmpty()) {
+                            item(key = "empty_reel_search") {
+                                EmptyDownloadsPlaceholder(
+                                    title = "لا توجد ريلز مطابقة",
+                                    subtitle = "جرّب كلمة بحث مختلفة أو غيّر ترتيب العناصر.",
+                                    actionText = "مسح البحث",
+                                    onAction = { searchQuery = "" }
+                                )
+                            }
                         } else {
                             items(
-                                items = downloadedReels,
+                                items = matchingReels,
                                 key = { "saved_reel_${it.id}" }
                             ) { reel ->
                                 DownloadedReelCard(
                                     reel = reel,
+                                    onRetry = {
+                                        startAfterSpaceCheck(reel.title, 60L * 1024L * 1024L) {
+                                            DownloadsHubManager.downloadReel(
+                                                context = context,
+                                                reelId = reel.id,
+                                                title = reel.title,
+                                                videoUrl = reel.videoUrl,
+                                                thumbnailUrl = reel.thumbnailUrl,
+                                                author = reel.author
+                                            ) { success ->
+                                                if (!success) Toast.makeText(context, "تعذرت إعادة تنزيل الريل", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
                                     onPlay = {
                                         playVideoLocally(context, reel.localFilePath)
                                     },
@@ -944,13 +1136,40 @@ fun DownloadsHubScreen(
                                     }
                                 )
                             }
+                        } else if (matchingMedia.isEmpty()) {
+                            item(key = "empty_media_search") {
+                                EmptyDownloadsPlaceholder(
+                                    title = "لا توجد ملفات مطابقة",
+                                    subtitle = "جرّب كلمة بحث مختلفة أو غيّر ترتيب العناصر.",
+                                    actionText = "مسح البحث",
+                                    onAction = { searchQuery = "" }
+                                )
+                            }
                         } else {
                             items(
-                                items = downloadedMedia,
+                                items = matchingMedia,
                                 key = { "saved_media_${it.id}" }
                             ) { media ->
                                 DownloadedMediaCard(
                                     media = media,
+                                    onRetry = {
+                                        val sourceUrl = media.sourceUrl
+                                        if (!sourceUrl.isNullOrBlank()) {
+                                            startAfterSpaceCheck(media.title, media.fileSizeBytes) {
+                                                scope.launch {
+                                                    val localPath = DownloadsHubManager.downloadMedia(
+                                                        context = context,
+                                                        mediaId = media.id,
+                                                        title = media.title,
+                                                        fileUrl = sourceUrl
+                                                    )
+                                                    if (localPath.isNullOrBlank()) {
+                                                        Toast.makeText(context, "تعذرت إعادة تنزيل الملف الصوتي", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
                                     onDelete = {
                                         DownloadsHubManager.deleteDownloadedMedia(context, media.id)
                                         Toast.makeText(context, "تم حذف المقطع", Toast.LENGTH_SHORT).show()
@@ -974,11 +1193,11 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
             title = {
-                Text("تنظيف الملفات المؤقتة 🧹", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("تنظيف الملفات الجزئية الآمنة 🧹", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
             },
             text = {
                 Text(
-                    "سيتم مسح ملفات التخزين المؤقت والملفات الجزئية (.tmp) لتحرير مساحة الذاكرة دون المساس بالنماذج المكتملة أو الريلز المحفوظة.",
+                    "سيُحذف فقط ما يلي من الملفات الجزئية غير النشطة في مجلدي الريلز والوسائط: ${StorageMetrics.formatBytes(tempCacheEstimate)}. لن تُمس ملفات التحديث أو النماذج القابلة للاستئناف أو الملفات المكتملة.",
                     fontFamily = CairoFont,
                     color = TextSecondary,
                     fontSize = 13.sp
@@ -992,16 +1211,52 @@ fun DownloadsHubScreen(
                                 DownloadsHubManager.clearTempCache(context)
                             }
                             showClearCacheDialog = false
+                            tempCacheEstimate = 0L
                             Toast.makeText(context, "تم تحرير ${StorageMetrics.formatBytes(freed)} من الذاكرة بنجاح! ✨", Toast.LENGTH_LONG).show()
                         }
                     },
+                    enabled = tempCacheEstimate > 0L,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
                 ) {
-                    Text("تنظيف الآن", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (tempCacheEstimate > 0L) "تنظيف الآن" else "لا توجد ملفات مؤقتة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearCacheDialog = false }) {
+                    Text("إلغاء", fontFamily = CairoFont, color = TextSecondary)
+                }
+            },
+            containerColor = CardSurface
+        )
+    }
+
+    pendingSpaceWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = { pendingSpaceWarning = null },
+            title = {
+                Text("المساحة قد لا تكفي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+            },
+            text = {
+                Text(
+                    "يحتاج «${warning.title}» إلى نحو ${StorageMetrics.formatBytes(warning.requiredBytes)} مع هامش أمان، بينما المتاح الآن ${StorageMetrics.formatBytes(warning.availableBytes)}. يمكنك إلغاء التنزيل أو المتابعة مع احتمال فشله إذا نفدت المساحة.",
+                    fontFamily = CairoFont,
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingSpaceWarning = null
+                        warning.onContinue()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                ) {
+                    Text("المتابعة على مسؤوليتي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSpaceWarning = null }) {
                     Text("إلغاء", fontFamily = CairoFont, color = TextSecondary)
                 }
             },
@@ -1131,20 +1386,22 @@ fun DownloadsHubScreen(
                     onClick = {
                         val url = quickReelUrlInput.trim()
                         val title = quickReelTitleInput.trim().ifBlank { "مقطع فيديو جديد" }
-                        if (url.startsWith("http://") || url.startsWith("https://")) {
-                            val id = "reel_${System.currentTimeMillis()}"
-                            DownloadsHubManager.downloadReel(
-                                context = context,
-                                reelId = id,
-                                title = title,
-                                videoUrl = url
-                            )
-                            showQuickReelDownloadDialog = false
-                            quickReelUrlInput = ""
-                            quickReelTitleInput = ""
-                            Toast.makeText(context, "بدأ تنزيل الفيديو في الخلفية 🚀", Toast.LENGTH_SHORT).show()
+                        if (url.startsWith("https://", ignoreCase = true)) {
+                            startAfterSpaceCheck(title, 60L * 1024L * 1024L) {
+                                val id = "reel_${System.currentTimeMillis()}"
+                                DownloadsHubManager.downloadReel(
+                                    context = context,
+                                    reelId = id,
+                                    title = title,
+                                    videoUrl = url
+                                )
+                                showQuickReelDownloadDialog = false
+                                quickReelUrlInput = ""
+                                quickReelTitleInput = ""
+                                Toast.makeText(context, "بدأ تنزيل الفيديو في الخلفية 🚀", Toast.LENGTH_SHORT).show()
+                            }
                         } else {
-                            Toast.makeText(context, "يرجى إدخال رابط فيديو صالح يبدأ بـ http:// أو https://", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "يرجى إدخال رابط فيديو آمن يبدأ بـ https://", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
@@ -1272,6 +1529,29 @@ private fun SpatialStorageIndicatorWidget(
                         color = Color(0xFF00E5FF),
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+
+            if (metrics.totalBytes > 0L && metrics.availableBytes < 512L * 1024L * 1024L) {
+                Surface(
+                    color = Color(0xFFF59E0B).copy(alpha = 0.12f),
+                    shape = SpatialInsetShape,
+                    border = BorderStroke(0.7.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                        Text(
+                            text = "المساحة منخفضة — المتاح ${metrics.availableFormatted}. راجع الملفات قبل بدء تنزيل كبير.",
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            color = Color(0xFFFCD34D)
+                        )
+                    }
                 }
             }
 
@@ -2197,6 +2477,23 @@ private fun AppUpdatesHubSection(
                     }
 
                     // ملاحظات الإصدار (Release Notes)
+                    if (updateItem.fileExists) {
+                        Text(
+                            text = "ملف التحديث محفوظ مؤقتاً داخل مساحة قبس الخاصة، وليس في مجلد التنزيلات.",
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            color = TextSecondary
+                        )
+                    } else if (updateItem.isCompleted) {
+                        Text(
+                            text = "ملف التحديث غير موجود في المسار المتوقع؛ أعد فحص التحديث لتنزيله مجدداً.",
+                            fontFamily = CairoFont,
+                            fontSize = 10.sp,
+                            color = Color(0xFFF59E0B)
+                        )
+                    }
+
+                    // ملاحظات الإصدار (Release Notes)
                     if (updateItem.releaseNotes.isNotBlank()) {
                         Surface(
                             color = Color.Black.copy(alpha = 0.3f),
@@ -2541,6 +2838,15 @@ private fun GgufModelCard(
                 lineHeight = 16.sp
             )
 
+            if (isInstalled) {
+                Text(
+                    text = "مكان الملف: مساحة قبس الخاصة — لا يظهر في مجلد التنزيلات العام.",
+                    fontFamily = CairoFont,
+                    fontSize = 10.sp,
+                    color = TextSecondary
+                )
+            }
+
             // حالة التنزيل الجارية (شريط التقدم الحي)
             if (isDownloadingThis) {
                 val state = downloadState as ModelDownloadState.Downloading
@@ -2825,6 +3131,7 @@ private fun ActiveReelDownloadCard(
 @Composable
 private fun DownloadedReelCard(
     reel: DownloadedReelItem,
+    onRetry: () -> Unit,
     onPlay: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit
@@ -2850,13 +3157,13 @@ private fun DownloadedReelCard(
                     border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.4f)),
                     modifier = Modifier
                         .size(44.dp)
-                        .clickable { onPlay() }
+                        .clickable { if (reel.fileExists) onPlay() else onRetry() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "تشغيل",
-                            tint = Color(0xFFA855F7),
+                            imageVector = if (reel.fileExists) Icons.Default.PlayArrow else Icons.Default.CloudDownload,
+                            contentDescription = if (reel.fileExists) "تشغيل" else "إعادة تنزيل",
+                            tint = if (reel.fileExists) Color(0xFFA855F7) else Color(0xFFF59E0B),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -2879,7 +3186,7 @@ private fun DownloadedReelCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = reel.author,
+                            text = "${reel.author} • ${DateUtils.getRelativeTimeSpanString(reel.downloadedAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}",
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp,
                             color = TextSecondary,
@@ -2904,24 +3211,33 @@ private fun DownloadedReelCard(
                 }
             }
 
+            Text(
+                text = if (reel.fileExists) "الموقع: داخل مساحة قبس الخاصة · متاح دون اتصال"
+                    else "الملف مفقود من مساحة قبس — يمكنك إعادة تنزيله أو إزالة السجل.",
+                fontFamily = CairoFont,
+                fontSize = 10.sp,
+                color = if (reel.fileExists) TextSecondary else Color(0xFFF59E0B)
+            )
+
             // أزرار التحكم في صف مستقل — لا تزاحم النص
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onPlay,
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Icon(Icons.Default.PlayCircleOutline, contentDescription = "تشغيل", tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
-                }
-
-                IconButton(
-                    onClick = onShare,
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
+                if (reel.fileExists) {
+                    IconButton(onClick = onPlay, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.PlayCircleOutline, contentDescription = "تشغيل", tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = onShare, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
+                    }
+                } else {
+                    TextButton(onClick = onRetry) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("إعادة تنزيل", fontFamily = CairoFont, color = Color(0xFFF59E0B), fontSize = 11.sp)
+                    }
                 }
 
                 IconButton(
@@ -2941,6 +3257,7 @@ private fun DownloadedReelCard(
 @Composable
 private fun DownloadedMediaCard(
     media: DownloadedMediaItem,
+    onRetry: () -> Unit,
     onDelete: () -> Unit
 ) {
     Surface(
@@ -2961,7 +3278,7 @@ private fun DownloadedMediaCard(
                 Icon(
                     imageVector = Icons.Default.Audiotrack,
                     contentDescription = null,
-                    tint = GoldPrimary,
+                    tint = if (media.fileExists) GoldPrimary else Color(0xFFF59E0B),
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -2980,7 +3297,7 @@ private fun DownloadedMediaCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "${media.subtitle} • ${media.formattedSize}",
+                            text = "${media.subtitle} • ${media.formattedSize} • ${DateUtils.getRelativeTimeSpanString(media.downloadedAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}",
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp,
                             color = TextSecondary,
@@ -2993,11 +3310,31 @@ private fun DownloadedMediaCard(
                             color = GoldPrimary
                         )
                     }
+                    Text(
+                        text = when {
+                            media.fileExists -> "الموقع: داخل مساحة قبس الخاصة"
+                            !media.sourceUrl.isNullOrBlank() -> "الملف مفقود — يمكنك إعادة تنزيله أو إزالة السجل."
+                            else -> "الملف مفقود — رابط إعادة التنزيل غير محفوظ."
+                        },
+                        fontFamily = CairoFont,
+                        fontSize = 9.5.sp,
+                        color = if (media.fileExists) TextSecondary else Color(0xFFF59E0B),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            if (!media.fileExists && !media.sourceUrl.isNullOrBlank()) {
+                TextButton(onClick = onRetry, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("إعادة تنزيل", fontFamily = CairoFont, color = Color(0xFFF59E0B), fontSize = 10.sp)
                 }
             }
 
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(17.dp))
+                Icon(Icons.Default.DeleteOutline, contentDescription = if (media.fileExists) "حذف" else "إزالة السجل", tint = Color(0xFFEF4444), modifier = Modifier.size(17.dp))
             }
         }
     }

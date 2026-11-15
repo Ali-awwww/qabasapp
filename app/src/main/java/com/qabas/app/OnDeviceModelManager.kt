@@ -285,6 +285,15 @@ object OnDeviceModelManager {
 
         var downloadedBytes = resumeBytes
 
+        val availableBytes = android.os.StatFs(tempFile.parentFile?.absolutePath ?: context.filesDir.absolutePath).availableBytes
+        val estimatedRemainingBytes = ((savedTotalBytes.takeIf { it > 0 } ?: modelInfo.sizeBytes) - resumeBytes).coerceAtLeast(0L)
+        val requiredBytes = estimatedRemainingBytes + 32L * 1024L * 1024L
+        if (availableBytes < requiredBytes) {
+            val message = "المساحة الحرة غير كافية: يلزم نحو ${StorageMetrics.formatBytes(requiredBytes)} مع هامش أمان، والمتاح ${StorageMetrics.formatBytes(availableBytes)}."
+            _downloadState.value = ModelDownloadState.Error(modelInfo.id, message)
+            return@withContext false
+        }
+
         try {
             _downloadState.value = ModelDownloadState.Downloading(
                 modelId = modelInfo.id,
