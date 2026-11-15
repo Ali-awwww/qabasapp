@@ -992,7 +992,7 @@ fun DashboardMainGrid(
         )
     )
 
-    val filteredHubs = remember(selectedFilterIndex) {
+    val filteredHubs = remember(selectedFilterIndex, userCount) {
         if (selectedFilterIndex == 0) allHubs else allHubs.filter { it.id == selectedFilterIndex + 1 }
     }
 
@@ -1259,30 +1259,30 @@ fun DashboardMainGrid(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // 5. Firebase Firestore Matrix
+                            // 5. خدمات Firestore الانتقالية — تبقى فقط للميزات التي لم تُرحّل بعد
                             val isFirebaseActive = remember { FirebaseManager.isConfigured(gridContext) }
                             CyberTelemetryPill(
                                 modifier = Modifier.weight(1f),
-                                title = "Firebase Firestore",
-                                value = if (isFirebaseActive) "نشط سحابياً 🔥" else "غير متاح ✗",
-                                subValue = if (isFirebaseActive) "Firestore NoSQL + Auth" else "Offline Only",
+                                title = "خدمات Firestore الانتقالية",
+                                value = if (isFirebaseActive) "مهيأة" else "غير مهيأة",
+                                subValue = if (isFirebaseActive) "لخدمات لم تُرحّل بعد" else "لا اتصال",
                                 accent = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
                                 icon = Icons.Default.CloudDone,
                                 onClick = {
-                                    Toast.makeText(gridContext, if (isFirebaseActive) "Firebase Firestore متصل ومربوط بقاعدة البيانات المخصصة بنجاح ✅" else "Firebase غير مهيأ", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(gridContext, if (isFirebaseActive) "Firestore مهيأ لخدمات انتقالية محددة فقط" else "خدمات Firestore غير مهيأة", Toast.LENGTH_SHORT).show()
                                 }
                             )
 
                             // 6. Dual Cloud Sync Status
                             CyberTelemetryPill(
                                 modifier = Modifier.weight(1f),
-                                title = "الازدواج السحابي",
-                                value = if (isFirebaseActive && isSupabaseOnline) "تزامن هجين ⚡" else "سحابة مفردة",
-                                subValue = "Firebase + Supabase",
+                                title = "مصادر السحابة",
+                                value = if (isFirebaseActive && isSupabaseOnline) "مصدران مهيآن" else if (isSupabaseOnline) "Supabase الأساسي" else "غير متاح",
+                                subValue = "Supabase الأساسي + خدمات انتقالية",
                                 accent = GoldPrimary,
                                 icon = Icons.Default.Sync,
                                 onClick = {
-                                    Toast.makeText(gridContext, "يعمل التطبيق بنظام الازدواج السحابي المزدوج لحفظ المشاريع ومزامنة المستخدمين دون فقدان أي بيانات", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(gridContext, "Supabase هو المصدر الأساسي؛ Firestore مخصص لخدمات انتقالية محددة فقط", Toast.LENGTH_LONG).show()
                                 }
                             )
                         }
@@ -2479,8 +2479,8 @@ fun ConfigOverridesEditor(context: Context) {
 @Composable
 fun StatsSection(userCount: Int) {
     val context = LocalContext.current
-    val totalRevenue = 0.0
-    val activeProjects = 0
+    val totalRevenue = "غير متاح"
+    val activeProjects = "غير متاح"
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("🔑 الاستهلاك", "📈 التفاعل والمبيعات", "☁️ السحابة")
 
@@ -2534,34 +2534,34 @@ fun StatsSection(userCount: Int) {
                         WeeklyEngagementTrendsChart(context = context)
                     }
                     item {
-                        Text("المشاريع والمبيعات الحقيقية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("المشاريع والمبيعات — المصدر غير موصول", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             StatCard(
                                 title = "الأرباح الإجمالية",
-                                value = "${totalRevenue}$",
+                                value = totalRevenue,
                                 icon = Icons.Default.AttachMoney,
                                 modifier = Modifier.weight(1f)
                             )
                             StatCard(
                                 title = "المشاريع النشطة",
-                                value = "$activeProjects",
+                                value = activeProjects,
                                 icon = Icons.Default.Build,
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
                     item {
-                        Text("قمع التحويل والاحتفاظ (حقيقي من الطلبات)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("قمع التحويل والاحتفاظ — لا توجد بيانات موصولة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         RequestFunnelCard()
                     }
                 }
                 else -> {
                     item {
-                        Text("مراقبة تحليلات فايربيس المباشرة (Firebase Analytics Live)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("حالة التحليلات السحابية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        LiveFirebaseAnalyticsMonitorCard(context = context)
+                        AnalyticsAvailabilityCard(context = context)
                     }
                     item {
                         Text("سجلات حارس المحتوى السحابية المباشرة (Cloud Guard Activity)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -2602,6 +2602,10 @@ fun RequestFunnelCard() {
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "لا يوجد مصدر طلبات/مدفوعات موصول حالياً؛ الأرقام التالية ليست قياسات إنتاجية.",
+                color = Color(0xFFF59E0B), fontFamily = NotoSansFont, fontSize = 11.sp
+            )
             stages.forEachIndexed { i, (label, count) ->
                 val pct = if (total > 0) count * 100.0 / total else 0.0
                 Column {
@@ -2649,9 +2653,11 @@ private fun FunnelMiniStat(value: String, label: String) {
 }
 
 @Composable
-fun LiveFirebaseAnalyticsMonitorCard(context: Context) {
-    val analyticsService = remember { AppServices.getAnalyticsService(context) }
-    var testEventSentCount by remember { mutableIntStateOf(0) }
+fun AnalyticsAvailabilityCard(context: Context) {
+    val analyticsEnabled = remember(context) {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getBoolean("analytics_enabled", true)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2659,125 +2665,21 @@ fun LiveFirebaseAnalyticsMonitorCard(context: Context) {
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(Color(0xFFF5D76E).copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Analytics, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text("مراقبة Firebase Analytics اللحظية", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("تتبع تفاعل المستخدمين وسلوك صناع المحتوى", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    }
-                }
-
-                Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
-                ) {
-                    Text(
-                        "متصل ونشط 🟢",
-                        color = Color(0xFF10B981),
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Analytics, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("التحليلات السحابية", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Screen Views Breakdown
-            Text("أكثر الشاشات والاستوديوهات زيارة وتفاعلاً:", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // لا توجد بيانات زيارة حقيقية لكل شاشة حتى الآن — أرقام صادقة بدلاً من قيم مختلقة
-            val screensStats = listOf(
-                Pair("استوديو الإنتاج (Studio Pro)", Color(0xFFEAB308)),
-                Pair("المُلقن الذكي (Teleprompter)", Color(0xFF3B82F6)),
-                Pair("استوديو بطاقات الأحاديث", Color(0xFF10B981)),
-                Pair("محرك السلاسل الدعوية الآلي", Color(0xFFA855F7)),
-                Pair("المساعد الدعوي الذكي", Color(0xFFEC4899))
+            Text(
+                if (analyticsEnabled) "التسجيل المحلي مفعّل — لا يوجد مصدر تحليلات سحابي موصول"
+                else "التسجيل المحلي متوقف",
+                color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp
             )
-
-            Text("لا تتوفر بيانات زيارة لكل شاشة بعد — سيتم ربطها بالتتبع الفعلي لاحقاً.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 11.sp)
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                screensStats.forEach { (screenName, barColor) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(screenName, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.weight(1.5f))
-                        LinearProgressIndicator(
-                            progress = { 0f },
-                            modifier = Modifier
-                                .weight(2f)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = barColor,
-                            trackColor = Color(0xFF0B0F19)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("--", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.width(55.dp))
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = Color(0xFF1E293B))
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Insights, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        if (testEventSentCount == 0) "الأحداث تُسجل فوراً في السحابة" else "تم إرسال $testEventSentCount حدث تجريبي ✦",
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        testEventSentCount++
-                        analyticsService.logEvent(
-                            "dev_analytics_heartbeat",
-                            mapOf(
-                                "timestamp" to System.currentTimeMillis(),
-                                "trigger" to "developer_dashboard",
-                                "test_count" to testEventSentCount
-                            )
-                        )
-                        Toast.makeText(context, "تم إرسال حدث التحليلات #$testEventSentCount إلى Firebase بنجاح 🚀", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("إرسال حدث تجريبي", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                }
-            }
+            Text(
+                "لا تُعرض أرقام أو رسوم تجريبية. ستظهر المؤشرات فقط بعد ربط مصدر تحليلات فعلي بلوحة المطور.",
+                color = Color.Gray, fontFamily = NotoSansFont, fontSize = 11.sp
+            )
         }
     }
 }
