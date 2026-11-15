@@ -412,144 +412,82 @@ fun HomeScreen(
             },
             topBar = {
                 TopAppBar(
+                    modifier = Modifier.height(72.dp),
                     navigationIcon = {
                         IconButton(
                             onClick = { scope.launch { drawerState.open() } },
-                            modifier = Modifier.padding(start = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp).offset(y = 6.dp).alpha(0.68f)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Menu,
                                 contentDescription = Translator.tr("القائمة الجانبية"),
-                                tint = GoldPrimary
+                                tint = GoldPrimary.copy(alpha = 0.9f)
                             )
                         }
                     },
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Holographic Miniature Animated Logo
-                            CyberneticAnimatedLogo(
-                                size = 32.dp,
-                                showOrbitalHud = false,
-                                showCosmicGlow = false
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "قَبَسْ سْتُودْيُو",
-                                        style = androidx.compose.ui.text.TextStyle(
-                                            brush = Brush.linearGradient(
-                                                colors = listOf(GoldPrimary, Color.White, AiCyan)
-                                            ),
-                                            fontSize = 14.sp,
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.Black,
-                                            letterSpacing = 0.1.sp
-                                        ),
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val (netIcon, netColor) = when (networkStatus) {
+                                ConnectivityObserver.Status.Available -> Icons.Default.Wifi to Color(0xFF10B981)
+                                else -> Icons.Default.WifiOff to Color(0xFFEF4444)
+                            }
+                            IconButton(onClick = {
+                                Toast.makeText(context, if (networkStatus == ConnectivityObserver.Status.Available) "متصل بالإنترنت" else "أنت الآن في وضع عدم الاتصال", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(netIcon, contentDescription = "حالة الاتصال", tint = netColor.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
+                            }
+
+                            IconButton(onClick = { if (isAdmin) onDeveloperDashboard() else onViewApiDocs() }) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isAdmin) Icons.Default.Terminal else Icons.Default.AutoAwesome,
+                                        contentDescription = if (isAdmin) "لوحة المطور" else "محرك الذكاء الاصطناعي: $activeAiEngine",
+                                        tint = if (activeAiEngine == "Groq") Color(0xFF10B981) else GoldPrimary,
+                                        modifier = Modifier.size(21.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        color = AiCyan.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(4.dp),
-                                        border = BorderStroke(0.5.dp, AiCyan.copy(alpha = 0.4f))
-                                    ) {
-                                        Text(
-                                            text = "HUD 2.0",
-                                            color = AiCyanLight,
-                                            fontFamily = NotoSansFont,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 9.sp,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (activeAiEngine == "Groq") Color(0xFF10B981) else GoldPrimary)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = onViewDownloads,
+                                modifier = Modifier.testTag("home_topbar_downloads_button")
+                            ) {
+                                Icon(Icons.Default.CloudDownload, contentDescription = "مركز التنزيلات", tint = Color(0xFF00E5FF))
+                            }
+
+                            IconButton(onClick = onViewNotifications) {
+                                Icon(Icons.Default.NotificationsNone, contentDescription = "الإشعارات", tint = Color.White)
+                            }
+
+                            IconButton(onClick = onViewProfile) {
+                                Surface(
+                                    modifier = Modifier.size(30.dp),
+                                    shape = CircleShape,
+                                    color = CardSurface,
+                                    border = BorderStroke(1.dp, GoldPrimary)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Person, contentDescription = "الملف الشخصي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
                                     }
                                 }
-                                Text(
-                                    text = "استوديو الإنتاج الفضائي الكوانتي",
-                                    color = Color(0xFF64748B),
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 9.5.sp,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
-                                    color = Color(0xFFCBD5E1),
-                                    fontFamily = CairoFont,
-                                    fontSize = 8.sp,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
                             }
-                        }
-                    },
-                    actions = {
-                        // مؤشر حالة الشبكة
-                        val (netIcon, netColor) = when (networkStatus) {
-                            ConnectivityObserver.Status.Available -> Icons.Default.Wifi to Color(0xFF10B981)
-                            else -> Icons.Default.WifiOff to Color(0xFFEF4444)
-                        }
-                        IconButton(onClick = { 
-                            Toast.makeText(context, if (networkStatus == ConnectivityObserver.Status.Available) "متصل بالإنترنت" else "أنت الآن في وضع عدم الاتصال", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(netIcon, contentDescription = null, tint = netColor.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
-                        }
 
-                        // AI Engine Latency HUD pill
-                        Surface(
-                            onClick = {
-                                if (isAdmin) onDeveloperDashboard() else onViewApiDocs()
-                            },
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color(0xFF0F172A),
-                            border = BorderStroke(1.dp, if (activeAiEngine == "Groq") Color(0xFF10B981).copy(alpha = 0.5f) else GoldPrimary.copy(alpha = 0.4f)),
-                            modifier = Modifier.padding(end = 4.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            IconButton(
+                                onClick = onViewSettings,
+                                modifier = Modifier.testTag("home_topbar_settings_button")
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(if (activeAiEngine == "Groq") Color(0xFF10B981) else GoldPrimary)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = if (activeAiEngine == "Groq") "Groq ⚡" else "Gemini 💎",
-                                    color = Color.White,
-                                    fontFamily = NotoSansFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = onViewDownloads,
-                            modifier = Modifier.testTag("home_topbar_downloads_button")
-                        ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = "مركز التنزيلات", tint = Color(0xFF00E5FF))
-                        }
-
-                        IconButton(onClick = onViewNotifications) {
-                            Icon(Icons.Default.NotificationsNone, contentDescription = "الإشعارات", tint = Color.White)
-                        }
-
-                        IconButton(onClick = onViewProfile) {
-                            Surface(
-                                modifier = Modifier.size(30.dp),
-                                shape = CircleShape,
-                                color = CardSurface,
-                                border = BorderStroke(1.dp, GoldPrimary)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Person, contentDescription = "الملف الشخصي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                                }
+                                Icon(Icons.Default.Settings, contentDescription = "الإعدادات", tint = AiCyan)
                             }
                         }
                     },
