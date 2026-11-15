@@ -314,12 +314,12 @@ object UserPreferencesManager {
                     }
 
                     // مزامنة الملف الشخصي محاولة مستقلة؛ لا تجعل فشلها يعلق مؤشر المزامنة.
-                    val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+                    val identityPrefs = AccountScopedPreferences.forCurrentAccount(context)
                     val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    val savedName = identityPrefs.getString("user_name", null)
+                    val savedName = identityPrefs?.getString("user_name", null)
                         ?: legacyPrefs.getString("user_name", null)
                         ?: legacyPrefs.getString("saved_user_name", null)
-                    val savedEmail = identityPrefs.getString("user_email", null)
+                    val savedEmail = identityPrefs?.getString("user_email", null)
                         ?: legacyPrefs.getString("user_email", null)
                         ?: legacyPrefs.getString("saved_login_email", null)
                     runCatching {
@@ -327,7 +327,7 @@ object UserPreferencesManager {
                             userId = userId,
                             displayName = savedName,
                             email = savedEmail,
-                            avatarUrl = avatarUrl ?: identityPrefs.getString("user_avatar_uri", null),
+                            avatarUrl = avatarUrl ?: identityPrefs?.getString("user_avatar_uri", null),
                             preferencesJson = jsonPayload
                         )
                     }.onFailure { Log.e("UserPreferencesManager", "profile sync failed: ${it.message}") }
@@ -380,7 +380,10 @@ object UserPreferencesManager {
             // استرجاع الاسم/البريد/الصورة من جدول profiles عند غيابها محلياً (مهم على جهاز جديد)
             runCatching {
                 val profile = SupabaseServices.Profiles.getUserProfile(userId) ?: return@runCatching
-                val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+                val identityPrefs = AccountScopedPreferences.forEmail(
+                    context,
+                    profile.email ?: SupabaseServices.Auth.getCurrentUserEmail().orEmpty()
+                )
                 val editor = identityPrefs.edit()
                 var changed = false
                 val localAvatar = identityPrefs.getString("user_avatar_uri", null)
@@ -411,7 +414,7 @@ object UserPreferencesManager {
      */
     private suspend fun uploadLocalAvatarIfNeeded(context: Context, userId: String): String? =
         withContext(Dispatchers.IO) {
-            val identityPrefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            val identityPrefs = AccountScopedPreferences.forCurrentAccount(context) ?: return@withContext null
             val uriStr = identityPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
                 ?: return@withContext null
             if (uriStr.startsWith("http://") || uriStr.startsWith("https://")) return@withContext uriStr

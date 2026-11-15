@@ -119,6 +119,9 @@ fun SettingsScreen(
         SupabaseServices.Auth.getCurrentUserId()
     }
     val authenticatedEmail = supabaseAuthUser?.email ?: cloudAuthUser?.email
+    val accountPrefs = remember(supabaseAuthUser, cloudAuthUser, authenticatedEmail) {
+        AccountScopedPreferences.forCurrentAccount(context)
+    }
     val userBugReports = remember(
         allBugReports, supabaseAuthUser, cloudAuthUser, supabaseUserId, authenticatedEmail
     ) {
@@ -159,13 +162,13 @@ fun SettingsScreen(
     }
     var avatarUriString by remember {
         mutableStateOf(
-            prefs.getString("user_avatar_uri", null)
+            accountPrefs?.getString("user_avatar_uri", null)
                 ?: CloudServices.Auth.currentUser.value?.photoUrl?.toString()
                 ?: ""
         )
     }
     var selectedPresetAvatar by remember {
-        mutableIntStateOf(prefs.getInt("user_preset_avatar", 0))
+        mutableIntStateOf(accountPrefs?.getInt("user_preset_avatar", 0) ?: 0)
     }
     var showAvatarPicker by remember { mutableStateOf(false) }
 
@@ -177,10 +180,10 @@ fun SettingsScreen(
         if (!cloudAvatar.isNullOrBlank()) {
             avatarUriString = cloudAvatar
             selectedPresetAvatar = -1
-            prefs.edit()
-                .putString("user_avatar_uri", cloudAvatar)
-                .putInt("user_preset_avatar", -1)
-                .apply()
+            accountPrefs?.edit()
+                ?.putString("user_avatar_uri", cloudAvatar)
+                ?.putInt("user_preset_avatar", -1)
+                ?.apply()
         }
     }
 
@@ -1132,7 +1135,7 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (selectedPresetAvatar == id) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent)
                                 .clickable {
-                                    prefs.edit().putInt("user_preset_avatar", id).remove("user_avatar_uri").apply()
+                                    accountPrefs?.edit()?.putInt("user_preset_avatar", id)?.remove("user_avatar_uri")?.apply()
                                     avatarUriString = ""
                                     selectedPresetAvatar = id
                                     showAvatarPicker = false

@@ -45,12 +45,7 @@ import com.qabas.app.ui.theme.*
 
 // Keep editable profile data isolated per authenticated account on shared devices.
 private fun accountProfilePreferences(context: Context, email: String) =
-    context.getSharedPreferences(
-        "qabas_profile_" + MessageDigest.getInstance("SHA-256")
-            .digest(email.trim().lowercase().toByteArray())
-            .joinToString("") { "%02x".format(it) },
-        Context.MODE_PRIVATE
-    )
+    AccountScopedPreferences.forEmail(context, email)
 
 // Tournament Rank Tier Badge Model
 data class TournamentTierBadge(

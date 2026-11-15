@@ -36,10 +36,11 @@ object AccountIdentityManager {
         val userId = SupabaseServices.Auth.getCurrentUserId()
         val email = authUser?.email?.trim()?.takeIf { it.isNotBlank() }
             ?: prefs.getString("user_email", "").orEmpty()
+        val accountPrefs = AccountScopedPreferences.forEmail(appContext, email)
         val localName = prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
             ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
             ?: email.substringBefore("@").ifBlank { "المستخدم" }
-        val localAvatar = prefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
+        val localAvatar = accountPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
 
         val trustedRole = if (!userId.isNullOrBlank()) {
             SupabaseServices.Auth.getUserRoleFromMetadata()
@@ -74,7 +75,7 @@ object AccountIdentityManager {
             .putString("user_name", result.displayName)
             .apply()
         if (!result.avatarUrl.isNullOrBlank() && !result.avatarUrl.startsWith("content://")) {
-            prefs.edit().putString("user_avatar_uri", result.avatarUrl).apply()
+            accountPrefs.edit().putString("user_avatar_uri", result.avatarUrl).apply()
         }
         _identity.value = result
         result
@@ -83,12 +84,13 @@ object AccountIdentityManager {
     fun cached(context: Context): AccountIdentity {
         val prefs = context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val email = prefs.getString("user_email", "").orEmpty()
+        val accountPrefs = AccountScopedPreferences.forEmail(context, email)
         return AccountIdentity(
             email = email,
             displayName = prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
                 ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
                 ?: email.substringBefore("@").ifBlank { "المستخدم" },
-            avatarUrl = prefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
+            avatarUrl = accountPrefs.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
         )
     }
 }

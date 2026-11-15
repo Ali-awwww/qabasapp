@@ -404,8 +404,8 @@ object ReelPublishManager {
         // حلّ الصورة الرمزية للناشر: المعامل الممرر أولاً، ثم المحفوظة محلياً، ثم حساب Firebase
         val resolvedAvatar: String? = userAvatar?.takeIf { it.isNotBlank() }
             ?: runCatching {
-                context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    .getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
+                AccountScopedPreferences.forCurrentAccount(context)
+                    ?.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
             }.getOrNull()
             ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
             ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
