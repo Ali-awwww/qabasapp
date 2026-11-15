@@ -62,7 +62,7 @@ object BroadcastCloudRepository {
     suspend fun checkPendingBroadcasts(context: Context) = withContext(Dispatchers.IO) {
         try {
             val client = SupabaseServices.client ?: return@withContext
-            val pending = client.from(TABLE).select {
+            val pending = client.postgrest.from(TABLE).select {
                 filter { eq("status", "pending") }
             }.decodeList<BroadcastRow>()
 
