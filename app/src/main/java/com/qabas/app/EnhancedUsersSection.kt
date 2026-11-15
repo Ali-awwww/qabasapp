@@ -52,7 +52,6 @@ fun EnhancedUsersSection(
     var confirmRoleUser by remember { mutableStateOf<DevUser?>(null) }
     var confirmSuspendUser by remember { mutableStateOf<DevUser?>(null) }
     var confirmNewRole by remember { mutableStateOf<String?>(null) }
-    var tempRoleDays by remember { mutableStateOf(0) }
     var roleMenuUser by remember { mutableStateOf<DevUser?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -105,7 +104,7 @@ fun EnhancedUsersSection(
 
     confirmRoleUser?.let { user ->
         AlertDialog(
-            onDismissRequest = { confirmRoleUser = null; confirmNewRole = null; tempRoleDays = 0 },
+            onDismissRequest = { confirmRoleUser = null; confirmNewRole = null },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GoldPrimary)
@@ -115,27 +114,13 @@ fun EnhancedUsersSection(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("تغيير رتبة «${user.name}» إلى «${confirmNewRole ?: ""}»؟", color = Color.White, fontFamily = NotoSansFont)
-                    Text("مدة صلاحية الرتبة:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(0 to "دائم", 7 to "7 أيام", 30 to "30 يوم").forEach { (days, label) ->
-                            FilterChip(
-                                selected = tempRoleDays == days,
-                                onClick = { tempRoleDays = days },
-                                label = { Text(label, fontFamily = CairoFont, fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldPrimary,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
-                        }
-                    }
+                    Text("سيتم حفظ الرتبة بشكل دائم عبر صلاحية الإدارة السحابية.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         val newType = confirmNewRole ?: return@Button
-                        val days = tempRoleDays
                         AppSoundManager.playSuccess()
                         coroutineScope.launch {
                             var success = false
@@ -146,12 +131,12 @@ fun EnhancedUsersSection(
                             if (success) {
                                 val idx = devUsers.indexOf(user)
                                 if (idx != -1) {
-                                    devUsers[idx] = devUsers[idx].copy(type = if (days > 0) "$newType (مؤقت $days يوم)" else newType)
+                                    devUsers[idx] = devUsers[idx].copy(type = newType)
                                 }
                                 if (user.email.equals(SupabaseServices.Auth.getCurrentUserEmail(), ignoreCase = true)) {
                                     AdminGuard.isDashboardAccessAllowed(context)
                                 }
-                                AuditLogger.log(context, "user_role_change", "${user.email} -> $newType" + if (days > 0) " ($days يوم)" else "")
+                                AuditLogger.log(context, "user_role_change", "${user.email} -> $newType")
                                 Toast.makeText(context, "تم ترقية الحساب وحفظ الرتبة ($newType) في السحابة بنجاح 🚀", Toast.LENGTH_LONG).show()
                             } else {
                                 Toast.makeText(context, "فشل تغيير الرتبة: تحقق من الاتصال بالسحابة", Toast.LENGTH_LONG).show()
@@ -159,7 +144,6 @@ fun EnhancedUsersSection(
                         }
                         confirmRoleUser = null
                         confirmNewRole = null
-                        tempRoleDays = 0
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                     shape = RoundedCornerShape(8.dp)
@@ -168,7 +152,7 @@ fun EnhancedUsersSection(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRoleUser = null; confirmNewRole = null; tempRoleDays = 0 }) {
+                TextButton(onClick = { confirmRoleUser = null; confirmNewRole = null }) {
                     Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
                 }
             },
@@ -218,16 +202,13 @@ fun EnhancedUsersSection(
                                 val sbOk = SupabaseServices.Database.updateUserSuspension(user.id, newStatus)
                                 if (sbOk) success = true
                             }
-                            if (!success && !SupabaseServices.isSupabaseAvailable) {
-                                success = true
-                            }
                             if (success) {
                                 val idx = devUsers.indexOf(user)
                                 if (idx != -1) {
                                     devUsers[idx] = devUsers[idx].copy(isSuspended = newStatus)
                                 }
                                 AuditLogger.log(context, "user_suspend_toggle", "${user.email} -> ${if (newStatus) "موقوف" else "نشط"}")
-                                Toast.makeText(context, if (newStatus) "تم إيقاف الحساب وحفظه سحابياً" else "تم إعادة تنشيط الحساب بنجاح 🟢", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, if (newStatus) "تم إيقاف الحساب وحفظه سحابياً" else "تم إعادة تنشيط الحساب وحفظه سحابياً 🟢", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "فشل تحديث الحالة: تحقق من الاتصال", Toast.LENGTH_LONG).show()
                             }

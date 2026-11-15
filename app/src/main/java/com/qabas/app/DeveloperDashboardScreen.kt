@@ -1865,9 +1865,14 @@ fun NotificationsSection(context: Context) {
                 Button(
                     onClick = {
                         notificationScope.launch {
-                            val sentHadith = AppNotificationService.triggerDailyHadithNow(context)
-                            sentNotifications = AppNotificationService.getNotifications(context)
-                            Toast.makeText(context, "تم إرسال حديث اليوم كـ إشعار بنجاح! ✨", Toast.LENGTH_SHORT).show()
+                            runCatching {
+                                AppNotificationService.triggerDailyHadithNow(context, force = true)
+                            }.onSuccess {
+                                sentNotifications = AppNotificationService.getNotifications(context)
+                                Toast.makeText(context, "تم تجهيز حديث اليوم وإضافته إلى سجل الإشعارات بنجاح ✨", Toast.LENGTH_SHORT).show()
+                            }.onFailure { error ->
+                                Toast.makeText(context, "فشل إرسال الحديث: ${error.message ?: "خطأ غير معروف"}", Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(42.dp),

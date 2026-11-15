@@ -35,7 +35,7 @@ import java.util.Locale
  * - مجاميع حقيقية من TransactionManager وسحابة Supabase.
  * - رسم بياني شهري (آخر 6 أشهر) بأعمدة Canvas.
  * - تقسيم حسب المنتج + إجمالي + تصدير CSV.
- * - أدوات تجربة ومسح المعاملات للمطورين.
+ * - عرض المعاملات الفعلية وتصديرها بصيغة CSV.
  */
 @Composable
 fun RevenueDashboard(context: Context) {
@@ -164,53 +164,12 @@ fun RevenueDashboard(context: Context) {
 
                     Text("بوابة المبيعات والإيرادات جاهزة ومربوطة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text(
-                        "لم يتم تسجيل أي مبيعات حقيقية بعد. يمكنك تسجيل معاملة تجريبية لمعاينة الرسوم البيانية ومؤشرات الـ MRR أو فحص المزامنة مع السحابة.",
+                        "لم يتم تسجيل أي مبيعات حقيقية بعد. ستظهر المؤشرات بعد وصول أول معاملة فعلية.",
                         color = TextSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                AppSoundManager.playSuccess()
-                                TransactionManager.recordPurchase(
-                                    context = context,
-                                    productId = "pro_1m",
-                                    priceAmount = 9.99
-                                )
-                                Toast.makeText(context, "تمت إضافة معاملة تجريبية (اشتراك شهري $9.99) ✦", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text("🧪 تجربة شهري ($9.99)", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                AppSoundManager.playSuccess()
-                                TransactionManager.recordPurchase(
-                                    context = context,
-                                    productId = "pro_1y",
-                                    priceAmount = 89.99
-                                )
-                                Toast.makeText(context, "تمت إضافة معاملة تجريبية (اشتراك سنوي $89.99) ✦", Toast.LENGTH_SHORT).show()
-                            },
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text("🧪 تجربة سنوي ($89.99)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
                 }
             }
         } else {
@@ -316,40 +275,6 @@ fun RevenueDashboard(context: Context) {
                 }
             }
 
-            // أدوات إدارة الاختبارات للمطور (إضافة أو تنظيف البيانات التجريبية)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = {
-                        AppSoundManager.playSuccess()
-                        TransactionManager.recordPurchase(
-                            context = context,
-                            productId = "pro_1m",
-                            priceAmount = 9.99
-                        )
-                        Toast.makeText(context, "تمت إضافة معاملة تجريبية ✦", Toast.LENGTH_SHORT).show()
-                    }
-                ) {
-                    Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("إضافة معاملة تجريبية", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
-                }
-
-                TextButton(
-                    onClick = {
-                        AppSoundManager.playToggle()
-                        TransactionManager.clearAllTransactions(context)
-                        Toast.makeText(context, "تم مسح البيانات التجريبية بنجاح 🗑️", Toast.LENGTH_SHORT).show()
-                    }
-                ) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("مسح المعاملات التجريبية", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.5.sp)
-                }
-            }
         }
     }
 }

@@ -52,11 +52,11 @@ fun MoneyCenterSection(
             title = "مركز الإيرادات والنمو المالي 💰",
             subtitle = "الاشتراك الحالي: ${tier.title} • البوابة المالية المباشرة والوكالة وتتبع المبيعات",
             accent = if (isPro) Color(0xFF10B981) else GoldPrimary,
-            actionLabel = "تحديث",
+            actionLabel = "تحديث محلي",
             onAction = {
                 AppSoundManager.playSuccess()
                 TransactionManager.loadFromPrefs(context)
-                android.widget.Toast.makeText(context, "تم تحديث البيانات المالية والمبيعات سحابياً ✦", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "تم تحديث البيانات المالية المحلية ✦", android.widget.Toast.LENGTH_SHORT).show()
             }
         )
 
