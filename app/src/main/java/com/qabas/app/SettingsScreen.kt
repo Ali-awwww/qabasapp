@@ -707,7 +707,7 @@ fun SettingsScreen(
                                     badgeColor = item.badgeColor ?: item.accentColor,
                                     accentColor = item.accentColor,
                                     onClick = {
-                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
+                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
                                             AppSoundManager.playClick()
                                             AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                         } else {
