@@ -12,7 +12,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.FilterOperator
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CancellationException
@@ -1851,7 +1851,7 @@ object SupabaseServices {
                     eq("is_active", true)
                 }
                 order("created_at", Order.DESCENDING)
-                limit(maxItems.coerceIn(1, 100))
+                limit(maxItems.coerceIn(1, 100).toLong())
             }.decodeList<ReelRow>()
         }.onFailure { Log.w(TAG, "getPublicCreatorReels failed: ${it.message}") }.getOrDefault(emptyList())
 

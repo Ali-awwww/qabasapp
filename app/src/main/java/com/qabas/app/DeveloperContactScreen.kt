@@ -929,6 +929,7 @@ fun DeveloperContactScreen(
             }
         }
     }
+    }
 
     if (showCategoryPicker && !isDeveloper) {
         AlertDialog(
