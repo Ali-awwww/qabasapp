@@ -368,7 +368,9 @@ object ReelPublishManager {
             }
         }
 
-        val cleanTitle = if (isDev && isFeaturedByDev) "⭐ $title" else title
+        val publishAsFeatured = isDev && isFeaturedByDev
+        val publishAsSilentSeed = isDev && isSilentSeed
+        val cleanTitle = if (publishAsFeatured) "⭐ $title" else title
 
         if (cleanTitle.isBlank()) {
             val err = "عنوان المقطع مطلوب ولا يمكن تركه فارغاً"
@@ -393,10 +395,10 @@ object ReelPublishManager {
         val finalTags = mutableListOf(category, "مفحوص_شرعياً")
         if (isDev) {
             finalTags.add("موثق_مطور")
-            if (isFeaturedByDev) {
+            if (publishAsFeatured) {
                 finalTags.add("مميز_مثبت")
             }
-            if (isSilentSeed) {
+            if (publishAsSilentSeed) {
                 finalTags.add("silent_seed")
             }
         }
@@ -424,8 +426,9 @@ object ReelPublishManager {
                 publishAt = publishAt,
                 expiryAt = expiryAt,
                 quality = quality,
-                isSilentSeed = isSilentSeed,
-                publishType = if (isSilentSeed) "injection" else "normal",
+                isSilentSeed = publishAsSilentSeed,
+                isFeaturedByDev = publishAsFeatured,
+                publishType = if (publishAsSilentSeed) "injection" else "normal",
                 aspectRatio = aspectRatio
             )
         }

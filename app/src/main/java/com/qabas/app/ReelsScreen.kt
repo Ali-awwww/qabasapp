@@ -177,6 +177,11 @@ fun ReelsScreen(
     val alAtharEnabled by ReelPreferencesManager.alAtharEnabled.collectAsState()
 
     var allReels by remember { mutableStateOf<List<SupabaseServices.ReelRow>>(emptyList()) }
+    var atharReels by remember { mutableStateOf(SilentReelStorageManager.getDownloadedReels(context)) }
+    val silentSyncState by SilentReelPrefetcher.syncState.collectAsState()
+    LaunchedEffect(silentSyncState.downloadedCount, silentSyncState.lastMessage) {
+        atharReels = SilentReelStorageManager.getDownloadedReels(context)
+    }
     var hiddenReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var reportedReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(Unit) {
@@ -199,6 +204,7 @@ fun ReelsScreen(
     // إزاحة الخادم الفعلية: عدد الصفوف الخام المجلوبة عن بُعد — مستقلة عن القائمة المعروضة المفلترة
     var remoteOffset by remember { mutableStateOf(0) }
     val requestGeneration = remember { java.util.concurrent.atomic.AtomicInteger(0) }
+    val activeReelLoadJob = remember { java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null) }
 
     // المحفوظات السحابية (reel_bookmarks) — تُزامن حالة «محفوظ» عبر أجهزة المستخدم
     var cloudBookmarks by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -256,13 +262,8 @@ fun ReelsScreen(
 
     // Geometric tools dock (all screen tools consolidated in one collapsible drawer)
     var dockExpanded by remember { mutableStateOf(false) }
-    // ⚡ محرك الجلب المسبق الصامت (لوضع الأثر)
-    LaunchedEffect(Unit) {
-        SilentReelPrefetcher.startSync(context, scope)
-    }
-
     LaunchedEffect(alAtharEnabled) {
-        if (!alAtharEnabled && selectedTab == 2) {
+        if (!alAtharEnabled && selectedTab == 2 && UserPreferencesManager.networkStatus.value == ConnectivityObserver.Status.Available) {
             selectedTab = 0
             isAlAtharMode = false
         }
@@ -343,13 +344,11 @@ fun ReelsScreen(
 
     val likedReelIds = remember { mutableStateMapOf<String, Boolean>() }
 
-    // 📡 مراقب حالة الاتصال بالشبكة لفرض وضع الأثر دون اتصال وإتاحة الحرية عند عودته
-    val connectivityObserver = remember { NetworkConnectivityObserver(context) }
-    val networkStatus by connectivityObserver.observe().collectAsState(
-        initial = if (NetworkUtils.isNetworkAvailable(context)) ConnectivityObserver.Status.Available else ConnectivityObserver.Status.Unavailable
-    )
-    val isOnline = networkStatus == ConnectivityObserver.Status.Available
-    var wasEverOffline by remember { mutableStateOf(!NetworkUtils.isNetworkAvailable(context)) }
+    // 📡 إعادة استخدام حالة الاتصال المركزية التي يملكها التطبيق؛ لا ينشئ قسم الريلز مراقباً ثانياً.
+    val networkStatus by UserPreferencesManager.networkStatus.collectAsState()
+    val networkStatusReady by UserPreferencesManager.networkStatusReady.collectAsState()
+    val isOnline = networkStatusReady && networkStatus == ConnectivityObserver.Status.Available
+    var wasEverOffline by remember { mutableStateOf(false) }
 
     // User details for comments & cloud syncing
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -395,9 +394,10 @@ fun ReelsScreen(
         }
     }
 
-    LaunchedEffect(accountAuthState) {
+    LaunchedEffect(accountAuthState, isOnline) {
         when (accountAuthState) {
             is AuthState.Authenticated -> {
+                if (!isOnline) return@LaunchedEffect
                 val userId = authSnapshot?.userId
                 if (!userId.isNullOrBlank()) {
                     refreshLikedReelsFromCloud(userId)
@@ -425,8 +425,8 @@ fun ReelsScreen(
         }
     }
 
-    LaunchedEffect(resumeRefreshTick, accountAuthState) {
-        if (resumeRefreshTick > 0 && accountAuthState is AuthState.Authenticated) {
+    LaunchedEffect(resumeRefreshTick, accountAuthState, isOnline) {
+        if (isOnline && resumeRefreshTick > 0 && accountAuthState is AuthState.Authenticated) {
             refreshLikedReelsFromCloud()
         }
     }
@@ -464,7 +464,7 @@ fun ReelsScreen(
         if (secs <= 0) return
 
         // تم حذف النظام المحلي: لا زيادة وهمية للعداد محلياً ولا كتابة محلية
-        if (isOnline && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+        if (isOnline && selectedTab != 2 && !isAlAtharMode && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
             scope.launch {
                 val effectiveUser = currentSupabaseId ?: return@launch
                 val cloudViews = SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
@@ -478,13 +478,31 @@ fun ReelsScreen(
     }
 
     fun loadReels(isManualRetry: Boolean = false) {
-        scope.launch {
+        if (!networkStatusReady) return
+        activeReelLoadJob.getAndSet(null)?.cancel()
+        val loadJob = scope.launch {
             if (isManualRetry) isRetrying = true
             isLoading = true
             loadError = false
             loadingProgress = 0.15f
             val gen = requestGeneration.incrementAndGet()
             loadingProgress = 0.35f
+
+            if (!isOnline) {
+                atharReels = SilentReelStorageManager.getDownloadedReels(context)
+                selectedTab = 2
+                selectedCategory = "ALL"
+                searchQuery = ""
+                isSearchActive = false
+                isAlAtharMode = true
+                isOfflineMode = true
+                canLoadMore = false
+                loadingProgress = 1f
+                isLoading = false
+                loadError = false
+                if (isManualRetry) isRetrying = false
+                return@launch
+            }
 
             if (isManualRetry) {
                 ReelSafetyGuardrails.forceResetCircuitBreaker()
@@ -530,57 +548,21 @@ fun ReelsScreen(
                     filtered
                 } else {
                     val cached = ReelPreferencesManager.getCachedReels(context)
-                    if (cached.isNotEmpty()) {
-                        isOfflineMode = true
-                        cached
-                    } else {
-                        isOfflineMode = false
-                        AUTHENTIC_STARTER_REELS
-                    }
+                    isOfflineMode = false
+                    isAlAtharMode = selectedTab == 2
+                    if (cached.isNotEmpty()) cached else AUTHENTIC_STARTER_REELS
                 }
             } else if (fetchFailed) {
-                val silentReels = SilentReelStorageManager.getDownloadedReels(context)
                 val cached = ReelPreferencesManager.getCachedReels(context)
-                if (silentReels.isNotEmpty()) {
-                    isOfflineMode = true
-                    isAlAtharMode = true
-                    selectedTab = 2 // تبويب الأثر
-                    silentReels
-                } else if (cached.isNotEmpty()) {
-                    isOfflineMode = true
-                    isAlAtharMode = false
-                    cached
-                } else if (!isDeveloper) {
-                    // للمستخدم العادي: توفير مقاطع أصيلة للتشغيل الأوفلاين فوراً بدلاً من الشاشة الفارغة
-                    isOfflineMode = true
-                    isAlAtharMode = true
-                    selectedTab = 2
-                    AUTHENTIC_STARTER_REELS
-                } else {
-                    // للمطور فقط عند عدم وجود أي كاش: يترك فارغاً حتى يتمكن من رؤية شاشة التشخيص الفني
-                    isOfflineMode = true
-                    isAlAtharMode = false
-                    emptyList()
-                }
+                // فشل الطلب لا يغيّر التبويب؛ وضع الأثر يُحدّد من حالة الاتصال المركزية فقط.
+                isOfflineMode = false
+                isAlAtharMode = selectedTab == 2
+                cached
             } else {
-                val silentReels = SilentReelStorageManager.getDownloadedReels(context)
-                if (silentReels.isNotEmpty()) {
-                    isOfflineMode = true
-                    isAlAtharMode = true
-                    silentReels
-                } else {
-                    val cached = ReelPreferencesManager.getCachedReels(context)
-                    if (cached.isNotEmpty()) {
-                        isOfflineMode = true
-                        isAlAtharMode = false
-                        cached
-                    } else {
-                        isOfflineMode = false
-                        isAlAtharMode = false
-                        selectedTab = 0
-                        AUTHENTIC_STARTER_REELS
-                    }
-                }
+                val cached = ReelPreferencesManager.getCachedReels(context)
+                isOfflineMode = false
+                isAlAtharMode = selectedTab == 2
+                if (cached.isNotEmpty()) cached else AUTHENTIC_STARTER_REELS
             }
 
             loadingProgress = 0.88f
@@ -599,28 +581,45 @@ fun ReelsScreen(
             // Account-owned likes/bookmarks load independently from the public reel feed;
             // AuthState's observer above handles them when a verified account is ready.
         }
+        activeReelLoadJob.set(loadJob)
     }
 
-    // ⚡ التوجيه الإجباري لوضع الأثر عند انقطاع الاتصال واستعادة الحرية فورا عند عودته
-    LaunchedEffect(isOnline) {
-        if (!isOnline) {
+    // لا يغيّر القسم ولا يبدأ طلباً سحابياً قبل تثبيت القراءة المركزية الأولى.
+    LaunchedEffect(networkStatusReady, networkStatus) {
+        if (!networkStatusReady) return@LaunchedEffect
+
+        if (networkStatus != ConnectivityObserver.Status.Available) {
+            activeReelLoadJob.getAndSet(null)?.cancel()
+            requestGeneration.incrementAndGet()
             wasEverOffline = true
-            selectedTab = 2 // توجيه إجباري إلى تبويب الأثر
+            atharReels = SilentReelStorageManager.getDownloadedReels(context)
+            selectedTab = 2
+            selectedCategory = "ALL"
+            searchQuery = ""
+            isSearchActive = false
             isAlAtharMode = true
             isOfflineMode = true
+            canLoadMore = false
+            isLoading = false
+            isRetrying = false
+            loadError = false
         } else {
-            isOfflineMode = false
             if (wasEverOffline) {
                 Toast.makeText(context, "عادت الشبكة ✦ يمكنك الآن التنقل بحرية والتفاعل ✨", Toast.LENGTH_LONG).show()
+                selectedTab = 0
+                isAlAtharMode = false
+                isOfflineMode = false
                 loadReels()
                 wasEverOffline = false
+            } else if (allReels.isEmpty()) {
+                loadReels()
             }
         }
     }
 
     /** تحميل الصفحة التالية من الخلاصة (تمرير لانهائي) */
     fun loadMoreReels() {
-        if (isLoadingMore || !canLoadMore || allReels.isEmpty()) return
+        if (!isOnline || selectedTab == 2 || isLoadingMore || !canLoadMore || allReels.isEmpty()) return
         isLoadingMore = true
         scope.launch {
             val gen = requestGeneration.incrementAndGet()
@@ -651,18 +650,15 @@ fun ReelsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadReels()
-    }
-
     // مزامنة قائمة الموثّقين عالمياً لعرض الشارة بشكل صحيح
-    LaunchedEffect(Unit) {
-        runCatching { VerificationManager.refreshFromCloud(context) }
+    LaunchedEffect(isOnline) {
+        if (isOnline) runCatching { VerificationManager.refreshFromCloud(context) }
     }
 
     // Filter reels based on Tab, Category, Search Query and Hidden status
-    val displayReels = remember(allReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion) {
-        allReels.filterNot { hiddenReelIds.contains(it.id) }
+    val sourceReels = if (selectedTab == 2) atharReels else allReels
+    val displayReels = remember(sourceReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion) {
+        sourceReels.filterNot { hiddenReelIds.contains(it.id) }
             .filter { reel ->
                 when (selectedCategory) {
                     "QURAN" -> reel.tags.contains("قرآن") || reel.title.contains("قرآن") || reel.title.contains("تلاوة")
@@ -694,17 +690,16 @@ fun ReelsScreen(
                                     viewer.email
                                 )
                     }
-                    2 -> {
-                        // Al-Athar tab: show silent seeds or offline-injected reels, or all available offline reels when offline
-                        if (!isOnline || isOfflineMode) true
-                        else reel.isSilentSeed || reel.publishType == "injection" || reel.tags.contains("أثر")
-                    }
+                    2 -> true // وضع الأثر يعرض حصراً المقاطع التي ثبت تنزيلها محلياً.
                     else -> true // For You tab
                 }
             }
     }
 
     val pagerState = rememberPagerState(pageCount = { displayReels.size })
+    LaunchedEffect(selectedTab, displayReels.size) {
+        if (displayReels.isNotEmpty() && pagerState.currentPage != 0) pagerState.scrollToPage(0)
+    }
 
     // حالة التشغيل الفعلية للصفحة الحالية (مستمدة من خريطة الصفحات — لا تسرب حالة)
     val currentReelActuallyPlaying = pagePlayingStates[pagerState.currentPage] == true
@@ -777,7 +772,42 @@ fun ReelsScreen(
                         isRetrying = isRetrying,
                         onRetry = { loadReels(isManualRetry = true) }
                     )
-                } else if (allReels.isEmpty()) {
+                } else if (selectedTab == 2 && displayReels.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF050914)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "لا توجد مقاطع أثر محفوظة على الجهاز",
+                                color = Color.White,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (isOnline) "ستظهر المقاطع هنا بعد تنزيلها مسبقاً." else "لا يمكن جلب المقاطع الآن دون اتصال بالإنترنت.",
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontFamily = CairoFont,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else if (allReels.isEmpty() && selectedTab != 2) {
                     // Empty state: geometric balance (gradient void + weighted centering + capped width)
                     Box(
                         modifier = Modifier
@@ -1043,8 +1073,16 @@ fun ReelsScreen(
                             }
                         }
 
-                        val isNetworkPermitted = remember(autoplayWifiOnly) {
-                            ReelSafetyGuardrails.isNetworkPermittedForAutoplay(context, autoplayWifiOnly)
+                        val isLocalAtharReel = selectedTab == 2
+                        val isNetworkPermitted = remember(autoplayWifiOnly, isOnline, isLocalAtharReel) {
+                            isLocalAtharReel || (isOnline && ReelSafetyGuardrails.isNetworkPermittedForAutoplay(context, autoplayWifiOnly))
+                        }
+                        val playbackUrl = remember(reel.id, reel.videoUrl, isLocalAtharReel) {
+                            if (isLocalAtharReel) {
+                                SilentReelStorageManager.getLocalVideoUri(context, reel.id)?.toString().orEmpty()
+                            } else {
+                                reel.videoUrl
+                            }
                         }
 
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -1053,7 +1091,7 @@ fun ReelsScreen(
                             }
                             
                             ReelPlayer(
-                                videoUrl = reel.videoUrl,
+                                videoUrl = playbackUrl,
                                 // بوابة التشغيل الموحّدة: الصفحة مرئية + الشبكة مسموحة + الشاشة نشطة
                                 isPlaying = isPageVisible && isNetworkPermitted && isScreenActive,
                                 aspectRatio = aspectRatio,
@@ -1384,7 +1422,11 @@ fun ReelsScreen(
                                                 RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
+                                                atharReels = SilentReelStorageManager.getDownloadedReels(context)
                                                 selectedTab = 2
+                                                selectedCategory = "ALL"
+                                                searchQuery = ""
+                                                isSearchActive = false
                                                 isAlAtharMode = true
                                                 ReelPreferencesManager.triggerHaptic(context)
                                             }

@@ -24,6 +24,16 @@ class NetworkConnectivityObserver(private val context: Context) : ConnectivityOb
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+    private fun hasValidatedInternet(network: Network): Boolean {
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun currentNetworkStatus(): ConnectivityObserver.Status =
+        if (NetworkUtils.isNetworkAvailable(context)) ConnectivityObserver.Status.Available
+        else ConnectivityObserver.Status.Unavailable
+
     override fun observe(): Flow<ConnectivityObserver.Status> {
         return callbackFlow {
             // Check initial network state immediately
@@ -33,22 +43,56 @@ class NetworkConnectivityObserver(private val context: Context) : ConnectivityOb
             val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     super.onAvailable(network)
-                    launch { send(ConnectivityObserver.Status.Available) }
+                    launch { send(currentNetworkStatus()) }
+                }
+
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    super.onCapabilitiesChanged(network, capabilities)
+                    // Read the active route rather than letting an unrelated secondary network
+                    // overwrite the app-wide connectivity state.
+                    val networkIsValidated =
+                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    launch {
+                        send(
+                            if (connectivityManager.activeNetwork == network && networkIsValidated) {
+                                ConnectivityObserver.Status.Available
+                            } else {
+                                currentNetworkStatus()
+                            }
+                        )
+                    }
                 }
 
                 override fun onLosing(network: Network, maxMsToLive: Int) {
                     super.onLosing(network, maxMsToLive)
-                    launch { send(ConnectivityObserver.Status.Losing) }
+                    launch {
+                        send(
+                            if (connectivityManager.activeNetwork == network && hasValidatedInternet(network)) {
+                                ConnectivityObserver.Status.Losing
+                            } else {
+                                currentNetworkStatus()
+                            }
+                        )
+                    }
                 }
 
                 override fun onLost(network: Network) {
                     super.onLost(network)
-                    launch { send(ConnectivityObserver.Status.Lost) }
+                    launch {
+                        send(
+                            if (currentNetworkStatus() == ConnectivityObserver.Status.Available) {
+                                ConnectivityObserver.Status.Available
+                            } else {
+                                ConnectivityObserver.Status.Lost
+                            }
+                        )
+                    }
                 }
 
                 override fun onUnavailable() {
                     super.onUnavailable()
-                    launch { send(ConnectivityObserver.Status.Unavailable) }
+                    launch { send(currentNetworkStatus()) }
                 }
             }
 

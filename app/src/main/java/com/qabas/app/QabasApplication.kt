@@ -29,6 +29,12 @@ class QabasApplication : Application() {
 
         // Initialize core application services in background to avoid blocking the splash screen
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { ReelPreferencesManager.init(this@QabasApplication) }
+                .onFailure { recordStartupFailure("ReelPreferencesManager.init", it) }
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "NetworkStatus.init")
+            runCatching { UserPreferencesManager.initNetworkStatus(this@QabasApplication) }
+                .onFailure { recordStartupFailure("UserPreferencesManager.initNetworkStatus", it) }
+
             QabasCrashGuard.markStartupStage(this@QabasApplication, "AgentPrefs.init")
             runCatching { AgentPrefs.init(this@QabasApplication) }
                 .onFailure { recordStartupFailure("AgentPrefs.init", it) }
@@ -44,6 +50,12 @@ class QabasApplication : Application() {
             QabasCrashGuard.markStartupStage(this@QabasApplication, "SupabaseRepository.ensureAuthenticatedSession")
             runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
                 .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "OfflineReels.init")
+            runCatching { UserPreferencesManager.init(this@QabasApplication) }
+                .onFailure { recordStartupFailure("UserPreferencesManager.init", it) }
+            runCatching { SilentReelPrefetcher.startSync(this@QabasApplication) }
+                .onFailure { recordStartupFailure("SilentReelPrefetcher.startSync", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "AccountIdentityManager.refresh")
             runCatching { AccountIdentityManager.refresh(this@QabasApplication) }

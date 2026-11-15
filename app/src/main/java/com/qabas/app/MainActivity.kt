@@ -161,7 +161,6 @@ class MainActivity : ComponentActivity() {
         // Launch heavy or IO-dependent initializations in background
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { AiModelRegistry.init(this@MainActivity) }
-            runCatching { UserPreferencesManager.init(this@MainActivity) }
             runCatching { AppSoundManager.init(this@MainActivity) }
             runCatching { NotificationPreferencesManager.init(this@MainActivity) }
             runCatching { SpatialCameraPreferencesManager.init(this@MainActivity) }

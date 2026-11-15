@@ -165,7 +165,14 @@ CREATE TABLE IF NOT EXISTS public.reels (
     is_active BOOLEAN DEFAULT true,
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    publish_at TIMESTAMPTZ,
+    expiry_at TIMESTAMPTZ,
+    quality TEXT NOT NULL DEFAULT 'high',
+    ai_analysis TEXT,
+    publish_type TEXT NOT NULL DEFAULT 'normal',
+    is_silent_seed BOOLEAN NOT NULL DEFAULT false,
+    is_featured_by_dev BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_reels_active_created ON public.reels (is_active, created_at DESC);

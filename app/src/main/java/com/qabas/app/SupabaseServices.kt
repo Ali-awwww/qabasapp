@@ -12,6 +12,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.FilterOperator
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CancellationException
@@ -1751,6 +1752,9 @@ object SupabaseServices {
                 val response = client.postgrest.from("reels").select {
                     filter {
                         eq("is_active", true)
+                        neq("publish_type", "injection")
+                        neq("is_silent_seed", true)
+                        filterNot("tags", FilterOperator.CS, "{silent_seed}")
                     }
                     order("created_at", Order.DESCENDING)
                     order("id", Order.DESCENDING)
@@ -1858,7 +1862,9 @@ object SupabaseServices {
             client.postgrest.from("reels").select {
                 filter {
                     eq("is_active", true)
-                    // البحث في قائمة الأوسمة عن الوسم المعتمد
+                    eq("publish_type", "injection")
+                    eq("is_silent_seed", true)
+                    // يشترط النوع وعلم الأثر والوسم معاً لتجنب تنزيل مقطع عادي بالخطأ.
                     cs("tags", listOf("silent_seed"))
                 }
                 order("created_at", Order.DESCENDING)
@@ -1879,6 +1885,7 @@ object SupabaseServices {
             quality: String = "high",
             aiAnalysis: String? = null,
             isSilentSeed: Boolean = false,
+            isFeaturedByDev: Boolean = false,
             publishType: String = "normal",
             aspectRatio: String = "9:16"
         ): ReelRow {
@@ -1937,6 +1944,7 @@ object SupabaseServices {
                 aiAnalysis = aiAnalysis,
                 publishType = publishType,
                 isSilentSeed = isSilentSeed,
+                isFeaturedByDev = isFeaturedByDev,
                 metadata = buildJsonObject {
                     put("aspect_ratio", aspectRatio)
                 }

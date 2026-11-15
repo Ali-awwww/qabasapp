@@ -153,6 +153,8 @@ object UserPreferencesManager {
 
     private val _networkStatus = MutableStateFlow(ConnectivityObserver.Status.Available)
     val networkStatus: StateFlow<ConnectivityObserver.Status> = _networkStatus.asStateFlow()
+    private val _networkStatusReady = MutableStateFlow(false)
+    val networkStatusReady: StateFlow<Boolean> = _networkStatusReady.asStateFlow()
 
     private val syncMutex = Mutex()
     private val pendingSyncRevision = AtomicLong(0L)
@@ -160,11 +162,16 @@ object UserPreferencesManager {
     private var hasPendingChanges = false
     private var networkObserverStarted = false
 
-    fun init(context: Context) {
-        _networkStatus.value = if (NetworkUtils.isNetworkAvailable(context)) {
-            ConnectivityObserver.Status.Available
-        } else {
-            ConnectivityObserver.Status.Unavailable
+    /** قراءة حالة الاتصال وتسجيل المراقب قبل أي تهيئة قد تنتظر المصادقة أو السحابة. */
+    fun initNetworkStatus(context: Context) {
+        if (!_networkStatusReady.value) {
+            _networkStatus.value = if (NetworkUtils.isNetworkAvailable(context)) {
+                ConnectivityObserver.Status.Available
+            } else {
+                ConnectivityObserver.Status.Unavailable
+            }
+            // Consumers must not interpret the StateFlow's bootstrap value as a real reading.
+            _networkStatusReady.value = true
         }
         // Register the connectivity observer exactly once per process. Starting a new
         // collector on every Activity recreation leaked network callbacks and caused
@@ -182,6 +189,10 @@ object UserPreferencesManager {
                 }
             }
         }
+    }
+
+    fun init(context: Context) {
+        initNetworkStatus(context)
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _quranFontSize.value = prefs.getFloat("quran_font_size", 20f)
