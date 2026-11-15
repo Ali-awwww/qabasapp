@@ -641,20 +641,22 @@ fun DeveloperContactScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("لن تُرسل الرسالة قبل اختيار تصنيفها. سيُحفظ اختيارك للرسائل القادمة.", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                    contactCategories.forEach { category ->
-                        Surface(
-                            onClick = { chooseCategory(category) },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Color.White.copy(alpha = 0.06f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        items(contactCategories, key = { it.key }) { category ->
+                            Surface(
+                                onClick = { chooseCategory(category) },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Color.White.copy(alpha = 0.06f),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(19.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(category.label, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(19.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(category.label, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                }
                             }
                         }
                     }
@@ -667,4 +669,5 @@ fun DeveloperContactScreen(
             }
         )
     }
+}
 }
