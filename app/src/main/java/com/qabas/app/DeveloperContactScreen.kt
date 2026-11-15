@@ -27,9 +27,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Mosque
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +61,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,15 +74,20 @@ import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
-private data class ContactCategory(val key: String, val label: String)
+private data class ContactCategory(val key: String, val label: String, val icon: ImageVector)
+
+private const val CONTACT_PREFS_NAME = "qabas_dev_chat_store"
+private const val CONTACT_CATEGORY_KEY = "selected_contact_category"
 
 private val contactCategories = listOf(
-    ContactCategory("general", "رسالة عامة"),
-    ContactCategory("feature", "اقتراح فكرة"),
-    ContactCategory("bug", "مشكلة تقنية"),
-    ContactCategory("content_report", "بلاغ محتوى"),
-    ContactCategory("prayer_issue", "الصلاة والأذان"),
-    ContactCategory("account_issue", "مشكلة الحساب")
+    ContactCategory("general", "رسالة عامة", Icons.Default.Chat),
+    ContactCategory("feature", "اقتراح أو فكرة", Icons.Default.Lightbulb),
+    ContactCategory("bug", "مشكلة تقنية", Icons.Default.BugReport),
+    ContactCategory("prayer_issue", "الأذان والصلاة", Icons.Default.Mosque),
+    ContactCategory("account_issue", "الحساب والملف الشخصي", Icons.Default.Person),
+    ContactCategory("content_report", "بلاغ عن محتوى", Icons.Default.ReportProblem),
+    ContactCategory("download_update", "التنزيل والتحديث", Icons.Default.CloudDownload),
+    ContactCategory("general_question", "استفسار عام", Icons.Default.HelpOutline)
 )
 
 @Composable
@@ -130,7 +144,15 @@ fun DeveloperContactScreen(
     val listState = rememberLazyListState()
     var messages by remember { mutableStateOf<List<DevChatRepository.DevChatMessage>>(emptyList()) }
     var input by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(contactCategories.first()) }
+    val savedCategoryKey = remember(context) {
+        context.getSharedPreferences(CONTACT_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(CONTACT_CATEGORY_KEY, null)
+    }
+    var selectedCategory by remember(savedCategoryKey) {
+        mutableStateOf(contactCategories.firstOrNull { it.key == savedCategoryKey })
+    }
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    var pendingMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var developerFilter by remember { mutableStateOf(0) }
@@ -231,6 +253,54 @@ fun DeveloperContactScreen(
     }
     val sortedThreadEmails = visibleThreadEmails.sortedByDescending { email ->
         threads[email].orEmpty().maxOfOrNull { it.createdAt } ?: 0L
+    }
+
+    fun sendMessageNow(text: String, category: ContactCategory) {
+        val conversationEmail = if (isDeveloper) selectedThreadEmail else userEmail
+        val targetUserId = messages.firstOrNull { it.sender.equals("user", ignoreCase = true) }?.userId
+        if (text.isBlank() || isSending || conversationEmail.isBlank()) return
+        isSending = true
+        scope.launch {
+            runCatching {
+                DevChatRepository.sendMessage(
+                    context = context,
+                    userEmail = conversationEmail,
+                    text = text,
+                    sender = if (isDeveloper) "developer" else "user",
+                    targetUserId = if (isDeveloper) targetUserId else null,
+                    category = category.key,
+                    isUrgent = !isDeveloper && category.key == "content_report"
+                )
+            }.onSuccess {
+                input = ""
+                messages = DevChatRepository.getLocalMessages(context, conversationEmail)
+                if (isDeveloper) threads = DevChatRepository.getAllThreads(context)
+                Toast.makeText(
+                    context,
+                    if (isDeveloper) "تم إرسال الرد إلى المستخدم" else "تم إرسال رسالتك إلى المطور",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }.onFailure {
+                Toast.makeText(
+                    context,
+                    if (isDeveloper) "تعذر إرسال الرد إلى السحابة" else "تم حفظ الرسالة محليًا، وسنحاول مزامنتها عند عودة الاتصال",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            isSending = false
+        }
+    }
+
+    fun chooseCategory(category: ContactCategory) {
+        selectedCategory = category
+        context.getSharedPreferences(CONTACT_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(CONTACT_CATEGORY_KEY, category.key)
+            .apply()
+        showCategoryPicker = false
+        val queued = pendingMessage.trim()
+        pendingMessage = ""
+        if (queued.isNotBlank()) sendMessageNow(queued, category)
     }
 
     if (identityLoading) {
@@ -396,21 +466,21 @@ fun DeveloperContactScreen(
             }
 
             if (!isDeveloper) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                    items(contactCategories) { category ->
-                        Surface(
-                            onClick = { selectedCategory = category },
-                            color = if (selectedCategory.key == category.key) GoldPrimary else Color.White.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(18.dp)
+                selectedCategory?.let { category ->
+                    Surface(
+                        onClick = { showCategoryPicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = GoldPrimary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                category.label,
-                                color = if (selectedCategory.key == category.key) DeepSlate else Color.White.copy(alpha = 0.85f),
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                fontWeight = if (selectedCategory.key == category.key) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
+                            Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text("الموضوع المحفوظ: ${category.label}", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("تغيير", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                         }
                     }
                 }
@@ -474,7 +544,7 @@ fun DeveloperContactScreen(
                                         )
                                         if (isUserMessage && message.category.isNotBlank()) {
                                             Text(
-                                                message.category,
+                                                contactCategories.firstOrNull { it.key == message.category }?.label ?: message.category,
                                                 color = TextSecondary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 9.sp
@@ -538,40 +608,12 @@ fun DeveloperContactScreen(
                 Button(
                     onClick = {
                         val text = input.trim()
-                        val conversationEmail = if (isDeveloper) selectedThreadEmail else userEmail
-                        val targetUserId = messages.firstOrNull { it.sender.equals("user", ignoreCase = true) }?.userId
-                        if (text.isBlank() || isSending || conversationEmail.isBlank()) return@Button
-                        isSending = true
-                        scope.launch {
-                            runCatching {
-                                DevChatRepository.sendMessage(
-                                    context = context,
-                                    userEmail = conversationEmail,
-                                    text = text,
-                                    sender = if (isDeveloper) "developer" else "user",
-                                    targetUserId = if (isDeveloper) targetUserId else null,
-                                    category = selectedCategory.key,
-                                    isUrgent = !isDeveloper && selectedCategory.key == "content_report"
-                                )
-                            }.onSuccess {
-                                input = ""
-                                messages = DevChatRepository.getLocalMessages(context, conversationEmail)
-                                if (isDeveloper) {
-                                    threads = DevChatRepository.getAllThreads(context)
-                                }
-                                Toast.makeText(
-                                    context,
-                                    if (isDeveloper) "تم إرسال الرد إلى المستخدم" else "تم إرسال رسالتك إلى المطور",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }.onFailure {
-                                Toast.makeText(
-                                    context,
-                                    if (isDeveloper) "تعذر إرسال الرد إلى السحابة" else "تم حفظ الرسالة محليًا، وسنحاول مزامنتها عند عودة الاتصال",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            isSending = false
+                        if (text.isBlank() || isSending) return@Button
+                        if (!isDeveloper && selectedCategory == null) {
+                            pendingMessage = text
+                            showCategoryPicker = true
+                        } else {
+                            sendMessageNow(text, selectedCategory ?: contactCategories.first())
                         }
                     },
                     enabled = input.isNotBlank() && !isSending && (if (isDeveloper) selectedThreadEmail.isNotBlank() else userEmail.isNotBlank()),
@@ -584,5 +626,45 @@ fun DeveloperContactScreen(
                 }
             }
         }
+    }
+
+    if (showCategoryPicker && !isDeveloper) {
+        AlertDialog(
+            onDismissRequest = {
+                showCategoryPicker = false
+                pendingMessage = ""
+            },
+            containerColor = Color(0xFF132238),
+            title = {
+                Text("اختر موضوع الرسالة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("لن تُرسل الرسالة قبل اختيار تصنيفها. سيُحفظ اختيارك للرسائل القادمة.", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                    contactCategories.forEach { category ->
+                        Surface(
+                            onClick = { chooseCategory(category) },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White.copy(alpha = 0.06f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(19.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(category.label, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCategoryPicker = false; pendingMessage = "" }) {
+                    Text("إلغاء", color = TextSecondary, fontFamily = CairoFont)
+                }
+            }
+        )
     }
 }
