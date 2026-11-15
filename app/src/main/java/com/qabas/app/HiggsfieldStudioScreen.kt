@@ -102,7 +102,36 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     var progressMessage by remember { mutableStateOf("") }
     var resultFile by remember { mutableStateOf<File?>(null) }
     var resultMessage by remember { mutableStateOf("") }
+    var resultMessageIsError by remember { mutableStateOf(false) }
     var generationJob by remember { mutableStateOf<Job?>(null) }
+    var exportSource by remember { mutableStateOf<File?>(null) }
+    var isExporting by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("video/mp4")
+    ) { destination: Uri? ->
+        val source = exportSource
+        if (destination == null || source == null || !source.exists()) return@rememberLauncherForActivityResult
+        scope.launch {
+            isExporting = true
+            resultMessage = "جارٍ حفظ الفيديو في الموقع الذي اخترته..."
+            resultMessageIsError = false
+            val copied = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(destination)?.use { output ->
+                        source.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("تعذر فتح ملف التصدير")
+                }.isSuccess
+            }
+            isExporting = false
+            resultMessageIsError = !copied
+            resultMessage = if (copied) {
+                "تم حفظ الفيديو بنجاح في الموقع المحدد."
+            } else {
+                "تعذر حفظ الفيديو. اختر موقعاً آخر ثم حاول مجدداً."
+            }
+        }
+    }
 
     BackHandler {
         if (isGenerating) {
@@ -143,6 +172,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
             progressMessage = "تهيئة الطلب..."
             resultFile = null
             resultMessage = ""
+            resultMessageIsError = false
             try {
                 val onProgress: (Float, String) -> Unit = { value, message ->
                     scope.launch {
@@ -176,11 +206,14 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                 } else {
                     "تعذر إكمال الطلب. تحقق من حالة الربط والمفتاح ثم حاول لاحقًا."
                 }
+                resultMessageIsError = generated == null
             } catch (_: CancellationException) {
                 resultMessage = "تم إلغاء طلب التوليد."
+                resultMessageIsError = true
                 throw CancellationException("Higgsfield generation cancelled")
             } catch (_: Exception) {
                 resultMessage = "تعذر إكمال الطلب. تحقق من الاتصال ببوابة قبس ومفتاح Higgsfield."
+                resultMessageIsError = true
             } finally {
                 isGenerating = false
                 generationJob = null
@@ -397,10 +430,25 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
             }
 
             if (resultMessage.isNotBlank()) {
-                Text(resultMessage, color = if (resultFile != null) Color(0xFF10B981) else Color(0xFFF87171), fontFamily = CairoFont, fontSize = 11.sp)
+                Text(resultMessage, color = if (resultMessageIsError) Color(0xFFF87171) else Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp)
             }
 
             resultFile?.takeIf { it.exists() }?.let { videoFile ->
+                OutlinedButton(
+                    onClick = {
+                        exportSource = videoFile
+                        exportLauncher.launch("qabas_higgsfield_${System.currentTimeMillis()}.mp4")
+                    },
+                    enabled = !isExporting,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    if (isExporting) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (isExporting) "جارٍ الحفظ..." else "حفظ الفيديو على الجهاز", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                }
                 key(videoFile.absolutePath) {
                     AndroidView(
                         modifier = Modifier.fillMaxWidth().height(240.dp),
