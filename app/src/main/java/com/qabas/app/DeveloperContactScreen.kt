@@ -136,7 +136,13 @@ fun DeveloperContactScreen(
     var developerFilter by remember { mutableStateOf(0) }
     var threadProfiles by remember { mutableStateOf<Map<String, AccountIdentity>>(emptyMap()) }
 
-    BackHandler { onBack() }
+    BackHandler {
+        if (isDeveloper && selectedThreadEmail.isNotBlank()) {
+            selectedThreadEmail = ""
+        } else {
+            onBack()
+        }
+    }
 
     DisposableEffect(Unit) {
         DevChatRealtimeManager.setChatOpen(true)
@@ -151,8 +157,8 @@ fun DeveloperContactScreen(
     LaunchedEffect(accountIdentity.isDeveloper, userEmail) {
         if (isDeveloper) {
             threads = DevChatRepository.getAllThreads(context)
-            selectedThreadEmail = threads.keys.firstOrNull() ?: ""
-            messages = threads[selectedThreadEmail].orEmpty()
+            selectedThreadEmail = ""
+            messages = emptyList()
         } else if (userEmail.isNotBlank()) {
             selectedThreadEmail = userEmail
             messages = DevChatRepository.getLocalMessages(context, userEmail)
@@ -163,7 +169,6 @@ fun DeveloperContactScreen(
     LaunchedEffect(selectedThreadEmail, isDeveloper) {
         if (isDeveloper && selectedThreadEmail.isNotBlank()) {
             messages = threads[selectedThreadEmail].orEmpty()
-            messages = DevChatRepository.getLocalMessages(context, selectedThreadEmail)
         }
     }
 
@@ -223,6 +228,9 @@ fun DeveloperContactScreen(
             3 -> thread.any { it.category == "content_report" }
             else -> true
         }
+    }
+    val sortedThreadEmails = visibleThreadEmails.sortedByDescending { email ->
+        threads[email].orEmpty().maxOfOrNull { it.createdAt } ?: 0L
     }
 
     if (identityLoading) {
@@ -300,28 +308,13 @@ fun DeveloperContactScreen(
                 }
             }
 
-            if (isDeveloper && threads.isNotEmpty()) {
-                Text("المحادثات", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                    items(visibleThreadEmails) { email ->
-                        val selected = email.equals(selectedThreadEmail, ignoreCase = true)
-                        Surface(
-                            onClick = { selectedThreadEmail = email },
-                            color = if (selected) GoldPrimary else Color.White.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Text(
-                                text = threadProfiles[email]?.displayName
-                                    ?: email.substringBefore("@").ifBlank { email },
-                                color = if (selected) DeepSlate else Color.White.copy(alpha = 0.85f),
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
-                }
+            if (isDeveloper) {
+                Text(
+                    if (selectedThreadEmail.isBlank()) "المحادثات — الأحدث أولاً" else "المحادثة الحالية",
+                    color = TextSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.sp
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
                     itemsIndexed(listOf("الكل", "بانتظار الرد", "أعطال", "بلاغات محتوى")) { index, label ->
                         val selected = developerFilter == index
@@ -337,6 +330,66 @@ fun DeveloperContactScreen(
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
+                        }
+                    }
+                }
+                if (selectedThreadEmail.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { selectedThreadEmail = "" }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة للمحادثات", tint = GoldPrimary)
+                            Text("المحادثات", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                        Text(
+                            threadProfiles[selectedThreadEmail]?.displayName
+                                ?: selectedThreadEmail.substringBefore("@").ifBlank { "المستخدم" },
+                            color = Color.White,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                } else if (sortedThreadEmails.isEmpty()) {
+                    Text("لا توجد محادثات مطابقة للفلتر", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(sortedThreadEmails, key = { it }) { email ->
+                            val thread = threads[email].orEmpty()
+                            val lastMessage = thread.maxByOrNull { it.createdAt }
+                            val profile = threadProfiles[email]
+                            val displayName = profile?.displayName
+                                ?: email.substringBefore("@").ifBlank { "المستخدم" }
+                            Surface(
+                                onClick = { selectedThreadEmail = email },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Color(0xFF132238),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(11.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    ContactAvatar(displayName, profile?.avatarUrl, Color(0xFF7DD3FC))
+                                    Spacer(Modifier.width(9.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(displayName, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                            Text(lastMessage?.formattedTime ?: "", color = TextSecondary, fontFamily = CairoFont, fontSize = 9.sp)
+                                        }
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(lastMessage?.message.orEmpty(), color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp, maxLines = 1)
+                                    }
+                                    if (lastMessage?.sender.equals("user", ignoreCase = true)) {
+                                        Spacer(Modifier.width(7.dp))
+                                        Surface(color = Color(0xFFFBBF24), shape = CircleShape) {
+                                            Box(modifier = Modifier.size(8.dp))
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -363,7 +416,8 @@ fun DeveloperContactScreen(
                 }
             }
 
-            if (messages.isEmpty()) {
+            if (!isDeveloper || selectedThreadEmail.isNotBlank()) {
+                if (messages.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("لا توجد رسائل بعد\nابدأ أول محادثة مع المطور", color = TextSecondary, fontFamily = CairoFont, textAlign = TextAlign.Center, lineHeight = 22.sp)
                 }
@@ -459,9 +513,11 @@ fun DeveloperContactScreen(
                         }
                     }
                 }
+                }
             }
 
-            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
+            if (!isDeveloper || selectedThreadEmail.isNotBlank()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },

@@ -49,6 +49,10 @@ object DevChatRepository {
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     private val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
 
+    private fun parseCreatedAt(value: String?): Long = value?.let {
+        runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(0L)
+    } ?: 0L
+
     /** قراءة جميع الرسائل لمستخدم معين (محلياً) */
     fun getLocalMessages(context: Context, userEmail: String): List<DevChatMessage> {
         val cleanEmail = userEmail.trim().lowercase()
@@ -301,6 +305,7 @@ object DevChatRepository {
                                     userEmail = cleanCloudEmail,
                                     sender = cMsg.sender,
                                     message = cMsg.message,
+                                    createdAt = parseCreatedAt(cMsg.createdAt),
                                     formattedTime = cMsg.createdAt?.takeLast(8)?.take(5) ?: "الآن"
                                 )
                             )
