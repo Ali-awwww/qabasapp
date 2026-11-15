@@ -46,6 +46,16 @@ import kotlinx.coroutines.withContext
 
 private const val VIDEO_CACHE_DIRECTORY = "qabas_video_cache"
 
+private object SettingsPalette {
+    val primary = Color(0xFF22D3EE)
+    val secondary = Color(0xFF60A5FA)
+    val spiritual = Color(0xFF34D399)
+    val gold = Color(0xFFEAB308)
+    val production = Color(0xFFA78BFA)
+    val system = Color(0xFF818CF8)
+    val danger = Color(0xFFFB7185)
+}
+
 private fun cacheBytes(context: Context): Long = sequenceOf(context.cacheDir, context.externalCacheDir)
     .filterNotNull()
     .distinctBy { it.absolutePath }
@@ -93,7 +103,8 @@ data class SearchableSetting(
     val tags: List<String> = emptyList(),
     val badge: String? = null,
     val badgeColor: Color? = null,
-    val accentColor: Color = Color(0xFF00E5FF)
+    val accentColor: Color = SettingsPalette.primary,
+    val group: String = "عام"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -217,33 +228,23 @@ fun SettingsScreen(
     val allSearchableItems = remember(isLoggedInAccount, isGuest, isDeveloperAccount, userBugReports) {
         val unreadReportsCount = userBugReports.count { !it.isReadByUser }
         listOf(
-            SearchableSetting("استوديو الواجهة والتفاعل", "الثيمات، لغة التطبيق، الأنميشن، والمؤثرات الصوتية", Icons.Default.AutoAwesomeMotion, SettingsSubScreen.UX_DESIGN_STUDIO, listOf("ديزاين", "ثيم", "لغة", "صوت"), badge = "تجربة المستخدم ✦", accentColor = Color(0xFF00E5FF)),
-            SearchableSetting("استوديو المؤثرات الصوتية والصدى", "التحكم بالأصوات التفاعلية، مستوى الصوت، أنماط النقر والاهتزاز", Icons.Default.GraphicEq, SettingsSubScreen.SOUND_STUDIO, listOf("صوت", "اهتزاز", "نقر"), badge = "صوتيات 🔊", accentColor = Color(0xFF38BDF8)),
-            SearchableSetting("إعدادات مشغل الفيديو الموحد", "سرعة التشغيل، ملاءمة الصورة، وأزرار التحكم للمشغلات", Icons.Default.PlayCircle, SettingsSubScreen.VIDEO_PLAYER_SETTINGS, listOf("فيديو", "مشغل", "سرعة", "ملء الشاشة"), badge = "مشغل موحد 🎬", accentColor = Color(0xFF38BDF8)),
-            SearchableSetting("الاستوديو الروحاني والمصحف الشريف", "تخصيص القراءة، الأذان، مواقيت الصلاة، والأذكار", Icons.Default.MenuBook, SettingsSubScreen.SPIRITUAL_STUDIO, listOf("قرآن", "صلاة", "أذان", "أذكار"), badge = "زاد إيماني 🕋", accentColor = Color(0xFF10B981)),
-            SearchableSetting("مركز الإنتاج والذكاء الاحترافي", "هوية الذكاء، العلامة المائية، وجودة التصدير", Icons.Default.Psychology, SettingsSubScreen.PRO_PRODUCTION_HUB, listOf("ذكاء", "فيديو", "إنتاج", "علامة مائية"), badge = "إبداع احترافي 🎬", accentColor = Color(0xFFA855F7)),
-            SearchableSetting("إعدادات الإشعارات والتنبيهات الإيمانية", "أوقات الأذان، تنبيه السحر، الفجر، الحديث اليومي، وتخصيص أدوات الإشعار", Icons.Default.NotificationsActive, SettingsSubScreen.NOTIFICATION_SETTINGS, listOf("تنبيه", "إشعار"), badge = "تفاعلي 🔔", accentColor = Color(0xFFF59E0B)),
-            SearchableSetting("مركز الأذونات وحماية النظام", "صلاحيات الميكروفون، الكاميرا، دقة الأذان، ودرع حماية الخلفية", Icons.Default.Shield, SettingsSubScreen.PERMISSIONS_HUB, listOf("أمان", "صلاحية"), badge = "درع فضائي 🛡️", accentColor = Color(0xFF00E5FF)),
-            SearchableSetting("إعدادات سهولة الوصول", "التباين العالي، تقليل الحركة، حجم خط واجهة التطبيق", Icons.Default.AccessibilityNew, SettingsSubScreen.ACCESSIBILITY, listOf("سهولة الوصول", "تباين", "خط", "حركة"), badge = "Accessibility ♿", accentColor = Color(0xFF10B981))
+            SearchableSetting("الاستوديو الروحاني والمصحف الشريف", "تخصيص القراءة، الأذان، مواقيت الصلاة، والأذكار", Icons.Default.MenuBook, SettingsSubScreen.SPIRITUAL_STUDIO, listOf("قرآن", "صلاة", "أذان", "أذكار"), badge = "زاد إيماني", accentColor = SettingsPalette.spiritual, group = "العبادة والتنبيهات"),
+            SearchableSetting("إعدادات الإشعارات والتنبيهات الإيمانية", "أوقات الأذان، تنبيه السحر، الفجر، الحديث اليومي، وتخصيص أدوات الإشعار", Icons.Default.NotificationsActive, SettingsSubScreen.NOTIFICATION_SETTINGS, listOf("تنبيه", "إشعار"), badge = "التنبيهات", accentColor = SettingsPalette.gold, group = "العبادة والتنبيهات"),
+            SearchableSetting("مركز الأذونات وحماية النظام", "صلاحيات الميكروفون، الكاميرا، ودقة عمل التنبيهات في الخلفية", Icons.Default.Shield, SettingsSubScreen.PERMISSIONS_HUB, listOf("أمان", "صلاحية"), badge = "الحماية", accentColor = SettingsPalette.secondary, group = "العبادة والتنبيهات"),
+            SearchableSetting("استوديو الواجهة والتفاعل", "الثيمات، لغة التطبيق، الأنميشن، والمؤثرات الصوتية", Icons.Default.AutoAwesomeMotion, SettingsSubScreen.UX_DESIGN_STUDIO, listOf("ديزاين", "ثيم", "لغة", "صوت"), badge = "المظهر", accentColor = SettingsPalette.primary, group = "المظهر والتجربة"),
+            SearchableSetting("استوديو المؤثرات الصوتية والصدى", "التحكم بالأصوات التفاعلية، مستوى الصوت، وأنماط الاهتزاز", Icons.Default.GraphicEq, SettingsSubScreen.SOUND_STUDIO, listOf("صوت", "اهتزاز", "نقر"), badge = "الصوت", accentColor = SettingsPalette.secondary, group = "المظهر والتجربة"),
+            SearchableSetting("إعدادات سهولة الوصول", "التباين العالي، تقليل الحركة، وحجم خط واجهة التطبيق", Icons.Default.AccessibilityNew, SettingsSubScreen.ACCESSIBILITY, listOf("سهولة الوصول", "تباين", "خط", "حركة"), badge = "الوصول", accentColor = SettingsPalette.spiritual, group = "المظهر والتجربة"),
+            SearchableSetting("مركز الإنتاج والذكاء الاحترافي", "هوية الذكاء، العلامة المائية، وجودة التصدير", Icons.Default.Psychology, SettingsSubScreen.PRO_PRODUCTION_HUB, listOf("ذكاء", "فيديو", "إنتاج", "علامة مائية"), badge = "الإنتاج", accentColor = SettingsPalette.production, group = "الإنتاج والإبداع"),
+            SearchableSetting("إعدادات مشغل الفيديو الموحد", "سرعة التشغيل، ملاءمة الصورة، وأزرار التحكم للمشغلات", Icons.Default.PlayCircle, SettingsSubScreen.VIDEO_PLAYER_SETTINGS, listOf("فيديو", "مشغل", "سرعة", "ملء الشاشة"), badge = "المشغل", accentColor = SettingsPalette.secondary, group = "الإنتاج والإبداع"),
+            SearchableSetting("النظام والبيانات والمجتمع", "النسخ الاحتياطي، الذاكرة، السياسات، والروابط الرسمية", Icons.Default.SettingsSuggest, SettingsSubScreen.COMMUNITY_SUPPORT, listOf("كاش", "نظام", "بيانات", "احتياطي"), badge = "إدارة التطبيق", accentColor = SettingsPalette.system, group = "البيانات والحساب"),
+            SearchableSetting("إعدادات كاميرا البلاغات", "التحكم بزر الكاميرا العائم المستخدم لإرسال البلاغات", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "للحسابات المسجلة", accentColor = SettingsPalette.primary, group = "التواصل والمساندة")
         ).let { base ->
             val withDeveloperSettings = if (isDeveloperAccount) {
-                base + SearchableSetting("أدوات المطور وتحديثات xdelta", "فحص إصدارات xdelta والتشخيص المتقدم لمستودع قبس", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta", "مطور"), badge = "للمطور فقط ⚡", accentColor = Color(0xFF00E5FF))
+                base + SearchableSetting("أدوات المطور وتحديثات xdelta", "فحص الإصدارات والتشخيص المتقدم لمستودع قبس", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta", "مطور"), badge = "للمطور فقط", accentColor = SettingsPalette.danger, group = "أدوات المطور")
             } else base
-            val withCommonSettings = withDeveloperSettings + SearchableSetting(
-                "النظام والبيانات والمجتمع",
-                "النسخ الاحتياطي، الكاش، حول التطبيق، والروابط الرسمية",
-                Icons.Default.SettingsSuggest,
-                SettingsSubScreen.COMMUNITY_SUPPORT,
-                listOf("كاش", "نظام", "بيانات", "احتياطي"),
-                badge = "إدارة التطبيق ⚙️",
-                accentColor = GoldPrimary
-            )
-            if (isLoggedInAccount) {
-                withCommonSettings + listOf(
-                    SearchableSetting("مركز التواصل مع المطور", "متابعة بلاغاتك والتواصل مع المطور داخل محادثة موحدة", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة 🔔" else "التواصل 💬", accentColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else Color(0xFF38BDF8), badgeColor = if (unreadReportsCount > 0) Color(0xFFF59E0B) else null),
-                    SearchableSetting("إعدادات كاميرا البلاغات", "التحكم بزر الكاميرا العائم المستخدم لإرسال البلاغات", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "للحسابات المسجلة 📸", accentColor = Color(0xFF00E5FF))
-                )
-            } else withCommonSettings
+            if (isLoggedInAccount) withDeveloperSettings + SearchableSetting(
+                "مركز التواصل مع المطور", "متابعة بلاغاتك والتواصل مع المطور داخل محادثة موحدة", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة" else "التواصل", accentColor = if (unreadReportsCount > 0) SettingsPalette.gold else SettingsPalette.primary, badgeColor = if (unreadReportsCount > 0) SettingsPalette.gold else null, group = "التواصل والمساندة")
+            else withDeveloperSettings
         }
     }
 
@@ -580,8 +581,8 @@ fun SettingsScreen(
                         TopAppBar(
                             title = {
                                 Text(
-                                    Translator.tr("الإعدادات الحسابية والفنية"),
-                                    color = GoldPrimary,
+                                    Translator.tr("الإعدادات"),
+                                    color = SettingsPalette.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
@@ -589,7 +590,7 @@ fun SettingsScreen(
                             },
                             navigationIcon = {
                                 IconButton(onClick = onBack) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = SettingsPalette.primary)
                                 }
                             },
                             actions = {
@@ -721,26 +722,27 @@ fun SettingsScreen(
                                 }
                             }
                         } else {
-                            // ── مراكز التحكم الموحدة (Unified Control Hubs) ──
-                            SettingsGroupHeader(Translator.tr("مراكز الضبط والتحكم الذكي ✦"))
-
-                            allSearchableItems.forEach { item ->
-                                SettingsNavigationCard(
-                                    title = item.title,
-                                    subtitle = item.subtitle,
-                                    icon = item.icon,
-                                    badge = item.badge ?: "",
-                                    badgeColor = item.badgeColor ?: item.accentColor,
-                                    accentColor = item.accentColor,
-                                    onClick = {
-                                        if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("الدعم")) {
-                                            AppSoundManager.playClick()
-                                            AppNavigator.navigateTo(AppState.REQUEST_CHAT)
-                                        } else {
-                                            currentSubScreen = item.subScreen
+                            // ── فهرس الإعدادات المصنف ──
+                            allSearchableItems.groupBy { it.group }.forEach { (groupTitle, groupItems) ->
+                                SettingsGroupHeader(groupTitle)
+                                groupItems.forEach { item ->
+                                    SettingsNavigationCard(
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        icon = item.icon,
+                                        badge = item.badge ?: "",
+                                        badgeColor = item.badgeColor ?: item.accentColor,
+                                        accentColor = item.accentColor,
+                                        onClick = {
+                                            if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
+                                                AppSoundManager.playClick()
+                                                AppNavigator.navigateTo(AppState.REQUEST_CHAT)
+                                            } else {
+                                                currentSubScreen = item.subScreen
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
 
@@ -2290,8 +2292,8 @@ fun SettingsNavigationCard(
     subtitle: String,
     icon: ImageVector,
     badge: String? = null,
-    badgeColor: Color = GoldPrimary,
-    accentColor: Color = GoldPrimary,
+    badgeColor: Color = SettingsPalette.primary,
+    accentColor: Color = SettingsPalette.primary,
     onClick: () -> Unit
 ) {
     val shape = androidx.compose.foundation.shape.CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp)
@@ -2415,13 +2417,13 @@ fun SettingsGroupHeader(title: String) {
                 .clip(RoundedCornerShape(2.dp))
                 .background(
                     UiBrush.verticalGradient(
-                        listOf(GoldPrimary, Color(0xFF38BDF8))
+                        listOf(SettingsPalette.primary, SettingsPalette.secondary)
                     )
                 )
         )
         Text(
             text = Translator.tr(title),
-            color = GoldPrimary,
+            color = SettingsPalette.primary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 13.5.sp
@@ -3230,7 +3232,7 @@ fun QuickActionItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = SettingsPalette.primary, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 label,
