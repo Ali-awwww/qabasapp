@@ -17,12 +17,16 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -105,10 +109,29 @@ fun AppNavigation(
         }
     )
 
-    // تجديد الحجز دوريًا؛ لا نخلط فشل الشبكة بتعارض جهاز آخر، ونغلق الجلسة محليًا بعد 3 نبضات فاشلة.
-    LaunchedEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isAppInForeground by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isAppInForeground = true
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> isAppInForeground = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // تجديد الحجز فقط أثناء استخدام التطبيق؛ لا نستهلك اتصالاً أو بطارية في الخلفية.
+    // يبدأ بفحص فوري عند العودة، ثم يعاود الفحص كل عشر دقائق.
+    LaunchedEffect(isAppInForeground) {
+        if (!isAppInForeground) return@LaunchedEffect
         var consecutiveUnavailableChecks = 0
-        while (true) {
+        while (isAppInForeground) {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             if (prefs.getBoolean("is_logged_in", false)) {
                 val userId = ActiveSessionManager.currentUserId(context)
@@ -148,7 +171,7 @@ fun AppNavigation(
             } else {
                 consecutiveUnavailableChecks = 0
             }
-            delay(45_000)
+            delay(10 * 60_000L)
         }
     }
 
