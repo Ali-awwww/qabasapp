@@ -13,6 +13,7 @@ on:
       - 'gradlew'
       - 'gradlew.bat'
       - '.github/workflows/android-ci.yml'
+      - 'tools/**'
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -39,6 +40,18 @@ jobs:
           fetch-depth: 0
           # Gradle executes code from pull requests; do not persist a repository token in the checkout.
           persist-credentials: false
+
+      - name: Run project health audit
+        run: python3 tools/project_health_audit.py --root .
+
+      - name: Upload project health report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: project-health-report
+          path: build/reports/project-health/PROJECT_HEALTH_REPORT_AR.md
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Set up JDK 17
         uses: actions/setup-java@v6.2.0
@@ -280,6 +293,17 @@ jobs:
             -PappVersionName="$VERSION_NAME" \
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+
+      - name: Run Android UI smoke tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace --max-workers=2
 
       - name: Verify xdelta JNI is packaged
         shell: bash
