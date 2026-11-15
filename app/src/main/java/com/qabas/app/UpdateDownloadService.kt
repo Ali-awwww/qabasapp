@@ -33,6 +33,7 @@ class UpdateDownloadService : Service() {
         private const val WAKE_TAG = "Qabas:UpdateDownload"
 
         fun start(context: Context, info: UpdateManager.UpdateInfo, forceFull: Boolean = false) {
+            DownloadsHubManager.registerAppUpdateDownload(context, info, forceFull)
             val intent = Intent(context, UpdateDownloadService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_INFO, Json.encodeToString(UpdateManager.UpdateInfo.serializer(), info))

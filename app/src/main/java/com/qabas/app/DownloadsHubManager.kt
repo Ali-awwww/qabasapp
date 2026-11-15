@@ -198,7 +198,7 @@ object DownloadsHubManager {
     fun init(context: Context) {
         loadSavedDownloads(context)
         refreshStorageMetrics(context)
-        setupUpdateObserver(context)
+        setupUpdateObserver(context.applicationContext)
         detectExistingUpdateFile(context)
     }
 
@@ -305,6 +305,31 @@ object DownloadsHubManager {
                 }
             }
         }
+    }
+
+    /** تسجيل التحديث الجاري حتى يظهر في مركز التنزيلات بصرف النظر عن مصدر بدئه. */
+    fun registerAppUpdateDownload(
+        context: Context,
+        update: UpdateManager.UpdateInfo,
+        forceFull: Boolean
+    ) {
+        setupUpdateObserver(context.applicationContext)
+        val targetSize = if (!forceFull && update.deltaUsable) update.deltaSize else update.apkSize
+        _appUpdateDownload.value = AppUpdateDownloadItem(
+            versionName = update.versionName,
+            versionCode = update.versionCode,
+            releaseNotes = update.releaseNotes,
+            apkUrl = update.apkUrl,
+            deltaUrl = update.deltaUrl,
+            totalBytes = targetSize,
+            expectedApkSize = update.apkSize,
+            downloadedBytes = 0L,
+            progress = 0f,
+            phase = "DOWNLOADING",
+            isDownloading = true,
+            isCompleted = false,
+            isError = false
+        )
     }
 
     /**
@@ -975,22 +1000,6 @@ object DownloadsHubManager {
      * بدء تنزيل التحديث يدوياً
      */
     fun startUpdateDownload(context: Context, update: UpdateManager.UpdateInfo, forceFull: Boolean = false) {
-        val targetSize = if (!forceFull && update.deltaUsable) update.deltaSize else update.apkSize
-        _appUpdateDownload.value = AppUpdateDownloadItem(
-            versionName = update.versionName,
-            versionCode = update.versionCode,
-            releaseNotes = update.releaseNotes,
-            apkUrl = update.apkUrl,
-            deltaUrl = update.deltaUrl,
-            totalBytes = targetSize,
-            expectedApkSize = update.apkSize,
-            downloadedBytes = 0L,
-            progress = 0f,
-            phase = "DOWNLOADING",
-            isDownloading = true,
-            isCompleted = false,
-            isError = false
-        )
         UpdateDownloadService.start(context, update, forceFull)
     }
 
