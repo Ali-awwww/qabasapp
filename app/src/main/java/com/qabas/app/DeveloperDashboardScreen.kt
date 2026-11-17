@@ -67,6 +67,7 @@ import java.util.zip.ZipOutputStream
 enum class DashboardSection {
     MAIN,
     CLOUD_API_HUB,
+    RELEASES_HUB,
     HEALTH_DIAGNOSTICS_HUB,
     USERS_COMMUNITY_HUB,
     BUSINESS_REVENUE_HUB,
@@ -331,6 +332,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onHealthDiagnosticsHub = { currentSection = DashboardSection.HEALTH_DIAGNOSTICS_HUB },
                         onUsersCommunityHub = { currentSection = DashboardSection.USERS_COMMUNITY_HUB },
                         onBusinessRevenueHub = { currentSection = DashboardSection.BUSINESS_REVENUE_HUB },
+                        onReleaseHub = { currentSection = DashboardSection.RELEASES_HUB },
                         onSystemIdentityHub = { currentSection = DashboardSection.SYSTEM_IDENTITY_HUB },
                         onAiModelSwitcher = { currentSection = DashboardSection.AI_MODEL_SWITCHER },
                         onMishkatReminder = { currentSection = DashboardSection.MISHKAT_REMINDER },
@@ -357,11 +359,10 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     )
                 }
 
-                // 3. مركز الصحة والتشخيص الشامل
-                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.CRASH_TELEMETRY, DashboardSection.PRODUCTION_PIPELINE, DashboardSection.AUDIT_LOG -> {
+                // 3. التشغيل والصحة
+                DashboardSection.HEALTH_DIAGNOSTICS_HUB, DashboardSection.HEALTH_CENTER, DashboardSection.CRASH_LOGS, DashboardSection.CRASH_TELEMETRY, DashboardSection.AUDIT_LOG -> {
                     val initialTab = when (currentSection) {
                         DashboardSection.CRASH_LOGS -> 2
-                        DashboardSection.PRODUCTION_PIPELINE -> 4
                         DashboardSection.AUDIT_LOG -> 5
                         DashboardSection.CRASH_TELEMETRY -> 7
                         else -> 0
@@ -378,7 +379,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 // 4. إدارة المستخدمين والمجتمع
                 DashboardSection.USERS_COMMUNITY_HUB, DashboardSection.USERS, DashboardSection.NOTIFICATIONS -> {
                     val initialTab = when (currentSection) {
-                        DashboardSection.NOTIFICATIONS -> 1
+                        DashboardSection.NOTIFICATIONS -> 2
                         else -> 0
                     }
                     UsersCommunityHubScreen(
@@ -390,7 +391,17 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                     )
                 }
 
-                // 5. مركز الأعمال والإيرادات
+                // 5. الإصدارات والتحديثات
+                DashboardSection.RELEASES_HUB, DashboardSection.PRODUCTION_PIPELINE -> {
+                    val initialTab = if (currentSection == DashboardSection.PRODUCTION_PIPELINE) 1 else 0
+                    ReleaseManagementHubScreen(
+                        initialTab = initialTab,
+                        onBack = { currentSection = DashboardSection.MAIN },
+                        onNavigateSection = { currentSection = it }
+                    )
+                }
+
+                // 5. مركز الأعمال والإيرادات — مسار قديم محفوظ للتوافق
                 DashboardSection.BUSINESS_REVENUE_HUB, DashboardSection.MONEY_CENTER, DashboardSection.REQUESTS, DashboardSection.STATS -> {
                     val initialTab = when (currentSection) {
                         DashboardSection.STATS -> 1
@@ -409,10 +420,9 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 // 6. نظام المطور والهوية الفنية
                 DashboardSection.SYSTEM_IDENTITY_HUB, DashboardSection.SYSTEM_CONTROLS, DashboardSection.DEV_STUDIO_SIGNATURE, DashboardSection.ACCOUNT_SETTINGS, DashboardSection.STYLE_BRAIN, DashboardSection.BACKUP -> {
                     val initialTab = when (currentSection) {
-                        DashboardSection.DEV_STUDIO_SIGNATURE -> 1
-                        DashboardSection.ACCOUNT_SETTINGS -> 3
-                        DashboardSection.STYLE_BRAIN -> 4
-                        DashboardSection.BACKUP -> 5
+                        DashboardSection.ACCOUNT_SETTINGS -> 1
+                        DashboardSection.STYLE_BRAIN -> 2
+                        DashboardSection.BACKUP -> 3
                         else -> 0
                     }
                     SystemIdentityHubScreen(
@@ -642,7 +652,7 @@ fun UsersCommunityHubScreen(
     onNavigateSection: (DashboardSection) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("👥 المستخدمون والرتب", "📢 إرسال الإشعارات الجماعية")
+    val tabs = listOf("👥 المستخدمون والرتب", "💬 الدعم والرسائل", "📢 الإشعارات الجماعية")
 
     DevHubScaffold(
         title = "إدارة المستخدمين والمجتمع",
@@ -658,11 +668,11 @@ fun UsersCommunityHubScreen(
     ) {
         when (selectedTab) {
             0 -> EnhancedUsersSection(context = context, devUsers = devUsers)
-            1 -> NotificationsSection(context = context)
+            1 -> DeveloperContactScreen(onBack = { selectedTab = 0 })
+            2 -> NotificationsSection(context = context)
         }
     }
 }
-
 @Composable
 fun BusinessRevenueHubScreen(
     initialTab: Int = 0,
@@ -703,11 +713,9 @@ fun SystemIdentityHubScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     val tabs = listOf(
-        "⚙️ التحكم بالنظام",
-        "✍️ توقيع واستوديو المطور",
-        "💬 مجتمع ودعم السحابة",
-        "👤 إعدادات الحساب",
-        "🧠 عقل الأساليب",
+        "⚙️ إعدادات النظام",
+        "👤 الحساب والصلاحيات",
+        "🧠 التخصيص المتقدم",
         "💾 النسخ الاحتياطي"
     )
 
@@ -725,19 +733,44 @@ fun SystemIdentityHubScreen(
     ) {
         when (selectedTab) {
             0 -> SystemControlsSection(context = context)
-            1 -> DevStudioSignatureSection(context = context)
-            2 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-                SupportConfigDevSection(context = context)
-            }
-            3 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            1 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 AccountSettingsSection(context = context)
             }
-            4 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            2 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 StyleBrainSection(context = context)
             }
-            5 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            3 -> Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 DashboardBackupSection()
             }
+        }
+    }
+}
+
+@Composable
+fun ReleaseManagementHubScreen(
+    initialTab: Int = 0,
+    onBack: () -> Unit,
+    onNavigateSection: (DashboardSection) -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
+    val tabs = listOf("🚀 الإصدارات المعتمدة", "⚙️ خط الإنتاج", "🧱 معلومات البناء", "🛰️ Delta")
+    DevHubScaffold(
+        title = "الإصدارات والتحديثات",
+        subtitle = "من البناء إلى الاعتماد والنشر، في مسار واحد واضح",
+        icon = Icons.Default.SystemUpdate,
+        accentColor = Color(0xFF8B5CF6),
+        tabs = tabs,
+        selectedTab = selectedTab,
+        onTabSelected = { selectedTab = it },
+        onBack = onBack,
+        currentHub = DashboardSection.RELEASES_HUB,
+        onNavigateSection = onNavigateSection
+    ) {
+        when (selectedTab) {
+            0 -> UpdateManagementSection()
+            1 -> ProductionPipelineSection()
+            2 -> BuildDiagnosticSection()
+            3 -> DeltaMonitoringDashboard(onClose = { selectedTab = 0 })
         }
     }
 }
@@ -749,556 +782,130 @@ fun DashboardMainGrid(
     onHealthDiagnosticsHub: () -> Unit = {},
     onUsersCommunityHub: () -> Unit = {},
     onBusinessRevenueHub: () -> Unit = {},
+    onReleaseHub: () -> Unit = {},
     onSystemIdentityHub: () -> Unit = {},
     onMishkatReminder: () -> Unit = onSystemIdentityHub,
     onAudioLibraryManagement: () -> Unit = onSystemIdentityHub,
     onAiModelSwitcher: () -> Unit = onCloudApiHub,
     userCount: Int = 0
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    val gridContext = LocalContext.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var isGridOnline by remember { mutableStateOf(NetworkUtils.isNetworkAvailable(gridContext)) }
     var isSupabaseOnline by remember { mutableStateOf(SupabaseServices.isSupabaseAvailable) }
-    var diagnosticSummary by remember { mutableStateOf("جاري الفحص...") }
-    var selectedFilterIndex by remember { mutableIntStateOf(0) }
     var cloudLatency by remember { mutableLongStateOf(-1L) }
     var isCheckingCloud by remember { mutableStateOf(false) }
+    var diagnosticSummary by remember { mutableStateOf("جاري الفحص…") }
 
-    fun refreshCloudPing() {
-        if (!isSupabaseOnline) return
-        isCheckingCloud = true
+    fun refreshOverview() {
         coroutineScope.launch {
-            val t0 = System.currentTimeMillis()
-            val ok = SupabaseServices.Database.ping()
-            val t1 = System.currentTimeMillis()
-            cloudLatency = if (ok) (t1 - t0) else -1L
+            isCheckingCloud = true
+            val started = System.currentTimeMillis()
+            val cloudOk = runCatching { SupabaseServices.Database.ping() }.getOrDefault(false)
+            cloudLatency = if (cloudOk) System.currentTimeMillis() - started else -1L
+            isSupabaseOnline = cloudOk
+            val reports = runCatching { AppSelfDoctor.runFullDiagnosis(context) }.getOrDefault(emptyList())
+            val critical = reports.count { it.severity == "حرج" }
+            val improvements = reports.count { it.severity == "تحسين" }
+            diagnosticSummary = when {
+                critical > 0 -> "$critical حرجة"
+                improvements > 0 -> "مستقر ($improvements تحسينات)"
+                else -> "مستقر"
+            }
             isCheckingCloud = false
         }
     }
 
     LaunchedEffect(Unit) {
-        val reports = AppSelfDoctor.runFullDiagnosis(gridContext)
-        val criticalCount = reports.count { it.severity == "حرج" }
-        val improvementCount = reports.count { it.severity == "تحسين" }
-        diagnosticSummary = if (criticalCount > 0) {
-            "$criticalCount حرجة"
-        } else if (improvementCount > 0) {
-            "مستقر ($improvementCount)"
-        } else {
-            "100% مستقر"
-        }
-        refreshCloudPing()
-
+        refreshOverview()
         while (true) {
-            isGridOnline = NetworkUtils.isNetworkAvailable(gridContext)
-            isSupabaseOnline = SupabaseServices.isSupabaseAvailable
-            kotlinx.coroutines.delay(4000)
+            delay(60_000)
+            refreshOverview()
         }
     }
 
-    val Cyan = Color(0xFF22D3EE)
-    val Violet = Color(0xFF8B5CF6)
-    val Green = Color(0xFF10B981)
-    val Amber = Color(0xFFF59E0B)
-    val Rose = Color(0xFFEC4899)
-    val Gold = GoldPrimary
-
-    data class CommandHubCardData(
-        val id: Int,
+    val cyan = Color(0xFF22D3EE)
+    val green = Color(0xFF10B981)
+    val amber = Color(0xFFF59E0B)
+    val violet = Color(0xFF8B5CF6)
+    data class MainHub(
         val title: String,
         val subtitle: String,
         val badge: String,
-        val techTag: String,
         val icon: ImageVector,
         val accent: Color,
         val onClick: () -> Unit
     )
-
-    val allHubs = listOf(
-        CommandHubCardData(
-            id = 2,
-            title = "مركز المفاتيح والربط السحابي",
-            subtitle = "مفاتيح API • المراقبة الحية (14) • موصلات Supabase و GitHub",
-            badge = "سحابة وشبكة 🌐",
-            techTag = "// SUPABASE REALTIME + 14 KEYS",
-            icon = Icons.Default.VpnKey,
-            accent = Gold,
-            onClick = onCloudApiHub
-        ),
-        CommandHubCardData(
-            id = 3,
-            title = "مركز الصحة والتشخيص الشامل",
-            subtitle = "صحة الأنظمة والذاكرة • ملتقط الانهيارات • بلاغات الأعطال والملاحظات",
-            badge = "فحص وتشخيص 🛡️",
-            techTag = "// SELF-DOCTOR + CRASH RECORDER",
-            icon = Icons.Default.MedicalServices,
-            accent = Cyan,
-            onClick = onHealthDiagnosticsHub
-        ),
-        CommandHubCardData(
-            id = 4,
-            title = "إدارة المستخدمين والمجتمع",
-            subtitle = "المستخدمون والرتب • تجميد الحسابات • إرسال الإشعارات الجماعية",
-            badge = "$userCount مستخدم 👥",
-            techTag = "// SUPABASE AUTH + BROADCASTS",
-            icon = Icons.Default.Group,
-            accent = Green,
-            onClick = onUsersCommunityHub
-        ),
-        CommandHubCardData(
-            id = 5,
-            title = "مركز الأعمال والإيرادات",
-            subtitle = "الاشتراكات والإيرادات • طلبات التطبيقات • قمع التحويل والإحصائيات",
-            badge = "مال ومشاريع 📈",
-            techTag = "// REVENUE METRICS + DEV REQUESTS",
-            icon = Icons.Default.MonetizationOn,
-            accent = Amber,
-            onClick = onBusinessRevenueHub
-        ),
-        CommandHubCardData(
-            id = 6,
-            title = "نظام المطور والهوية الفنية",
-            subtitle = "وضع الصيانة • توقيع المطور الفني • عقل الأساليب • النسخ الاحتياطي",
-            badge = "تحكم وهوية 🔒",
-            techTag = "// MAINTENANCE + STYLE BRAIN",
-            icon = Icons.Default.AdminPanelSettings,
-            accent = Rose,
-            onClick = onSystemIdentityHub
-        ),
-        CommandHubCardData(
-            id = 7,
-            title = "إدارة تذكّر في المشكاة",
-            subtitle = "تعديل العبارة ونسبتها • رفع الفيديو • التحكم بالنشر السحابي",
-            badge = "محتوى إيماني سحابي",
-            techTag = "// MISHKAT REMINDER CMS",
-            icon = Icons.Default.Lightbulb,
-            accent = Color(0xFFD6BC83),
-            onClick = onMishkatReminder
-        ),
-        CommandHubCardData(
-            id = 8,
-            title = "إدارة مكتبة الصوتيات",
-            subtitle = "رفع التسجيلات • تنظيم التصنيفات • حذف المحتوى غير المناسب",
-            badge = "إدارة المحتوى الصوتي",
-            techTag = "// AUDIO LIBRARY CMS",
-            icon = Icons.Default.LibraryMusic,
-            accent = Color(0xFF38BDF8),
-            onClick = onAudioLibraryManagement
-        )
+    val hubs = listOf(
+        MainHub("التشغيل والصحة", "حالة الخدمات، الأعطال، السجلات، والتدقيق في مكان واحد", "صحة النظام", Icons.Default.MedicalServices, cyan, onHealthDiagnosticsHub),
+        MainHub("المستخدمون والدعم", "الحسابات، الرتب، الرسائل، البلاغات، والإشعارات", "$userCount مستخدم", Icons.Default.Group, green, onUsersCommunityHub),
+        MainHub("الإصدارات والتحديثات", "البناء، خط الإنتاج، اعتماد التحديثات، وDelta", "Release Center", Icons.Default.SystemUpdate, violet, onReleaseHub),
+        MainHub("التكاملات والخدمات", "المفاتيح، مزودو الخدمة، حالة الاتصال، وإعدادات النماذج", "Integrations", Icons.Default.CloudQueue, GoldPrimary, onCloudApiHub),
+        MainHub("الإعدادات والنسخ الاحتياطي", "إعدادات النظام، الحساب، التخصيص، والنسخ الاحتياطي", "Settings", Icons.Default.Settings, amber, onSystemIdentityHub)
     )
 
-    val filteredHubs = remember(selectedFilterIndex, userCount) {
-        if (selectedFilterIndex == 0) allHubs else allHubs.filter { it.id == selectedFilterIndex + 1 }
-    }
-
-    val filterCategories = listOf(
-        "الكل // ALL",
-        "⚡ المفاتيح والسحابة",
-        "🩺 الصحة والتشخيص",
-        "👥 المستخدمون",
-        "💰 الأعمال والطلبات",
-        "⚙️ نظام المطور",
-        "💡 تذكّر في المشكاة",
-        "🎧 إدارة مكتبة الصوتيات"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF050811))
-    ) {
-        // ── 1. Cybernetic Spatial HUD Header (Edge-to-Edge with statusBarsPadding) ──
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050811))) {
         Surface(
-            color = Color(0xFF090E1A).copy(alpha = 0.95f),
-            border = BorderStroke(0.8.dp, Color(0xFF1E293B).copy(alpha = 0.7f)),
+            color = Color(0xFF090E1A).copy(alpha = 0.98f),
+            border = BorderStroke(0.8.dp, Color(0xFF1E293B)),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Back Button Pill
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0F172A).copy(alpha = 0.9f))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape)
-                            .clickable { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "رجوع",
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    // Center Cyber Title & Monospace HUD Tag
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "لوحة تحكم المطور",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF10B981).copy(alpha = pulseAlpha))
-                            )
-                        }
-                        Text(
-                            text = "// SPATIAL HUD TECH • v${BuildConfig.VERSION_NAME}",
-                            color = Color(0xFF22D3EE),
-                            fontFamily = RobotoMonoFont,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    // Live Telemetry Mini Capsule
-                    Surface(
-                        color = Color(0xFF064E3B).copy(alpha = 0.35f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Sensors,
-                                contentDescription = null,
-                                tint = Color(0xFF10B981),
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (cloudLatency > 0) "${cloudLatency}ms" else "ONLINE",
-                                color = Color(0xFF10B981),
-                                fontSize = 10.sp,
-                                fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Horizontal Category Segmented Strip
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(GoldPrimary.copy(alpha = 0.14f))
+                        .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape)
+                        .clickable { onBack() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    filterCategories.forEachIndexed { index, title ->
-                        val isSelected = selectedFilterIndex == index
-                        val accentColor = when (index) {
-                            1 -> Gold
-                            2 -> Cyan
-                            3 -> Green
-                            4 -> Amber
-                            5 -> Rose
-                            6 -> Color(0xFFD6BC83)
-                            else -> GoldPrimary
-                        }
-                        Surface(
-                            color = if (isSelected) accentColor.copy(alpha = 0.18f) else Color(0xFF0F172A).copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isSelected) accentColor else Color(0xFF1E293B).copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedFilterIndex = index }
-                        ) {
-                            Text(
-                                text = title,
-                                color = if (isSelected) accentColor else Color(0xFF94A3B8),
-                                fontSize = 11.sp,
-                                fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("نظرة عامة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                    Text("لوحة المطور • مركز التشغيل", color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 11.sp)
+                }
+                TextButton(onClick = { refreshOverview() }, enabled = !isCheckingCloud) {
+                    Text(if (isCheckingCloud) "فحص…" else "تحديث", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         }
 
-        // ── 2. Scrollable Body Content (High Information Density HUD) ──
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(1),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 28.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)
         ) {
-            // ── Spatial HUD Telemetry Glass Box ──
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF090E1A).copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(
-                                GoldPrimary.copy(alpha = 0.45f),
-                                Cyan.copy(alpha = 0.35f),
-                                Violet.copy(alpha = 0.4f)
-                            )
-                        )
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(0xFF0B1120),
-                                        Color(0xFF060913)
-                                    )
-                                )
-                            )
-                            .padding(12.dp)
-                    ) {
-                        // 4-Quadrant Matrix
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // 1. Supabase Cloud Matrix
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "Supabase Cloud",
-                                value = if (isCheckingCloud) "فحص..." else if (isSupabaseOnline) "مستقر ✓" else "غير متاح ✗",
-                                subValue = if (cloudLatency > 0) "${cloudLatency}ms latency" else "Sync Active",
-                                accent = if (isSupabaseOnline) Color(0xFF10B981) else Color(0xFFEF4444),
-                                icon = Icons.Default.CloudQueue,
-                                onClick = { refreshCloudPing() }
-                            )
-
-                            // 2. Self-Doctor Health Matrix
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "صحة النظام",
-                                value = diagnosticSummary,
-                                subValue = "AppSelfDoctor",
-                                accent = Cyan,
-                                icon = Icons.Default.Shield,
-                                onClick = {
-                                    coroutineScope.launch {
-                                        diagnosticSummary = "فحص..."
-                                        val reports = AppSelfDoctor.runFullDiagnosis(gridContext)
-                                        val crit = reports.count { it.severity == "حرج" }
-                                        val imp = reports.count { it.severity == "تحسين" }
-                                        diagnosticSummary = if (crit > 0) "$crit حرجة" else if (imp > 0) "مستقر ($imp)" else "100% مستقر"
-                                    }
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // 3. User Community Metric
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "صناع المحتوى",
-                                value = "$userCount مستخدم",
-                                subValue = "قاعدة Supabase",
-                                accent = Green,
-                                icon = Icons.Default.People,
-                                onClick = onUsersCommunityHub
-                            )
-
-                            // 4. Memory & Free RAM
-                            val freeRamMb = remember { (Runtime.getRuntime().freeMemory() / (1024 * 1024)).toInt() }
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "الذاكرة المتاحة",
-                                value = "${freeRamMb} MB",
-                                subValue = "JVM Heap RAM",
-                                accent = Violet,
-                                icon = Icons.Default.Memory,
-                                onClick = onHealthDiagnosticsHub
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // 5. خدمات Firestore الانتقالية — تبقى فقط للميزات التي لم تُرحّل بعد
-                            val isFirebaseActive = remember { FirebaseManager.isConfigured(gridContext) }
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "خدمات Firestore الانتقالية",
-                                value = if (isFirebaseActive) "مهيأة" else "غير مهيأة",
-                                subValue = if (isFirebaseActive) "لخدمات لم تُرحّل بعد" else "لا اتصال",
-                                accent = if (isFirebaseActive) Color(0xFFFFA000) else Color(0xFF94A3B8),
-                                icon = Icons.Default.CloudDone,
-                                onClick = {
-                                    Toast.makeText(gridContext, if (isFirebaseActive) "Firestore مهيأ لخدمات انتقالية محددة فقط" else "خدمات Firestore غير مهيأة", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-
-                            // 6. Dual Cloud Sync Status
-                            CyberTelemetryPill(
-                                modifier = Modifier.weight(1f),
-                                title = "مصادر السحابة",
-                                value = if (isFirebaseActive && isSupabaseOnline) "مصدران مهيآن" else if (isSupabaseOnline) "Supabase الأساسي" else "غير متاح",
-                                subValue = "Supabase الأساسي + خدمات انتقالية",
-                                accent = GoldPrimary,
-                                icon = Icons.Default.Sync,
-                                onClick = {
-                                    Toast.makeText(gridContext, "Supabase هو المصدر الأساسي؛ Firestore مخصص لخدمات انتقالية محددة فقط", Toast.LENGTH_LONG).show()
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Quick HUD Action Strip
-                        Surface(
-                            color = Color(0xFF070B14).copy(alpha = 0.9f),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(0.8.dp, Color(0xFF1E293B).copy(alpha = 0.8f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 1. Ping Keys
-                                CyberMicroAction(
-                                    modifier = Modifier.weight(1f),
-                                    title = "14 مفتاح",
-                                    icon = Icons.Default.Sensors,
-                                    accent = GoldPrimary,
-                                    onClick = onCloudApiHub
-                                )
-
-                                Box(modifier = Modifier.width(1.dp).height(18.dp).background(Color.White.copy(alpha = 0.08f)))
-
-                                // 2. Model Latency
-                                CyberMicroAction(
-                                    modifier = Modifier.weight(1f),
-                                    title = "سباق النماذج",
-                                    icon = Icons.Default.Bolt,
-                                    accent = Color(0xFF10B981),
-                                    onClick = onAiModelSwitcher
-                                )
-
-                                Box(modifier = Modifier.width(1.dp).height(18.dp).background(Color.White.copy(alpha = 0.08f)))
-
-                                // 3. Auto-Heal & Purge Cache
-                                CyberMicroAction(
-                                    modifier = Modifier.weight(1f),
-                                    title = "تفريغ الكاش",
-                                    icon = Icons.Default.AutoFixHigh,
-                                    accent = Cyan,
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            val freedMb = runCatching {
-                                                var totalBytes = 0L
-                                                gridContext.cacheDir?.listFiles()?.forEach { file ->
-                                                    totalBytes += file.length()
-                                                    file.deleteRecursively()
-                                                }
-                                                totalBytes / (1024 * 1024)
-                                            }.getOrDefault(0L)
-                                            Toast.makeText(gridContext, "تم تفريغ $freedMb MB وتحسين الأداء ⚡", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                )
-
-                                Box(modifier = Modifier.width(1.dp).height(18.dp).background(Color.White.copy(alpha = 0.08f)))
-
-                                // 4. Copy Diagnostics Bundle
-                                CyberMicroAction(
-                                    modifier = Modifier.weight(1f),
-                                    title = "نسخ التقرير",
-                                    icon = Icons.Default.ContentCopy,
-                                    accent = Violet,
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            val reports = AppSelfDoctor.runFullDiagnosis(gridContext)
-                                            val bundle = buildString {
-                                                append("🛸 تقرير تشخيص قبس الفضائي الشامل (HUD Telemetry)\n")
-                                                append("• وقت التقرير: ${java.util.Date()}\n")
-                                                append("• الذاكرة الحرة: ${Runtime.getRuntime().freeMemory() / (1024 * 1024)} MB\n")
-                                                append("• حالة الشبكة: $isGridOnline\n")
-                                                append("• سحابة Supabase: $isSupabaseOnline\n")
-                                                append("• التقارير النشطة:\n")
-                                                reports.forEach { r -> append("  - [${r.severity}] ${r.title}: ${r.message}\n") }
-                                            }
-                                            val cm = gridContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            cm.setPrimaryClip(ClipData.newPlainText("Qabas Diagnostic Bundle", bundle))
-                                            Toast.makeText(gridContext, "تم نسخ حزمة التشخيص إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
+                Text("الحالة الآن", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    CyberTelemetryPill(Modifier.weight(1f), "الخدمات السحابية", if (isCheckingCloud) "فحص…" else if (isSupabaseOnline) "تعمل" else "متوقفة", if (cloudLatency > 0) "${cloudLatency}ms" else "Supabase", if (isSupabaseOnline) green else Color(0xFFEF4444), Icons.Default.CloudQueue) { refreshOverview() }
+                    CyberTelemetryPill(Modifier.weight(1f), "الصحة العامة", diagnosticSummary, "فحص تلقائي", cyan, Icons.Default.Shield) { refreshOverview() }
+                    CyberTelemetryPill(Modifier.weight(1f), "المستخدمون", "$userCount", "حسابًا", green, Icons.Default.People, onUsersCommunityHub)
                 }
             }
-
-            // Group Title
             item {
-                DashGroupHeader(
-                    title = "مراكز القيادة والإدارة الرئيسية 🏛️",
-                    count = filteredHubs.size
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(3.dp).height(18.dp).background(GoldPrimary))
+                    Spacer(Modifier.width(8.dp))
+                    Text("مسارات العمل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
             }
-
-            // ── Command Hub Cards ──
-            items(filteredHubs) { hub ->
+            items(hubs) { hub ->
                 CyberCommandHubCard(
                     title = hub.title,
                     subtitle = hub.subtitle,
                     badge = hub.badge,
-                    techTag = hub.techTag,
+                    techTag = "// ${hub.title.uppercase(java.util.Locale.ROOT)}",
                     icon = hub.icon,
                     accent = hub.accent,
                     onClick = hub.onClick
